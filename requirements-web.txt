@@ -1,0 +1,20 @@
+# 🌐 웹 배포용(Render 등 서버 호스팅) requirements 파일입니다.
+# 기존 requirements.txt(내 PC에서 창 앱으로 쓸 때용)와 다른 점은 딱 두 가지입니다:
+#   1) gunicorn 추가 — 운영 환경에서 Flask 개발 서버 대신 쓰는 표준 WSGI 서버
+#   2) pywebview 제외 — "창 앱"은 내 PC 화면(디스플레이)이 있을 때만 의미가 있는
+#      기능이라 서버(화면 없는 headless 컨테이너)에는 애초에 불필요하고, GTK 등
+#      화면 관련 시스템 라이브러리를 요구해 서버 빌드가 실패할 수 있습니다.
+#      (코드가 웹 배포 모드를 자동 감지해 pywebview 관련 코드를 아예 건너뛰므로
+#      빠져 있어도 동작에는 전혀 문제 없습니다.)
+#
+# Render.com의 "Build Command"에는 다음처럼 이 파일을 지정하세요:
+#   pip install -r requirements-web.txt
+
+flask
+finance-datareader
+pandas
+numpy
+requests
+beautifulsoup4
+lxml
+gunicorn
