@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-📈 종목분석 미니 (공개판) — v114
+📈 종목분석 미니 (공개판) — v118
 ────────────────────────────────────────────────────────────────
 FinanceDataReader + 네이버 모바일 증권 API/FnGuide 공개 페이지만 사용합니다.
 KRX 로그인, DART API 키, 유료 AI API 키가 전혀 필요 없습니다.
@@ -96,15 +96,71 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
      이전과 동일 — 모듈이 어차피 import되는 순간 한 번 실행되고, main()은 그 뒤에 호출된다.
   ③ requirements.txt / Procfile 신설, 배포 가이드 문서 별도 제공(Render.com 기준).
 
+💡 v115: 슬로건("모르면 물어보고, 알면 투자하세요") 추가 — 화면 상단 로고 옆과 첫
+화면 안내문에 표시된다. 코드 여러 곳에 문구를 흩어놓지 않고 APP_SLOGAN 상수 하나로만
+관리하도록 만들어, 나중에 더 나은 문구가 떠오르면 그 한 줄만 바꾸면 화면 전체(상단
+태그·첫 화면 안내문)에 바로 반영되게 했다.
+
+🚀 v116: [로드맵 0단계] "AI로 분석" 버튼을 눌러도 새 탭이 한참 뒤에 열리는 문제 해결.
+원인은 그 버튼(copyAndOpenAI)이 `/api/ai-prompt/<ticker>` 응답을 다 받은 뒤에야 새 탭을
+열었는데, 그 엔드포인트가 `/api/analyze`에서 이미 받아온 가격·기업개요·재무 데이터를
+처음부터 네이버에서 다시 긁어오고 있었던 것 — 종목 하나를 볼 때 네이버 스크래핑이
+사실상 두 번 일어나는 구조였다.
+  ① (체감 지연 제거) 새 탭을 fetch 응답을 기다리지 않고 클릭 즉시 연다. 프롬프트 복사는
+     응답이 오는 대로 백그라운드에서 처리하고 토스트로 완료를 안내한다.
+  ② (중복 호출 제거) 클라이언트가 이미 가진 분석 결과(CUR)를 `/api/ai-prompt`에 함께
+     실어 보내면(POST), 서버는 네이버 재조회 없이 그 데이터로만 프롬프트를 만든다.
+     기존 방식(GET, 서버가 직접 재조회)은 그 데이터가 없을 때를 위한 폴백으로 남겨뒀다.
+
+🚀 v117: [로드맵 1단계] 영구 저장소 도입 + 익명 검색 기록 — "커뮤니티로 성장하려면
+먼저 누가 무엇을 봤는지 쌓여야 한다"는 로드맵 1단계 대응.
+  ① 검색 기록 저장소 신설(search_history) — 로그인 없이, 첫 방문 시 서버가 쿠키로
+     익명 uid(무작위 문자열, 개인식별정보 아님)를 심어 요청마다 함께 받는다. 종목을
+     분석할 때마다 (uid, 종목코드, 종목명, 시장) 한 줄을 저장한다.
+  ② DATABASE_URL 환경변수(Neon.tech·Supabase 등 외부 Postgres 무료 티어 권장)가
+     설정되어 있으면 그쪽에 영구 저장 — Render 무료 웹서비스는 재배포·재시작마다 로컬
+     디스크가 초기화되므로, 검색 기록처럼 사라지면 안 되는 데이터는 반드시 외부 DB에
+     둬야 한다. DATABASE_URL이 없으면(로컬 PC 실행 등) 기존 SQLite 캐시 파일에 저장해
+     최소한 지금 세션에서는 정상 동작한다(이 경우 Render에 그대로 올리면 재배포 시
+     기록이 사라지니, 웹 배포에서는 DATABASE_URL 설정을 권장 — 웹배포_가이드.md 참고).
+  ③ 화면에 "🕘 최근 본 종목" 칩 목록 추가(첫 화면) — 같은 브라우저면 새로고침해도,
+     나중에 다시 방문해도 남아있다. 클릭하면 바로 그 종목을 다시 분석한다.
+  ④ 이 저장소가 기존 종목명 캐시(mini_tickers.db)와 별개 테이블이라, 캐시가 비워져도
+     검색 기록에는 영향이 없다(반대도 마찬가지).
+
+🚀 v118: [로드맵 '초기 보급'] 첫 방문자 확보용 기능 5가지.
+  ① 💬 카카오톡 오픈채팅 버튼 — KAKAO_OPENCHAT_URL 한 줄만 채우면 topbar에 노출된다.
+     비워두면 버튼 자체가 숨겨지므로, 방을 만들기 전에 배포해도 안전하다.
+  ② 🔗 공유(링크) + 🖼️ 이미지 저장 — 공유 링크는 "?t=종목코드" 형식이라 받은 사람이
+     열면 같은 종목 결과가 바로 뜬다. 모바일·카카오톡 인앱에선 기기 공유 시트를, PC에선
+     클립보드 복사를 쓴다. 이미지 저장은 html2canvas를 버튼을 누를 때만 불러와(평소
+     로딩 속도 영향 없음) 결과 카드를 PNG로 내려받는다.
+  ③ 🎬 데모 버튼 — 첫 화면에서 검색 없이 DEMO_TICKER(기본 삼성전자) 결과를 바로 체험.
+  ④ 👥 누적 분석 건수 배지 — search_history를 그대로 집계(별도 테이블 없음). 0건이면 숨김.
+  ⑤ 📝 블로그 내보내기 — AI 프롬프트와 달리 사람이 그대로 붙여넣는 완성된 글을 AI 호출 없이
+     즉시 만든다. 사이트 링크(?t=)·오픈채팅 링크가 글 끝에 자동으로 붙는다.
+  ※ /api/ai-prompt와 새 /api/blog-export는 공용 헬퍼(_resolve_analysis_source)를 함께
+     써서, v116에서 고친 "매번 네이버 재조회" 문제가 새 기능에서 되풀이되지 않게 했다.
+  ※ 최종 점검에서 함께 고친 것:
+     - PUBLIC_SITE_URL(기본 https://chostock.kr) 추가 — 데스크톱에서 공유·블로그 링크가
+       남의 PC에선 열리지 않는 127.0.0.1 주소로 만들어지던 문제 해결. 공유 이미지 하단에도 표기.
+     - DB가 잠깐 안 붙어도 서버 부팅이 멈추지 않게 함(기록 기능만 쉬고, 다음 요청 때 재시도).
+     - "최근 본 종목"이 같은 초에 본 종목끼리 순서가 뒤섞이던 문제 수정(저장 순서 id 기준 정렬).
+     - 최근 본 종목 칩 HTML 이스케이프, anon_uid 쿠키 HttpOnly(+웹에선 Secure), POST 5MB 상한.
+     - 창 앱(pywebview)에서도 이미지 저장이 되도록 다운로드 허용, 공유 이미지는 420px 카드로.
+     - /healthz 헬스체크 주소 추가, 도움말에 ⑦ 공유·블로그·최근 본 종목 섹션 추가.
+
 실행(로컬/데스크톱):  python stock_analyzer_mini.py
 실행(웹 서버, 예: Render):  gunicorn stock_analyzer_mini:app --bind 0.0.0.0:$PORT
 필요:  pip install flask finance-datareader pandas numpy requests beautifulsoup4
        (pip install pywebview  → 있으면 창 앱으로, 없으면 기본 브라우저로 실행됩니다)
        (웹 배포 시엔 pip install gunicorn 도 필요 — requirements.txt에 포함됨)
+       (영구 검색 기록을 쓰려면 pip install psycopg2-binary + DATABASE_URL 환경변수
+        설정 — 둘 다 없어도 프로그램은 정상 실행되고, SQLite로 자동 대체된다)
 
 exe 빌드(PyInstaller):
   pip install pyinstaller pywebview
-  pyinstaller --onefile --noconsole --name "종목분석미니_v114" stock_analyzer_mini.py
+  pyinstaller --onefile --noconsole --name "종목분석미니_v118" stock_analyzer_mini.py
   (--noconsole은 창 앱 모드일 때만 권장 — 콘솔 로그로 문제를 확인하려면 빼고 빌드하세요)
   빌드된 exe와 같은 폴더에 mini_tickers.db 캐시 파일이 자동 생성됩니다.
 
@@ -117,13 +173,13 @@ GitHub 자동 업데이트를 쓰려면(선택, exe 전용 — 웹 배포 모드
   4) 이후 사용자가 exe를 실행하면 시작 시 자동으로 새 버전을 확인·교체합니다.
 """
 
-import os, sys, math, re, sqlite3, threading, socket, webbrowser, time, subprocess
+import os, sys, math, re, sqlite3, threading, socket, webbrowser, time, subprocess, uuid
 from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
 import requests
-from flask import Flask, jsonify, request, render_template_string
+from flask import Flask, jsonify, request, render_template_string, g
 
 # ── 선택적 의존성 ──────────────────────────────────────────────
 try:
@@ -138,7 +194,16 @@ try:
 except Exception:
     BS4_OK = False
 
-APP_VERSION_HARDCODED = "v114"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+# 💡 [v117] 영구 검색 기록 저장(1단계)에 Postgres를 쓸 때만 필요 — 없어도(즉 로컬 PC에서
+# 그냥 실행하거나, 웹 배포인데 아직 DATABASE_URL을 안 만들었을 때도) 프로그램은 정상
+# 실행되고, 기존처럼 SQLite로 자동 대체된다(아래 "검색 기록 저장소" 섹션 참고).
+try:
+    import psycopg2
+    PG_OK = True
+except Exception:
+    PG_OK = False
+
+APP_VERSION_HARDCODED = "v118"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -155,7 +220,29 @@ APP_VERSION_HARDCODED = "v114"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #   2) HELP_CONTENT_ASOF = APP_VERSION_HARDCODED 와 같은 값으로 갱신
 # 💡 v114는 배포 방식(웹 서버 지원)만 바꿨을 뿐 화면 용어·기능은 그대로이므로, 도움말
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
-HELP_CONTENT_ASOF = "v114"
+# 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
+#    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
+HELP_CONTENT_ASOF = "v118"
+
+# 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
+# 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
+APP_SLOGAN = "모르면 물어보고, 알면 투자하세요"
+
+# 💬 [v118] 카카오톡 오픈채팅 — "초기 보급" 1순위 항목(코드 한 줄). 아직 방을 안 만들었으면
+# 빈 문자열로 두세요 — 빈 값이면 화면에 버튼 자체가 나타나지 않으니 그대로 배포해도 안전합니다.
+# 방을 만든 뒤 이 한 줄만 채우면 topbar에 바로 버튼이 뜹니다.
+KAKAO_OPENCHAT_URL = ""  # 예: "https://open.kakao.com/o/xxxxxxxx"
+
+# 🎬 [v118] 데모 버튼이 첫 방문자에게 보여줄 종목 — 검색 없이 결과 화면을 바로 체험하게
+# 해서 첫 방문 이탈을 줄이기 위한 용도(전환율 개선). 다른 종목으로 바꾸고 싶으면 이
+# 두 줄만 수정하면 된다.
+DEMO_TICKER = "005930"
+DEMO_TICKER_NAME = "삼성전자"
+
+# 🌐 [v118] 공개 사이트 주소 — 공유 링크·블로그 글 링크·공유 이미지 하단 표기에 쓰인다.
+# 데스크톱(exe)으로 실행해도 링크가 내 PC 주소(127.0.0.1)가 아니라 이 주소로 만들어지고,
+# onrender.com 주소로 들어온 사람에게도 대표 주소로 통일된다. 비우면 접속한 주소를 그대로 쓴다.
+PUBLIC_SITE_URL = "https://chostock.kr"
 
 
 def _detect_app_version():
@@ -189,6 +276,27 @@ _BASE_DIR = os.path.dirname(os.path.abspath(
 DB_PATH = os.path.join(_BASE_DIR, "mini_tickers.db")
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # [v118] POST 본문 상한 5MB(분석 결과 전송은 수십 KB)
+
+
+# ══════════════════════════════════════════════════════════════
+# 익명 uid 쿠키 (⚠️ v117: 로드맵 1단계) — 로그인 없이 "이 브라우저"를 구분하기 위한
+# 무작위 문자열. 첫 요청에 쿠키가 없으면 여기서 하나 만들어 이번 요청 처리 중에도
+# g.anon_uid로 바로 쓸 수 있게 하고, 응답에 쿠키로 심어 다음 방문부터 같은 값이 오게
+# 한다. 실명·이메일 등과 연결되지 않으며, 오직 "같은 브라우저가 다시 왔는지"만 안다.
+# ══════════════════════════════════════════════════════════════
+@app.before_request
+def _ensure_anon_uid():
+    g.anon_uid = request.cookies.get("anon_uid") or uuid.uuid4().hex
+
+
+@app.after_request
+def _set_anon_uid_cookie(resp):
+    if request.cookies.get("anon_uid") != g.get("anon_uid"):
+        resp.set_cookie("anon_uid", g.anon_uid, max_age=60 * 60 * 24 * 365 * 2, samesite="Lax",
+                        httponly=True,          # 자바스크립트가 읽을 필요 없음 → 탈취 위험 차단
+                        secure=_WEB_MODE)       # 웹 배포(https)에서만 secure — 로컬 http에선 끔
+    return resp
 
 
 # ══════════════════════════════════════════════════════════════
@@ -450,6 +558,142 @@ def db_save_tickers(rows):
             "INSERT OR REPLACE INTO ticker_names VALUES(?,?,?,?)",
             [(t, n, m, today) for t, n, m in rows],
         )
+
+
+# ══════════════════════════════════════════════════════════════
+# 검색 기록 저장소 (⚠️ v117: 로드맵 1단계 — 익명 uid 기준 "최근 본 종목")
+# ──────────────────────────────────────────────────────────────
+# 위 ticker_names는 "사라져도 그만인 캐시"지만, 이건 다르다 — 사용자가 본 종목 기록은
+# Render 같은 무료 웹호스팅이 재배포할 때마다 로컬 디스크를 초기화해도 사라지면 안 되는
+# 데이터다. 그래서 DATABASE_URL 환경변수(Neon.tech·Supabase 등 외부 Postgres, 둘 다
+# 영구 무료 티어 제공)가 있으면 그쪽에 저장하고, 없으면(로컬 PC 실행 등) 기존 SQLite
+# 캐시 파일에 저장해 최소한 "지금 세션"에서는 동작하게 한다. 로그인은 없고, 저장하는
+# 값도 종목코드·종목명·시장·조회시각뿐이다 — 이름·이메일 등 개인을 특정할 수 있는
+# 정보는 이 단계에서 전혀 받지 않는다(uid는 브라우저에 무작위로 심는 쿠키 값일 뿐).
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+_USE_PG = bool(DATABASE_URL) and PG_OK
+if DATABASE_URL and not PG_OK:
+    print("⚠️ [검색기록] DATABASE_URL은 설정되어 있지만 psycopg2가 설치되어 있지 않아 "
+          "검색 기록을 임시로 SQLite에 저장합니다. requirements.txt에 psycopg2-binary를 "
+          "추가한 뒤 다시 배포해 주세요.")
+
+
+def _history_conn():
+    """Postgres(DATABASE_URL 있음) 또는 SQLite(없음) 커넥션을 반환한다. 호출부는 두 DB의
+       문법 차이(플레이스홀더 %s/?, AUTOINCREMENT 등)만 _USE_PG로 분기하면 된다."""
+    if _USE_PG:
+        return psycopg2.connect(DATABASE_URL)
+    return sqlite3.connect(get_db())
+
+
+_history_ready = False
+
+
+def _ensure_history_table():
+    """테이블이 아직 준비 안 됐으면(부팅 시 DB가 잠깐 안 붙었던 경우 등) 지금 다시 시도한다.
+       실패해도 예외를 밖으로 내지 않는다 — 기록 기능이 멈출 뿐 분석은 계속 된다."""
+    global _history_ready
+    if _history_ready:
+        return True
+    try:
+        init_history_db()
+        _history_ready = True
+    except Exception as e:
+        print(f"[검색기록] 테이블 준비 실패(나중에 다시 시도): {e}")
+    return _history_ready
+
+
+def init_history_db():
+    conn = _history_conn()
+    try:
+        c = conn.cursor()
+        if _USE_PG:
+            c.execute("""CREATE TABLE IF NOT EXISTS search_history(
+                id SERIAL PRIMARY KEY,
+                uid TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                name TEXT,
+                market TEXT,
+                viewed_at TIMESTAMP NOT NULL DEFAULT NOW())""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_history_uid ON search_history(uid, viewed_at DESC)")
+        else:
+            c.execute("""CREATE TABLE IF NOT EXISTS search_history(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uid TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                name TEXT,
+                market TEXT,
+                viewed_at TEXT NOT NULL)""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_history_uid ON search_history(uid, viewed_at DESC)")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def history_save(uid, ticker, name, market):
+    """검색 기록 1건 저장. 실패해도(DB 연결 문제 등) 예외를 밖으로 내보내지 않는다 —
+       기록 저장이 실패했다고 종목 분석 자체가 안 되면 안 되기 때문."""
+    if not uid or not ticker or not _ensure_history_table():
+        return
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            if _USE_PG:
+                c.execute(
+                    "INSERT INTO search_history(uid, ticker, name, market) VALUES(%s,%s,%s,%s)",
+                    (uid, ticker, name, market))
+            else:
+                c.execute(
+                    "INSERT INTO search_history(uid, ticker, name, market, viewed_at) VALUES(?,?,?,?,?)",
+                    (uid, ticker, name, market, datetime.now().isoformat(timespec="seconds")))
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[검색기록] 저장 실패(무시하고 계속 진행): {e}")
+
+
+def history_recent(uid, limit=8):
+    """이 uid가 최근 본 종목을 최신순으로, 같은 종목은 한 번만 반환한다."""
+    if not uid or not _ensure_history_table():
+        return []
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            # 🐛 [v118] 시각(viewed_at)이 아니라 id(저장 순서, 계속 증가)로 정렬한다 — SQLite는 초 단위로만
+            # 저장해서 같은 초에 두 종목을 보면 순서가 뒤섞였다. 종목별 "가장 마지막 기록" 한 줄씩만 고르고
+            # 최신순으로 자르는 같은 SQL을 두 DB에서 쓴다(플레이스홀더 %s / ? 만 다름).
+            ph = "%s" if _USE_PG else "?"
+            c.execute(f"""SELECT ticker, name, market FROM search_history
+                          WHERE id IN (SELECT MAX(id) FROM search_history WHERE uid={ph} GROUP BY ticker)
+                          ORDER BY id DESC LIMIT {ph}""", (uid, int(limit)))
+            return [{"ticker": r[0], "name": r[1], "market": r[2]} for r in c.fetchall()]
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[검색기록] 조회 실패: {e}")
+        return []
+
+
+def history_stats():
+    """👥 [v118] 로드맵 '초기 보급' 4순위 — 누적 분석 건수(총 행 수)와 순 방문자 수(uid
+       기준 distinct). 별도 카운터 테이블 없이 search_history 하나로 집계한다."""
+    if not _ensure_history_table():
+        return {"total_analyses": 0, "unique_visitors": 0}
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            c.execute("SELECT COUNT(*), COUNT(DISTINCT uid) FROM search_history")
+            total, unique = c.fetchone()
+            return {"total_analyses": total or 0, "unique_visitors": unique or 0}
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[검색기록] 통계 조회 실패: {e}")
+        return {"total_analyses": 0, "unique_visitors": 0}
 
 
 _cache_building = False
@@ -1310,11 +1554,79 @@ def build_ai_prompt(ticker, name, market, price_d, fundamentals, details, delist
 
 
 # ══════════════════════════════════════════════════════════════
+# 📝 [v118] 로드맵 '초기 보급' 5순위 — 블로그용 글 자동 생성
+# ──────────────────────────────────────────────────────────────
+# build_ai_prompt()와 헷갈리기 쉬운데 목적이 다르다: 저건 "AI에게 분석을 시키는 지시문"이고
+# 이건 "사람이 그대로 복사해서 블로그에 붙여넣는 완성된 글"이다. AI 호출이 전혀 없으므로
+# 0원·즉시 생성이며, /api/blog-export가 이미 가진 분석 데이터(_resolve_analysis_source)로
+# 만들어 호출한다(별도 네이버 재조회 없음).
+# ══════════════════════════════════════════════════════════════
+def build_blog_draft(ticker, name, market, price_d, fundamentals, details, delisting_risk=None, site_url=""):
+    p = price_d or {}
+    f = fundamentals or {}
+    d = details or {}
+    vp = p.get("vp") or {}
+    today_str = datetime.now().strftime("%Y.%m.%d")
+    price_str = f"{p.get('price', 0):,}" if isinstance(p.get("price"), (int, float)) else "N/A"
+
+    lines = [f"【{name}({ticker}) 주가 분석 — {today_str} 기준】", ""]
+    lines.append(f"시장: {market} | 현재가: {price_str}원 (전일대비 {p.get('day_pct', 0)}%)")
+
+    fin_bits = []
+    if f.get("PER"): fin_bits.append(f"PER {f.get('PER')}배")
+    if f.get("PBR"): fin_bits.append(f"PBR {f.get('PBR')}배")
+    if f.get("DIV"): fin_bits.append(f"배당수익률 {f.get('DIV')}%")
+    if fin_bits:
+        lines.append("💰 밸류에이션: " + " · ".join(fin_bits))
+
+    tech_bits = []
+    if p.get("ma_align"): tech_bits.append(f"이동평균 {p.get('ma_align')}")
+    if p.get("rsi") is not None: tech_bits.append(f"RSI {p.get('rsi')}")
+    if p.get("pos52") is not None: tech_bits.append(f"52주 위치 {p.get('pos52')}%")
+    if tech_bits:
+        lines.append("📊 기술적 지표: " + " · ".join(tech_bits))
+
+    if vp and vp.get("poc"):
+        lines.append(
+            f"🎯 매물대: POC {vp.get('poc', 0):,.0f}원 · 지지선(VAL) {vp.get('val', 0):,.0f}원 "
+            f"· 저항선(VAH) {vp.get('vah', 0):,.0f}원")
+
+    overview = d.get("overview")
+    if overview and "가져오지 못했습니다" not in overview:
+        lines.append("")
+        lines.append("🏢 기업개요: " + overview[:200] + ("..." if len(overview) > 200 else ""))
+
+    dr = delisting_risk or {}
+    if dr.get("level") in ("danger", "caution"):
+        lines.append("")
+        lines.append("🚨 주의: 상장폐지·거래정지 관련 위험 신호가 감지된 종목입니다. "
+                      "투자 전 KRX·DART 공시를 꼭 확인하세요.")
+
+    lines.append("")
+    lines.append("※ 이 글은 공개 데이터를 근거로 한 개인적인 기술적 분석 기록이며 투자 권유가 아닙니다. "
+                  "투자 판단과 그 책임은 본인에게 있습니다.")
+    if site_url:
+        lines.append("")
+        lines.append(f"👉 이 종목 무료로 직접 분석해보기: {site_url}/?t={ticker}")
+    if KAKAO_OPENCHAT_URL:
+        lines.append(f"💬 함께 이야기 나누기: {KAKAO_OPENCHAT_URL}")
+    lines.append("")
+    lines.append(f"#{name} #{ticker} #주식분석 #{market} #주린이")
+    return "\n".join(lines)
+
+
+# ══════════════════════════════════════════════════════════════
 # Flask 라우트
 # ══════════════════════════════════════════════════════════════
 @app.route("/")
 def index():
-    return render_template_string(HTML_TEMPLATE, app_version=APP_VERSION)
+    return render_template_string(
+        HTML_TEMPLATE, app_version=APP_VERSION, slogan=APP_SLOGAN,
+        kakao_url=KAKAO_OPENCHAT_URL or None,
+        demo_ticker=DEMO_TICKER, demo_name=DEMO_TICKER_NAME,
+        site_url=_public_site_url(),
+        site_label=(_public_site_url() or "").replace("https://", "").replace("http://", ""),
+    )
 
 
 @app.route("/help")
@@ -1371,6 +1683,10 @@ def api_analyze(ticker):
         else:
             name = ticker
 
+    # 💡 [v117] 로드맵 1단계 — 이 종목을 봤다는 사실을 익명 uid로 기록한다. 저장이
+    # 실패해도(history_save 내부에서 이미 처리) 분석 응답 자체에는 영향이 없다.
+    history_save(g.get("anon_uid"), ticker, name, market or "—")
+
     return jsonify({
         "ticker": ticker, "name": name, "market": market or "—",
         "price": price_d,
@@ -1379,11 +1695,55 @@ def api_analyze(ticker):
     })
 
 
-@app.route("/api/ai-prompt/<ticker>")
-def api_ai_prompt(ticker):
-    if not FDR_OK:
-        return jsonify({"error": "FinanceDataReader가 설치되어 있지 않습니다."}), 400
-    ticker = normalize_ticker(ticker)
+@app.route("/api/history")
+def api_history():
+    """💡 [v117] 로드맵 1단계 — 이 브라우저(anon_uid)가 최근 본 종목 목록. 첫 화면에
+       "🕘 최근 본 종목" 칩으로 표시된다(같은 브라우저라면 새로고침·재방문해도 유지)."""
+    return jsonify(history_recent(g.get("anon_uid")))
+
+
+@app.route("/healthz")
+def healthz():
+    """🩺 [v118] Render 헬스체크 전용 — 화면 템플릿을 그리지 않는 가장 가벼운 응답.
+       render.yaml의 healthCheckPath가 이 주소를 본다(무중단 배포·장애 자동 감지용)."""
+    return "ok", 200
+
+
+@app.route("/api/stats")
+def api_stats():
+    """👥 [v118] 로드맵 '초기 보급' 4순위 — 누적 분석 건수·방문자 수(사회적 증거).
+       search_history를 그대로 집계하므로 별도 테이블이 필요 없다."""
+    return jsonify(history_stats())
+
+
+def _public_site_url():
+    """[v118] 공유·블로그 링크에 쓸 주소. PUBLIC_SITE_URL이 있으면 그것, 없으면 웹 배포일 때만
+       접속한 주소. 데스크톱에서 PUBLIC_SITE_URL도 없으면 빈 값(=링크 생략) — 남의 PC에서는
+       열리지 않는 127.0.0.1 링크를 퍼뜨리지 않기 위함."""
+    if PUBLIC_SITE_URL:
+        return PUBLIC_SITE_URL.rstrip("/")
+    return request.host_url.rstrip("/") if _WEB_MODE else ""
+
+
+def _resolve_analysis_source(ticker, cached):
+    """🚀 [v116/v118] `/api/ai-prompt`·`/api/blog-export`가 함께 쓰는 공용 로직.
+       클라이언트가 방금 `/api/analyze`로 이미 받은 데이터(cached)를 그대로 보내면
+       네이버를 다시 조회하지 않고 그 데이터를 그대로 쓰고, 없으면(GET, 캐시 형식이
+       안 맞음 등) 기존처럼 서버가 직접 재조회한다 — 0단계에서 고친 "매번 재조회"
+       버그를 새 기능에서 또 반복하지 않기 위해 이렇게 한 곳에 모아둔다.
+       반환: (name, market, price_d, details, fundamentals, risk) 또는 실패 시 None."""
+    if cached and cached.get("ticker") == ticker and cached.get("price"):
+        name = cached.get("name") or ticker
+        market = cached.get("market") or "—"
+        price_d = cached.get("price")
+        details = cached.get("details") or {}
+        fundamentals = cached.get("fundamentals") or {}
+        risk = cached.get("delisting_risk") or check_delisting_risk(
+            price_d, details.get("risk_badges") or [], details.get("cap_eok"))
+        return name, market, price_d, details, fundamentals, risk
+
+    # 폴백 — 캐시 데이터가 없거나(분석 전에 버튼을 눌렀거나, 다른 종목으로 이미 넘어간
+    # 경우 등) 형식이 안 맞으면 기존처럼 서버가 다시 조회한다.
     name, market = get_ticker_info(ticker)
     if not name:
         name, live_market = get_ticker_name_live(ticker)
@@ -1391,12 +1751,43 @@ def api_ai_prompt(ticker):
         name = name or ticker
     price_d = get_price_data(ticker)
     if not price_d:
-        return jsonify({"error": "주가 데이터를 가져오지 못했습니다."}), 400
+        return None
     details, fundamentals = get_company_details_and_fundamentals(ticker)
     risk = check_delisting_risk(price_d, details.get("risk_badges") or [], details.get("cap_eok"))
+    return name, market, price_d, details, fundamentals, risk
+
+
+@app.route("/api/ai-prompt/<ticker>", methods=["GET", "POST"])
+def api_ai_prompt(ticker):
+    if not FDR_OK:
+        return jsonify({"error": "FinanceDataReader가 설치되어 있지 않습니다."}), 400
+    ticker = normalize_ticker(ticker)
+    cached = request.get_json(silent=True) if request.method == "POST" else None
+    resolved = _resolve_analysis_source(ticker, cached)
+    if not resolved:
+        return jsonify({"error": "주가 데이터를 가져오지 못했습니다."}), 400
+    name, market, price_d, details, fundamentals, risk = resolved
     prompt = build_ai_prompt(ticker, name, market or "—", price_d, fundamentals, details,
                               delisting_risk=risk)
     return jsonify({"prompt": prompt})
+
+
+@app.route("/api/blog-export/<ticker>", methods=["GET", "POST"])
+def api_blog_export(ticker):
+    """📝 [v118] 로드맵 '초기 보급' 5순위 — AI에게 줄 프롬프트가 아니라, 사람이 그대로
+       복사해서 블로그(네이버 블로그 등)에 붙여넣을 수 있는 완성된 글. AI 호출 없이
+       지금 가진 수치만으로 즉시 만들어진다."""
+    if not FDR_OK:
+        return jsonify({"error": "FinanceDataReader가 설치되어 있지 않습니다."}), 400
+    ticker = normalize_ticker(ticker)
+    cached = request.get_json(silent=True) if request.method == "POST" else None
+    resolved = _resolve_analysis_source(ticker, cached)
+    if not resolved:
+        return jsonify({"error": "주가 데이터를 가져오지 못했습니다."}), 400
+    name, market, price_d, details, fundamentals, risk = resolved
+    draft = build_blog_draft(ticker, name, market or "—", price_d, fundamentals, details,
+                              delisting_risk=risk, site_url=_public_site_url())
+    return jsonify({"draft": draft})
 
 
 HTML_TEMPLATE = r"""
@@ -1406,7 +1797,7 @@ HTML_TEMPLATE = r"""
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>종목분석 미니 {{ app_version }}</title>
-<script>window.__APP_VER__ = "{{ app_version }}";</script>
+<script>window.__APP_VER__ = "{{ app_version }}"; window.__SITE_URL__ = "{{ site_url }}";</script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <style>
@@ -1429,9 +1820,12 @@ HTML_TEMPLATE = r"""
     padding:14px 22px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
     box-shadow:0 2px 10px rgba(16,32,58,.18);
   }
+  .brandBlock{display:flex; flex-direction:column; gap:1px;}
   .brand{color:#fff; font-weight:800; font-size:16px; white-space:nowrap; letter-spacing:-.2px;}
   .brand span{color:var(--gold);}
   .verTag{color:rgba(255,255,255,.4)!important; font-size:10px!important; font-weight:600!important; letter-spacing:0;}
+  /* 📣 슬로건 태그 — 문구는 APP_SLOGAN 상수 하나만 바꾸면 여기와 첫 화면에 함께 반영됨 */
+  .sloganTag{color:rgba(255,255,255,.55); font-size:10.5px; font-weight:600; white-space:nowrap;}
   .searchWrap{position:relative; flex:1; max-width:520px;}
   .searchInput{
     width:100%; box-sizing:border-box; border:none; border-radius:11px;
@@ -1477,6 +1871,32 @@ HTML_TEMPLATE = r"""
     text-align:center; color:var(--muted); padding:110px 20px 60px; font-size:14px; line-height:1.9;
   }
   .empty .big{font-size:40px; margin-bottom:14px;}
+  .sloganLead{font-size:16px; font-weight:800; color:var(--navy); margin-bottom:8px;}
+
+  /* 🎬 [v118] 데모 버튼 — 슬로건 바로 아래, 눈에 띄지만 실제 검색창보다는 강조를 낮춘다 */
+  .demoBtn{
+    margin-top:16px; background:var(--navy); color:#fff; border:none; border-radius:999px;
+    padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;
+  }
+  .demoBtn:hover{filter:brightness(1.12);}
+
+  /* 👥 [v118] 누적 분석 건수 배지(사회적 증거) */
+  .statsBadge{
+    margin-top:14px; font-size:12px; color:var(--muted); background:#f8fafc;
+    border:1px solid var(--border); border-radius:999px; display:inline-block; padding:6px 16px;
+  }
+
+  /* 🚀 [v117] 로드맵 1단계 — "최근 본 종목" 칩 목록(같은 브라우저면 재방문해도 유지) */
+  .recentBox{max-width:640px; margin:28px auto 0; text-align:left;}
+  .recentTitle{font-size:12.5px; font-weight:800; color:var(--navy); margin-bottom:8px;}
+  .recentChips{display:flex; flex-wrap:wrap; gap:8px;}
+  .recentChip{
+    background:var(--card); border:1px solid var(--border); border-radius:999px;
+    padding:7px 14px; font-size:12px; font-weight:600; color:var(--navy);
+    cursor:pointer; white-space:nowrap;
+  }
+  .recentChip:hover{border-color:#94a3b8; background:#f8fafc;}
+  .recentChip .rcMarket{color:var(--muted); font-weight:500; margin-left:4px;}
 
   /* 💡 [v107] "네이버 증권에 없는 잇점" 소개 카드 — 첫 화면·블로그 스크린샷용 */
   .whyGrid{
@@ -1500,6 +1920,8 @@ HTML_TEMPLATE = r"""
 
   /* 헤더 카드 */
   .heroCard{display:flex; align-items:center; gap:26px; flex-wrap:wrap;}
+  /* [v118] 공유 이미지로 저장될 때 출처가 함께 찍히도록 결과 카드 안에 둔 작은 표기 */
+  .shareBrand{margin-top:10px; font-size:11px; font-weight:600; color:var(--muted);}
   .heroLeft{flex:1; min-width:220px;}
   .heroName{font-size:21px; font-weight:800; display:flex; align-items:center; gap:9px; flex-wrap:wrap;}
   .heroTicker{font-size:13px; color:var(--muted); font-weight:600; margin-top:2px;}
@@ -1745,13 +2167,21 @@ HTML_TEMPLATE = r"""
 </div>
 
 <div class="topbar">
-  <div class="brand">📈 종목분석<span> 미니</span> <span class="verTag">{{ app_version }}</span></div>
+  <div class="brandBlock">
+    <div class="brand">📈 종목분석<span> 미니</span> <span class="verTag">{{ app_version }}</span></div>
+    <div class="sloganTag">{{ slogan }}</div>
+  </div>
   <div class="searchWrap">
     <input id="searchInput" class="searchInput" type="text" placeholder="종목명 또는 코드를 입력하세요 (예: 삼성전자, 005930)" autocomplete="off">
     <div id="searchDrop" class="searchDrop"></div>
   </div>
   <button class="refreshBtn" onclick="refreshTickers()">🔄 종목목록 갱신</button>
   <a class="refreshBtn" href="/help" target="_blank" rel="noopener" style="text-decoration:none;">❓ 도움말</a>
+  {% if kakao_url %}
+  <a class="refreshBtn" href="{{ kakao_url }}" target="_blank" rel="noopener"
+     style="text-decoration:none;background:#fee500;color:#3c1e1e;border-color:#fee500;"
+     title="카카오톡 오픈채팅 커뮤니티에 참여해 보세요">💬 커뮤니티</a>
+  {% endif %}
   <a class="blogBtn" href="https://blog.naver.com/okykr" target="_blank" rel="noopener"
      title="이 프로그램을 만든 제작자의 투자 블로그입니다">✍️ 제작자 블로그 ↗</a>
 </div>
@@ -1759,9 +2189,25 @@ HTML_TEMPLATE = r"""
 <div class="wrap">
   <div id="emptyState" class="empty">
     <div class="big">🔍</div>
+    <div class="sloganLead">{{ slogan }}</div>
     종목명이나 종목코드를 검색해서<br>기술적분석 리포트를 확인해 보세요.
     <div style="margin-top:18px;font-size:12px;">FinanceDataReader · 네이버 공개 데이터 기반 · 로그인 불필요</div>
     <div style="margin-top:6px;font-size:11.5px;">검색이 안 되면 6자리 종목코드(예: 005930)를 입력하고 Enter를 눌러도 바로 분석돼요.</div>
+
+    <!-- 🎬 [v118] 로드맵 '초기 보급' 3순위 — 첫 방문자가 검색 없이 결과 화면을 바로
+         체험하게 하는 데모 버튼(전환율 개선용). -->
+    <button class="demoBtn" onclick="analyze('{{ demo_ticker }}')">🎬 데모로 먼저 보기 ({{ demo_name }})</button>
+
+    <!-- 👥 [v118] 로드맵 '초기 보급' 4순위 — 누적 분석 건수로 사회적 증거를 보여준다.
+         집계가 없거나(신규 배포 직후) 0건이면 자바스크립트가 그대로 숨겨둔다. -->
+    <div id="statsBadge" class="statsBadge" style="display:none;"></div>
+
+    <!-- 🚀 [v117] 로드맵 1단계 — 이 브라우저가 최근에 본 종목 칩 목록. 기록이 없으면
+         (첫 방문 등) 자바스크립트가 style.display를 그대로 두어 보이지 않는다. -->
+    <div id="recentBox" class="recentBox" style="display:none;">
+      <div class="recentTitle">🕘 최근 본 종목</div>
+      <div id="recentChips" class="recentChips"></div>
+    </div>
 
     <!-- 💡 [v107] "네이버 증권에서 얻을 수 없는 잇점"을 첫 화면에서 바로 보여주는 소개 카드.
          블로그 홍보·첫인상용으로 스크린샷하기 좋게 구성했다. -->
@@ -1795,14 +2241,24 @@ HTML_TEMPLATE = r"""
       </div>
     </div>
 
-    <div class="card heroCard">
+    <div class="card heroCard" id="shareCard">
       <div class="heroLeft">
         <div class="heroName" id="heroName">—</div>
         <div class="heroTicker" id="heroTicker">—</div>
         <div class="heroPrice" id="heroPrice">—</div>
         <div class="heroChange" id="heroChange">—</div>
+        {% if site_label %}<div class="shareBrand">📈 종목분석 미니 · {{ site_label }}</div>{% endif %}
       </div>
     </div>
+
+    <!-- 🔗🖼️📝 [v118] 로드맵 '초기 보급' 2·5순위 — 공유(링크/이미지)·블로그 내보내기.
+         AI 분석 카드와 같은 aiBtnRow/btn-ghost 스타일을 그대로 재사용한다. -->
+    <div class="aiBtnRow" style="margin:0 0 20px;">
+      <button class="btn btn-ghost" onclick="shareResult()">🔗 링크 공유</button>
+      <button class="btn btn-ghost" onclick="shareResultImage()">🖼️ 이미지로 저장</button>
+      <button class="btn btn-ghost" onclick="toggleBlogBox()">📝 블로그 내보내기</button>
+    </div>
+    <textarea id="blogDraftBox" class="promptBox" style="display:none;" readonly></textarea>
 
     <a id="detailCta" class="ctaBanner" href="https://blog.naver.com/okykr/224284426807" target="_blank" rel="noopener">
       <div class="ctaIcon">🔎</div>
@@ -1939,6 +2395,59 @@ function showDisclaimer(reopen){
 let CUR = null;
 let searchTimer = null;
 
+// ── 🚀 [v117] 로드맵 1단계: 최근 본 종목 ──────────────────
+let RECENT = [];
+
+function renderRecentChips(){
+  const box = document.getElementById('recentBox');
+  const wrap = document.getElementById('recentChips');
+  if(!RECENT.length){ box.style.display = 'none'; return; }
+  wrap.innerHTML = RECENT.map(function(it){
+    return '<div class="recentChip" data-ticker="' + _escHtml(it.ticker) + '">' + _escHtml(it.name)
+      + '<span class="rcMarket">' + _escHtml(it.market || '') + '</span></div>';
+  }).join('');
+  Array.prototype.forEach.call(wrap.querySelectorAll('.recentChip'), function(el){
+    el.onclick = function(){ analyze(el.getAttribute('data-ticker')); };
+  });
+  box.style.display = 'block';
+}
+
+// 페이지를 새로 열었을 때(새로고침·재방문) 서버(익명 uid 쿠키 기준)에서 한 번 불러온다.
+function loadRecentHistory(){
+  fetch('/api/history').then(r=>r.json()).then(list=>{
+    if(Array.isArray(list)) { RECENT = list; renderRecentChips(); }
+  }).catch(()=>{});
+}
+
+// 분석에 성공할 때마다, 서버를 다시 조회하지 않고 이 목록 맨 앞에 바로 반영한다
+// (같은 종목이 이미 있으면 그 자리를 빼고 맨 앞으로 올림 — 중복 표시 방지).
+function addRecentLocal(item){
+  RECENT = RECENT.filter(function(it){ return it.ticker !== item.ticker; });
+  RECENT.unshift(item);
+  RECENT = RECENT.slice(0, 8);
+  renderRecentChips();
+}
+
+loadRecentHistory();
+
+// ── 👥 [v118] 로드맵 '초기 보급' 4순위: 누적 분석 건수 배지 ──────
+function loadStats(){
+  fetch('/api/stats').then(r=>r.json()).then(d=>{
+    if(!d || !d.total_analyses){ return; }  // 배포 직후(0건)에는 굳이 보여주지 않는다.
+    const badge = document.getElementById('statsBadge');
+    badge.textContent = '👥 지금까지 ' + d.unique_visitors.toLocaleString('ko-KR') + '명이 '
+      + d.total_analyses.toLocaleString('ko-KR') + '건의 종목을 분석했어요';
+    badge.style.display = 'inline-block';
+  }).catch(()=>{});
+}
+loadStats();
+
+// ── 🔗 [v118] 공유 링크로 들어온 경우(?t=종목코드) 자동으로 그 종목을 분석 ──
+(function(){
+  const t = new URLSearchParams(location.search).get('t');
+  if(t) analyze(t);
+})();
+
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -2030,9 +2539,10 @@ function refreshTickers(){
 // ── 분석 실행 ─────────────────────────────
 function analyze(ticker){
   showToast('⏳ 분석 중입니다...');
-  fetch('/api/analyze/' + ticker).then(r=>r.json()).then(data=>{
+  fetch('/api/analyze/' + encodeURIComponent(ticker)).then(r=>r.json()).then(data=>{
     if(data.error){ showToast('⚠ ' + data.error); return; }
     CUR = data;
+    addRecentLocal({ ticker: data.ticker, name: data.name, market: data.market });
     // 🐛 [v108] "종합점수가 표시되도록 수정" — 원인은 renderResult() 안에서 차트 등
     // 일부만 실패해도(예: ApexCharts CDN 로드 지연/실패) 예외가 전체를 중단시켜,
     // 이미 화면에 반영된 점수까지 포함해 결과 영역 자체가 display:none으로 안 열리는
@@ -2049,6 +2559,8 @@ function analyze(ticker){
     }
     document.getElementById('aiPromptBox').value = '';
     document.getElementById('aiPromptBox').style.display = 'none';
+    document.getElementById('blogDraftBox').value = '';        // 🆕 [v118] 종목이 바뀌면
+    document.getElementById('blogDraftBox').style.display = 'none';  // 이전 블로그 글도 비운다
     document.getElementById('aiPasteBox').value = '';
     document.getElementById('aiResult').classList.remove('show');
   }).catch(()=>showToast('⚠ 분석 중 오류가 발생했습니다.'));
@@ -2319,17 +2831,34 @@ function _openExternal(url){
   document.body.removeChild(a);
 }
 
+// 🚀 [v116] 로드맵 0단계(0-3) — `/api/ai-prompt`를 부르는 세 함수(copyAndOpenAI·
+//   copyAiPrompt·toggleAiPromptBox)가 전부 이 헬퍼를 함께 쓴다. CUR(방금 /api/analyze로
+//   받은 분석 결과)을 그대로 POST로 실어 보내, 서버가 네이버를 다시 조회하지 않고
+//   이미 있는 데이터로만 프롬프트를 만들게 한다 — 예전엔 이 요청마다 가격·기업개요·
+//   재무를 처음부터 다시 긁어와서 몇 초씩 걸렸다.
+function _fetchAiPrompt(){
+  return fetch('/api/ai-prompt/' + CUR.ticker, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(CUR),
+  }).then(r=>r.json());
+}
+
 // 🚀 [v1.2] "기존 프로그램처럼 AI에 연결" — 버튼 하나로 프롬프트 복사 + 해당 AI 사이트 새 탭
 //   열기까지 한 번에 처리한다. 그 화면에 사용자가 Ctrl+V만 하면 바로 분석이 진행된다.
+// 🚀 [v116] 로드맵 0단계(0-2) — 예전엔 fetch 응답을 기다린 뒤에야 새 탭을 열어서, 버튼을
+//   눌러도 한참 반응이 없는 것처럼 느껴졌다. 이제 클릭 즉시 새 탭부터 열고, 프롬프트
+//   복사는 응답이 오는 대로 백그라운드에서 처리해 토스트로 완료를 안내한다.
 function copyAndOpenAI(which){
   if(!CUR){ showToast('먼저 종목을 분석해 주세요.'); return; }
   const svcName = AI_SERVICE_NAMES[which] || which;
-  fetch('/api/ai-prompt/' + CUR.ticker).then(r=>r.json()).then(d=>{
+  _openExternal(AI_SERVICE_URLS[which]);
+  showToast('🔗 ' + svcName + ' 여는 중... 프롬프트가 준비되면 자동으로 복사됩니다.');
+  _fetchAiPrompt().then(d=>{
     if(d.error){ showToast('⚠ ' + d.error); return; }
     const box = document.getElementById('aiPromptBox');
     box.value = d.prompt;
     const copied = _copyText(d.prompt);
-    _openExternal(AI_SERVICE_URLS[which]);
     showToast(copied
       ? '📋 프롬프트 복사 완료 — ' + svcName + ' 화면에 Ctrl+V로 붙여넣어 주세요.'
       : '⚠ 자동 복사에 실패했습니다. 프롬프트 보기를 눌러 직접 복사해 주세요.');
@@ -2338,7 +2867,7 @@ function copyAndOpenAI(which){
 
 function copyAiPrompt(){
   if(!CUR){ showToast('먼저 종목을 분석해 주세요.'); return; }
-  fetch('/api/ai-prompt/' + CUR.ticker).then(r=>r.json()).then(d=>{
+  _fetchAiPrompt().then(d=>{
     if(d.error){ showToast('⚠ ' + d.error); return; }
     const box = document.getElementById('aiPromptBox');
     box.value = d.prompt;
@@ -2353,10 +2882,94 @@ function toggleAiPromptBox(){
   const box = document.getElementById('aiPromptBox');
   if(box.style.display === 'none'){
     if(!box.value && CUR){
-      fetch('/api/ai-prompt/' + CUR.ticker).then(r=>r.json()).then(d=>{
+      _fetchAiPrompt().then(d=>{
         if(d.prompt) box.value = d.prompt;
         box.style.display = 'block';
       });
+    } else {
+      box.style.display = 'block';
+    }
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+// ── 🔗🖼️📝 [v118] 로드맵 '초기 보급' 2·5순위: 공유·이미지 저장·블로그 내보내기 ──
+
+// 지금 보고 있는 종목으로 바로 돌아오는 공유 링크(?t=종목코드). 다른 브라우저에서 이
+// 링크로 들어오면 위쪽 "?t= 자동 분석" 코드가 곧바로 같은 결과 화면을 띄워준다.
+function _shareUrl(){
+  const base = window.__SITE_URL__ || (location.origin + location.pathname.replace(/\/$/, ''));
+  return base + '/?t=' + encodeURIComponent(CUR.ticker);
+}
+
+function shareResult(){
+  if(!CUR){ showToast('먼저 종목을 분석해 주세요.'); return; }
+  const url = _shareUrl();
+  const text = CUR.name + '(' + CUR.ticker + ') 분석 결과 — 종목분석 미니';
+  // Web Share API가 있으면(모바일 브라우저·카카오톡 인앱 브라우저 등) 그쪽 공유 시트를
+  // 그대로 띄우고, 없으면(대부분의 PC 브라우저) 링크만 클립보드에 복사한다.
+  if(navigator.share){
+    navigator.share({ title: '종목분석 미니', text: text, url: url }).catch(()=>{});
+  } else {
+    _copyText(url);
+    showToast('🔗 링크가 복사되었습니다. 원하는 곳에 붙여넣어 공유해 보세요.');
+  }
+}
+
+// html2canvas는 이 버튼을 실제로 누를 때만 CDN에서 불러온다(평소 페이지 로딩 속도에
+// 영향을 주지 않기 위함 — "이미지 저장"을 한 번도 안 누르면 아예 다운로드되지 않는다).
+function _ensureHtml2Canvas(cb){
+  if(window.html2canvas){ cb(); return; }
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+  s.onload = cb;
+  s.onerror = () => showToast('⚠ 이미지 생성 라이브러리를 불러오지 못했습니다. 네트워크를 확인해 주세요.');
+  document.body.appendChild(s);
+}
+
+function shareResultImage(){
+  if(!CUR){ showToast('먼저 종목을 분석해 주세요.'); return; }
+  showToast('🖼️ 이미지를 만드는 중...');
+  _ensureHtml2Canvas(function(){
+    // 결과 카드는 화면 폭만큼 넓어서 그대로 찍으면 오른쪽이 텅 빈 가로로 긴 그림이 된다.
+    // 찍는 순간에만 카드 폭을 좁혀(단톡방·SNS에서 보기 좋은 크기) 찍고 곧바로 되돌린다.
+    const el = document.getElementById('shareCard');
+    const prevWidth = el.style.width;
+    el.style.width = '420px';
+    html2canvas(el, { backgroundColor: '#ffffff', scale: 2 }).then(canvas=>{
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = CUR.name + '_' + CUR.ticker + '_분석결과.png';
+      a.click();
+      showToast('🖼️ 이미지가 저장되었습니다.');
+    }).catch(()=>showToast('⚠ 이미지 생성 중 오류가 발생했습니다.'))
+      .finally(()=>{ el.style.width = prevWidth; });
+  });
+}
+
+// /api/ai-prompt와 같은 패턴(POST + CUR) — 서버가 네이버를 다시 조회하지 않게 한다.
+function _fetchBlogDraft(){
+  return fetch('/api/blog-export/' + CUR.ticker, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(CUR),
+  }).then(r=>r.json());
+}
+
+function toggleBlogBox(){
+  if(!CUR){ showToast('먼저 종목을 분석해 주세요.'); return; }
+  const box = document.getElementById('blogDraftBox');
+  if(box.style.display === 'none'){
+    if(!box.value){
+      _fetchBlogDraft().then(d=>{
+        if(d.error){ showToast('⚠ ' + d.error); return; }
+        box.value = d.draft;
+        box.style.display = 'block';
+        box.focus(); box.select();
+        _copyText(d.draft);
+        showToast('📝 블로그 글이 복사되었습니다. 원하는 블로그에 붙여넣으세요.');
+      }).catch(()=>showToast('⚠ 블로그 글 생성 중 오류가 발생했습니다.'));
     } else {
       box.style.display = 'block';
     }
@@ -2534,6 +3147,7 @@ HELP_HTML = r"""
       <li><a href="#sec-peer">④ 동일업종 비교·컨센서스</a></li>
       <li><a href="#sec-risk">⑤ 상장폐지 위험 경고</a></li>
       <li><a href="#sec-ai">⑥ AI 분석(수동 모드) 사용법</a></li>
+      <li><a href="#sec-share">⑦ 공유·블로그 내보내기·최근 본 종목</a></li>
     </ul>
   </div>
 
@@ -2662,6 +3276,25 @@ HELP_HTML = r"""
     <a class="back-to-top" href="#top">↑ 목차로</a>
   </section>
 
+  <section class="card" id="sec-share">
+    <h2>⑦ 공유·블로그 내보내기·최근 본 종목</h2>
+    <dl class="termList">
+      <dt>🔗 링크 공유</dt>
+      <dd>지금 보고 있는 종목으로 바로 열리는 링크를 만듭니다. 휴대폰에서는 공유 화면이 뜨고, PC에서는 링크가 복사됩니다.
+        받은 사람이 링크를 열면 같은 종목 분석 화면이 곧바로 나타납니다.</dd>
+      <dt>🖼️ 이미지로 저장</dt>
+      <dd>종목명·현재가가 담긴 결과 카드를 그림 파일(PNG)로 저장합니다. 단톡방이나 SNS에 올리기 좋습니다.</dd>
+      <dt>📝 블로그 내보내기</dt>
+      <dd>주요 수치(현재가·PER·PBR·RSI·매물대 등)를 정리한 글을 만들어 자동으로 복사합니다. AI를 거치지 않으므로 바로 만들어지며,
+        블로그에 붙여넣은 뒤 본인 의견을 덧붙여 쓰시면 됩니다.</dd>
+      <dt>🕘 최근 본 종목</dt>
+      <dd>첫 화면에 최근 분석한 종목이 표시됩니다. 같은 브라우저라면 새로고침하거나 다음에 다시 와도 남아 있습니다.
+        로그인 없이 브라우저에 저장된 무작위 번호로만 구분하며, 이름·이메일 같은 개인정보는 받지 않습니다.
+        브라우저 쿠키를 지우면 목록도 초기화됩니다.</dd>
+    </dl>
+    <a class="back-to-top" href="#top">↑ 목차로</a>
+  </section>
+
   <div class="footNote">이 도움말의 모든 설명은 일반적인 증권 용어 해설이며, 특정 종목에 대한 투자 조언이 아닙니다.</div>
 
 </div>
@@ -2685,7 +3318,16 @@ HELP_HTML = r"""
 _WEB_MODE = bool(os.environ.get("PORT"))  # Render/Railway 등 PaaS가 자동 주입하는 포트
                                             # 환경변수 — 있으면 "웹 배포 모드"로 판단한다.
 
+# 🔒 [v118] Render 등 PaaS는 HTTPS를 앞단 프록시에서 처리하고 앱에는 http로 넘겨준다.
+# 이걸 알려주지 않으면 블로그 글에 들어가는 "직접 분석해보기" 링크가 http://로 만들어진다.
+# X-Forwarded-Proto/Host 헤더를 신뢰하도록 웹 배포 모드에서만 ProxyFix를 씌운다.
+if _WEB_MODE:
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
 init_db()
+_ensure_history_table()  # ⚠️ [v117] 검색 기록 테이블 준비. [v118] DB가 아직 안 붙어도 부팅은
+                         # 계속되고(예외 삼킴), 첫 기록 요청 때 다시 시도한다.
 threading.Thread(target=build_ticker_cache, daemon=True).start()
 
 
@@ -2772,6 +3414,10 @@ def main():
 
     try:
         import webview
+        try:
+            webview.settings["ALLOW_DOWNLOADS"] = True  # [v118] 창 앱에서도 "이미지로 저장"이 되도록
+        except Exception:
+            pass
         webview.create_window("종목분석 미니", url, width=1180, height=860, min_size=(980, 680))
         webview.start()
     except Exception:

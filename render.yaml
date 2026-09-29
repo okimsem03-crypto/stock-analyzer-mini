@@ -1,0 +1,31 @@
+# ════════════════════════════════════════════════════════════════
+# 종목분석 미니 — Render Blueprint (v118)
+# 이 파일 하나가 "서버 설정서"입니다. 대시보드에서 여기저기 클릭해 맞추는 대신,
+# 설정을 코드로 GitHub에 함께 보관하므로 나중에 무엇이 어떻게 설정됐는지
+# 이 파일만 보면 알 수 있고, 바꾸고 싶으면 이 파일을 고쳐 push하면 됩니다.
+# ════════════════════════════════════════════════════════════════
+
+services:
+  - type: web
+    name: stock-analyzer-mini          # 주소가 https://stock-analyzer-mini.onrender.com 이 됨(이미 쓰이면 뒤에 문자가 붙음)
+    runtime: python
+    region: singapore                  # 한국에서 가장 가까운 Render 리전(응답속도)
+    plan: 0.5c-512mb                   # 유료 최소 사양 $7/월 — 잠들지 않음(콜드스타트 없음)
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn stock_analyzer_mini:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120
+    healthCheckPath: /healthz          # 이 주소가 ok를 돌려줘야 새 버전으로 교체(무중단 배포)
+    autoDeploy: true                   # GitHub에 push하면 자동 재배포
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7                  # 파이썬 버전 고정 — 예고 없는 버전 변경으로 깨지는 일 방지
+      - key: DATABASE_URL              # 아래 DB의 접속 주소를 자동으로 연결(복사·붙여넣기 불필요)
+        fromDatabase:
+          name: stock-analyzer-db
+          property: connectionString
+
+databases:
+  - name: stock-analyzer-db
+    region: singapore                  # 웹 서비스와 같은 리전 → 내부망으로 빠르게 연결
+    plan: 0.1c-256mb                   # 유료 최소 사양 $6/월 — 무료 DB처럼 30일 후 삭제되지 않음
+    databaseName: stock_analyzer
+    user: stock_analyzer
