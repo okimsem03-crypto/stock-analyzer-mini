@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-📈 종목분석 미니 (공개판) — v119
+📈 종목분석 미니 (공개판) — v120
 ────────────────────────────────────────────────────────────────
 FinanceDataReader + 네이버 모바일 증권 API/FnGuide 공개 페이지만 사용합니다.
 KRX 로그인, DART API 키, 유료 AI API 키가 전혀 필요 없습니다.
@@ -170,6 +170,16 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
      바로 넣고 정리. 브라우저가 막으면 [📥 복사한 답변 붙여넣기] 버튼·Ctrl+V 안내.
   ※ REDIRECT_TO_PUBLIC_SITE(도메인 연결 후 onrender.com → chostock.kr 자동 이동), CREATOR_BLOG_URL 상수 추가.
 
+🐛 v120: "평소보다 오래 걸리다가 결국 '주가 데이터를 가져오지 못했습니다'로 실패" 대응.
+  원인: 주가를 가져오는 FinanceDataReader에는 자체 대기시간이 없어, 네이버가 서버(Render)의
+  요청에 늦게 답하면 v119가 정한 25초 제한에 걸려 실패했다(v119는 요청을 동시에 여러 개
+  보내고 서버 시작 직후 미리 불러오기까지 해서 네이버 쪽 지연이 생기기 쉬웠다).
+  ① 주가를 서로 다른 네이버 서버 세 곳에서 차례로 시도(api.stock.naver.com → FDR → fchart),
+     각각 8~12초 제한. 모든 네이버 요청에 일시 오류 자동 재시도(최대 2회).
+  ② 그래도 실패하면 최근 3일 안에 성공했던 결과를 기준 시각과 함께 보여준다(빈 화면 방지).
+  ③ 미리 불러오기는 서버 시작 20초 뒤부터, 종목 사이 3초 간격, 대상 3개로 축소.
+  ④ 실패하면 이유와 [다시 시도] 버튼을 화면에 표시. /api/diag 진단 페이지 추가(각 경로 성공 여부·시간).
+
 실행(로컬/데스크톱):  python stock_analyzer_mini.py
 실행(웹 서버, 예: Render):  gunicorn stock_analyzer_mini:app --bind 0.0.0.0:$PORT
 필요:  pip install flask finance-datareader pandas numpy requests beautifulsoup4
@@ -180,7 +190,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 
 exe 빌드(PyInstaller):
   pip install pyinstaller pywebview
-  pyinstaller --onefile --noconsole --name "종목분석미니_v119" stock_analyzer_mini.py
+  pyinstaller --onefile --noconsole --name "종목분석미니_v120" stock_analyzer_mini.py
   (--noconsole은 창 앱 모드일 때만 권장 — 콘솔 로그로 문제를 확인하려면 빼고 빌드하세요)
   빌드된 exe와 같은 폴더에 mini_tickers.db 캐시 파일이 자동 생성됩니다.
 
@@ -225,7 +235,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v119"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v120"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -244,7 +254,7 @@ APP_VERSION_HARDCODED = "v119"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v119"
+HELP_CONTENT_ASOF = "v120"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -838,7 +848,11 @@ def _http():
     if s is None:
         s = requests.Session()
         s.headers.update(UA)
-        adapter = requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=8)
+        # 🐛 [v120] 네이버가 일시적으로 끊기거나 429/5xx를 주면 잠깐 쉬고 최대 2번 다시 시도
+        from urllib3.util.retry import Retry
+        retry = Retry(total=2, connect=2, read=1, backoff_factor=0.4,
+                      status_forcelist=(429, 500, 502, 503, 504), allowed_methods=frozenset(["GET"]))
+        adapter = requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=8, max_retries=retry)
         s.mount("https://", adapter)
         s.mount("http://", adapter)
         _HTTP_TLS.s = s
@@ -933,7 +947,7 @@ def _fetch_all_parallel(ticker, need_price=True):
             return f.result(timeout=timeout)
         except Exception:
             return None
-    price = _res(f_price, 25) if f_price else None
+    price = _res(f_price, 40) if f_price else None
     basic = _res(f_basic, 10)
     integ = _res(f_integ, 10)
     if f_rev is not None:
@@ -1117,12 +1131,92 @@ def _v(x, default=None):
 # 원본 앱의 종목분석 핵심 로직을 그대로 이식했습니다(수급/재무/공시/뉴스 등
 # KRX 로그인·DART API 키가 필요한 부분은 이 공개판에서 전부 제외했습니다).
 # ══════════════════════════════════════════════════════════════
-def get_price_data(ticker: str):
+# ══════════════════════════════════════════════════════════════
+# 🐛 [v120] 주가 데이터 3단계 확보 — "주가 데이터를 가져오지 못했습니다" 대응
+# ──────────────────────────────────────────────────────────────
+# FinanceDataReader는 자체 대기시간(timeout)이 없어, 네이버가 서버(Render) 요청에 늦게
+# 답하면 끝없이 기다리다 실패했다. 이제 서로 다른 네이버 서버 세 곳을 차례로 시도한다.
+#   ① api.stock.naver.com 일봉 JSON(가볍고 빠름, 8초 제한)
+#   ② FinanceDataReader(fchart.stock.naver.com, 12초 제한)
+#   ③ fchart XML 직접 호출(8초 제한)
+# 어느 쪽이든 같은 모양의 표(Open·High·Low·Close·Volume, 날짜 인덱스)로 맞춰 넘긴다.
+# ══════════════════════════════════════════════════════════════
+_FDR_POOL = ThreadPoolExecutor(max_workers=6, thread_name_prefix="fdr")
+PRICE_LAST_SOURCE = {}   # 종목별로 마지막에 성공한 소스(진단용)
+
+
+def _ohlcv_frame(rows):
+    """[(yyyymmdd, open, high, low, close, volume), ...] → FDR과 같은 모양의 DataFrame."""
+    if not rows:
+        return None
+    df = pd.DataFrame(rows, columns=["Date", "Open", "High", "Low", "Close", "Volume"])
+    df["Date"] = pd.to_datetime(df["Date"], format="%Y%m%d")
+    df = df.set_index("Date").sort_index()
+    for c in ["Open", "High", "Low", "Close", "Volume"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df[df["Close"] > 0]
+    return df if len(df) else None
+
+
+def _ohlcv_naver_api(ticker, start):
+    s0 = start.replace("-", "") + "0000"
+    e0 = datetime.now().strftime("%Y%m%d") + "2359"
+    r = _http().get(f"https://api.stock.naver.com/chart/domestic/item/{ticker}/day",
+                    params={"startDateTime": s0, "endDateTime": e0}, timeout=8)
+    r.raise_for_status()
+    data = r.json()
+    return _ohlcv_frame([(d["localDate"], d.get("openPrice"), d.get("highPrice"), d.get("lowPrice"),
+                          d.get("closePrice"), d.get("accumulatedTradingVolume")) for d in data if d.get("localDate")])
+
+
+def _ohlcv_fdr(ticker, start):
     if not FDR_OK:
         return None
+    f = _FDR_POOL.submit(fdr.DataReader, ticker, start)
+    df = f.result(timeout=12)
+    return df if (df is not None and not df.empty) else None
+
+
+def _ohlcv_fchart(ticker, start):
+    days = (datetime.now() - datetime.strptime(start, "%Y-%m-%d")).days
+    r = _http().get("https://fchart.stock.naver.com/sise.nhn",
+                    params={"symbol": ticker, "timeframe": "day", "count": max(days, 60), "requestType": 0}, timeout=8)
+    r.raise_for_status()
+    rows = []
+    for m_ in re.finditer(r'data="([^"]+)"', r.content.decode("euc-kr", "replace")):
+        parts = m_.group(1).split("|")
+        if len(parts) >= 6:
+            rows.append(tuple(parts[:6]))
+    df = _ohlcv_frame(rows)
+    return df[df.index >= pd.Timestamp(start)] if df is not None else None
+
+
+_PRICE_SOURCES = (("naver_api", _ohlcv_naver_api), ("fdr", _ohlcv_fdr), ("fchart", _ohlcv_fchart))
+
+
+def _fetch_ohlcv(ticker, start):
+    """세 소스를 차례로 시도해 처음 성공한 표를 돌려준다. 실패 사유는 Render 로그에 남긴다."""
+    errors = []
+    for name, fn in _PRICE_SOURCES:
+        t0 = time.time()
+        try:
+            df = fn(ticker, start)
+            if df is not None and len(df) >= 2:
+                PRICE_LAST_SOURCE[ticker] = name
+                if errors:
+                    print(f"[주가] {ticker}: {name}로 대체 성공 ({time.time()-t0:.1f}s) — 앞선 실패: {'; '.join(errors)}")
+                return df
+            errors.append(f"{name}=빈 데이터")
+        except Exception as e:
+            errors.append(f"{name}={type(e).__name__}({time.time()-t0:.1f}s)")
+    print(f"[주가] {ticker}: 모든 소스 실패 — {'; '.join(errors)}")
+    return None
+
+
+def get_price_data(ticker: str):
     try:
         st = (datetime.now() - timedelta(days=420)).strftime("%Y-%m-%d")
-        df = fdr.DataReader(ticker, st)
+        df = _fetch_ohlcv(ticker, st)
         if df is None or df.empty:
             return None
 
@@ -1855,7 +1949,7 @@ def _compute_analysis(ticker):
     name, market = get_ticker_info(ticker)
     price_d, basic, integ, rev = _fetch_all_parallel(ticker)
     if not price_d:
-        return {"error": f"주가 데이터를 가져오지 못했습니다. 종목코드를 확인해 주세요. ({ticker})"}
+        return {"error": f"주가 데이터를 가져오지 못했어요({ticker}). 네이버 응답이 늦거나 없는 종목코드일 수 있어요."}
     details, fundamentals = _build_details(basic, integ, rev)
 
     # 🐛 [v1.1] 검색 캐시에 없는 종목도 분석되도록 실제 종목명을 채워 넣는다("자가 치유" 캐시).
@@ -1900,6 +1994,13 @@ def _get_analysis(ticker):
         payload = _compute_analysis(ticker)
         if "error" not in payload:
             _cache_set(key, payload, _analysis_ttl())
+            _cache_set(("last", ticker), payload, 3 * 86400)   # 🐛 [v120] 최근 성공 결과 3일 보관
+        else:
+            # 🐛 [v120] 네이버가 답하지 않을 때 빈 화면 대신 최근 성공 결과를 보여준다(기준 시각 표시).
+            last = _cache_get(("last", ticker))
+            if last:
+                payload = dict(last, stale=True)
+                print(f"[분석] {ticker}: 새로 가져오기 실패 → {last.get('as_of')} 기준 결과로 대체")
         fut.set_result(payload)
         return payload, False
     except Exception as e:
@@ -1930,18 +2031,22 @@ def _warm_cache_loop():
     """⚡ [v119] 데모 종목과 많이 보는 종목을 미리 불러 캐시에 넣어 둔다 — 첫 방문자가 데모
        버튼을 누르면 기다림 없이 결과가 뜨게 하기 위함. 데스크톱은 시작 시 한 번만,
        웹 배포는 캐시가 만료되기 직전마다 다시 채운다."""
-    time.sleep(3)
+    # 🐛 [v120] 서버가 막 켜졌을 때는 종목목록 갱신과 겹치지 않도록 잠시 기다리고, 한 번에
+    # 몰아서 요청하지 않도록 종목 사이에 3초씩 쉰다(네이버에 한꺼번에 요청이 몰리지 않게).
+    time.sleep(20 if _WEB_MODE else 3)
     while True:
-        for t in dict.fromkeys([DEMO_TICKER] + (_popular_tickers(4) if _WEB_MODE else [])):
+        for t in dict.fromkeys([DEMO_TICKER] + (_popular_tickers(2) if _WEB_MODE else [])):
             try:
                 payload = _compute_analysis(t)
                 if "error" not in payload:
                     _cache_set(("analyze", t), payload, _analysis_ttl())
+                    _cache_set(("last", t), payload, 3 * 86400)
             except Exception as e:
                 print(f"[미리불러오기] {t} 실패(무시): {e}")
+            time.sleep(3)
         if not _WEB_MODE:
             return
-        time.sleep(max(60, _analysis_ttl() - 30))
+        time.sleep(max(90, _analysis_ttl() - 30))
 
 
 @app.route("/api/analyze/<ticker>")
@@ -2009,6 +2114,35 @@ def healthz():
     """🩺 [v118] Render 헬스체크 전용 — 화면 템플릿을 그리지 않는 가장 가벼운 응답.
        render.yaml의 healthCheckPath가 이 주소를 본다(무중단 배포·장애 자동 감지용)."""
     return "ok", 200
+
+
+@app.route("/api/diag")
+def api_diag():
+    """🩺 [v120] 진단 — 브라우저로 /api/diag 를 열면 서버에서 네이버·FnGuide 각 경로가 되는지,
+       몇 초 걸리는지 한눈에 보여준다(문제가 생겼을 때 이 화면 내용을 그대로 알려주면 원인 파악 가능)."""
+    ticker = normalize_ticker(request.args.get("t", DEMO_TICKER)) or DEMO_TICKER
+    st = (datetime.now() - timedelta(days=420)).strftime("%Y-%m-%d")
+    out = {"version": APP_VERSION_HARDCODED, "web_mode": _WEB_MODE, "db": "postgres" if _USE_PG else "sqlite",
+           "history_ready": _history_ready, "cpu": os.cpu_count(), "cache_items": len(_CACHE),
+           "fdr_ok": FDR_OK, "ticker": ticker, "now_kst": _now_kst().strftime("%Y-%m-%d %H:%M:%S"), "checks": []}
+    checks = [(f"price:{n}", (lambda fn=fn: fn(ticker, st))) for n, fn in _PRICE_SOURCES] + [
+        ("naver_basic", lambda: _naver_mobile_basic(ticker)),
+        ("naver_integration", lambda: _naver_mobile_integration(ticker)),
+        ("fnguide_revenue", lambda: _fnguide_revenue(ticker)),
+    ]
+    for name, fn in checks:
+        t0 = time.time()
+        try:
+            v = fn()
+            size = len(v) if hasattr(v, "__len__") else (1 if v else 0)
+            out["checks"].append({"name": name, "ok": bool(v is not None and size), "ms": int((time.time()-t0)*1000),
+                                  "size": size})
+        except Exception as e:
+            out["checks"].append({"name": name, "ok": False, "ms": int((time.time()-t0)*1000),
+                                  "error": f"{type(e).__name__}: {str(e)[:160]}"})
+    resp = jsonify(out)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.route("/api/stats")
@@ -2204,6 +2338,10 @@ HTML_TEMPLATE = r"""
   .loadingMsg{font-size:14px; font-weight:700; color:var(--navy);}
   .loadingSub{font-size:12px; color:var(--muted); margin-top:2px;}
   #result.dim{opacity:.45; transition:opacity .15s;}
+  .errorCard{display:none; background:#fff1f2; border:1px solid #fecdd3; border-radius:var(--radius); padding:16px 20px; margin:0 0 16px;}
+  .errorCard.show{display:block;}
+  .errorMsg{font-size:14px; font-weight:800; color:#be123c;} .errorSub{font-size:12px; color:#9f1239; margin-top:3px;}
+  .asOf.stale{color:#b45309; font-weight:700;}
   .asOf{font-size:11px; color:var(--muted); margin-top:4px;}
 
   /* 🔗 [v119] 공유 링크를 눈으로 확인하고 직접 복사할 수 있는 칸 */
@@ -2561,6 +2699,13 @@ HTML_TEMPLATE = r"""
 
 <div class="wrap">
   <!-- ⏳ [v119] 분석 중 표시 -->
+  <!-- 🐛 [v120] 분석 실패 시 빈 화면 대신 이유와 [다시 시도]를 보여준다 -->
+  <div id="errorCard" class="errorCard">
+    <div class="errorMsg" id="errorMsg">주가 데이터를 가져오지 못했어요.</div>
+    <div class="errorSub">네이버 응답이 잠시 늦는 경우가 많아요. 잠시 후 다시 눌러 주세요.</div>
+    <div class="aiBtnRow" style="margin:10px 0 0;"><button class="btn btn-primary" onclick="retryAnalyze()">🔄 다시 시도</button>
+      <button class="btn btn-ghost" onclick="hideError()">닫기</button></div>
+  </div>
   <div id="loadingCard" class="loadingCard"><div class="spinner"></div>
     <div><div class="loadingMsg" id="loadingMsg">📈 주가 데이터를 불러오는 중…</div>
     <div class="loadingSub" id="loadingSub">보통 2~3초면 끝나요</div></div></div>
@@ -2991,14 +3136,27 @@ function analyze(ticker){
   if(hit && Date.now() - hit.t < 120000){ _applyAnalysis(hit.data); return; }
   if(_analyzing === ticker) return;   // 같은 종목 연타 방지
   _analyzing = ticker;
+  _lastTried = ticker;
+  hideError();
   _showLoading(true);
   fetch('/api/analyze/' + encodeURIComponent(ticker)).then(r=>r.json()).then(data=>{
-    if(data.error){ showToast('⚠ ' + data.error); return; }
-    _CLIENT_CACHE[data.ticker] = { t: Date.now(), data: data };
+    if(data.error){ showError(data.error); return; }
+    if(!data.stale) _CLIENT_CACHE[data.ticker] = { t: Date.now(), data: data };
     _applyAnalysis(data);
-  }).catch(()=>showToast('⚠ 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'))
+    if(data.stale) showToast('⚠ 네이버 응답이 늦어 ' + data.as_of + ' 기준 데이터를 보여드려요.');
+  }).catch(()=>showError('서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.'))
     .finally(()=>{ _analyzing = null; _showLoading(false); });
 }
+
+// 🐛 [v120] 실패 안내 상자
+let _lastTried = null;
+function showError(msg){
+  document.getElementById('errorMsg').textContent = '⚠ ' + msg;
+  document.getElementById('errorCard').classList.add('show');
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+function hideError(){ document.getElementById('errorCard').classList.remove('show'); }
+function retryAnalyze(){ if(_lastTried) analyze(_lastTried); }
 
 function _applyAnalysis(data){
     CUR = data;
@@ -3013,7 +3171,9 @@ function _applyAnalysis(data){
       console.error('[renderResult]', e);
       showToast('⚠ 일부 항목 표시 중 오류가 있었지만 나머지는 정상 표시됩니다.');
     }
-    document.getElementById('asOf').textContent = data.as_of ? ('데이터 기준 ' + data.as_of + ' (한국 시간)') : '';
+    const asOf = document.getElementById('asOf');
+    asOf.textContent = data.as_of ? ('데이터 기준 ' + data.as_of + ' (한국 시간)' + (data.stale ? ' · 최신 데이터를 못 가져와 이전 결과를 표시 중' : '')) : '';
+    asOf.classList.toggle('stale', !!data.stale);
     document.getElementById('aiPromptBox').value = '';
     document.getElementById('aiPromptBox').style.display = 'none';
     document.getElementById('blogDraftBox').value = '';
