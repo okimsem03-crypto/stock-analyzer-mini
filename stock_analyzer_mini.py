@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-📈 종목분석 미니 (공개판) — v122
+📈 종목분석 미니 (공개판) — v123
 ────────────────────────────────────────────────────────────────
 FinanceDataReader + 네이버 모바일 증권 API/FnGuide 공개 페이지만 사용합니다.
 KRX 로그인, DART API 키, 유료 AI API 키가 전혀 필요 없습니다.
@@ -197,6 +197,14 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   건너뛰어 야후 시세로 빠르게 결과를 보여주고, 화면에 시세 출처와 "일부 정보 빠짐"을 안내한다.
   /api/diag에 소스별 상태 표시.
 
+🩺 v123: Render에서 "주가 데이터를 가져오지 못했어요(196170)" — 같은 코드·같은 라이브러리 버전
+  (Python 3.14 · pandas 3.0.6 · numpy 2.5.3)으로 재현하면 정상이라, 서버(Render)에서 네이버로 가는
+  요청 자체가 막히거나 실패하는 것으로 판단. 원인을 바로 보이게:
+  ① print가 gunicorn 버퍼에 갇혀 Render 로그에 안 보이던 문제 수정(줄 단위 즉시 출력).
+  ② 오류 문구에 소스별 실패 사유 표시(예: 네이버 HTTP 403, 야후 HTTP 429).
+  ③ /api/diag에 각 서버 직접 요청의 HTTP 상태·응답 앞부분, 서버의 외부 IP, Python·pandas 버전 표시.
+  ④ 네이버 요청에 모바일 화면과 같은 Referer 헤더, 야후는 query1 실패 시 query2로 재시도.
+
 실행(로컬/데스크톱):  python stock_analyzer_mini.py
 실행(웹 서버, 예: Render):  gunicorn stock_analyzer_mini:app --bind 0.0.0.0:$PORT
 필요:  pip install flask finance-datareader pandas numpy requests beautifulsoup4
@@ -207,7 +215,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 
 exe 빌드(PyInstaller):
   pip install pyinstaller pywebview
-  pyinstaller --onefile --noconsole --name "종목분석미니_v122" stock_analyzer_mini.py
+  pyinstaller --onefile --noconsole --name "종목분석미니_v123" stock_analyzer_mini.py
   (--noconsole은 창 앱 모드일 때만 권장 — 콘솔 로그로 문제를 확인하려면 빼고 빌드하세요)
   빌드된 exe와 같은 폴더에 mini_tickers.db 캐시 파일이 자동 생성됩니다.
 
@@ -224,6 +232,13 @@ import os, sys, math, re, sqlite3, threading, socket, webbrowser, time, subproce
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import datetime, timedelta
+
+# 🩺 [v123] 서버(gunicorn)에서 print가 버퍼에 갇혀 Render 로그에 안 보이던 문제 — 줄 단위로 바로 내보낸다.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(line_buffering=True)
+    except Exception:
+        pass
 
 import numpy as np
 import pandas as pd
@@ -252,7 +267,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v122"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v123"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -271,7 +286,7 @@ APP_VERSION_HARDCODED = "v122"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v122"
+HELP_CONTENT_ASOF = "v123"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -344,6 +359,8 @@ def _detect_app_version():
 
 
 APP_VERSION = _detect_app_version()
+NAVER_M_HEADERS = {"Referer": "https://m.stock.naver.com/", "Accept": "application/json, text/plain, */*",
+                   "Accept-Language": "ko-KR,ko;q=0.9"}   # 🩺 [v123] 네이버 모바일 화면이 보내는 것과 같은 헤더
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                      "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"}
 
@@ -955,7 +972,7 @@ def _naver_mobile_basic(ticker):
        제품인 모바일 증권 API는 개편 영향을 받지 않고 그대로 살아있음을 확인했다.
        이름·현재가·등락률·시장구분(코스피/코스닥)·거래 상태를 제공. 실패 시 None."""
     try:
-        r = _http().get(f"https://m.stock.naver.com/api/stock/{ticker}/basic", timeout=6)
+        r = _http().get(f"https://m.stock.naver.com/api/stock/{ticker}/basic", timeout=6, headers=NAVER_M_HEADERS)
         if r.status_code != 200:
             return None
         return r.json()
@@ -967,7 +984,7 @@ def _naver_mobile_integration(ticker):
     """💡 [v107] m.stock.naver.com/api/stock/{code}/integration — PER·PBR·EPS·BPS·배당·
        시총·52주·동일업종 PEER 종목까지 한 번에 제공. 실패 시 None."""
     try:
-        r = _http().get(f"https://m.stock.naver.com/api/stock/{ticker}/integration", timeout=6)
+        r = _http().get(f"https://m.stock.naver.com/api/stock/{ticker}/integration", timeout=6, headers=NAVER_M_HEADERS)
         if r.status_code != 200:
             return None
         return r.json()
@@ -1118,7 +1135,7 @@ def _naver_finance(ticker, period="annual"):
         return None                 # ⚡ [v122] 네이버 불안정 — 새로 요청하지 않음(캐시에 없으면 생략)
     out = None
     try:
-        r = _http().get(f"https://m.stock.naver.com/api/stock/{ticker}/finance/{period}", timeout=6)
+        r = _http().get(f"https://m.stock.naver.com/api/stock/{ticker}/finance/{period}", timeout=6, headers=NAVER_M_HEADERS)
         if r.status_code == 200:
             info = (r.json() or {}).get("financeInfo") or {}
             cols = info.get("trTitleList") or []
@@ -1152,7 +1169,7 @@ def _naver_news(ticker):
     try:
         for page in (1, 2):
             r = _http().get(f"https://m.stock.naver.com/api/news/stock/{ticker}",
-                            params={"pageSize": 20, "page": page}, timeout=6)
+                            params={"pageSize": 20, "page": page}, timeout=6, headers=NAVER_M_HEADERS)
             if r.status_code != 200:
                 break
             groups = r.json() or []
@@ -1407,6 +1424,7 @@ def _v(x, default=None):
 # ══════════════════════════════════════════════════════════════
 _FDR_POOL = ThreadPoolExecutor(max_workers=6, thread_name_prefix="fdr")
 PRICE_LAST_SOURCE = {}   # 종목별로 마지막에 성공한 소스(진단용)
+PRICE_LAST_ERRORS = {}   # 🩺 [v123] 종목별 마지막 실패 사유(화면 오류 문구·진단용)
 
 
 def _ohlcv_frame(rows):
@@ -1426,7 +1444,7 @@ def _ohlcv_naver_api(ticker, start):
     s0 = start.replace("-", "") + "0000"
     e0 = datetime.now().strftime("%Y%m%d") + "2359"
     r = _http_fast().get(f"https://api.stock.naver.com/chart/domestic/item/{ticker}/day",
-                         params={"startDateTime": s0, "endDateTime": e0}, timeout=(3.05, 6))
+                         params={"startDateTime": s0, "endDateTime": e0}, timeout=(3.05, 6), headers=NAVER_M_HEADERS)
     r.raise_for_status()
     data = r.json()
     return _ohlcv_frame([(d["localDate"], d.get("openPrice"), d.get("highPrice"), d.get("lowPrice"),
@@ -1445,7 +1463,7 @@ def _ohlcv_fchart(ticker, start):
     days = (datetime.now() - datetime.strptime(start, "%Y-%m-%d")).days
     r = _http_fast().get("https://fchart.stock.naver.com/sise.nhn",
                          params={"symbol": ticker, "timeframe": "day", "count": max(days, 60), "requestType": 0},
-                         timeout=(3.05, 6))
+                         timeout=(3.05, 6), headers={"Referer": "https://finance.naver.com/"})
     r.raise_for_status()
     rows = []
     for m_ in re.finditer(r'data="([^"]+)"', r.content.decode("euc-kr", "replace")):
@@ -1467,8 +1485,13 @@ def _ohlcv_yahoo(ticker, start):
     kst = timezone(timedelta(hours=9))
 
     def _get(sym, rng):
-        r = _http_fast().get(f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}",
-                             params={"range": rng, "interval": "1d"}, timeout=(3.05, 6))
+        # 🩺 [v123] 야후는 서버 두 곳(query1·query2)이 같은 자료를 준다 — 한쪽이 429(요청 과다)를 주면 다른 쪽으로
+        r = None
+        for host in ("query1", "query2"):
+            r = _http_fast().get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{sym}",
+                                 params={"range": rng, "interval": "1d"}, timeout=(3.05, 6))
+            if r.status_code not in (429, 500, 502, 503, 504):
+                break
         if r.status_code == 404:
             return None                    # 시장 접미사가 틀린 경우 — 다른 쪽으로 다시
         r.raise_for_status()
@@ -1563,7 +1586,9 @@ def _fetch_ohlcv(ticker, start):
             errors.append(f"{name}=빈 데이터")
         except Exception as e:
             _src_report(name, False)
-            errors.append(f"{name}={type(e).__name__}({time.time()-t0:.1f}s)")
+            code = getattr(getattr(e, "response", None), "status_code", None)
+            errors.append(f"{name}={'HTTP ' + str(code) if code else type(e).__name__}({time.time()-t0:.1f}s)")
+    PRICE_LAST_ERRORS[ticker] = errors
     print(f"[주가] {ticker}: 모든 소스 실패 — {'; '.join(errors)}")
     return None
 
@@ -2363,7 +2388,11 @@ def _compute_analysis(ticker):
     name, market = get_ticker_info(ticker)
     price_d, basic, integ, rev, extra = _fetch_all_parallel(ticker)
     if not price_d:
-        return {"error": f"주가 데이터를 가져오지 못했어요({ticker}). 네이버 응답이 늦거나 없는 종목코드일 수 있어요."}
+        why = PRICE_LAST_ERRORS.get(ticker) or []
+        label = {"naver_api": "네이버", "yahoo": "야후", "fdr": "네이버2", "fchart": "네이버3"}
+        why_txt = ", ".join(f"{label.get(w.split('=')[0], w.split('=')[0])} {w.split('=', 1)[1]}" for w in why) if why else ""
+        return {"error": f"주가 데이터를 가져오지 못했어요({ticker})." + (f" [원인: {why_txt}]" if why_txt else
+                         " 없는 종목코드일 수 있어요.")}
     details, fundamentals = _build_details(basic, integ, rev, extra)
 
     # 🐛 [v1.1] 검색 캐시에 없는 종목도 분석되도록 실제 종목명을 채워 넣는다("자가 치유" 캐시).
@@ -2587,6 +2616,31 @@ def api_diag():
         except Exception as e:
             out["checks"].append({"name": name, "ok": False, "ms": int((time.time()-t0)*1000),
                                   "error": f"{type(e).__name__}: {str(e)[:160]}"})
+    # 🩺 [v123] 가공 없이 각 서버에 직접 요청했을 때의 HTTP 상태 — 403/429면 이 서버(IP)가 막힌 것
+    probes = [
+        ("naver_chart_api", f"https://api.stock.naver.com/chart/domestic/item/{ticker}/day?startDateTime=202601010000&endDateTime=202601102359", NAVER_M_HEADERS),
+        ("naver_mobile_basic", f"https://m.stock.naver.com/api/stock/{ticker}/basic", NAVER_M_HEADERS),
+        ("naver_fchart", f"https://fchart.stock.naver.com/sise.nhn?symbol={ticker}&timeframe=day&count=5&requestType=0", None),
+        ("yahoo_q1", f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}.KS?range=5d&interval=1d", None),
+        ("yahoo_q2", f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}.KQ?range=5d&interval=1d", None),
+    ]
+    out["probes"] = []
+    for name, url, hd in probes:
+        t0 = time.time()
+        try:
+            r = _http_fast().get(url, timeout=(3.05, 6), headers=hd)
+            out["probes"].append({"name": name, "status": r.status_code, "ms": int((time.time()-t0)*1000),
+                                  "bytes": len(r.content), "head": r.text[:80].replace("\n", " ")})
+        except Exception as e:
+            out["probes"].append({"name": name, "status": None, "ms": int((time.time()-t0)*1000),
+                                  "error": f"{type(e).__name__}: {str(e)[:120]}"})
+    try:
+        out["server_ip"] = _http_fast().get("https://api.ipify.org", timeout=(3.05, 4)).text.strip()[:45]
+    except Exception:
+        out["server_ip"] = None
+    out["last_price_errors"] = dict(list(PRICE_LAST_ERRORS.items())[-10:])
+    out["python"] = sys.version.split()[0]
+    out["pandas"] = pd.__version__
     resp = jsonify(out)
     resp.headers["Cache-Control"] = "no-store"
     return resp
