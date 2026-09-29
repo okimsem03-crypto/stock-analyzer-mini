@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-📈 종목분석 미니 (공개판) — v121
+📈 종목분석 미니 (공개판) — v122
 ────────────────────────────────────────────────────────────────
 FinanceDataReader + 네이버 모바일 증권 API/FnGuide 공개 페이지만 사용합니다.
 KRX 로그인, DART API 키, 유료 AI API 키가 전혀 필요 없습니다.
@@ -190,6 +190,13 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ④ 💡 매력도 체크 — 사고 싶어요/지켜볼래요/아직은 투표(한 브라우저 종목당 한 표, 최근 30일 집계),
      첫 화면 "이번 주 매수 관심 TOP 5". stock_votes 테이블(SQLite·Postgres 공통 SQL).
 
+🌐 v122: "네이버에서 데이터를 못 가져오는 경우가 많다" — 야후 파이낸스를 네이버와 무관한 예비 시세
+  소스로 추가(코스피 .KS / 코스닥 .KQ, 영문 코드 포함). 순서: 네이버 API → 야후 → FDR → fchart.
+  주가 소스끼리는 재시도 없이 바로 다음으로 넘어가고(연결 3초·응답 6초 제한), 5분 안에 2번 연결 오류가
+  난 소스는 3분 동안 뒤로 미룬다. 네이버가 불안정한 동안에는 네이버 전용 정보(기업정보·재무·뉴스)를
+  건너뛰어 야후 시세로 빠르게 결과를 보여주고, 화면에 시세 출처와 "일부 정보 빠짐"을 안내한다.
+  /api/diag에 소스별 상태 표시.
+
 실행(로컬/데스크톱):  python stock_analyzer_mini.py
 실행(웹 서버, 예: Render):  gunicorn stock_analyzer_mini:app --bind 0.0.0.0:$PORT
 필요:  pip install flask finance-datareader pandas numpy requests beautifulsoup4
@@ -200,7 +207,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 
 exe 빌드(PyInstaller):
   pip install pyinstaller pywebview
-  pyinstaller --onefile --noconsole --name "종목분석미니_v121" stock_analyzer_mini.py
+  pyinstaller --onefile --noconsole --name "종목분석미니_v122" stock_analyzer_mini.py
   (--noconsole은 창 앱 모드일 때만 권장 — 콘솔 로그로 문제를 확인하려면 빼고 빌드하세요)
   빌드된 exe와 같은 폴더에 mini_tickers.db 캐시 파일이 자동 생성됩니다.
 
@@ -245,7 +252,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v121"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v122"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -264,7 +271,7 @@ APP_VERSION_HARDCODED = "v121"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v121"
+HELP_CONTENT_ASOF = "v122"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -999,6 +1006,19 @@ def _http():
     return s
 
 
+def _http_fast():
+    """⚡ [v122] 재시도 없는 세션 — 주가 소스끼리는 '같은 곳에 다시 시도'보다 '바로 다음 곳으로'가
+       빠르다(네이버가 막혔을 때 야후로 넘어가는 시간을 줄임)."""
+    s = getattr(_HTTP_TLS, "fast", None)
+    if s is None:
+        s = requests.Session()
+        s.headers.update(UA)
+        a = requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=8, max_retries=0)
+        s.mount("https://", a); s.mount("http://", a)
+        _HTTP_TLS.fast = s
+    return s
+
+
 _POOL = ThreadPoolExecutor(max_workers=24, thread_name_prefix="fetch")
 _CACHE = {}
 _CACHE_LOCK = threading.Lock()
@@ -1094,6 +1114,8 @@ def _naver_finance(ticker, period="annual"):
     hit = _cache_get(key)
     if hit is not None:
         return hit or None
+    if _naver_unhealthy():
+        return None                 # ⚡ [v122] 네이버 불안정 — 새로 요청하지 않음(캐시에 없으면 생략)
     out = None
     try:
         r = _http().get(f"https://m.stock.naver.com/api/stock/{ticker}/finance/{period}", timeout=6)
@@ -1164,25 +1186,36 @@ def _fetch_all_parallel(ticker, need_price=True):
        FnGuide만 FNGUIDE_WAIT_SEC까지만 기다리고, 늦으면 이번엔 빈 값으로 넘어간다."""
     t0 = time.time()
     f_price = _POOL.submit(get_price_data, ticker) if need_price else None
-    f_basic = _POOL.submit(_naver_mobile_basic, ticker)
-    f_integ = _POOL.submit(_naver_mobile_integration, ticker)
+    # ⚡ [v122] 네이버가 최근 계속 실패 중이면 네이버 전용 정보(기본정보·재무·뉴스)는 요청하지 않는다
+    # — 막힌 곳을 기다리느라 주가(야후)까지 늦어지지 않게. 캐시에 남은 재무는 그대로 쓴다.
+    skip_naver = _naver_unhealthy()
+    noop = _POOL.submit(lambda: None)
+    f_basic = noop if skip_naver else _POOL.submit(_naver_mobile_basic, ticker)
+    f_integ = noop if skip_naver else _POOL.submit(_naver_mobile_integration, ticker)
     rev = _cache_get(("rev", ticker))
-    f_rev = None if rev is not None else _POOL.submit(_fnguide_revenue, ticker)
-    f_fin_a = _POOL.submit(_naver_finance, ticker, "annual")      # 📑 [v121]
+    f_rev = None if (rev is not None or skip_naver) else _POOL.submit(_fnguide_revenue, ticker)
+    f_fin_a = _POOL.submit(_naver_finance, ticker, "annual")      # 📑 [v121] (캐시 있으면 즉시)
     f_fin_q = _POOL.submit(_naver_finance, ticker, "quarter")
-    f_news = _POOL.submit(_naver_news, ticker)                     # 📰 [v121]
+    f_news = noop if skip_naver else _POOL.submit(_naver_news, ticker)   # 📰 [v121]
 
     def _res(f, timeout):
         try:
-            return f.result(timeout=timeout)
+            return f.result(timeout=max(0.05, timeout))
         except Exception:
             return None
-    price = _res(f_price, 40) if f_price else None
-    basic = _res(f_basic, 10)
-    integ = _res(f_integ, 10)
+    price = _res(f_price, 45) if f_price else None
+    # 주가를 야후에서 받았다면 네이버가 불안정하다는 뜻 — 부가정보는 최대 3초만 더 기다린다.
+    naver_slow = bool(f_price) and PRICE_LAST_SOURCE.get(ticker) == "yahoo"
+    deadline = time.time() + (3 if naver_slow else 10)
+    left = lambda: deadline - time.time()
+    basic = _res(f_basic, left())
+    integ = _res(f_integ, left())
     if f_rev is not None:
-        rev = _res(f_rev, max(0.2, FNGUIDE_WAIT_SEC - (time.time() - t0))) or ""
-    extra = {"fin_annual": _res(f_fin_a, 12), "fin_quarter": _res(f_fin_q, 12), "news": _res(f_news, 12) or []}
+        rev = _res(f_rev, min(left(), max(0.2, FNGUIDE_WAIT_SEC - (time.time() - t0)))) or ""
+    rev = rev or ""
+    extra = {"fin_annual": _res(f_fin_a, left() + 2), "fin_quarter": _res(f_fin_q, left() + 2),
+             "news": _res(f_news, left() + 2) or [],
+             "partial": skip_naver or naver_slow, "price_source": PRICE_LAST_SOURCE.get(ticker)}
     return price, basic, integ, rev, extra
 
 
@@ -1392,8 +1425,8 @@ def _ohlcv_frame(rows):
 def _ohlcv_naver_api(ticker, start):
     s0 = start.replace("-", "") + "0000"
     e0 = datetime.now().strftime("%Y%m%d") + "2359"
-    r = _http().get(f"https://api.stock.naver.com/chart/domestic/item/{ticker}/day",
-                    params={"startDateTime": s0, "endDateTime": e0}, timeout=8)
+    r = _http_fast().get(f"https://api.stock.naver.com/chart/domestic/item/{ticker}/day",
+                         params={"startDateTime": s0, "endDateTime": e0}, timeout=(3.05, 6))
     r.raise_for_status()
     data = r.json()
     return _ohlcv_frame([(d["localDate"], d.get("openPrice"), d.get("highPrice"), d.get("lowPrice"),
@@ -1404,14 +1437,15 @@ def _ohlcv_fdr(ticker, start):
     if not FDR_OK:
         return None
     f = _FDR_POOL.submit(fdr.DataReader, ticker, start)
-    df = f.result(timeout=12)
+    df = f.result(timeout=10)
     return df if (df is not None and not df.empty) else None
 
 
 def _ohlcv_fchart(ticker, start):
     days = (datetime.now() - datetime.strptime(start, "%Y-%m-%d")).days
-    r = _http().get("https://fchart.stock.naver.com/sise.nhn",
-                    params={"symbol": ticker, "timeframe": "day", "count": max(days, 60), "requestType": 0}, timeout=8)
+    r = _http_fast().get("https://fchart.stock.naver.com/sise.nhn",
+                         params={"symbol": ticker, "timeframe": "day", "count": max(days, 60), "requestType": 0},
+                         timeout=(3.05, 6))
     r.raise_for_status()
     rows = []
     for m_ in re.finditer(r'data="([^"]+)"', r.content.decode("euc-kr", "replace")):
@@ -1422,16 +1456,105 @@ def _ohlcv_fchart(ticker, start):
     return df[df.index >= pd.Timestamp(start)] if df is not None else None
 
 
-_PRICE_SOURCES = (("naver_api", _ohlcv_naver_api), ("fdr", _ohlcv_fdr), ("fchart", _ohlcv_fchart))
+def _ohlcv_yahoo(ticker, start):
+    """🌐 [v122] 야후 파이낸스 — 네이버와 완전히 별개인 해외 서비스라, 네이버가 서버(Render) 요청을
+       막거나 느릴 때 대신 쓴다. 코스피는 종목코드.KS, 코스닥은 종목코드.KQ(0011T0 같은 영문 코드도 됨).
+       장중에는 약 15~20분 늦은 시세일 수 있다."""
+    from datetime import timezone
+    _, market = get_ticker_info(ticker)
+    # "KOSDAQ GLOBAL"처럼 붙은 이름도 코스닥으로 본다(잘못된 접미사로 조회하면 야후가 옛 상장 기록을 줄 수 있음)
+    syms = [f"{ticker}.KQ", f"{ticker}.KS"] if "KOSDAQ" in (market or "").upper() else [f"{ticker}.KS", f"{ticker}.KQ"]
+    kst = timezone(timedelta(hours=9))
+
+    def _get(sym, rng):
+        r = _http_fast().get(f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}",
+                             params={"range": rng, "interval": "1d"}, timeout=(3.05, 6))
+        if r.status_code == 404:
+            return None                    # 시장 접미사가 틀린 경우 — 다른 쪽으로 다시
+        r.raise_for_status()
+        res = ((r.json() or {}).get("chart") or {}).get("result")
+        if not res:
+            return None
+        res = res[0]
+        q = (((res.get("indicators") or {}).get("quote")) or [{}])[0]
+        rows = []
+        for i, t in enumerate(res.get("timestamp") or []):
+            try:
+                c = q["close"][i]
+                if c is None:
+                    continue
+                rows.append((datetime.fromtimestamp(t, tz=kst).strftime("%Y%m%d"),
+                             q["open"][i], q["high"][i], q["low"][i], c, q["volume"][i] or 0))
+            except (KeyError, IndexError, TypeError):
+                continue
+        return _ohlcv_frame(rows)
+
+    for sym in syms:
+        df = _get(sym, "2y")
+        if df is None:
+            continue
+        # 야후의 2년치 일봉에는 "오늘" 봉이 빠져 있는 경우가 있어(1개월치에는 있음), 최근 며칠을 덧붙인다.
+        today = _now_kst().strftime("%Y%m%d")
+        if df.index[-1].strftime("%Y%m%d") < today:
+            try:
+                recent = _get(sym, "5d")
+                if recent is not None:
+                    df = pd.concat([df, recent])
+            except Exception:
+                pass
+        df = df[~df.index.duplicated(keep="last")].sort_index()
+        # 마지막 거래일이 10일 넘게 지난 기록은 다른 시장의 옛 상장 기록일 수 있으니 버리고 다른 접미사로 시도
+        if (pd.Timestamp(_now_kst().date()) - df.index[-1]).days > 10:
+            continue
+        return df[df.index >= pd.Timestamp(start)]
+    return None
+
+
+# 순서: 네이버(가장 빠름) → 야후(네이버와 무관한 다른 회사) → FDR(네이버) → fchart(네이버)
+_PRICE_SOURCES = (("naver_api", _ohlcv_naver_api), ("yahoo", _ohlcv_yahoo),
+                  ("fdr", _ohlcv_fdr), ("fchart", _ohlcv_fchart))
+
+# ⚡ [v122] 소스 건강 상태 — 5분 안에 연결·시간초과 오류가 2번 나면 그 소스는 3분 동안 뒤로 미룬다
+# ("빈 데이터"처럼 종목 탓인 실패는 세지 않음). 네이버가 막힌 동안 매번 시간초과를 기다리지 않게.
+_SRC_HEALTH = {}
+_SRC_LOCK = threading.Lock()
+
+
+def _src_ok(name):
+    with _SRC_LOCK:
+        h = _SRC_HEALTH.get(name)
+        return not h or h.get("until", 0) < time.time()
+
+
+def _src_report(name, ok):
+    now = time.time()
+    with _SRC_LOCK:
+        if ok:
+            _SRC_HEALTH.pop(name, None)
+            return
+        h = _SRC_HEALTH.setdefault(name, {"fails": [], "until": 0})
+        h["fails"] = [t for t in h["fails"] if now - t < 300] + [now]
+        if len(h["fails"]) >= 2:
+            if h["until"] < now:
+                print(f"[주가] 소스 '{name}' 연속 실패 — 3분 동안 뒤로 미룹니다")
+            h["until"] = now + 180
+
+
+def _naver_unhealthy():
+    """네이버 주가 API가 최근 연속 실패 중이면 True — 이때는 재무·뉴스 등 네이버 전용 정보를 건너뛴다."""
+    return not _src_ok("naver_api")
 
 
 def _fetch_ohlcv(ticker, start):
-    """세 소스를 차례로 시도해 처음 성공한 표를 돌려준다. 실패 사유는 Render 로그에 남긴다."""
+    """주가 소스를 차례로 시도해 처음 성공한 표를 돌려준다. 최근 계속 실패한 소스는 맨 뒤로 보내고,
+       실패 사유는 Render 로그에 남긴다."""
+    order = [x for x in _PRICE_SOURCES if _src_ok(x[0])] + [x for x in _PRICE_SOURCES if not _src_ok(x[0])]
     errors = []
-    for name, fn in _PRICE_SOURCES:
+    for name, fn in order:
         t0 = time.time()
         try:
             df = fn(ticker, start)
+            _src_report(name, True)
             if df is not None and len(df) >= 2:
                 PRICE_LAST_SOURCE[ticker] = name
                 if errors:
@@ -1439,6 +1562,7 @@ def _fetch_ohlcv(ticker, start):
                 return df
             errors.append(f"{name}=빈 데이터")
         except Exception as e:
+            _src_report(name, False)
             errors.append(f"{name}={type(e).__name__}({time.time()-t0:.1f}s)")
     print(f"[주가] {ticker}: 모든 소스 실패 — {'; '.join(errors)}")
     return None
@@ -1890,6 +2014,8 @@ def _build_details(basic, integ, revenue, extra=None):
     extra = extra or {}
     details["financials"] = {"annual": extra.get("fin_annual"), "quarter": extra.get("fin_quarter")}  # 📑 [v121]
     details["news"] = extra.get("news") or []                                                         # 📰 [v121]
+    details["partial"] = bool(extra.get("partial"))          # ⚡ [v122] 네이버 불안정으로 일부 정보 생략
+    details["price_source"] = extra.get("price_source") or ""
     if revenue:
         details["revenue_breakdown"] = revenue  # ⚡ [v119] FnGuide 조회는 _fnguide_revenue로 분리(하루 캐시)
 
@@ -2442,7 +2568,10 @@ def api_diag():
     st = (datetime.now() - timedelta(days=420)).strftime("%Y-%m-%d")
     out = {"version": APP_VERSION_HARDCODED, "web_mode": _WEB_MODE, "db": "postgres" if _USE_PG else "sqlite",
            "history_ready": _history_ready, "cpu": os.cpu_count(), "cache_items": len(_CACHE),
-           "fdr_ok": FDR_OK, "ticker": ticker, "now_kst": _now_kst().strftime("%Y-%m-%d %H:%M:%S"), "checks": []}
+           "fdr_ok": FDR_OK, "ticker": ticker, "now_kst": _now_kst().strftime("%Y-%m-%d %H:%M:%S"),
+           "source_health": {k: {"recent_fails": len(v["fails"]), "skipped_for_sec": max(0, int(v["until"] - time.time()))}
+                             for k, v in _SRC_HEALTH.items()},
+           "last_price_source": dict(list(PRICE_LAST_SOURCE.items())[-10:]), "checks": []}
     checks = [(f"price:{n}", (lambda fn=fn: fn(ticker, st))) for n, fn in _PRICE_SOURCES] + [
         ("naver_basic", lambda: _naver_mobile_basic(ticker)),
         ("naver_integration", lambda: _naver_mobile_integration(ticker)),
@@ -3575,7 +3704,11 @@ function _applyAnalysis(data){
       showToast('⚠ 일부 항목 표시 중 오류가 있었지만 나머지는 정상 표시됩니다.');
     }
     const asOf = document.getElementById('asOf');
-    asOf.textContent = data.as_of ? ('데이터 기준 ' + data.as_of + ' (한국 시간)' + (data.stale ? ' · 최신 데이터를 못 가져와 이전 결과를 표시 중' : '')) : '';
+    const dd = data.details || {};
+    const srcName = {naver_api: '네이버', fdr: '네이버', fchart: '네이버', yahoo: '야후 파이낸스(약 15~20분 지연 가능)'}[dd.price_source] || '';
+    asOf.textContent = data.as_of ? ('데이터 기준 ' + data.as_of + ' (한국 시간)' + (srcName ? ' · 시세 출처 ' + srcName : '')
+      + (data.stale ? ' · 최신 데이터를 못 가져와 이전 결과를 표시 중' : '')) : '';
+    if(dd.partial && !data.stale) showToast('⚠ 네이버 연결이 불안정해 시세는 야후에서 가져왔고, 기업정보·뉴스 일부는 빠졌어요.');
     asOf.classList.toggle('stale', !!data.stale);
     document.getElementById('aiPromptBox').value = '';
     document.getElementById('aiPromptBox').style.display = 'none';
@@ -4736,6 +4869,9 @@ HELP_HTML = r"""
       <dd>"사고 싶어요 / 지켜볼래요 / 아직은 아니에요" 중 하나를 누르면 다른 이용자들의 선택과 함께 보여줍니다(최근 30일 기준).
         한 브라우저에서 종목마다 한 표이며, 같은 버튼을 다시 누르면 취소됩니다. 투표 결과는 참고용이며 투자 권유가 아닙니다.
         첫 화면의 "이번 주 매수 관심 TOP"은 최근 7일 동안 '사고 싶어요'를 많이 받은 종목입니다.</dd>
+      <dt>🌐 시세 출처</dt>
+      <dd>시세는 기본적으로 네이버 증권에서 가져오고, 네이버가 응답하지 않으면 야후 파이낸스에서 대신 가져옵니다.
+        야후 시세는 장중에 15~20분 늦을 수 있으며, 가격 아래 "시세 출처"에 표시됩니다. 이때 재무·뉴스 등 네이버 전용 정보는 일부 빠질 수 있습니다.</dd>
       <dt>↺ 초기화</dt>
       <dd>검색어·분석 결과·AI 칸을 모두 비우고 첫 화면으로 돌아갑니다. 최근 본 종목의 [기록 지우기]는 이 브라우저의 조회 기록만 지웁니다.</dd>
       <dt>📄 PDF 리포트</dt>
