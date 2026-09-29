@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-📈 종목분석 미니 (공개판) — v118
+📈 종목분석 미니 (공개판) — v119
 ────────────────────────────────────────────────────────────────
 FinanceDataReader + 네이버 모바일 증권 API/FnGuide 공개 페이지만 사용합니다.
 KRX 로그인, DART API 키, 유료 AI API 키가 전혀 필요 없습니다.
@@ -150,6 +150,26 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
      - 창 앱(pywebview)에서도 이미지 저장이 되도록 다운로드 허용, 공유 이미지는 420px 카드로.
      - /healthz 헬스체크 주소 추가, 도움말에 ⑦ 공유·블로그·최근 본 종목 섹션 추가.
 
+🚀 v119: 사용자 피드백 6가지 반영.
+  ① ⚡ 분석 속도 — 주가·네이버 기본정보·네이버 종합정보·FnGuide를 차례로 부르던 것을 동시에
+     불러 첫 분석 5.2초 → 약 1.8초(실측, 삼성전자). 종목별 결과를 장중 2분·장외 30분 캐시해
+     다시 보면 즉시(0.00초), 같은 종목 동시 요청은 한 번만 조회, 데모·인기 종목은 미리 불러둔다.
+     응답 gzip 압축(25KB → 8KB), 분석 중 단계별 로딩 화면, 브라우저 쪽 2분 캐시.
+  ② 🔗 링크 공유 고장 수정 — (a) 윈도우 크롬·엣지에도 navigator.share가 있어 PC에서 윈도우
+     공유창이 떴음 → 휴대폰에서만 공유창, PC는 복사. (b) 복사 실패도 "복사됨"으로 표시하던
+     _copyText 수정. (c) 도메인 연결 전 chostock.kr로 링크가 만들어져 열리지 않았음 → 방문자가
+     실제로 들어온 주소로 생성. 링크를 화면의 칸에도 보여줘 직접 복사할 수 있게 함.
+  ③ 📄 전체 리포트 PDF — 결과 화면(+붙여넣은 AI 분석)을 A4 PDF로 저장. 모든 페이지 위·아래에
+     chostock.kr·제작자 블로그 배너(누르면 이동), 카드가 페이지 경계에서 잘리지 않게 분할.
+  ④ 💰 구글 애드센스 자리 사전 구성 — ADSENSE_CLIENT/ADSENSE_SLOTS 상수, 자리 4곳(첫 화면
+     하단·결과 상단·중간·하단), ?adpreview=1 미리보기, /ads.txt 자동 생성, /privacy 개인정보처리방침.
+  ⑤ 🤖 AI 버튼 — 분석 직후 프롬프트를 미리 만들어 두어, 버튼을 누르는 순간 이미 복사되어 있다.
+     안내창(복사·붙여넣기 순서)을 띄우고, [열기]는 진짜 링크라 팝업 차단에 걸리지 않는다.
+     ("다음부터 안내 없이 바로 열기" 선택 가능)
+  ⑥ 🤖 AI 답변 자동 붙여넣기 — AI 화면에서 답변을 복사하고 돌아오면 클립보드를 읽어 AI 칸에
+     바로 넣고 정리. 브라우저가 막으면 [📥 복사한 답변 붙여넣기] 버튼·Ctrl+V 안내.
+  ※ REDIRECT_TO_PUBLIC_SITE(도메인 연결 후 onrender.com → chostock.kr 자동 이동), CREATOR_BLOG_URL 상수 추가.
+
 실행(로컬/데스크톱):  python stock_analyzer_mini.py
 실행(웹 서버, 예: Render):  gunicorn stock_analyzer_mini:app --bind 0.0.0.0:$PORT
 필요:  pip install flask finance-datareader pandas numpy requests beautifulsoup4
@@ -160,7 +180,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 
 exe 빌드(PyInstaller):
   pip install pyinstaller pywebview
-  pyinstaller --onefile --noconsole --name "종목분석미니_v118" stock_analyzer_mini.py
+  pyinstaller --onefile --noconsole --name "종목분석미니_v119" stock_analyzer_mini.py
   (--noconsole은 창 앱 모드일 때만 권장 — 콘솔 로그로 문제를 확인하려면 빼고 빌드하세요)
   빌드된 exe와 같은 폴더에 mini_tickers.db 캐시 파일이 자동 생성됩니다.
 
@@ -173,7 +193,9 @@ GitHub 자동 업데이트를 쓰려면(선택, exe 전용 — 웹 배포 모드
   4) 이후 사용자가 exe를 실행하면 시작 시 자동으로 새 버전을 확인·교체합니다.
 """
 
-import os, sys, math, re, sqlite3, threading, socket, webbrowser, time, subprocess, uuid
+import os, sys, math, re, sqlite3, threading, socket, webbrowser, time, subprocess, uuid, gzip
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -203,7 +225,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v118"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v119"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -222,7 +244,7 @@ APP_VERSION_HARDCODED = "v118"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v118"
+HELP_CONTENT_ASOF = "v119"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -243,6 +265,34 @@ DEMO_TICKER_NAME = "삼성전자"
 # 데스크톱(exe)으로 실행해도 링크가 내 PC 주소(127.0.0.1)가 아니라 이 주소로 만들어지고,
 # onrender.com 주소로 들어온 사람에게도 대표 주소로 통일된다. 비우면 접속한 주소를 그대로 쓴다.
 PUBLIC_SITE_URL = "https://chostock.kr"
+
+# 🔁 [v119] chostock.kr 연결이 끝난 뒤 True로 바꾸면, onrender.com 주소로 들어온 방문자를
+# chostock.kr로 자동으로 옮겨준다(검색엔진·공유 주소를 대표 주소 하나로 모음). 도메인이
+# 아직 연결되지 않았을 때 켜면 사이트가 안 열리니, 연결 확인 후에만 켜세요.
+REDIRECT_TO_PUBLIC_SITE = False
+
+# ✍️ [v119] 제작자 블로그 — 상단 버튼과 PDF 리포트 위·아래 광고 배너에 쓰인다.
+CREATOR_BLOG_URL = "https://blog.naver.com/okykr"
+
+# 💰 [v119] 구글 애드센스 — 승인받은 뒤 아래 값만 채우면 광고가 붙는다(비어 있으면 광고 없음).
+#   ADSENSE_CLIENT: 애드센스의 게시자 ID(예: "ca-pub-1234567890123456"). 이것만 채우면
+#     "자동 광고"(구글이 알아서 위치 선정)가 켜지고, /ads.txt도 자동으로 만들어진다.
+#   ADSENSE_SLOTS: 광고 단위를 직접 만들었다면 각 자리의 광고 단위 ID(숫자)를 넣는다.
+#     비워둔 자리는 표시하지 않는다. 주소 뒤에 ?adpreview=1 을 붙여 열면 각 자리가
+#     점선 상자로 보여 위치를 미리 확인할 수 있다.
+ADSENSE_CLIENT = ""
+ADSENSE_SLOTS = {
+    "home_bottom": "",     # 첫 화면, 소개 카드 아래
+    "result_top": "",      # 결과 화면, 투자 팁 배너 바로 아래(첫 화면 안쪽)
+    "result_middle": "",   # 결과 화면, 차트·해설과 기업개요 사이
+    "result_bottom": "",   # 결과 화면, AI 분석 카드 아래·면책 문구 위
+}
+ADSENSE_SLOT_HINTS = {
+    "home_bottom": "첫 화면 · 반응형 디스플레이 광고 권장",
+    "result_top": "결과 상단 · 반응형 디스플레이 광고 권장(버튼과 충분히 떨어뜨림)",
+    "result_middle": "결과 중간 · 인피드/반응형 광고 권장",
+    "result_bottom": "결과 하단 · 반응형 디스플레이 광고 권장",
+}
 
 
 def _detect_app_version():
@@ -288,6 +338,31 @@ app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # [v118] POST 본문 상한 
 @app.before_request
 def _ensure_anon_uid():
     g.anon_uid = request.cookies.get("anon_uid") or uuid.uuid4().hex
+
+
+@app.after_request
+def _gzip_response(resp):
+    """⚡ [v119] 화면(HTML)과 분석 결과(JSON)를 압축해 보낸다 — 휴대폰 등 느린 망에서 체감
+       속도가 크게 좋아진다(분석 결과 약 25KB → 6KB). 이미 압축된 응답은 건드리지 않는다."""
+    try:
+        if (resp.direct_passthrough or not (200 <= resp.status_code < 300)
+                or "gzip" not in request.headers.get("Accept-Encoding", "").lower()
+                or resp.headers.get("Content-Encoding")):
+            return resp
+        mt = resp.mimetype or ""
+        if not (mt.startswith("text/") or mt in ("application/json", "application/javascript")):
+            return resp
+        data = resp.get_data()
+        if len(data) < 1024:
+            return resp
+        body = gzip.compress(data, compresslevel=5)
+        resp.set_data(body)
+        resp.headers["Content-Encoding"] = "gzip"
+        resp.headers["Content-Length"] = str(len(body))
+        resp.vary.add("Accept-Encoding")
+    except Exception:
+        pass
+    return resp
 
 
 @app.after_request
@@ -723,7 +798,7 @@ def _naver_mobile_basic(ticker):
        제품인 모바일 증권 API는 개편 영향을 받지 않고 그대로 살아있음을 확인했다.
        이름·현재가·등락률·시장구분(코스피/코스닥)·거래 상태를 제공. 실패 시 None."""
     try:
-        r = requests.get(f"https://m.stock.naver.com/api/stock/{ticker}/basic", headers=UA, timeout=6)
+        r = _http().get(f"https://m.stock.naver.com/api/stock/{ticker}/basic", timeout=6)
         if r.status_code != 200:
             return None
         return r.json()
@@ -735,12 +810,135 @@ def _naver_mobile_integration(ticker):
     """💡 [v107] m.stock.naver.com/api/stock/{code}/integration — PER·PBR·EPS·BPS·배당·
        시총·52주·동일업종 PEER 종목까지 한 번에 제공. 실패 시 None."""
     try:
-        r = requests.get(f"https://m.stock.naver.com/api/stock/{ticker}/integration", headers=UA, timeout=6)
+        r = _http().get(f"https://m.stock.naver.com/api/stock/{ticker}/integration", timeout=6)
         if r.status_code != 200:
             return None
         return r.json()
     except Exception:
         return None
+
+
+# ══════════════════════════════════════════════════════════════
+# ⚡ [v119] 속도 개선 공용 도구 — "종목 분석이 너무 느리다" 대응
+# ──────────────────────────────────────────────────────────────
+# 실측(삼성전자): 주가 2.0초 + 네이버 기본정보 1.0초 + 네이버 종합정보 1.0초 + FnGuide 1.5초를
+# "하나씩 차례로" 불러서 합계 5초 이상 걸렸다(Render의 작은 CPU에서는 더 느림).
+#   ① 네 가지를 동시에(병렬로) 불러 가장 느린 하나만큼만 기다린다 → 약 2초
+#   ② 결과를 종목별로 잠시 저장(캐시) → 같은 종목을 다시 보면 즉시
+#   ③ 데모 종목·많이 보는 종목은 미리 불러 둔다(웹 배포에서 주기적으로 갱신)
+#   ④ 같은 연결을 재사용(keep-alive)해 매번 새로 접속하는 시간을 줄인다
+# ══════════════════════════════════════════════════════════════
+_HTTP_TLS = threading.local()
+
+
+def _http():
+    """스레드마다 하나씩 쓰는 requests.Session — 같은 서버(네이버 등)에 다시 접속할 때
+       연결을 재사용해 TLS 접속 시간을 아낀다."""
+    s = getattr(_HTTP_TLS, "s", None)
+    if s is None:
+        s = requests.Session()
+        s.headers.update(UA)
+        adapter = requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=8)
+        s.mount("https://", adapter)
+        s.mount("http://", adapter)
+        _HTTP_TLS.s = s
+    return s
+
+
+_POOL = ThreadPoolExecutor(max_workers=24, thread_name_prefix="fetch")
+_CACHE = {}
+_CACHE_LOCK = threading.Lock()
+FNGUIDE_WAIT_SEC = 2.5      # 매출 구성(FnGuide)이 이보다 늦으면 이번 화면에선 생략(끝나면 캐시에 저장)
+
+
+def _now_kst():
+    from datetime import timezone
+    return datetime.now(timezone(timedelta(hours=9)))
+
+
+def _analysis_ttl():
+    """장중(평일 08:50~15:40)에는 2분, 그 외에는 30분 동안 같은 결과를 재사용한다."""
+    n = _now_kst()
+    hm = n.hour * 100 + n.minute
+    return 120 if (n.weekday() < 5 and 850 <= hm <= 1540) else 1800
+
+
+def _cache_get(key):
+    with _CACHE_LOCK:
+        v = _CACHE.get(key)
+        if v is None:
+            return None
+        if v[0] < time.time():
+            _CACHE.pop(key, None)
+            return None
+        return v[1]
+
+
+def _cache_set(key, val, ttl):
+    with _CACHE_LOCK:
+        if len(_CACHE) > 3000:
+            now = time.time()
+            for k in [k for k, v in _CACHE.items() if v[0] < now]:
+                _CACHE.pop(k, None)
+            if len(_CACHE) > 3000:
+                _CACHE.clear()
+        _CACHE[key] = (time.time() + ttl, val)
+
+
+def _fnguide_revenue(ticker):
+    """FnGuide 매출 구성 문자열("반도체 (60%), ..."). 자주 안 바뀌므로 하루 동안 캐시한다.
+       실패하거나 없으면 ""(1시간 캐시 — 느린 페이지를 매번 다시 두드리지 않기 위함)."""
+    hit = _cache_get(("rev", ticker))
+    if hit is not None:
+        return hit
+    text = ""
+    try:
+        url2 = f"https://comp.fnguide.com/SVO2/ASP/SVD_Main.asp?pGB=1&gicode=A{ticker}"
+        r2 = _http().get(url2, timeout=6)
+        try:
+            soup2 = BeautifulSoup(r2.content.decode("utf-8", "replace"), "lxml")
+        except Exception:
+            soup2 = BeautifulSoup(r2.content.decode("utf-8", "replace"), "html.parser")
+        ratio_th = soup2.find("th", string=lambda x: x and ("매출비중" in x or "매출비율" in x or "매출구성" in x))
+        if ratio_th:
+            tbody = ratio_th.find_parent("table").find("tbody")
+            if tbody:
+                revs = []
+                for tr in tbody.find_all("tr"):
+                    tds = tr.find_all(["th", "td"])
+                    if len(tds) >= 2:
+                        nm = tds[0].text.strip()
+                        ratio = tds[-1].text.strip()
+                        if nm and ratio and nm not in ["계", "합계", "총계"] and ratio != "-":
+                            revs.append(f"{nm} ({ratio}%)")
+                text = ", ".join(revs)
+    except Exception as e:
+        print(f"[기업개요] FnGuide 조회 오류(무시): {e}")
+    _cache_set(("rev", ticker), text, 86400 if text else 3600)
+    return text
+
+
+def _fetch_all_parallel(ticker, need_price=True):
+    """주가·네이버 기본정보·네이버 종합정보·FnGuide 매출구성을 동시에 불러온다.
+       FnGuide만 FNGUIDE_WAIT_SEC까지만 기다리고, 늦으면 이번엔 빈 값으로 넘어간다."""
+    t0 = time.time()
+    f_price = _POOL.submit(get_price_data, ticker) if need_price else None
+    f_basic = _POOL.submit(_naver_mobile_basic, ticker)
+    f_integ = _POOL.submit(_naver_mobile_integration, ticker)
+    rev = _cache_get(("rev", ticker))
+    f_rev = None if rev is not None else _POOL.submit(_fnguide_revenue, ticker)
+
+    def _res(f, timeout):
+        try:
+            return f.result(timeout=timeout)
+        except Exception:
+            return None
+    price = _res(f_price, 25) if f_price else None
+    basic = _res(f_basic, 10)
+    integ = _res(f_integ, 10)
+    if f_rev is not None:
+        rev = _res(f_rev, max(0.2, FNGUIDE_WAIT_SEC - (time.time() - t0))) or ""
+    return price, basic, integ, rev
 
 
 # 🐛 [v110] 이 자리에 있던 _naver_overall_info_text()는 실측 결과 회사 소개 문단이
@@ -888,17 +1086,22 @@ def get_ticker_name_live(ticker: str):
        가져온다(2026-09-11 PC 개편과 무관한 안정적 경로). 실패해도 절대 예외를 던지지
        않고 None을 반환(호출부가 코드로 대체 표시)."""
     try:
-        d = _naver_mobile_basic(ticker)
-        if not d:
-            return None, None
-        name = d.get("stockName") or None
-        market = None
-        ext = (d.get("stockExchangeType") or {}).get("nameEng", "").upper()
-        if ext in ("KOSPI", "KOSDAQ", "KONEX"):
-            market = ext
-        return name, market
+        return _name_from_basic(_naver_mobile_basic(ticker))
     except Exception:
         return None, None
+
+
+def _name_from_basic(d):
+    """네이버 basic 응답에서 (종목명, 시장). ⚡ [v119] 분석 때 이미 받아온 basic을 재사용해
+       이름을 얻으려고 분리했다(같은 요청을 두 번 보내지 않음)."""
+    if not d:
+        return None, None
+    name = d.get("stockName") or None
+    market = None
+    ext = (d.get("stockExchangeType") or {}).get("nameEng", "").upper()
+    if ext in ("KOSPI", "KOSDAQ", "KONEX"):
+        market = ext
+    return name, market
 
 
 def _v(x, default=None):
@@ -1267,6 +1470,12 @@ def check_delisting_risk(price_d, risk_badges, cap_eok=None):
 # 데이터 사용(로그인 불필요)
 # ══════════════════════════════════════════════════════════════
 def get_company_details_and_fundamentals(ticker: str):
+    """⚡ [v119] 기존 호출부 호환용 — 필요한 조각을 병렬로 받아 _build_details로 조립한다."""
+    _, basic, integ, rev = _fetch_all_parallel(ticker, need_price=False)
+    return _build_details(basic, integ, rev)
+
+
+def _build_details(basic, integ, revenue):
     """💡 [v107] 2026-09-11 네이버 증권 PC 개편 대응 — finance.naver.com/item/main.naver,
        coinfo.naver HTML 크롤링이 Next.js 리뉴얼로 완전히 무력화되어(서버가 내려주는
        최초 HTML에 실제 데이터가 없음, 실측 확인) 개편과 무관한 모바일 증권 API로 교체.
@@ -1288,14 +1497,12 @@ def get_company_details_and_fundamentals(ticker: str):
         except Exception:
             return None
 
-    basic = _naver_mobile_basic(ticker)
     if basic:
         details["risk_badges"] = _naver_trading_status_flags(basic)
         ext = (basic.get("stockExchangeType") or {}).get("nameEng", "").upper()
         if ext in ("KOSPI", "KOSDAQ", "KONEX"):
             details["market_type"] = ext
 
-    integ = _naver_mobile_integration(ticker)
     researches = []
     if integ:
         try:
@@ -1355,26 +1562,8 @@ def get_company_details_and_fundamentals(ticker: str):
         details["overview"] = "네이버에서 기업개요를 가져오지 못했습니다 — AI 분석을 실행하면 [1. 기업 소개] 섹션이 자동으로 이 자리를 채웁니다."
         details["overview_source"] = "ai_pending"
 
-    try:
-        url2 = f"https://comp.fnguide.com/SVO2/ASP/SVD_Main.asp?pGB=1&gicode=A{ticker}"
-        r2 = requests.get(url2, headers=UA, timeout=6)
-        soup2 = BeautifulSoup(r2.content.decode("utf-8", "replace"), "html.parser")
-        ratio_th = soup2.find("th", string=lambda x: x and ("매출비중" in x or "매출비율" in x or "매출구성" in x))
-        if ratio_th:
-            tbody = ratio_th.find_parent("table").find("tbody")
-            if tbody:
-                revs = []
-                for tr in tbody.find_all("tr"):
-                    tds = tr.find_all(["th", "td"])
-                    if len(tds) >= 2:
-                        name = tds[0].text.strip()
-                        ratio = tds[-1].text.strip()
-                        if name and ratio and name not in ["계", "합계", "총계"] and ratio != "-":
-                            revs.append(f"{name} ({ratio}%)")
-                if revs:
-                    details["revenue_breakdown"] = ", ".join(revs)
-    except Exception as e:
-        print(f"[기업개요] FnGuide 조회 오류(무시): {e}")
+    if revenue:
+        details["revenue_breakdown"] = revenue  # ⚡ [v119] FnGuide 조회는 _fnguide_revenue로 분리(하루 캐시)
 
     return details, fundamentals
 
@@ -1625,7 +1814,11 @@ def index():
         kakao_url=KAKAO_OPENCHAT_URL or None,
         demo_ticker=DEMO_TICKER, demo_name=DEMO_TICKER_NAME,
         site_url=_public_site_url(),
-        site_label=(_public_site_url() or "").replace("https://", "").replace("http://", ""),
+        site_label=(PUBLIC_SITE_URL or _public_site_url() or "").replace("https://", "").replace("http://", "").rstrip("/"),
+        brand_url=(PUBLIC_SITE_URL or _public_site_url() or "").rstrip("/"),
+        blog_url=CREATOR_BLOG_URL,
+        ad_client=ADSENSE_CLIENT, ad_slots=ADSENSE_SLOTS, ad_hints=ADSENSE_SLOT_HINTS,
+        ad_preview=(request.args.get("adpreview") == "1"),
     )
 
 
@@ -1653,27 +1846,22 @@ def api_refresh_tickers():
     return jsonify({"ok": True, "msg": "종목 목록을 백그라운드에서 갱신 중입니다(약 10~20초 소요)."})
 
 
-@app.route("/api/analyze/<ticker>")
-def api_analyze(ticker):
-    if not FDR_OK:
-        return jsonify({"error": "FinanceDataReader가 설치되어 있지 않습니다. "
-                                  "pip install finance-datareader 후 다시 실행해 주세요."}), 400
-    ticker = normalize_ticker(ticker)
-    if not ticker:
-        return jsonify({"error": "올바른 종목코드가 아닙니다."}), 400
+_INFLIGHT = {}
+_INFLIGHT_LOCK = threading.Lock()
+
+
+def _compute_analysis(ticker):
+    """실제로 데이터를 불러와 분석 결과(dict)를 만든다. 실패하면 {"error": ...}."""
     name, market = get_ticker_info(ticker)
-
-    price_d = get_price_data(ticker)
+    price_d, basic, integ, rev = _fetch_all_parallel(ticker)
     if not price_d:
-        return jsonify({"error": f"주가 데이터를 가져오지 못했습니다. 종목코드를 확인해 주세요. ({ticker})"}), 400
+        return {"error": f"주가 데이터를 가져오지 못했습니다. 종목코드를 확인해 주세요. ({ticker})"}
+    details, fundamentals = _build_details(basic, integ, rev)
 
-    details, fundamentals = get_company_details_and_fundamentals(ticker)
-
-    # 🐛 [v1.1] 검색 캐시에 없는 종목(목록 갱신이 실패했거나 아직 안 돌린 경우)도 코드 직접
-    #   입력으로 분석은 되도록, 여기서 실제 종목명을 즉석에서 가져와 캐시에도 채워 넣는다
-    #   (한 번 분석한 종목은 다음부터 검색에도 바로 뜨는 "자가 치유" 캐시).
+    # 🐛 [v1.1] 검색 캐시에 없는 종목도 분석되도록 실제 종목명을 채워 넣는다("자가 치유" 캐시).
+    # ⚡ [v119] 이미 받아온 basic 응답에서 이름을 꺼내므로 네이버를 한 번 더 부르지 않는다.
     if not name:
-        name, live_market = get_ticker_name_live(ticker)
+        name, live_market = _name_from_basic(basic)
         market = market or live_market
         if name:
             try:
@@ -1683,16 +1871,98 @@ def api_analyze(ticker):
         else:
             name = ticker
 
-    # 💡 [v117] 로드맵 1단계 — 이 종목을 봤다는 사실을 익명 uid로 기록한다. 저장이
-    # 실패해도(history_save 내부에서 이미 처리) 분석 응답 자체에는 영향이 없다.
-    history_save(g.get("anon_uid"), ticker, name, market or "—")
-
-    return jsonify({
+    return {
         "ticker": ticker, "name": name, "market": market or "—",
         "price": price_d,
         "details": details, "fundamentals": fundamentals,
         "delisting_risk": check_delisting_risk(price_d, details.get("risk_badges") or [], details.get("cap_eok")),
-    })
+        "as_of": _now_kst().strftime("%m/%d %H:%M"),
+    }
+
+
+def _get_analysis(ticker):
+    """캐시에 있으면 즉시, 없으면 계산. 같은 종목을 여러 사람이 동시에 요청해도 실제 조회는
+       한 번만 하고 나머지는 그 결과를 함께 기다린다(데모 버튼이 몰릴 때 대비).
+       반환: (결과 dict, 캐시 적중 여부)."""
+    key = ("analyze", ticker)
+    hit = _cache_get(key)
+    if hit is not None:
+        return hit, True
+    with _INFLIGHT_LOCK:
+        fut = _INFLIGHT.get(ticker)
+        owner = fut is None
+        if owner:
+            fut = Future()
+            _INFLIGHT[ticker] = fut
+    if not owner:
+        return fut.result(timeout=40), True
+    try:
+        payload = _compute_analysis(ticker)
+        if "error" not in payload:
+            _cache_set(key, payload, _analysis_ttl())
+        fut.set_result(payload)
+        return payload, False
+    except Exception as e:
+        fut.set_exception(e)
+        raise
+    finally:
+        with _INFLIGHT_LOCK:
+            _INFLIGHT.pop(ticker, None)
+
+
+def _popular_tickers(n=4):
+    """최근 기록 500건 중 많이 본 종목 상위 n개(미리 불러두기 대상)."""
+    if not _ensure_history_table():
+        return []
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            c.execute("SELECT ticker FROM search_history ORDER BY id DESC LIMIT 500")
+            return [t for t, _ in Counter(r[0] for r in c.fetchall()).most_common(n)]
+        finally:
+            conn.close()
+    except Exception:
+        return []
+
+
+def _warm_cache_loop():
+    """⚡ [v119] 데모 종목과 많이 보는 종목을 미리 불러 캐시에 넣어 둔다 — 첫 방문자가 데모
+       버튼을 누르면 기다림 없이 결과가 뜨게 하기 위함. 데스크톱은 시작 시 한 번만,
+       웹 배포는 캐시가 만료되기 직전마다 다시 채운다."""
+    time.sleep(3)
+    while True:
+        for t in dict.fromkeys([DEMO_TICKER] + (_popular_tickers(4) if _WEB_MODE else [])):
+            try:
+                payload = _compute_analysis(t)
+                if "error" not in payload:
+                    _cache_set(("analyze", t), payload, _analysis_ttl())
+            except Exception as e:
+                print(f"[미리불러오기] {t} 실패(무시): {e}")
+        if not _WEB_MODE:
+            return
+        time.sleep(max(60, _analysis_ttl() - 30))
+
+
+@app.route("/api/analyze/<ticker>")
+def api_analyze(ticker):
+    if not FDR_OK:
+        return jsonify({"error": "FinanceDataReader가 설치되어 있지 않습니다. "
+                                  "pip install finance-datareader 후 다시 실행해 주세요."}), 400
+    ticker = normalize_ticker(ticker)
+    if not ticker:
+        return jsonify({"error": "올바른 종목코드가 아닙니다."}), 400
+    t0 = time.time()
+    payload, cached = _get_analysis(ticker)
+    if "error" in payload:
+        return jsonify(payload), 400
+
+    # 💡 [v117] 로드맵 1단계 — 이 종목을 봤다는 사실을 익명 uid로 기록한다.
+    history_save(g.get("anon_uid"), ticker, payload.get("name"), payload.get("market") or "—")
+    resp = jsonify(payload)
+    resp.headers["X-Analyze-Cache"] = "hit" if cached else "miss"
+    resp.headers["X-Analyze-Ms"] = str(int((time.time() - t0) * 1000))
+    return resp
 
 
 @app.route("/api/history")
@@ -1700,6 +1970,38 @@ def api_history():
     """💡 [v117] 로드맵 1단계 — 이 브라우저(anon_uid)가 최근 본 종목 목록. 첫 화면에
        "🕘 최근 본 종목" 칩으로 표시된다(같은 브라우저라면 새로고침·재방문해도 유지)."""
     return jsonify(history_recent(g.get("anon_uid")))
+
+
+@app.before_request
+def _redirect_to_public_site():
+    """🔁 [v119] REDIRECT_TO_PUBLIC_SITE=True일 때 onrender.com으로 들어온 요청을 대표 주소로
+       301 이동. 헬스체크(/healthz)는 Render 내부 점검이므로 제외한다."""
+    if not (REDIRECT_TO_PUBLIC_SITE and _WEB_MODE and PUBLIC_SITE_URL) or request.path == "/healthz":
+        return None
+    host = (request.host or "").split(":")[0].lower()
+    target = PUBLIC_SITE_URL.split("//", 1)[-1].split("/")[0].lower()
+    if host.endswith(".onrender.com") and host != target:
+        from flask import redirect
+        qs = request.query_string.decode("utf-8", "ignore")
+        return redirect(PUBLIC_SITE_URL.rstrip("/") + request.path + ("?" + qs if qs else ""), code=301)
+    return None
+
+
+@app.route("/ads.txt")
+def ads_txt():
+    """💰 [v119] 애드센스가 요구하는 ads.txt — ADSENSE_CLIENT를 채우면 자동으로 만들어진다."""
+    if not ADSENSE_CLIENT:
+        return "", 404
+    pub = ADSENSE_CLIENT.replace("ca-", "")
+    return (f"google.com, {pub}, DIRECT, f08c47fec0942fa0\n", 200,
+            {"Content-Type": "text/plain; charset=utf-8"})
+
+
+@app.route("/privacy")
+def privacy_page():
+    """🔒 [v119] 개인정보처리방침 — 애드센스 승인 조건이자, 익명 쿠키를 쓰는 서비스로서 공개해야 할 내용."""
+    return render_template_string(PRIVACY_HTML, app_version=APP_VERSION, blog_url=CREATOR_BLOG_URL,
+                                  site_label=(PUBLIC_SITE_URL or request.host_url).replace("https://", "").replace("http://", "").rstrip("/"))
 
 
 @app.route("/healthz")
@@ -1717,12 +2019,14 @@ def api_stats():
 
 
 def _public_site_url():
-    """[v118] 공유·블로그 링크에 쓸 주소. PUBLIC_SITE_URL이 있으면 그것, 없으면 웹 배포일 때만
-       접속한 주소. 데스크톱에서 PUBLIC_SITE_URL도 없으면 빈 값(=링크 생략) — 남의 PC에서는
-       열리지 않는 127.0.0.1 링크를 퍼뜨리지 않기 위함."""
-    if PUBLIC_SITE_URL:
-        return PUBLIC_SITE_URL.rstrip("/")
-    return request.host_url.rstrip("/") if _WEB_MODE else ""
+    """공유·블로그 링크에 쓸 주소.
+       🐛 [v119] "링크 만들기가 안 됨" 대응 — v118은 웹에서도 항상 chostock.kr로 링크를 만들어,
+       도메인 연결 전에는 받은 사람이 링크를 열 수 없었다. 이제 웹 배포에서는 "지금 방문자가
+       실제로 들어와 있는 주소"로 만들어 항상 열리게 하고(chostock.kr로 들어왔으면 chostock.kr),
+       데스크톱(127.0.0.1)에서만 PUBLIC_SITE_URL을 쓴다. 둘 다 없으면 빈 값(=링크 생략)."""
+    if _WEB_MODE:
+        return request.host_url.rstrip("/")
+    return PUBLIC_SITE_URL.rstrip("/") if PUBLIC_SITE_URL else ""
 
 
 def _resolve_analysis_source(ticker, cached):
@@ -1743,7 +2047,11 @@ def _resolve_analysis_source(ticker, cached):
         return name, market, price_d, details, fundamentals, risk
 
     # 폴백 — 캐시 데이터가 없거나(분석 전에 버튼을 눌렀거나, 다른 종목으로 이미 넘어간
-    # 경우 등) 형식이 안 맞으면 기존처럼 서버가 다시 조회한다.
+    # 경우 등) 형식이 안 맞으면 서버에서 구한다. ⚡ [v119] 서버 캐시에 있으면 그걸 쓴다.
+    hit = _cache_get(("analyze", ticker))
+    if hit:
+        return (hit["name"], hit["market"], hit["price"], hit["details"], hit["fundamentals"],
+                hit["delisting_risk"])
     name, market = get_ticker_info(ticker)
     if not name:
         name, live_market = get_ticker_name_live(ticker)
@@ -1797,7 +2105,18 @@ HTML_TEMPLATE = r"""
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>종목분석 미니 {{ app_version }}</title>
-<script>window.__APP_VER__ = "{{ app_version }}"; window.__SITE_URL__ = "{{ site_url }}";</script>
+<script>window.__APP_VER__ = "{{ app_version }}"; window.__SITE_URL__ = "{{ site_url }}";
+  window.__BRAND_URL__ = "{{ brand_url }}"; window.__BRAND_LABEL__ = "{{ site_label }}"; window.__BLOG_URL__ = "{{ blog_url }}";
+  window.__ADS__ = {{ 'true' if ad_client else 'false' }};</script>
+{% if ad_client %}<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ ad_client }}" crossorigin="anonymous"></script>{% endif %}
+{% macro ad_slot(name) -%}
+  {%- set sid = ad_slots.get(name, '') -%}
+  {%- if ad_client and sid -%}
+  <div class="adSlot" data-ad-name="{{ name }}"><div class="adLabel">광고</div><ins class="adsbygoogle" style="display:block" data-ad-client="{{ ad_client }}" data-ad-slot="{{ sid }}" data-ad-format="auto" data-full-width-responsive="true"></ins></div>
+  {%- elif ad_preview -%}
+  <div class="adSlot adPreview" data-ad-name="{{ name }}"><b>광고 자리 · {{ name }}</b><br><small>{{ ad_hints.get(name, '') }}</small></div>
+  {%- endif -%}
+{%- endmacro %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <style>
@@ -1872,6 +2191,60 @@ HTML_TEMPLATE = r"""
   }
   .empty .big{font-size:40px; margin-bottom:14px;}
   .sloganLead{font-size:16px; font-weight:800; color:var(--navy); margin-bottom:8px;}
+
+  /* ⏳ [v119] 분석 중 화면 — 무엇을 하고 있는지 보여줘서 기다림을 덜 지루하게 */
+  .loadingCard{
+    display:none; align-items:center; gap:14px; background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius); padding:18px 20px; margin:0 0 16px; box-shadow:0 1px 3px rgba(16,32,58,.05);
+  }
+  .loadingCard.show{display:flex;}
+  .spinner{width:28px; height:28px; border-radius:50%; border:3px solid #e3e8f0; border-top-color:var(--navy);
+    animation:spin .8s linear infinite; flex:none;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loadingMsg{font-size:14px; font-weight:700; color:var(--navy);}
+  .loadingSub{font-size:12px; color:var(--muted); margin-top:2px;}
+  #result.dim{opacity:.45; transition:opacity .15s;}
+  .asOf{font-size:11px; color:var(--muted); margin-top:4px;}
+
+  /* 🔗 [v119] 공유 링크를 눈으로 확인하고 직접 복사할 수 있는 칸 */
+  .shareLinkBox{display:none; gap:8px; align-items:center; margin:-10px 0 20px; flex-wrap:wrap;}
+  .shareLinkBox.show{display:flex;}
+  .shareLinkBox input{flex:1; min-width:220px; border:1px solid var(--border); border-radius:10px; padding:9px 12px;
+    font-size:13px; font-family:inherit; background:#f8fafc; color:var(--text);}
+  .shareLinkBox a{font-size:12.5px; color:#2563eb; font-weight:600;}
+
+  /* 💰 [v119] 애드센스 자리 */
+  .adSlot{margin:0 0 20px; text-align:center; min-height:0;}
+  .adSlot .adLabel{font-size:10px; color:var(--muted); text-align:left; margin-bottom:2px;}
+  .adPreview{border:2px dashed #94a3b8; border-radius:12px; padding:26px 12px; color:#64748b; font-size:12.5px; background:#f8fafc;}
+  .whyGrid + .adSlot{max-width:760px; margin:24px auto 0;}
+
+  /* 🤖 [v119] AI 안내창 */
+  .aiGoBtn{display:block; text-align:center; text-decoration:none; border-radius:11px; padding:13px; font-size:14px;
+    font-weight:800; color:#fff; background:#10a37f; margin-bottom:10px;}
+  .aiGoBtn.as-gemini{background:linear-gradient(135deg,#4285f4,#9b72cb);} .aiGoBtn.as-claude{background:#c96442;}
+  .aiGoBtn.as-chatgpt{background:#10a37f;}
+  .aiSteps{margin:0; padding-left:20px;} .aiSteps li{margin:4px 0;}
+  .pasteBox.pulse{outline:3px solid #8b5cf6; outline-offset:2px; animation:pulseBox 1.2s ease-in-out 3;}
+  @keyframes pulseBox{50%{outline-color:#c4b5fd;}}
+  .pasteHint{display:none; font-size:12.5px; color:#6d28d9; background:#f5f3ff; border:1px solid #ddd6fe;
+    border-radius:10px; padding:9px 12px; margin:8px 0;}
+  .pasteHint.show{display:block;}
+
+  /* 📄 [v119] PDF 리포트(화면 밖에서 그려서 PDF로 변환) */
+  .pdfReport{position:fixed; left:-12000px; top:0; background:#fff; padding:0; font-family:inherit;}
+  .pdfReport .card{box-shadow:none;}
+  .pdfTitleBox{padding:6px 2px 14px; border-bottom:2px solid var(--navy); margin-bottom:16px;}
+  .pdfTitle{font-size:22px; font-weight:800; color:var(--navy);}
+  .pdfSub{font-size:12px; color:var(--muted); margin-top:4px;}
+  .pdfBanner{position:fixed; left:-12000px; top:0; width:760px; box-sizing:border-box; display:flex;
+    align-items:center; justify-content:space-between; font-family:inherit;}
+  .pdfBanner.head{height:64px; padding:0 18px; background:var(--navy); color:#fff; border-radius:10px;}
+  .pdfBanner.foot{height:50px; padding:0 18px; background:#fff8db; color:#3c2f00; border:1px solid #f5d565; border-radius:10px;}
+  .pdfBanner .bL{font-size:17px; font-weight:800;} .pdfBanner .bL small{display:block; font-size:11px; font-weight:600; opacity:.75;}
+  .pdfBanner .bR{font-size:13px; font-weight:800; text-align:right;} .pdfBanner .bR small{display:block; font-size:11px; font-weight:600; opacity:.8;}
+  .pdfBanner.head .bR{background:var(--gold); color:#1a1300; padding:8px 12px; border-radius:9px;}
+  .pdfBanner.foot .bL{font-size:13px;}
 
   /* 🎬 [v118] 데모 버튼 — 슬로건 바로 아래, 눈에 띄지만 실제 검색창보다는 강조를 낮춘다 */
   .demoBtn{
@@ -2182,11 +2555,16 @@ HTML_TEMPLATE = r"""
      style="text-decoration:none;background:#fee500;color:#3c1e1e;border-color:#fee500;"
      title="카카오톡 오픈채팅 커뮤니티에 참여해 보세요">💬 커뮤니티</a>
   {% endif %}
-  <a class="blogBtn" href="https://blog.naver.com/okykr" target="_blank" rel="noopener"
+  <a class="blogBtn" href="{{ blog_url }}" target="_blank" rel="noopener"
      title="이 프로그램을 만든 제작자의 투자 블로그입니다">✍️ 제작자 블로그 ↗</a>
 </div>
 
 <div class="wrap">
+  <!-- ⏳ [v119] 분석 중 표시 -->
+  <div id="loadingCard" class="loadingCard"><div class="spinner"></div>
+    <div><div class="loadingMsg" id="loadingMsg">📈 주가 데이터를 불러오는 중…</div>
+    <div class="loadingSub" id="loadingSub">보통 2~3초면 끝나요</div></div></div>
+
   <div id="emptyState" class="empty">
     <div class="big">🔍</div>
     <div class="sloganLead">{{ slogan }}</div>
@@ -2228,6 +2606,8 @@ HTML_TEMPLATE = r"""
         <div class="whyDesc">동전주·거래정지 의심·시가총액 미달 등 관리종목 위험 신호를 종목 검색과 동시에 한눈에 보여드립니다.</div>
       </div>
     </div>
+    {{ ad_slot('home_bottom') }}
+    <div style="margin-top:22px;font-size:11px;"><a href="/privacy" style="color:var(--muted);">개인정보처리방침</a></div>
   </div>
 
   <div id="result" style="display:none;">
@@ -2247,6 +2627,7 @@ HTML_TEMPLATE = r"""
         <div class="heroTicker" id="heroTicker">—</div>
         <div class="heroPrice" id="heroPrice">—</div>
         <div class="heroChange" id="heroChange">—</div>
+        <div class="asOf" id="asOf"></div>
         {% if site_label %}<div class="shareBrand">📈 종목분석 미니 · {{ site_label }}</div>{% endif %}
       </div>
     </div>
@@ -2257,6 +2638,12 @@ HTML_TEMPLATE = r"""
       <button class="btn btn-ghost" onclick="shareResult()">🔗 링크 공유</button>
       <button class="btn btn-ghost" onclick="shareResultImage()">🖼️ 이미지로 저장</button>
       <button class="btn btn-ghost" onclick="toggleBlogBox()">📝 블로그 내보내기</button>
+      <button class="btn btn-primary" onclick="makePdfReport()">📄 PDF 리포트</button>
+    </div>
+    <div id="shareLinkBox" class="shareLinkBox">
+      <input id="shareLinkInput" readonly onclick="this.select()">
+      <button class="btn btn-ghost" onclick="copyShareLink()">📋 복사</button>
+      <a id="shareLinkOpen" href="#" target="_blank" rel="noopener">열어보기 ↗</a>
     </div>
     <textarea id="blogDraftBox" class="promptBox" style="display:none;" readonly></textarea>
 
@@ -2274,6 +2661,7 @@ HTML_TEMPLATE = r"""
          붙일 때는 이 .tipBanner 블록만 교체하면 되고, 레이아웃 흐름(히어로카드 → 이
          배너 → 통계) 자체는 바뀌지 않도록 자리를 미리 잡아두었다. -->
     <div id="tipBanner" class="tipBanner"></div>
+    {{ ad_slot('result_top') }}
 
     <div class="card">
       <h3>📊 기술적 지표</h3>
@@ -2311,6 +2699,7 @@ HTML_TEMPLATE = r"""
       <div class="theoryBox" id="theoryBox">—</div>
     </div>
 
+    {{ ad_slot('result_middle') }}
     <div class="card" id="overviewCard" style="display:none;">
       <h3>🏢 기업개요 <span id="overviewSourceBadge" class="cardBadge" style="background:#f1f5f9;color:#64748b;border-color:#e2e8f0;"></span></h3>
       <div class="overviewText" id="overviewText"></div>
@@ -2326,9 +2715,9 @@ HTML_TEMPLATE = r"""
 
     <div class="card">
       <h3>🤖 AI 분석 (수동 모드)</h3>
-      <div class="aiHint">이 앱은 AI를 직접 호출하지 않습니다. 아래 버튼을 누르면 분석 프롬프트가
-        자동으로 복사되고 해당 AI 사이트의 새 탭이 열립니다 — 그 화면에 <b>Ctrl+V(붙여넣기)</b>만 하시면 됩니다.
-        받은 답변을 복사해서 아래 칸에 붙여넣으면 <b>자동으로</b> 보기 좋게 정리해서 보여드립니다.</div>
+      <div class="aiHint">이 앱은 AI를 직접 호출하지 않습니다. 아래 버튼을 누르는 순간 분석 프롬프트가
+        <b>이미 복사</b>되어 있으니, 열리는 AI 화면에 <b>Ctrl+V(붙여넣기)</b>만 하시면 됩니다.
+        AI 답변의 <b>복사</b> 버튼을 누르고 이 화면으로 돌아오면 답변이 아래 칸에 <b>자동으로</b> 들어가 정리됩니다.</div>
       <div class="aiBtnRow" style="margin-top:12px;">
         <button class="aiServiceBtn as-gemini" onclick="copyAndOpenAI('gemini')">🔷 제미나이로 분석</button>
         <button class="aiServiceBtn as-chatgpt" onclick="copyAndOpenAI('chatgpt')">🟢 챗GPT로 분석</button>
@@ -2339,17 +2728,47 @@ HTML_TEMPLATE = r"""
         <button class="btn btn-ghost" onclick="toggleAiPromptBox()">프롬프트 보기/숨기기</button>
       </div>
       <textarea id="aiPromptBox" class="promptBox" style="display:none;" readonly></textarea>
-      <textarea id="aiPasteBox" class="pasteBox" placeholder="여기에 AI의 답변을 붙여넣으세요 — 붙여넣는 즉시 자동으로 정리돼서 표시됩니다."></textarea>
+      <div id="pasteHint" class="pasteHint">📥 AI 답변을 복사하셨다면 아래 <b>[복사한 답변 붙여넣기]</b>를 누르거나, 이 칸을 누르고 <b>Ctrl+V</b> 하세요.</div>
+      <textarea id="aiPasteBox" class="pasteBox" placeholder="AI 답변이 여기에 자동으로 들어갑니다 — 안 들어오면 이 칸을 누르고 Ctrl+V 하세요."></textarea>
       <div class="aiBtnRow" style="margin-top:10px;">
+        <button class="btn btn-primary" onclick="pasteAiAnswer(true)">📥 복사한 답변 붙여넣기</button>
         <button class="btn btn-ghost" onclick="renderAiResult()">🔄 다시 표시</button>
       </div>
       <div class="aiResult" id="aiResult"></div>
     </div>
 
+    {{ ad_slot('result_bottom') }}
     <div class="footNote">
       본 리포트는 공개된 시세·재무 데이터를 기술적으로 계산한 참고 자료이며 투자 추천이 아닙니다.<br>
       투자 판단과 그 책임은 전적으로 투자자 본인에게 있습니다. · Data: FinanceDataReader, 네이버금융<br>
       <button class="termsLink" onclick="showDisclaimer(true)">이용 안내 및 면책 조항 다시 보기</button>
+      · <a href="/privacy" class="termsLink" style="text-decoration:underline;">개인정보처리방침</a>
+    </div>
+  </div>
+</div>
+
+<!-- 🤖 [v119] AI 안내창 — 버튼을 누르는 순간 프롬프트는 이미 복사되어 있고, 이 창의
+     [열기]는 진짜 링크라서 팝업 차단에 걸리지 않는다(브라우저 기본 alert 뒤에 새 창을 열면
+     팝업 차단기가 막는 경우가 많아, alert 대신 같은 역할의 안내창을 쓴다). -->
+<div id="aiGuideOverlay" class="disclaimerOverlay" style="display:none;" onclick="if(event.target===this)closeAiGuide()">
+  <div class="disclaimerCard" style="max-width:460px;">
+    <div class="disclaimerHead"><h2 id="aiGuideTitle">✅ 프롬프트가 복사되었습니다</h2>
+      <p>아래 순서대로 하시면 AI 분석이 끝나요.</p></div>
+    <div class="disclaimerBody">
+      <ol class="aiSteps">
+        <li>아래 <b id="aiGuideSvc">AI</b> 열기 버튼을 누르세요(새 창).</li>
+        <li>입력칸을 누르고 <b>Ctrl+V</b>(휴대폰은 길게 눌러 <b>붙여넣기</b>) → 전송</li>
+        <li>답변이 끝나면 답변 아래 <b>복사</b> 버튼(📋)을 누르세요.</li>
+        <li>이 화면으로 돌아오면 답변이 <b>AI 분석 칸에 자동으로</b> 들어갑니다.</li>
+      </ol>
+    </div>
+    <div class="disclaimerFoot">
+      <a id="aiGoLink" class="aiGoBtn" href="#" target="_blank" rel="noopener" onclick="onAiGo()">AI 열기</a>
+      <div class="aiBtnRow" style="margin:0 0 10px;">
+        <button class="btn btn-ghost" onclick="recopyPrompt()">📋 다시 복사</button>
+        <button class="btn btn-ghost" onclick="closeAiGuide()">닫기</button>
+      </div>
+      <label style="margin:0;"><input type="checkbox" id="aiGuideSkip"> 다음부터 이 안내 없이 바로 열기</label>
     </div>
   </div>
 </div>
@@ -2441,12 +2860,15 @@ function loadStats(){
   }).catch(()=>{});
 }
 loadStats();
+window.addEventListener('load', ()=>pushAds(document.getElementById('emptyState')));
 
 // ── 🔗 [v118] 공유 링크로 들어온 경우(?t=종목코드) 자동으로 그 종목을 분석 ──
-(function(){
+// 🐛 [v119] 스크립트 전체가 준비된 뒤(DOMContentLoaded)에 실행 — 바로 실행하면 아래쪽에 선언된
+// 변수(_CLIENT_CACHE 등)가 아직 없어 공유 링크로 들어와도 분석이 시작되지 않았다.
+window.addEventListener('DOMContentLoaded', function(){
   const t = new URLSearchParams(location.search).get('t');
   if(t) analyze(t);
-})();
+});
 
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -2537,18 +2959,52 @@ function refreshTickers(){
 }
 
 // ── 분석 실행 ─────────────────────────────
+// ⚡ [v119] 분석 — 로딩 화면을 보여주고, 같은 종목을 2분 안에 다시 보면 서버에도 묻지 않고
+// 즉시 보여준다(최근 본 종목 칩을 오가며 볼 때 체감 속도가 크게 좋아짐).
+const _CLIENT_CACHE = {};
+let _analyzing = null;
+let _loadingTimer = null;
+const _LOADING_STEPS = ['📈 주가 데이터를 불러오는 중…', '🏢 기업 정보를 확인하는 중…', '🎯 매물대와 지표를 계산하는 중…', '📝 리포트를 정리하는 중…'];
+
+function _showLoading(on){
+  const card = document.getElementById('loadingCard');
+  clearInterval(_loadingTimer);
+  if(!on){ card.classList.remove('show'); document.getElementById('result').classList.remove('dim'); return; }
+  let i = 0, started = Date.now();
+  document.getElementById('loadingMsg').textContent = _LOADING_STEPS[0];
+  document.getElementById('loadingSub').textContent = '보통 2~3초면 끝나요';
+  card.classList.add('show');
+  document.getElementById('result').classList.add('dim');
+  window.scrollTo({top: 0, behavior: 'smooth'});
+  _loadingTimer = setInterval(()=>{
+    i = Math.min(i + 1, _LOADING_STEPS.length - 1);
+    document.getElementById('loadingMsg').textContent = _LOADING_STEPS[i];
+    if(Date.now() - started > 7000)
+      document.getElementById('loadingSub').textContent = '평소보다 오래 걸리고 있어요. 네이버 응답을 기다리는 중입니다…';
+  }, 900);
+}
+
 function analyze(ticker){
-  showToast('⏳ 분석 중입니다...');
+  ticker = String(ticker || '').trim().toUpperCase();
+  if(!ticker) return;
+  const hit = _CLIENT_CACHE[ticker] || _CLIENT_CACHE[ticker.padStart(6, '0')];
+  if(hit && Date.now() - hit.t < 120000){ _applyAnalysis(hit.data); return; }
+  if(_analyzing === ticker) return;   // 같은 종목 연타 방지
+  _analyzing = ticker;
+  _showLoading(true);
   fetch('/api/analyze/' + encodeURIComponent(ticker)).then(r=>r.json()).then(data=>{
     if(data.error){ showToast('⚠ ' + data.error); return; }
+    _CLIENT_CACHE[data.ticker] = { t: Date.now(), data: data };
+    _applyAnalysis(data);
+  }).catch(()=>showToast('⚠ 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'))
+    .finally(()=>{ _analyzing = null; _showLoading(false); });
+}
+
+function _applyAnalysis(data){
     CUR = data;
     addRecentLocal({ ticker: data.ticker, name: data.name, market: data.market });
-    // 🐛 [v108] "종합점수가 표시되도록 수정" — 원인은 renderResult() 안에서 차트 등
-    // 일부만 실패해도(예: ApexCharts CDN 로드 지연/실패) 예외가 전체를 중단시켜,
-    // 이미 화면에 반영된 점수까지 포함해 결과 영역 자체가 display:none으로 안 열리는
-    // 것이었다. result를 먼저 연 뒤 렌더링하고, renderResult 내부도 각 구간을
-    // 개별적으로 보호해 한 구간의 실패가 다른 구간(특히 점수)까지 끌고 내려가지
-    // 않도록 했다.
+    // 🐛 [v108] result를 먼저 연 뒤 렌더링하고, 한 구간의 실패가 다른 구간까지 끌고
+    // 내려가지 않도록 renderResult 내부도 구간별로 보호한다.
     document.getElementById('emptyState').style.display = 'none';
     document.getElementById('result').style.display = 'block';
     try{
@@ -2557,13 +3013,18 @@ function analyze(ticker){
       console.error('[renderResult]', e);
       showToast('⚠ 일부 항목 표시 중 오류가 있었지만 나머지는 정상 표시됩니다.');
     }
+    document.getElementById('asOf').textContent = data.as_of ? ('데이터 기준 ' + data.as_of + ' (한국 시간)') : '';
     document.getElementById('aiPromptBox').value = '';
     document.getElementById('aiPromptBox').style.display = 'none';
-    document.getElementById('blogDraftBox').value = '';        // 🆕 [v118] 종목이 바뀌면
-    document.getElementById('blogDraftBox').style.display = 'none';  // 이전 블로그 글도 비운다
+    document.getElementById('blogDraftBox').value = '';
+    document.getElementById('blogDraftBox').style.display = 'none';
+    document.getElementById('shareLinkBox').classList.remove('show');
     document.getElementById('aiPasteBox').value = '';
     document.getElementById('aiResult').classList.remove('show');
-  }).catch(()=>showToast('⚠ 분석 중 오류가 발생했습니다.'));
+    document.getElementById('pasteHint').classList.remove('show');
+    AI_PENDING = null;
+    _prefetchPrompt();                 // 🤖 [v119] AI 버튼을 누르기 전에 프롬프트를 미리 준비
+    setTimeout(()=>pushAds(document.getElementById('result')), 50);
 }
 
 function renderResult(data){
@@ -2800,25 +3261,27 @@ const AI_SERVICE_URLS = {
 };
 const AI_SERVICE_NAMES = { gemini:'제미나이', chatgpt:'챗GPT', claude:'클로드' };
 
+// 🐛 [v119] 예전엔 clipboard.writeText가 "나중에 실패"해도 즉시 true를 돌려줘서, 복사가 안 됐는데
+// "복사되었습니다"라고 안내하는 경우가 있었다. 이제 클릭 순간 바로 끝나는 방식(execCommand)을
+// 먼저 쓰고 그 결과를 그대로 알려주며, 최신 방식(clipboard.writeText)은 보조로 함께 시도한다.
 function _copyText(text){
-  let copied = false;
+  let ok = false;
   try{
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text);
-      copied = true;
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.focus({preventScroll:true}); ta.select(); ta.setSelectionRange(0, text.length);
+    ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+  }catch(e){ ok = false; }
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
+      navigator.clipboard.writeText(text).catch(()=>{});
+      if(!ok) ok = true;   // execCommand가 막힌 최신 브라우저 — writeText가 처리
     }
   }catch(e){}
-  if(!copied){
-    try{
-      const ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
-      document.body.appendChild(ta); ta.focus(); ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      copied = true;
-    }catch(e){}
-  }
-  return copied;
+  return ok;
 }
 
 function _openExternal(url){
@@ -2844,26 +3307,126 @@ function _fetchAiPrompt(){
   }).then(r=>r.json());
 }
 
-// 🚀 [v1.2] "기존 프로그램처럼 AI에 연결" — 버튼 하나로 프롬프트 복사 + 해당 AI 사이트 새 탭
-//   열기까지 한 번에 처리한다. 그 화면에 사용자가 Ctrl+V만 하면 바로 분석이 진행된다.
-// 🚀 [v116] 로드맵 0단계(0-2) — 예전엔 fetch 응답을 기다린 뒤에야 새 탭을 열어서, 버튼을
-//   눌러도 한참 반응이 없는 것처럼 느껴졌다. 이제 클릭 즉시 새 탭부터 열고, 프롬프트
-//   복사는 응답이 오는 대로 백그라운드에서 처리해 토스트로 완료를 안내한다.
+// 🤖 [v119] AI 버튼 — "누르는 순간 프롬프트가 이미 복사되어 있게".
+//   분석이 끝나자마자 프롬프트를 미리 만들어 CUR_PROMPT에 넣어 두고(_prefetchPrompt),
+//   버튼을 누르면 그 자리에서 곧바로 복사한다(기다림 없음 → 브라우저가 복사를 막지 않음).
+//   그다음 안내창을 띄우고, 안내창의 [열기]는 진짜 링크라 팝업 차단에 걸리지 않는다.
+//   "다음부터 안내 없이"를 고르면 복사와 동시에 바로 새 창을 연다.
+let CUR_PROMPT = null;
+let AI_PENDING = null;
+let _AI_WHICH = 'chatgpt';
+const AI_GUIDE_SKIP_KEY = 'stockMiniAiGuideSkip_v1';
+
+function _prefetchPrompt(){
+  CUR_PROMPT = null;
+  if(!CUR) return;
+  const want = CUR.ticker;
+  _fetchAiPrompt().then(d=>{
+    if(CUR && CUR.ticker === want && d && d.prompt){
+      CUR_PROMPT = d.prompt;
+      document.getElementById('aiPromptBox').value = d.prompt;
+    }
+  }).catch(()=>{});
+}
+
+function _guideSkipped(){ try{ return localStorage.getItem(AI_GUIDE_SKIP_KEY) === '1'; }catch(e){ return false; } }
+
+function _markAiPending(){
+  AI_PENDING = { t: Date.now(), prompt: CUR_PROMPT || '' };
+  document.getElementById('pasteHint').classList.add('show');
+}
+
 function copyAndOpenAI(which){
   if(!CUR){ showToast('먼저 종목을 분석해 주세요.'); return; }
-  const svcName = AI_SERVICE_NAMES[which] || which;
-  _openExternal(AI_SERVICE_URLS[which]);
-  showToast('🔗 ' + svcName + ' 여는 중... 프롬프트가 준비되면 자동으로 복사됩니다.');
-  _fetchAiPrompt().then(d=>{
-    if(d.error){ showToast('⚠ ' + d.error); return; }
-    const box = document.getElementById('aiPromptBox');
-    box.value = d.prompt;
-    const copied = _copyText(d.prompt);
-    showToast(copied
-      ? '📋 프롬프트 복사 완료 — ' + svcName + ' 화면에 Ctrl+V로 붙여넣어 주세요.'
-      : '⚠ 자동 복사에 실패했습니다. 프롬프트 보기를 눌러 직접 복사해 주세요.');
-  }).catch(()=>showToast('⚠ 프롬프트 생성 중 오류가 발생했습니다.'));
+  _AI_WHICH = which;
+  const svc = AI_SERVICE_NAMES[which] || which;
+  if(!CUR_PROMPT){
+    // 분석 직후 아주 짧은 순간(0.1초 안팎)에만 생길 수 있다 — 준비되면 안내창에서 이어서 진행.
+    showToast('⏳ 프롬프트를 준비하는 중이에요…');
+    _fetchAiPrompt().then(d=>{
+      if(d && d.prompt){ CUR_PROMPT = d.prompt; document.getElementById('aiPromptBox').value = d.prompt; _openAiGuide(which, false); }
+      else showToast('⚠ ' + ((d && d.error) || '프롬프트를 만들지 못했습니다.'));
+    }).catch(()=>showToast('⚠ 프롬프트 생성 중 오류가 발생했습니다.'));
+    return;
+  }
+  const ok = _copyText(CUR_PROMPT);
+  if(_guideSkipped()){
+    _openExternal(AI_SERVICE_URLS[which]);
+    _markAiPending();
+    showToast(ok ? '📋 복사 완료 — ' + svc + ' 입력칸에 Ctrl+V 하세요.' : '⚠ 복사가 막혔어요. [프롬프트만 복사]를 눌러 주세요.');
+    return;
+  }
+  _openAiGuide(which, ok);
 }
+
+function _openAiGuide(which, copied){
+  const svc = AI_SERVICE_NAMES[which] || which;
+  document.getElementById('aiGuideTitle').textContent = copied
+    ? '✅ 프롬프트가 복사되었습니다' : '📋 아래 [열기]를 누르면 복사와 함께 열립니다';
+  document.getElementById('aiGuideSvc').textContent = svc;
+  const link = document.getElementById('aiGoLink');
+  link.href = AI_SERVICE_URLS[which];
+  link.className = 'aiGoBtn as-' + which;
+  link.textContent = svc + ' 열기 →';
+  document.getElementById('aiGuideSkip').checked = false;
+  document.getElementById('aiGuideOverlay').style.display = 'flex';
+}
+
+function closeAiGuide(){ document.getElementById('aiGuideOverlay').style.display = 'none'; }
+
+// 안내창의 [열기] — 진짜 링크 클릭이라 새 창은 브라우저가 알아서 연다. 여기서는 한 번 더 복사
+// (새 클릭이라 확실히 허용됨)하고, "다음부터 안내 없이" 설정과 답변 자동 붙여넣기 대기를 기록한다.
+function onAiGo(){
+  if(CUR_PROMPT) _copyText(CUR_PROMPT);
+  try{ if(document.getElementById('aiGuideSkip').checked) localStorage.setItem(AI_GUIDE_SKIP_KEY, '1'); }catch(e){}
+  _markAiPending();
+  setTimeout(closeAiGuide, 150);
+}
+
+function recopyPrompt(){
+  showToast(CUR_PROMPT && _copyText(CUR_PROMPT) ? '📋 다시 복사했어요.' : '⚠ 복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.');
+}
+
+// ── 🤖 [v119] AI 답변 자동 붙여넣기 ────────────────────────────
+//   AI 사이트에서 답변을 복사한 뒤 이 탭으로 돌아오면(창 포커스) 클립보드를 읽어 AI 칸에 넣는다.
+//   브라우저가 클립보드 읽기를 허락하지 않으면(파이어폭스·사파리·창 앱 등) 버튼과 Ctrl+V 안내를 띄운다.
+function _looksLikeAnswer(txt){
+  const prompt = ((AI_PENDING && AI_PENDING.prompt) || CUR_PROMPT || '').trim();
+  return txt && txt.length >= 80 && txt !== prompt && txt !== aiPasteBoxEl.value.trim()
+    && !(prompt && txt.slice(0, 60) === prompt.slice(0, 60));
+}
+function _applyPastedAnswer(txt){
+  aiPasteBoxEl.value = txt;
+  renderAiResult();
+  AI_PENDING = null;
+  document.getElementById('pasteHint').classList.remove('show');
+  aiPasteBoxEl.classList.remove('pulse');
+  showToast('🤖 AI 답변을 붙여넣고 정리했어요.');
+}
+function pasteAiAnswer(fromClick){
+  if(!(navigator.clipboard && navigator.clipboard.readText)){
+    if(fromClick) showToast('이 브라우저는 자동 붙여넣기를 지원하지 않아요. 칸을 누르고 Ctrl+V 해 주세요.');
+    aiPasteBoxEl.classList.add('pulse'); aiPasteBoxEl.focus();
+    return;
+  }
+  navigator.clipboard.readText().then(txt=>{
+    txt = (txt || '').trim();
+    if(_looksLikeAnswer(txt)){ _applyPastedAnswer(txt); return; }
+    if(fromClick) showToast('클립보드에 AI 답변이 없어요. AI 화면에서 답변 아래 복사 버튼을 먼저 눌러 주세요.');
+  }).catch(()=>{
+    document.getElementById('pasteHint').classList.add('show');
+    aiPasteBoxEl.classList.add('pulse');
+    if(fromClick){ showToast('브라우저가 클립보드 읽기를 막았어요. 칸을 누르고 Ctrl+V 해 주세요.'); aiPasteBoxEl.focus(); }
+  });
+}
+let _returnTimer = null;
+function _onReturnToTab(){
+  if(!AI_PENDING || Date.now() - AI_PENDING.t > 30 * 60 * 1000) return;
+  clearTimeout(_returnTimer);
+  _returnTimer = setTimeout(()=>pasteAiAnswer(false), 350);
+}
+window.addEventListener('focus', _onReturnToTab);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') _onReturnToTab(); });
 
 function copyAiPrompt(){
   if(!CUR){ showToast('먼저 종목을 분석해 주세요.'); return; }
@@ -2898,23 +3461,44 @@ function toggleAiPromptBox(){
 
 // 지금 보고 있는 종목으로 바로 돌아오는 공유 링크(?t=종목코드). 다른 브라우저에서 이
 // 링크로 들어오면 위쪽 "?t= 자동 분석" 코드가 곧바로 같은 결과 화면을 띄워준다.
+// 🐛 [v119] 방문자가 실제로 들어와 있는 주소를 쓴다(그래야 항상 열린다). 내 PC 창 앱
+// (127.0.0.1)에서만 공개 주소(chostock.kr)를 대신 쓴다.
+function _isLocalHost(){
+  return !/^https?:$/.test(location.protocol) || /^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(location.hostname);
+}
 function _shareUrl(){
-  const base = window.__SITE_URL__ || (location.origin + location.pathname.replace(/\/$/, ''));
-  return base + '/?t=' + encodeURIComponent(CUR.ticker);
+  const base = _isLocalHost() ? (window.__SITE_URL__ || location.origin) : location.origin;
+  return base.replace(/\/$/, '') + '/?t=' + encodeURIComponent(CUR.ticker);
+}
+function _isMobile(){
+  return window.matchMedia && window.matchMedia('(pointer:coarse)').matches;
 }
 
 function shareResult(){
   if(!CUR){ showToast('먼저 종목을 분석해 주세요.'); return; }
   const url = _shareUrl();
-  const text = CUR.name + '(' + CUR.ticker + ') 분석 결과 — 종목분석 미니';
-  // Web Share API가 있으면(모바일 브라우저·카카오톡 인앱 브라우저 등) 그쪽 공유 시트를
-  // 그대로 띄우고, 없으면(대부분의 PC 브라우저) 링크만 클립보드에 복사한다.
-  if(navigator.share){
-    navigator.share({ title: '종목분석 미니', text: text, url: url }).catch(()=>{});
-  } else {
-    _copyText(url);
-    showToast('🔗 링크가 복사되었습니다. 원하는 곳에 붙여넣어 공유해 보세요.');
+  // 링크를 화면에도 보여준다 — 복사가 막힌 환경에서도 눈으로 확인하고 직접 복사할 수 있게.
+  const box = document.getElementById('shareLinkBox');
+  document.getElementById('shareLinkInput').value = url;
+  document.getElementById('shareLinkOpen').href = url;
+  box.classList.add('show');
+  if(!url){ showToast('⚠ 공유할 주소가 없습니다.'); return; }
+  // 🐛 [v119] 휴대폰에서만 기기 공유 화면(카카오톡 등)을 띄운다. PC(윈도우 크롬·엣지)에도
+  // navigator.share가 있어서 예전엔 윈도우 공유창이 떠 "링크가 안 만들어진다"고 느껴졌다.
+  if(_isMobile() && navigator.share){
+    navigator.share({ title: '종목분석 미니', text: CUR.name + '(' + CUR.ticker + ') 분석 결과', url: url })
+      .catch(()=>{});
+    return;
   }
+  showToast(_copyText(url)
+    ? '🔗 링크를 복사했어요. 카톡·블로그에 붙여넣어 공유하세요.'
+    : '🔗 아래 칸의 링크를 선택해서 복사해 주세요.');
+}
+
+function copyShareLink(){
+  const inp = document.getElementById('shareLinkInput');
+  inp.select();
+  showToast(_copyText(inp.value) ? '📋 링크를 복사했어요.' : '링크를 길게 눌러(또는 Ctrl+C) 복사해 주세요.');
 }
 
 // html2canvas는 이 버튼을 실제로 누를 때만 CDN에서 불러온다(평소 페이지 로딩 속도에
@@ -2940,12 +3524,155 @@ function shareResultImage(){
     html2canvas(el, { backgroundColor: '#ffffff', scale: 2 }).then(canvas=>{
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
-      a.download = CUR.name + '_' + CUR.ticker + '_분석결과.png';
+      a.download = String(CUR.name).replace(/[\\/:*?"<>|\s]+/g, '_') + '_' + CUR.ticker + '_분석결과.png';
       a.click();
       showToast('🖼️ 이미지가 저장되었습니다.');
     }).catch(()=>showToast('⚠ 이미지 생성 중 오류가 발생했습니다.'))
       .finally(()=>{ el.style.width = prevWidth; });
   });
+}
+
+// ── 💰 [v119] 애드센스 — 화면에 실제로 보이는 광고 자리만 채운다(숨겨진 자리에 넣으면 오류) ──
+function pushAds(root){
+  if(!window.__ADS__) return;
+  (root || document).querySelectorAll('ins.adsbygoogle:not([data-pushed])').forEach(el=>{
+    if(el.offsetWidth > 0){
+      try{ (window.adsbygoogle = window.adsbygoogle || []).push({}); el.setAttribute('data-pushed', '1'); }catch(e){}
+    }
+  });
+}
+
+// ── 📄 [v119] 전체 리포트 PDF ──────────────────────────────────
+//   결과 화면을 복사해 PDF용으로 정리(버튼·입력칸·광고 제외)한 뒤 그림으로 찍어 A4에 나눠 담는다.
+//   카드가 페이지 경계에서 잘리지 않도록 카드 사이에서 페이지를 나누고, 모든 페이지 위·아래에
+//   chostock.kr과 제작자 블로그 배너를 넣는다(배너는 PDF 안에서 눌러도 해당 사이트로 이동).
+const LIB_JSPDF = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+function _loadScript(src){
+  return new Promise((resolve, reject)=>{
+    if(document.querySelector('script[data-lib="' + src + '"]')){ resolve(); return; }
+    const sc = document.createElement('script');
+    sc.src = src; sc.setAttribute('data-lib', src);
+    sc.onload = ()=>resolve(); sc.onerror = ()=>reject(new Error('load ' + src));
+    document.body.appendChild(sc);
+  });
+}
+function _pdfBanner(kind){
+  const brand = window.__BRAND_LABEL__ || location.host;
+  const blog = (window.__BLOG_URL__ || '').replace(/^https?:\/\//, '');
+  const el = document.createElement('div');
+  el.className = 'pdfBanner ' + kind;
+  el.innerHTML = kind === 'head'
+    ? '<div class="bL">📈 종목분석 미니 · ' + _escHtml(brand) + '<small>주식 초보도 쉽게 보는 무료 종목분석 — 모르면 물어보고, 알면 투자하세요</small></div>'
+      + '<div class="bR">✍️ 제작자 블로그 · 상세 분석 의뢰<small>' + _escHtml(blog) + '</small></div>'
+    : '<div class="bL">✍️ 더 깊은 종목 분석은 제작자 블로그에서 → ' + _escHtml(blog) + '</div>'
+      + '<div class="bR">📈 다른 종목도 무료로<small>' + _escHtml(brand) + '</small></div>';
+  document.body.appendChild(el);
+  return el;
+}
+function _buildReportDom(){
+  const src = document.getElementById('result');
+  const w = Math.max(860, Math.min(src.offsetWidth || 860, 1000));
+  const wrap = document.createElement('div');
+  wrap.className = 'pdfReport';
+  wrap.style.width = w + 'px';
+  const now = new Date();
+  const made = now.getFullYear() + '.' + String(now.getMonth() + 1).padStart(2, '0') + '.' + String(now.getDate()).padStart(2, '0');
+  wrap.innerHTML = '<div class="pdfTitleBox"><div class="pdfTitle">' + _escHtml(CUR.name) + '(' + _escHtml(CUR.ticker) + ') 종목분석 리포트</div>'
+    + '<div class="pdfSub">' + _escHtml(CUR.market || '') + (CUR.as_of ? ' · 데이터 기준 ' + _escHtml(CUR.as_of) : '') + ' · 작성 ' + made + '</div></div>';
+  const clone = src.cloneNode(true);
+  clone.style.display = 'block';
+  clone.classList.remove('dim');
+  clone.querySelectorAll('button, textarea, .aiBtnRow, .aiHint, .shareLinkBox, .adSlot, .pasteHint, .termsLink, script')
+    .forEach(el=>el.remove());
+  // AI 답변이 없으면 빈 AI 카드는 빼고, 있으면 제목을 리포트용으로 바꾼다.
+  clone.querySelectorAll('.card').forEach(card=>{
+    const ai = card.querySelector('.aiResult');
+    if(!ai) return;
+    if(!ai.classList.contains('show')) card.remove();
+    else { const h = card.querySelector('h3'); if(h) h.textContent = '🤖 AI 종합 분석'; }
+  });
+  clone.querySelectorAll('[id]').forEach(el=>el.removeAttribute('id'));
+  wrap.appendChild(clone);
+  document.body.appendChild(wrap);
+  return wrap;
+}
+// 페이지를 카드 사이에서 나누기 위한 "자를 수 있는 위치" 목록(px, 리포트 기준)
+function _breakPoints(wrap){
+  const base = wrap.getBoundingClientRect().top;
+  const pts = new Set([0]);
+  wrap.querySelectorAll('.pdfTitleBox, #result > *, .pdfReport > div > *, .card, .riskBanner, .ctaBanner, .tipBanner, .footNote').forEach(el=>{
+    const r = el.getBoundingClientRect();
+    if(r.height > 0) pts.add(Math.round(r.bottom - base));
+  });
+  return Array.from(pts).sort((a, b)=>a - b);
+}
+
+let _pdfBusy = false;
+async function makePdfReport(){
+  if(!CUR){ showToast('먼저 종목을 분석해 주세요.'); return; }
+  if(_pdfBusy) return;
+  _pdfBusy = true;
+  showToast('📄 PDF 리포트를 만드는 중이에요… (5~15초)');
+  let wrap = null, head = null, foot = null;
+  try{
+    if(!window.html2canvas) await _loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js');
+    await _loadScript(LIB_JSPDF);
+    wrap = _buildReportDom(); head = _pdfBanner('head'); foot = _pdfBanner('foot');
+    await new Promise(r=>setTimeout(r, 80));  // 폰트·레이아웃 반영 대기
+    const W = wrap.offsetWidth, H = wrap.scrollHeight;
+    const scale = Math.max(1, Math.min(2, Math.sqrt(15e6 / (W * H))));  // 휴대폰 캔버스 한도(약 1600만 화소) 고려
+    const [page, hc, fc] = await Promise.all([
+      html2canvas(wrap, { scale: scale, backgroundColor: '#ffffff', useCORS: true, windowWidth: W }),
+      html2canvas(head, { scale: 2, backgroundColor: null }),
+      html2canvas(foot, { scale: 2, backgroundColor: null }),
+    ]);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const PW = pdf.internal.pageSize.getWidth(), PH = pdf.internal.pageSize.getHeight();
+    const M = 10, contentW = PW - M * 2;
+    const headH = contentW * hc.height / hc.width, footH = contentW * fc.height / fc.width;
+    const topY = 5 + headH + 5, bottomY = PH - 5 - footH - 4;
+    const pageHpx = (bottomY - topY) * W / contentW;             // 한 페이지에 들어가는 리포트 높이(px)
+    const pts = _breakPoints(wrap);
+    const slices = [];
+    let y = 0;
+    while(y < H - 2){
+      let end = Math.min(H, y + pageHpx);
+      if(end < H){
+        const cand = pts.filter(p=>p > y + pageHpx * 0.45 && p <= y + pageHpx);
+        if(cand.length) end = cand[cand.length - 1];               // 카드 경계에서 자르기
+      }
+      slices.push([y, end]); y = end;
+    }
+    const headImg = hc.toDataURL('image/png'), footImg = fc.toDataURL('image/png');
+    const brandUrl = window.__BRAND_URL__ || location.origin, blogUrl = window.__BLOG_URL__ || brandUrl;
+    slices.forEach(([y0, y1], i)=>{
+      if(i > 0) pdf.addPage();
+      const cut = document.createElement('canvas');
+      cut.width = page.width; cut.height = Math.max(1, Math.round((y1 - y0) * scale));
+      const ctx = cut.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cut.width, cut.height);
+      ctx.drawImage(page, 0, Math.round(y0 * scale), page.width, cut.height, 0, 0, cut.width, cut.height);
+      pdf.addImage(cut.toDataURL('image/jpeg', 0.9), 'JPEG', M, topY, contentW, (y1 - y0) * contentW / W);
+      // 위: 왼쪽 절반 = 사이트, 오른쪽 절반 = 블로그 / 아래: 왼쪽 = 블로그, 오른쪽 = 사이트
+      pdf.addImage(headImg, 'PNG', M, 5, contentW, headH);
+      pdf.link(M, 5, contentW * 0.62, headH, { url: brandUrl });
+      pdf.link(M + contentW * 0.62, 5, contentW * 0.38, headH, { url: blogUrl });
+      pdf.addImage(footImg, 'PNG', M, PH - 5 - footH, contentW, footH);
+      pdf.link(M, PH - 5 - footH, contentW * 0.65, footH, { url: blogUrl });
+      pdf.link(M + contentW * 0.65, PH - 5 - footH, contentW * 0.35, footH, { url: brandUrl });
+      pdf.setFontSize(8); pdf.setTextColor(140);
+      pdf.text((i + 1) + ' / ' + slices.length, PW - M, PH - 5 - footH - 1.5, { align: 'right' });
+    });
+    pdf.save(String(CUR.name).replace(/[\\/:*?"<>|\s]+/g, '_') + '_' + CUR.ticker + '_종목분석리포트.pdf');
+    showToast('📄 PDF 리포트를 저장했어요.');
+  }catch(e){
+    console.error('[PDF]', e);
+    showToast('⚠ PDF를 만들지 못했어요. 네트워크를 확인하고 다시 시도해 주세요.');
+  }finally{
+    [wrap, head, foot].forEach(el=>{ if(el && el.parentNode) el.parentNode.removeChild(el); });
+    _pdfBusy = false;
+  }
 }
 
 // /api/ai-prompt와 같은 패턴(POST + CUR) — 서버가 네이버를 다시 조회하지 않게 한다.
@@ -3147,7 +3874,7 @@ HELP_HTML = r"""
       <li><a href="#sec-peer">④ 동일업종 비교·컨센서스</a></li>
       <li><a href="#sec-risk">⑤ 상장폐지 위험 경고</a></li>
       <li><a href="#sec-ai">⑥ AI 분석(수동 모드) 사용법</a></li>
-      <li><a href="#sec-share">⑦ 공유·블로그 내보내기·최근 본 종목</a></li>
+      <li><a href="#sec-share">⑦ 공유·PDF·블로그 내보내기·최근 본 종목</a></li>
     </ul>
   </div>
 
@@ -3265,9 +3992,10 @@ HELP_HTML = r"""
       <dd>
         <span class="ex">
         1. 종목을 검색해 분석 화면을 엽니다.<br>
-        2. "AI 분석(수동 모드)" 카드에서 원하는 AI(제미나이·챗GPT·클로드) 버튼을 누르면 프롬프트가 자동 복사되고 해당 AI 사이트 새 탭이 열립니다.<br>
-        3. 열린 사이트에서 Ctrl+V(붙여넣기) 후 전송합니다.<br>
-        4. AI가 준 답변 전체를 복사해서, 이 프로그램의 답변 입력 칸에 붙여넣으면 자동으로 보기 좋게 정리되어 화면에 표시됩니다.</span>
+        2. "AI 분석(수동 모드)" 카드에서 원하는 AI(제미나이·챗GPT·클로드) 버튼을 누르면 그 순간 분석 프롬프트가 이미 복사되어 있고, 안내창이 뜹니다.<br>
+        3. 안내창의 [열기]를 누르면 AI 사이트가 새 창으로 열립니다. 입력칸에 Ctrl+V(휴대폰은 길게 눌러 붙여넣기) 후 전송합니다.<br>
+        4. AI 답변이 끝나면 답변 아래 복사 버튼을 누르고 이 화면으로 돌아오세요. 답변이 AI 분석 칸에 자동으로 들어가 보기 좋게 정리됩니다.<br>
+        5. 자동으로 안 들어오면(브라우저가 클립보드 읽기를 막는 경우) [📥 복사한 답변 붙여넣기]를 누르거나 칸을 누르고 Ctrl+V 하세요.</span>
       </dd>
       <dt>주의할 점</dt>
       <dd>이 AI 리포트는 외국인·기관 수급, 다년도 재무제표 추이, 최신 뉴스·공시를 포함하지 않습니다(공개판 한계). 투자 결정 전 반드시
@@ -3277,7 +4005,7 @@ HELP_HTML = r"""
   </section>
 
   <section class="card" id="sec-share">
-    <h2>⑦ 공유·블로그 내보내기·최근 본 종목</h2>
+    <h2>⑦ 공유·PDF·블로그 내보내기·최근 본 종목</h2>
     <dl class="termList">
       <dt>🔗 링크 공유</dt>
       <dd>지금 보고 있는 종목으로 바로 열리는 링크를 만듭니다. 휴대폰에서는 공유 화면이 뜨고, PC에서는 링크가 복사됩니다.
@@ -3287,6 +4015,8 @@ HELP_HTML = r"""
       <dt>📝 블로그 내보내기</dt>
       <dd>주요 수치(현재가·PER·PBR·RSI·매물대 등)를 정리한 글을 만들어 자동으로 복사합니다. AI를 거치지 않으므로 바로 만들어지며,
         블로그에 붙여넣은 뒤 본인 의견을 덧붙여 쓰시면 됩니다.</dd>
+      <dt>📄 PDF 리포트</dt>
+      <dd>지금 화면의 분석 결과(AI 분석을 붙여넣었다면 그 내용까지)를 A4 PDF 파일로 저장합니다. 인쇄하거나 메신저로 보내기 좋습니다.</dd>
       <dt>🕘 최근 본 종목</dt>
       <dd>첫 화면에 최근 분석한 종목이 표시됩니다. 같은 브라우저라면 새로고침하거나 다음에 다시 와도 남아 있습니다.
         로그인 없이 브라우저에 저장된 무작위 번호로만 구분하며, 이름·이메일 같은 개인정보는 받지 않습니다.
@@ -3300,6 +4030,37 @@ HELP_HTML = r"""
 </div>
 </body>
 </html>
+"""
+
+
+PRIVACY_HTML = r"""
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>개인정보처리방침 · 종목분석 미니</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<style>
+  body{margin:0;background:#f4f6fb;color:#1a2233;font-family:Pretendard,-apple-system,sans-serif;line-height:1.8;}
+  .wrap{max-width:760px;margin:0 auto;padding:28px 18px 60px;}
+  .card{background:#fff;border:1px solid #e7eaf1;border-radius:16px;padding:22px 24px;margin-bottom:14px;}
+  h1{font-size:20px;margin:0 0 4px;color:#10203a;} h2{font-size:15px;margin:0 0 8px;color:#10203a;}
+  p,li{font-size:13.5px;} .muted{color:#8993a4;font-size:12px;} a{color:#2563eb;}
+</style></head><body><div class="wrap">
+  <div class="card"><h1>개인정보처리방침</h1><div class="muted">종목분석 미니({{ site_label }}) · 시행일 2026년 9월 29일</div></div>
+  <div class="card"><h2>1. 수집하는 정보</h2><ul>
+    <li><b>익명 식별 쿠키(anon_uid)</b> — 처음 방문할 때 브라우저에 저장되는 무작위 문자열입니다. 이름·이메일·전화번호 등 개인을 알아볼 수 있는 정보와 연결되지 않습니다.</li>
+    <li><b>조회 기록</b> — 분석한 종목코드·종목명·시장·조회 시각을 위 익명 식별값과 함께 저장합니다.</li>
+    <li><b>브라우저 저장소</b> — 이용 안내 동의 여부, 안내창 다시 보지 않기 설정을 이용자의 브라우저에만 저장합니다(서버로 전송하지 않음).</li>
+  </ul><p>회원가입이 없으며, 이름·이메일·연락처 등은 수집하지 않습니다.</p></div>
+  <div class="card"><h2>2. 이용 목적</h2><ul>
+    <li>"최근 본 종목" 목록 표시(같은 브라우저로 다시 방문했을 때)</li>
+    <li>누적 이용 통계(예: 몇 명이 몇 건을 분석했는지) 표시와 서비스 개선</li>
+  </ul></div>
+  <div class="card"><h2>3. 보관 기간과 삭제</h2><p>익명 식별 쿠키는 최대 2년간 유지되며, 브라우저 설정에서 쿠키를 삭제하면 즉시 사라지고 이후 기록은 이전 기록과 연결되지 않습니다. 조회 기록은 서비스 운영 기간 동안 보관합니다.</p></div>
+  <div class="card"><h2>4. 광고와 제3자 쿠키</h2><p>이 사이트는 Google 애드센스 광고를 게재할 수 있습니다. Google을 포함한 제3자 공급업체는 쿠키를 사용하여 이용자의 이 사이트 또는 다른 사이트 방문 기록을 바탕으로 광고를 게재합니다. Google은 광고 쿠키를 사용해 이용자에게 맞춤 광고를 보여줄 수 있으며, 이용자는 <a href="https://adssettings.google.com" target="_blank" rel="noopener">Google 광고 설정</a>에서 맞춤 광고를 해제할 수 있습니다. 자세한 내용은 <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener">Google 광고 정책</a>을 참고하세요.</p></div>
+  <div class="card"><h2>5. 제3자 제공</h2><p>수집한 정보를 판매하거나 제3자에게 제공하지 않습니다. 다만 서비스 운영을 위해 호스팅(Render) 서버에 저장됩니다.</p></div>
+  <div class="card"><h2>6. 문의</h2><p>개인정보 관련 문의는 <a href="{{ blog_url }}" target="_blank" rel="noopener">제작자 블로그</a>로 남겨 주세요.</p></div>
+  <div class="muted" style="text-align:center;"><a href="/">← 종목분석 미니로 돌아가기</a></div>
+</div></body></html>
 """
 
 
@@ -3329,6 +4090,7 @@ init_db()
 _ensure_history_table()  # ⚠️ [v117] 검색 기록 테이블 준비. [v118] DB가 아직 안 붙어도 부팅은
                          # 계속되고(예외 삼킴), 첫 기록 요청 때 다시 시도한다.
 threading.Thread(target=build_ticker_cache, daemon=True).start()
+threading.Thread(target=_warm_cache_loop, daemon=True).start()  # ⚡ [v119] 데모·인기 종목 미리 불러오기
 
 
 # ══════════════════════════════════════════════════════════════
