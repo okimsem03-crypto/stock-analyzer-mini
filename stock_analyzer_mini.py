@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-📈 종목분석 미니 (공개판) — v123
+📈 종목분석 미니 (공개판) — v124
 ────────────────────────────────────────────────────────────────
 FinanceDataReader + 네이버 모바일 증권 API/FnGuide 공개 페이지만 사용합니다.
 KRX 로그인, DART API 키, 유료 AI API 키가 전혀 필요 없습니다.
@@ -205,6 +205,12 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ③ /api/diag에 각 서버 직접 요청의 HTTP 상태·응답 앞부분, 서버의 외부 IP, Python·pandas 버전 표시.
   ④ 네이버 요청에 모바일 화면과 같은 Referer 헤더, 야후는 query1 실패 시 query2로 재시도.
 
+🩺 v124: 원인 표시 없이 "없는 종목코드일 수 있어요"로 실패하던 경우 대응 — 주가 단계가 45초 제한에
+  걸리거나 지표 계산에서 오류가 나면 사유가 기록되지 않았다.
+  ① 소스별로 '전체' 9초 제한(서버가 느리게 조금씩 보내며 늘어지는 경우 차단) → 4곳 합쳐도 36초 안에 결론.
+  ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
+  ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
+
 실행(로컬/데스크톱):  python stock_analyzer_mini.py
 실행(웹 서버, 예: Render):  gunicorn stock_analyzer_mini:app --bind 0.0.0.0:$PORT
 필요:  pip install flask finance-datareader pandas numpy requests beautifulsoup4
@@ -215,7 +221,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 
 exe 빌드(PyInstaller):
   pip install pyinstaller pywebview
-  pyinstaller --onefile --noconsole --name "종목분석미니_v123" stock_analyzer_mini.py
+  pyinstaller --onefile --noconsole --name "종목분석미니_v124" stock_analyzer_mini.py
   (--noconsole은 창 앱 모드일 때만 권장 — 콘솔 로그로 문제를 확인하려면 빼고 빌드하세요)
   빌드된 exe와 같은 폴더에 mini_tickers.db 캐시 파일이 자동 생성됩니다.
 
@@ -230,7 +236,7 @@ GitHub 자동 업데이트를 쓰려면(선택, exe 전용 — 웹 배포 모드
 
 import os, sys, math, re, sqlite3, threading, socket, webbrowser, time, subprocess, uuid, gzip
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import ThreadPoolExecutor, Future, TimeoutError as FuturesTimeoutError
 from datetime import datetime, timedelta
 
 # 🩺 [v123] 서버(gunicorn)에서 print가 버퍼에 갇혀 Render 로그에 안 보이던 문제 — 줄 단위로 바로 내보낸다.
@@ -267,7 +273,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v123"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v124"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -286,7 +292,7 @@ APP_VERSION_HARDCODED = "v123"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v123"
+HELP_CONTENT_ASOF = "v124"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -1202,7 +1208,10 @@ def _fetch_all_parallel(ticker, need_price=True):
     """주가·네이버 기본정보·네이버 종합정보·FnGuide 매출구성을 동시에 불러온다.
        FnGuide만 FNGUIDE_WAIT_SEC까지만 기다리고, 늦으면 이번엔 빈 값으로 넘어간다."""
     t0 = time.time()
-    f_price = _POOL.submit(get_price_data, ticker) if need_price else None
+    PRICE_LAST_ERRORS.pop(ticker, None)
+    cached_price = _cache_get(("price", ticker)) if need_price else None   # 🩺 [v124] 지난번 늦게 끝난 결과
+    f_price = (_POOL.submit(lambda: cached_price) if cached_price else _POOL.submit(get_price_data, ticker)) \
+        if need_price else None
     # ⚡ [v122] 네이버가 최근 계속 실패 중이면 네이버 전용 정보(기본정보·재무·뉴스)는 요청하지 않는다
     # — 막힌 곳을 기다리느라 주가(야후)까지 늦어지지 않게. 캐시에 남은 재무는 그대로 쓴다.
     skip_naver = _naver_unhealthy()
@@ -1221,6 +1230,18 @@ def _fetch_all_parallel(ticker, need_price=True):
         except Exception:
             return None
     price = _res(f_price, 45) if f_price else None
+    if f_price and price is None and not f_price.done():
+        # 🩺 [v124] 45초 안에 못 끝났다 — 사유를 남기고, 끝나는 대로 5분간 보관해 다음 클릭은 바로 되게 한다.
+        PRICE_LAST_ERRORS[ticker] = ["timeout=45초 초과 — 잠시 후 다시 누르면 대부분 됩니다"]
+        print(f"[주가] {ticker}: 45초 안에 끝나지 않음 — 뒤에서 계속 받아 캐시에 둡니다")
+        def _keep(f, t=ticker):
+            try:
+                v = f.result()
+                if v:
+                    _cache_set(("price", t), v, 300)
+            except Exception:
+                pass
+        f_price.add_done_callback(_keep)
     # 주가를 야후에서 받았다면 네이버가 불안정하다는 뜻 — 부가정보는 최대 3초만 더 기다린다.
     naver_slow = bool(f_price) and PRICE_LAST_SOURCE.get(ticker) == "yahoo"
     deadline = time.time() + (3 if naver_slow else 10)
@@ -1423,6 +1444,10 @@ def _v(x, default=None):
 # 어느 쪽이든 같은 모양의 표(Open·High·Low·Close·Volume, 날짜 인덱스)로 맞춰 넘긴다.
 # ══════════════════════════════════════════════════════════════
 _FDR_POOL = ThreadPoolExecutor(max_workers=6, thread_name_prefix="fdr")
+# 🩺 [v124] 소스 하나를 부를 때의 "전체" 시간 제한. requests의 timeout은 '한 번 기다리는 시간'이라
+# 서버가 조금씩 찔끔찔끔 보내면 끝없이 늘어질 수 있다 — 별도 스레드에서 돌리고 이 시간이 지나면 포기한다.
+_SRC_POOL = ThreadPoolExecutor(max_workers=16, thread_name_prefix="src")
+SRC_DEADLINE_SEC = 9
 PRICE_LAST_SOURCE = {}   # 종목별로 마지막에 성공한 소스(진단용)
 PRICE_LAST_ERRORS = {}   # 🩺 [v123] 종목별 마지막 실패 사유(화면 오류 문구·진단용)
 
@@ -1576,7 +1601,10 @@ def _fetch_ohlcv(ticker, start):
     for name, fn in order:
         t0 = time.time()
         try:
-            df = fn(ticker, start)
+            try:
+                df = _SRC_POOL.submit(fn, ticker, start).result(timeout=SRC_DEADLINE_SEC)
+            except FuturesTimeoutError:
+                raise TimeoutError(f"{SRC_DEADLINE_SEC}초 안에 응답 없음")
             _src_report(name, True)
             if df is not None and len(df) >= 2:
                 PRICE_LAST_SOURCE[ticker] = name
@@ -1866,7 +1894,9 @@ def get_price_data(ticker: str):
             },
         }
     except Exception as e:
-        print(f"[가격데이터] 오류: {e}")
+        import traceback
+        PRICE_LAST_ERRORS[ticker] = [f"calc={type(e).__name__}: {str(e)[:80]}"]
+        print(f"[가격데이터] {ticker} 계산 오류: {e}\n{traceback.format_exc()}")
         return None
 
 
@@ -2389,7 +2419,8 @@ def _compute_analysis(ticker):
     price_d, basic, integ, rev, extra = _fetch_all_parallel(ticker)
     if not price_d:
         why = PRICE_LAST_ERRORS.get(ticker) or []
-        label = {"naver_api": "네이버", "yahoo": "야후", "fdr": "네이버2", "fchart": "네이버3"}
+        label = {"naver_api": "네이버", "yahoo": "야후", "fdr": "네이버2", "fchart": "네이버3",
+                 "calc": "지표 계산 오류", "timeout": "처리 시간"}
         why_txt = ", ".join(f"{label.get(w.split('=')[0], w.split('=')[0])} {w.split('=', 1)[1]}" for w in why) if why else ""
         return {"error": f"주가 데이터를 가져오지 못했어요({ticker})." + (f" [원인: {why_txt}]" if why_txt else
                          " 없는 종목코드일 수 있어요.")}
