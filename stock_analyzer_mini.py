@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-📈 종목분석 미니 (공개판) — v120
+📈 종목분석 미니 (공개판) — v121
 ────────────────────────────────────────────────────────────────
 FinanceDataReader + 네이버 모바일 증권 API/FnGuide 공개 페이지만 사용합니다.
 KRX 로그인, DART API 키, 유료 AI API 키가 전혀 필요 없습니다.
@@ -180,6 +180,16 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ③ 미리 불러오기는 서버 시작 20초 뒤부터, 종목 사이 3초 간격, 대상 3개로 축소.
   ④ 실패하면 이유와 [다시 시도] 버튼을 화면에 표시. /api/diag 진단 페이지 추가(각 경로 성공 여부·시간).
 
+🚀 v121: 사용자 요청 4가지.
+  ① ↺ 초기화 버튼(상단) — 검색·결과·AI 칸을 비우고 첫 화면으로. 최근 본 종목 [기록 지우기].
+  ② 📑 재무 정보 — 네이버 모바일 증권 API의 연간(3년+추정)·분기(5개+추정) 매출·영업이익·순이익·
+     이익률·ROE·부채비율·당좌비율·유보율·EPS·BPS·배당·PER·PBR을 표·그래프로(12시간 캐시).
+     AI 프롬프트에 재무 추이 표와 [3. 실적·재무 분석] 섹션 추가, 블로그 글에 실적 한 줄 추가.
+  ③ 📰 최근 2주 뉴스 — 14일 이내 기사만(같은 사건 묶음은 대표 1건 + 관련 건수), 프롬프트에 제목 포함
+     ([4. 최근 뉴스·이슈 점검] 섹션, 제목 밖 내용 추측 금지 지시).
+  ④ 💡 매력도 체크 — 사고 싶어요/지켜볼래요/아직은 투표(한 브라우저 종목당 한 표, 최근 30일 집계),
+     첫 화면 "이번 주 매수 관심 TOP 5". stock_votes 테이블(SQLite·Postgres 공통 SQL).
+
 실행(로컬/데스크톱):  python stock_analyzer_mini.py
 실행(웹 서버, 예: Render):  gunicorn stock_analyzer_mini:app --bind 0.0.0.0:$PORT
 필요:  pip install flask finance-datareader pandas numpy requests beautifulsoup4
@@ -190,7 +200,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 
 exe 빌드(PyInstaller):
   pip install pyinstaller pywebview
-  pyinstaller --onefile --noconsole --name "종목분석미니_v120" stock_analyzer_mini.py
+  pyinstaller --onefile --noconsole --name "종목분석미니_v121" stock_analyzer_mini.py
   (--noconsole은 창 앱 모드일 때만 권장 — 콘솔 로그로 문제를 확인하려면 빼고 빌드하세요)
   빌드된 exe와 같은 폴더에 mini_tickers.db 캐시 파일이 자동 생성됩니다.
 
@@ -235,7 +245,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v120"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v121"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -254,7 +264,7 @@ APP_VERSION_HARDCODED = "v120"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v120"
+HELP_CONTENT_ASOF = "v121"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -762,6 +772,136 @@ def history_recent(uid, limit=8):
         return []
 
 
+def history_clear(uid):
+    """🧹 [v121] "최근 본 종목 지우기" — 이 브라우저(uid)의 조회 기록만 지운다."""
+    if not uid or not _ensure_history_table():
+        return False
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            c.execute(f"DELETE FROM search_history WHERE uid={'%s' if _USE_PG else '?'}", (uid,))
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[검색기록] 삭제 실패: {e}")
+        return False
+
+
+# ══════════════════════════════════════════════════════════════
+# 💡 [v121] 매력도 체크(투표) — "이 종목, 지금 사고 싶나요?"
+#   buy(👍 사고 싶어요) / watch(🤔 지켜볼래요) / pass(👎 아직은 아니에요) 중 하나.
+#   한 브라우저(anon_uid)는 종목마다 한 표 — 다시 누르면 바뀌고, 같은 것을 또 누르면 취소.
+#   집계는 최근 VOTE_DAYS일 안에 누른 표만(지금의 분위기를 보여주기 위해).
+# ══════════════════════════════════════════════════════════════
+VOTE_CHOICES = ("buy", "watch", "pass")
+VOTE_DAYS = 30
+_votes_ready = False
+
+
+def _ensure_votes_table():
+    global _votes_ready
+    if _votes_ready:
+        return True
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            c.execute("""CREATE TABLE IF NOT EXISTS stock_votes(
+                uid TEXT NOT NULL, ticker TEXT NOT NULL, name TEXT, vote TEXT NOT NULL,
+                updated_at TEXT NOT NULL, PRIMARY KEY(uid, ticker))""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_votes_ticker ON stock_votes(ticker, updated_at)")
+            conn.commit()
+            _votes_ready = True
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[투표] 테이블 준비 실패(나중에 다시 시도): {e}")
+    return _votes_ready
+
+
+def _vote_since():
+    return (_now_kst() - timedelta(days=VOTE_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def vote_summary(ticker, uid=None):
+    empty = {"counts": {k: 0 for k in VOTE_CHOICES}, "total": 0, "mine": None, "days": VOTE_DAYS}
+    if not _ensure_votes_table():
+        return empty
+    ph = "%s" if _USE_PG else "?"
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            c.execute(f"SELECT vote, COUNT(*) FROM stock_votes WHERE ticker={ph} AND updated_at>={ph} GROUP BY vote",
+                      (ticker, _vote_since()))
+            counts = {k: 0 for k in VOTE_CHOICES}
+            for v, n in c.fetchall():
+                if v in counts:
+                    counts[v] = int(n)
+            mine = None
+            if uid:
+                c.execute(f"SELECT vote FROM stock_votes WHERE uid={ph} AND ticker={ph}", (uid, ticker))
+                row = c.fetchone()
+                mine = row[0] if row else None
+            return {"counts": counts, "total": sum(counts.values()), "mine": mine, "days": VOTE_DAYS}
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[투표] 집계 실패: {e}")
+        return empty
+
+
+def vote_cast(uid, ticker, name, vote):
+    """vote=None이면 내 표를 취소. 같은 SQL(ON CONFLICT)이 SQLite·Postgres 둘 다에서 동작한다."""
+    if not uid or not ticker or not _ensure_votes_table():
+        return False
+    ph = "%s" if _USE_PG else "?"
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            if vote is None:
+                c.execute(f"DELETE FROM stock_votes WHERE uid={ph} AND ticker={ph}", (uid, ticker))
+            else:
+                c.execute(f"""INSERT INTO stock_votes(uid, ticker, name, vote, updated_at) VALUES({ph},{ph},{ph},{ph},{ph})
+                              ON CONFLICT(uid, ticker) DO UPDATE SET vote=excluded.vote, name=excluded.name,
+                              updated_at=excluded.updated_at""",
+                          (uid, ticker, name, vote, _now_kst().strftime("%Y-%m-%d %H:%M:%S")))
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[투표] 저장 실패: {e}")
+        return False
+
+
+def vote_top(days=7, limit=5):
+    """최근 days일 동안 '사고 싶어요'를 가장 많이 받은 종목(홈 화면 '이번 주 매수 관심 TOP')."""
+    if not _ensure_votes_table():
+        return []
+    ph = "%s" if _USE_PG else "?"
+    since = (_now_kst() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            c.execute(f"""SELECT ticker, MAX(name),
+                                 SUM(CASE WHEN vote='buy' THEN 1 ELSE 0 END) AS buys, COUNT(*) AS total
+                          FROM stock_votes WHERE updated_at>={ph}
+                          GROUP BY ticker HAVING SUM(CASE WHEN vote='buy' THEN 1 ELSE 0 END) > 0
+                          ORDER BY buys DESC, total DESC LIMIT {int(limit)}""", (since,))
+            return [{"ticker": r[0], "name": r[1], "buys": int(r[2]), "total": int(r[3])} for r in c.fetchall()]
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[투표] TOP 조회 실패: {e}")
+        return []
+
+
 def history_stats():
     """👥 [v118] 로드맵 '초기 보급' 4순위 — 누적 분석 건수(총 행 수)와 순 방문자 수(uid
        기준 distinct). 별도 카운터 테이블 없이 search_history 하나로 집계한다."""
@@ -932,6 +1072,93 @@ def _fnguide_revenue(ticker):
     return text
 
 
+# ══════════════════════════════════════════════════════════════
+# 📑 [v121] 재무정보 — 네이버 모바일 증권 API(연간 3년 + 다음 해 추정, 분기 5개 + 다음 분기 추정)
+#   단위: 금액은 억원, 비율은 %, 주당 값은 원. "(E)"는 증권사 컨센서스 추정치.
+#   재무제표는 자주 바뀌지 않으므로 12시간 동안 재사용한다.
+# ══════════════════════════════════════════════════════════════
+FIN_ROWS = ["매출액", "영업이익", "당기순이익", "영업이익률", "순이익률", "ROE", "부채비율", "당좌비율",
+            "유보율", "EPS", "BPS", "주당배당금", "PER", "PBR"]
+
+
+def _to_num(v):
+    try:
+        v = str(v).replace(",", "").strip()
+        return None if v in ("", "-", "N/A", "None") else float(v)
+    except Exception:
+        return None
+
+
+def _naver_finance(ticker, period="annual"):
+    key = ("fin", period, ticker)
+    hit = _cache_get(key)
+    if hit is not None:
+        return hit or None
+    out = None
+    try:
+        r = _http().get(f"https://m.stock.naver.com/api/stock/{ticker}/finance/{period}", timeout=6)
+        if r.status_code == 200:
+            info = (r.json() or {}).get("financeInfo") or {}
+            cols = info.get("trTitleList") or []
+            rows = {}
+            for row in info.get("rowList") or []:
+                t = (row.get("title") or "").strip()
+                if t in FIN_ROWS:
+                    rows[t] = [_to_num((row.get("columns") or {}).get(c.get("key"), {}).get("value")) for c in cols]
+            if cols and rows:
+                out = {"periods": [{"title": (c.get("title") or "").rstrip("."), "estimate": c.get("isConsensus") == "Y"}
+                                   for c in cols],
+                       # 순서가 중요해서(매출→이익→비율…) dict가 아니라 목록으로 둔다 — JSON으로 오가며 키가 정렬되는 것 방지
+                       "rows": [{"name": k, "values": rows[k]} for k in FIN_ROWS if k in rows]}
+    except Exception as e:
+        print(f"[재무] {ticker} {period} 조회 오류(무시): {e}")
+    _cache_set(key, out or {}, 12 * 3600 if out else 600)
+    return out
+
+
+# ══════════════════════════════════════════════════════════════
+# 📰 [v121] 관련 뉴스 — 최근 14일(2주) 이내 기사만, 같은 사건을 다룬 기사 묶음은 대표 1건 + 관련 건수
+# ══════════════════════════════════════════════════════════════
+NEWS_DAYS = 14
+NEWS_LIMIT = 12
+
+
+def _naver_news(ticker):
+    import html as _html
+    cutoff = (_now_kst() - timedelta(days=NEWS_DAYS)).strftime("%Y%m%d%H%M")
+    items = []
+    try:
+        for page in (1, 2):
+            r = _http().get(f"https://m.stock.naver.com/api/news/stock/{ticker}",
+                            params={"pageSize": 20, "page": page}, timeout=6)
+            if r.status_code != 200:
+                break
+            groups = r.json() or []
+            reached_old = False
+            for grp in groups:
+                it = (grp.get("items") or [None])[0]
+                if not it:
+                    continue
+                dt = str(it.get("datetime") or "")
+                if dt < cutoff:
+                    reached_old = True
+                    continue
+                items.append({
+                    "datetime": dt,
+                    "date": f"{dt[4:6]}.{dt[6:8]} {dt[8:10]}:{dt[10:12]}" if len(dt) >= 12 else dt,
+                    "press": it.get("officeName") or "",
+                    "title": _html.unescape(it.get("titleFull") or it.get("title") or "").strip(),
+                    "url": it.get("mobileNewsUrl") or f"https://n.news.naver.com/mnews/article/{it.get('officeId')}/{it.get('articleId')}",
+                    "related": max(0, int(grp.get("total") or 1) - 1),
+                })
+            if reached_old or len(items) >= NEWS_LIMIT or len(groups) < 20:
+                break
+    except Exception as e:
+        print(f"[뉴스] {ticker} 조회 오류(무시): {e}")
+    items.sort(key=lambda x: x["datetime"], reverse=True)
+    return items[:NEWS_LIMIT]
+
+
 def _fetch_all_parallel(ticker, need_price=True):
     """주가·네이버 기본정보·네이버 종합정보·FnGuide 매출구성을 동시에 불러온다.
        FnGuide만 FNGUIDE_WAIT_SEC까지만 기다리고, 늦으면 이번엔 빈 값으로 넘어간다."""
@@ -941,6 +1168,9 @@ def _fetch_all_parallel(ticker, need_price=True):
     f_integ = _POOL.submit(_naver_mobile_integration, ticker)
     rev = _cache_get(("rev", ticker))
     f_rev = None if rev is not None else _POOL.submit(_fnguide_revenue, ticker)
+    f_fin_a = _POOL.submit(_naver_finance, ticker, "annual")      # 📑 [v121]
+    f_fin_q = _POOL.submit(_naver_finance, ticker, "quarter")
+    f_news = _POOL.submit(_naver_news, ticker)                     # 📰 [v121]
 
     def _res(f, timeout):
         try:
@@ -952,7 +1182,8 @@ def _fetch_all_parallel(ticker, need_price=True):
     integ = _res(f_integ, 10)
     if f_rev is not None:
         rev = _res(f_rev, max(0.2, FNGUIDE_WAIT_SEC - (time.time() - t0))) or ""
-    return price, basic, integ, rev
+    extra = {"fin_annual": _res(f_fin_a, 12), "fin_quarter": _res(f_fin_q, 12), "news": _res(f_news, 12) or []}
+    return price, basic, integ, rev, extra
 
 
 # 🐛 [v110] 이 자리에 있던 _naver_overall_info_text()는 실측 결과 회사 소개 문단이
@@ -1565,11 +1796,11 @@ def check_delisting_risk(price_d, risk_badges, cap_eok=None):
 # ══════════════════════════════════════════════════════════════
 def get_company_details_and_fundamentals(ticker: str):
     """⚡ [v119] 기존 호출부 호환용 — 필요한 조각을 병렬로 받아 _build_details로 조립한다."""
-    _, basic, integ, rev = _fetch_all_parallel(ticker, need_price=False)
-    return _build_details(basic, integ, rev)
+    _, basic, integ, rev, extra = _fetch_all_parallel(ticker, need_price=False)
+    return _build_details(basic, integ, rev, extra)
 
 
-def _build_details(basic, integ, revenue):
+def _build_details(basic, integ, revenue, extra=None):
     """💡 [v107] 2026-09-11 네이버 증권 PC 개편 대응 — finance.naver.com/item/main.naver,
        coinfo.naver HTML 크롤링이 Next.js 리뉴얼로 완전히 무력화되어(서버가 내려주는
        최초 HTML에 실제 데이터가 없음, 실측 확인) 개편과 무관한 모바일 증권 API로 교체.
@@ -1656,6 +1887,9 @@ def _build_details(basic, integ, revenue):
         details["overview"] = "네이버에서 기업개요를 가져오지 못했습니다 — AI 분석을 실행하면 [1. 기업 소개] 섹션이 자동으로 이 자리를 채웁니다."
         details["overview_source"] = "ai_pending"
 
+    extra = extra or {}
+    details["financials"] = {"annual": extra.get("fin_annual"), "quarter": extra.get("fin_quarter")}  # 📑 [v121]
+    details["news"] = extra.get("news") or []                                                         # 📰 [v121]
     if revenue:
         details["revenue_breakdown"] = revenue  # ⚡ [v119] FnGuide 조회는 _fnguide_revenue로 분리(하루 캐시)
 
@@ -1747,6 +1981,27 @@ def build_ai_prompt(ticker, name, market, price_d, fundamentals, details, delist
     else:
         consensus_section = ""
 
+    # 📑 [v121] 재무제표 추이(연간·분기) — 표 형태 텍스트
+    def _fin_text(fin, label):
+        if not fin or not fin.get("periods"):
+            return f"\n[{label}]\n데이터 없음"
+        heads = [pp["title"] + ("(E)" if pp.get("estimate") else "") for pp in fin["periods"]]
+        lines = [f"\n[{label}] (금액 억원·비율 %·주당 원, (E)=증권사 추정치)", "- 기간: " + " | ".join(heads)]
+        for row in fin["rows"]:
+            lines.append(f"- {row['name']}: " + " | ".join("-" if v is None else f"{v:,.2f}".rstrip("0").rstrip(".") for v in row["values"]))
+        return "\n".join(lines)
+    fins = d.get("financials") or {}
+    fin_section = _fin_text(fins.get("annual"), "재무제표 추이 — 연간") + _fin_text(fins.get("quarter"), "재무제표 추이 — 분기")
+
+    # 📰 [v121] 최근 14일 뉴스 헤드라인(제목만 — 본문은 포함하지 않음)
+    news = d.get("news") or []
+    if news:
+        news_section = f"\n[최근 {NEWS_DAYS}일 관련 뉴스 헤드라인 — 제목만 제공, 최신순]\n" + "\n".join(
+            f"- {n['date']} {n['press']}: {n['title']}" + (f" (관련 기사 {n['related']}건 더)" if n.get("related") else "")
+            for n in news[:NEWS_LIMIT])
+    else:
+        news_section = f"\n[최근 {NEWS_DAYS}일 관련 뉴스]\n최근 {NEWS_DAYS}일 이내 관련 뉴스 없음"
+
     overview_text = d.get("overview") or "기업 개요 정보를 가져오지 못했습니다."
     rev_breakdown = d.get("revenue_breakdown") or "정보 없음"
 
@@ -1782,12 +2037,13 @@ def build_ai_prompt(ticker, name, market, price_d, fundamentals, details, delist
 - 최근 5일/20일 등락률: {p.get('pct5', 0)}% / {p.get('pct20', 0)}%
 - 볼린저밴드 스퀴즈(변동성 압축) 여부: {'예 — 방향성 돌파 전조 가능' if p.get('bb_squeeze') else '아니오'}
 {vp_section}
+{fin_section}
+{news_section}
 {risk_warning_section}
 
 [이 리포트에 포함되지 않은 데이터 — 반드시 명시할 것]
 - 외국인·기관 수급(순매수/순매도) 데이터 없음
-- DART 다년도 재무제표(매출·영업이익 추이) 데이터 없음
-- 최근 뉴스·공시 데이터 없음
+- 공시(DART) 원문과 뉴스 본문은 없음(뉴스는 최근 {NEWS_DAYS}일 제목만 제공)
 - 위 항목들은 KRX 로그인 또는 DART API 키가 필요해 이 공개용 프로그램에는 포함되지 않았습니다.
 
 [작성 지침 — 반드시 지킬 것]
@@ -1796,7 +2052,9 @@ def build_ai_prompt(ticker, name, market, price_d, fundamentals, details, delist
 3. 항목별로 '•' 기호를 사용하고, 섹션 사이에 줄바꿈을 두세요.
 4. <br> 같은 HTML 태그는 절대 사용하지 마세요. 마크다운(**굵게**, - 목록)만 사용하세요.
 5. 매물대 데이터가 있는 경우, POC·VAH·VAL 수치를 원 단위로 정확히 인용하고 주식 초보자도 이해할 수 있도록 쉬운 말로 풀어 설명하세요.
-6. 위에 명시한 "포함되지 않은 데이터"(수급·재무제표·뉴스/공시)에 대해서는 절대 있는 것처럼 지어내지 말고, [리스크 및 유의사항]에서 반드시 "이 리포트는 수급·재무제표 추이·최신 뉴스/공시를 포함하지 않으므로, 투자 결정 전 별도로 확인이 필요하다"고 명시하세요.
+6. 위에 명시한 "포함되지 않은 데이터"(수급·공시 원문·뉴스 본문)는 절대 있는 것처럼 지어내지 말고, [리스크 및 유의사항]에서 "이 리포트는 수급 데이터와 공시 원문을 포함하지 않으며 뉴스는 제목만 참고했으므로, 투자 결정 전 별도 확인이 필요하다"고 명시하세요.
+6-1. 재무 수치는 위 [재무제표 추이] 표의 숫자만 인용하세요. (E)가 붙은 값은 반드시 "증권사 추정치"라고 밝히고 확정 실적처럼 쓰지 마세요.
+6-2. 뉴스는 제목만 주어졌으므로 제목에서 확인되는 사실만 언급하고, 제목에 없는 내용(수치·원인·결과)을 추측해 덧붙이지 마세요.
 7. 제공되지 않은 수치는 추측해서 채우지 말고 "데이터 없음"이라고 쓰세요.
 8. 마지막 줄에 블로그용 해시태그를 10개 내외로 작성하세요.
 
@@ -1811,26 +2069,36 @@ def build_ai_prompt(ticker, name, market, price_d, fundamentals, details, delist
 - [동일업종 관련 종목]이 제공된 경우, 이 종목의 오늘 등락률이 같은 업종 종목들과 비슷한 흐름인지 유독 다른지 비교해 언급하세요(단, 이 목록엔 PER/PBR이 없으므로 가격·등락률 비교로 한정).
 - [증권사 애널리스트 컨센서스]가 제공된 경우, 목표주가 대비 현재가 괴리율(%)을 계산해 언급하되, 이는 증권사 평균 전망일 뿐 확정이 아니라는 점을 함께 명시하세요.
 
-[3. 기술적 분석 심층]
+[3. 실적·재무 분석]
+- 최근 3년 매출액·영업이익·당기순이익의 증감 추세(성장/정체/감소)와 전년 대비 증감률을 숫자로 짚으세요.
+- 영업이익률·순이익률·ROE로 수익성을, 부채비율·당좌비율로 재무 안정성을 평가하세요(초보자도 알 수 있게 기준을 함께 설명).
+- 최근 분기 흐름이 연간 추세와 같은 방향인지, 추정치(E)가 있다면 시장이 기대하는 방향이 무엇인지 설명하세요.
+- 주당배당금 추이가 있다면 배당 성향을 간단히 언급하세요. 재무 데이터가 없으면 "재무 데이터 없음"으로 처리하세요.
+
+[4. 최근 뉴스·이슈 점검]
+- 최근 {NEWS_DAYS}일 헤드라인에서 반복되는 주제(실적·수주·규제·업황 등)를 2~4개로 묶어 정리하고, 주가에 긍정/부정 중 어느 쪽 재료로 해석될 수 있는지 조심스럽게 서술하세요.
+- 뉴스가 없으면 "최근 2주간 눈에 띄는 뉴스 없음"으로 간단히 처리하세요.
+
+[5. 기술적 분석 심층]
 - 이동평균 배열·RSI·거래량 배수·52주 위치·이격도를 종합해 현재 추세 국면(상승/하락/횡보, 과열/침체)을 판단하세요.
 - 볼린저밴드 스퀴즈가 감지된 경우, 방향성 돌파 가능성과 그 방향을 가늠할 근거가 있는지 짚어주세요.
 
-[4. 매물대 기술적 분석]
+[6. 매물대 기술적 분석]
 - POC(최대 매물 기준가)·VAL(핵심 지지선)·VAH(핵심 저항선)의 의미와 현재가가 그 사이 어디에 위치하는지 설명하세요.
 - 초보 투자자도 이해할 수 있도록 어려운 용어는 괄호 안에 쉬운 말로 풀어 쓰세요.
 - 매물대 데이터가 없다면 이 섹션은 "데이터 부족으로 매물대 분석 불가"로 간단히 처리하세요.
 
-[5. 투자 전략 제안]
+[7. 투자 전략 제안]
 - 매물대 수치가 있다면 그 가격대를 근거로 구체적인 관심 진입 가격대와 참고 손절/익절 기준을 원 단위로 제안하세요. (예: "VAL({val_str}) 부근에서 분할 매수를 고려할 수 있으며...")
 - 단기(1~2주)와 중기(1~3개월) 관점을 구분해서 서술하세요.
 - 이것이 투자 추천이 아니라 데이터에 근거한 참고 의견임을 분명히 하세요.
 
-[6. 리스크 및 유의사항]
-- RSI 과열·이격도 과다 등 기술적으로 확인되는 리스크를 짚으세요.
-- 반드시 위 6번 지침대로 "수급·재무제표 추이·뉴스/공시 데이터 미포함"을 명시하고, 투자 결정 전 확인을 권고하세요.
+[8. 리스크 및 유의사항]
+- RSI 과열·이격도 과다 등 기술적 리스크와, 재무(이익 감소·부채비율 상승 등)·뉴스에서 확인되는 리스크를 함께 짚으세요.
+- 반드시 위 6번 지침대로 수급·공시 원문 미포함, 뉴스는 제목만 참고했음을 명시하고, 투자 결정 전 확인을 권고하세요.
 - 원금 손실 가능성과 투자 판단·책임이 투자자 본인에게 있음을 명시하세요.
 
-[7. 해시태그]
+[9. 해시태그]
 #{name} #{ticker} #주식분석 #기술적분석 #매물대분석 #주린이
 """
     return prompt
@@ -1868,6 +2136,26 @@ def build_blog_draft(ticker, name, market, price_d, fundamentals, details, delis
     if p.get("pos52") is not None: tech_bits.append(f"52주 위치 {p.get('pos52')}%")
     if tech_bits:
         lines.append("📊 기술적 지표: " + " · ".join(tech_bits))
+
+    fa = (d.get("financials") or {}).get("annual") or {}
+    try:
+        pers = fa.get("periods") or []
+        act = [i for i, pp in enumerate(pers) if not pp.get("estimate")]
+        rows_ = {r["name"]: r["values"] for r in (fa.get("rows") or [])}
+        if act and rows_.get("매출액"):
+            i = act[-1]
+            def _jo(v):
+                return "-" if v is None else (f"{v/10000:,.1f}조원" if abs(v) >= 10000 else f"{v:,.0f}억원")
+            txt = f"📑 {pers[i]['title']} 실적: 매출 {_jo(rows_['매출액'][i])}"
+            if rows_.get("영업이익"):
+                txt += f" · 영업이익 {_jo(rows_['영업이익'][i])}"
+            if len(act) >= 2 and rows_["매출액"][act[-2]]:
+                prev = rows_["매출액"][act[-2]]
+                if prev and rows_["매출액"][i] is not None:
+                    txt += f" (매출 전년 대비 {(rows_['매출액'][i]/prev-1)*100:+.1f}%)"
+            lines.append(txt)
+    except Exception:
+        pass
 
     if vp and vp.get("poc"):
         lines.append(
@@ -1947,10 +2235,10 @@ _INFLIGHT_LOCK = threading.Lock()
 def _compute_analysis(ticker):
     """실제로 데이터를 불러와 분석 결과(dict)를 만든다. 실패하면 {"error": ...}."""
     name, market = get_ticker_info(ticker)
-    price_d, basic, integ, rev = _fetch_all_parallel(ticker)
+    price_d, basic, integ, rev, extra = _fetch_all_parallel(ticker)
     if not price_d:
         return {"error": f"주가 데이터를 가져오지 못했어요({ticker}). 네이버 응답이 늦거나 없는 종목코드일 수 있어요."}
-    details, fundamentals = _build_details(basic, integ, rev)
+    details, fundamentals = _build_details(basic, integ, rev, extra)
 
     # 🐛 [v1.1] 검색 캐시에 없는 종목도 분석되도록 실제 종목명을 채워 넣는다("자가 치유" 캐시).
     # ⚡ [v119] 이미 받아온 basic 응답에서 이름을 꺼내므로 네이버를 한 번 더 부르지 않는다.
@@ -2114,6 +2402,36 @@ def healthz():
     """🩺 [v118] Render 헬스체크 전용 — 화면 템플릿을 그리지 않는 가장 가벼운 응답.
        render.yaml의 healthCheckPath가 이 주소를 본다(무중단 배포·장애 자동 감지용)."""
     return "ok", 200
+
+
+@app.route("/api/history", methods=["DELETE"])
+def api_history_clear():
+    """🧹 [v121] 최근 본 종목 지우기(이 브라우저 것만)."""
+    return jsonify({"ok": history_clear(g.get("anon_uid"))})
+
+
+@app.route("/api/vote/<ticker>", methods=["GET", "POST"])
+def api_vote(ticker):
+    """💡 [v121] 매력도 체크 — GET: 집계, POST {"vote": "buy"|"watch"|"pass"|null}: 내 표 저장/취소."""
+    ticker = normalize_ticker(ticker)
+    if not ticker:
+        return jsonify({"error": "올바른 종목코드가 아닙니다."}), 400
+    uid = g.get("anon_uid")
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        vote = body.get("vote")
+        if vote not in VOTE_CHOICES and vote is not None:
+            return jsonify({"error": "잘못된 선택입니다."}), 400
+        name = (str(body.get("name") or "")[:40]) or ticker
+        if not vote_cast(uid, ticker, name, vote):
+            return jsonify({"error": "저장하지 못했어요. 잠시 후 다시 시도해 주세요."}), 500
+    return jsonify(vote_summary(ticker, uid))
+
+
+@app.route("/api/vote-top")
+def api_vote_top():
+    """💡 [v121] 이번 주(7일) 매수 관심 TOP 5."""
+    return jsonify(vote_top(7, 5))
 
 
 @app.route("/api/diag")
@@ -2383,6 +2701,51 @@ HTML_TEMPLATE = r"""
   .pdfBanner .bR{font-size:13px; font-weight:800; text-align:right;} .pdfBanner .bR small{display:block; font-size:11px; font-weight:600; opacity:.8;}
   .pdfBanner.head .bR{background:var(--gold); color:#1a1300; padding:8px 12px; border-radius:9px;}
   .pdfBanner.foot .bL{font-size:13px;}
+
+  /* 📑 [v121] 재무정보 카드 */
+  .finTabs{display:flex; gap:6px; margin:-4px 0 12px;}
+  .finTab{border:1px solid var(--border); background:#f8fafc; border-radius:999px; padding:6px 14px; font-size:12px;
+    font-weight:700; cursor:pointer; font-family:inherit; color:var(--muted);}
+  .finTab.on{background:var(--navy); color:#fff; border-color:var(--navy);}
+  .finTableWrap{overflow-x:auto;}
+  .finTable{width:100%; border-collapse:collapse; font-size:12.5px; min-width:520px;}
+  .finTable th, .finTable td{padding:7px 8px; border-bottom:1px solid #eef1f6; text-align:right; white-space:nowrap;}
+  .finTable th:first-child, .finTable td:first-child{text-align:left; color:var(--navy); font-weight:700;}
+  .finTable thead th{font-size:11.5px; color:var(--muted); font-weight:700; background:#f8fafc;}
+  .finTable .est{color:#b45309; background:#fffbeb;}
+  .finTable .yoy{display:block; font-size:10.5px; font-weight:600;}
+  .finTable .up{color:var(--up);} .finTable .down{color:var(--down);}
+  .finNote{font-size:11px; color:var(--muted); margin-top:8px; line-height:1.7;}
+  .finGloss{margin-top:10px; font-size:11.5px; color:#475569; line-height:1.8; background:#f8fafc; border-radius:10px; padding:10px 12px;}
+
+  /* 📰 [v121] 뉴스 카드 */
+  .newsList{list-style:none; margin:0; padding:0;}
+  .newsList li{padding:9px 0; border-bottom:1px solid #eef1f6; font-size:13px; line-height:1.55;}
+  .newsList li:last-child{border-bottom:none;}
+  .newsList a{color:var(--text); text-decoration:none; font-weight:600;}
+  .newsList a:hover{text-decoration:underline;}
+  .newsMeta{display:block; font-size:11px; color:var(--muted); font-weight:500; margin-top:2px;}
+  .newsEmpty{font-size:12.5px; color:var(--muted);}
+
+  /* 💡 [v121] 매력도 체크 */
+  .voteCard{background:linear-gradient(135deg,#f5f3ff,#eef2ff); border:1px solid #ddd6fe; border-radius:var(--radius);
+    padding:16px 18px; margin:0 0 20px;}
+  .voteQ{font-size:14.5px; font-weight:800; color:var(--navy); margin-bottom:10px;}
+  .voteBtns{display:flex; gap:8px; flex-wrap:wrap;}
+  .voteBtn{flex:1; min-width:120px; border:2px solid transparent; background:#fff; border-radius:12px; padding:10px 8px;
+    font-size:13.5px; font-weight:800; cursor:pointer; font-family:inherit; color:var(--text); box-shadow:0 1px 2px rgba(16,32,58,.06);}
+  .voteBtn small{display:block; font-size:11px; font-weight:600; color:var(--muted); margin-top:2px;}
+  .voteBtn.on.v-buy{border-color:var(--up); background:#fff1f2;} .voteBtn.on.v-watch{border-color:#eab308; background:#fefce8;}
+  .voteBtn.on.v-pass{border-color:var(--down); background:#eff6ff;}
+  .voteBar{display:flex; height:10px; border-radius:999px; overflow:hidden; margin:12px 0 6px; background:#e2e8f0;}
+  .voteBar span{display:block; height:100%;} .vb-buy{background:var(--up);} .vb-watch{background:#eab308;} .vb-pass{background:var(--down);}
+  .voteInfo{font-size:11.5px; color:#475569;}
+  .topBox{max-width:640px; margin:22px auto 0; text-align:left; background:#fff; border:1px solid var(--border);
+    border-radius:14px; padding:14px 16px;}
+  .topBox ol{margin:6px 0 0; padding-left:22px;} .topBox li{font-size:13px; margin:5px 0; cursor:pointer;}
+  .topBox li b{color:var(--navy);} .topBox li span{color:var(--muted); font-size:11.5px; margin-left:6px;}
+  .recentClear{background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer; text-decoration:underline;
+    font-family:inherit; margin-left:8px; padding:0;}
 
   /* 🎬 [v118] 데모 버튼 — 슬로건 바로 아래, 눈에 띄지만 실제 검색창보다는 강조를 낮춘다 */
   .demoBtn{
@@ -2686,6 +3049,7 @@ HTML_TEMPLATE = r"""
     <input id="searchInput" class="searchInput" type="text" placeholder="종목명 또는 코드를 입력하세요 (예: 삼성전자, 005930)" autocomplete="off">
     <div id="searchDrop" class="searchDrop"></div>
   </div>
+  <button class="refreshBtn" onclick="resetAll()" title="검색·결과·AI 칸을 모두 비우고 첫 화면으로 돌아갑니다">↺ 초기화</button>
   <button class="refreshBtn" onclick="refreshTickers()">🔄 종목목록 갱신</button>
   <a class="refreshBtn" href="/help" target="_blank" rel="noopener" style="text-decoration:none;">❓ 도움말</a>
   {% if kakao_url %}
@@ -2728,8 +3092,14 @@ HTML_TEMPLATE = r"""
     <!-- 🚀 [v117] 로드맵 1단계 — 이 브라우저가 최근에 본 종목 칩 목록. 기록이 없으면
          (첫 방문 등) 자바스크립트가 style.display를 그대로 두어 보이지 않는다. -->
     <div id="recentBox" class="recentBox" style="display:none;">
-      <div class="recentTitle">🕘 최근 본 종목</div>
+      <div class="recentTitle">🕘 최근 본 종목 <button class="recentClear" onclick="clearRecent()">기록 지우기</button></div>
       <div id="recentChips" class="recentChips"></div>
+    </div>
+
+    <!-- 💡 [v121] 이번 주 매수 관심 TOP — 다른 이용자들이 '사고 싶어요'를 많이 누른 종목 -->
+    <div id="topBox" class="topBox" style="display:none;">
+      <div class="recentTitle">🔥 이번 주 매수 관심 TOP <span style="font-weight:500;color:var(--muted);font-size:11px;">— 이용자 투표 기준, 투자 권유 아님</span></div>
+      <ol id="topList"></ol>
     </div>
 
     <!-- 💡 [v107] "네이버 증권에서 얻을 수 없는 잇점"을 첫 화면에서 바로 보여주는 소개 카드.
@@ -2792,6 +3162,18 @@ HTML_TEMPLATE = r"""
     </div>
     <textarea id="blogDraftBox" class="promptBox" style="display:none;" readonly></textarea>
 
+    <!-- 💡 [v121] 매력도 체크 — 이용자들의 매수 의도를 모은다(한 브라우저 한 표, 다시 누르면 취소) -->
+    <div class="voteCard" id="voteCard">
+      <div class="voteQ">💡 이 종목, 지금 사고 싶으세요?</div>
+      <div class="voteBtns">
+        <button class="voteBtn v-buy" data-vote="buy" onclick="castVote('buy')">👍 사고 싶어요<small id="vc-buy">0명</small></button>
+        <button class="voteBtn v-watch" data-vote="watch" onclick="castVote('watch')">🤔 지켜볼래요<small id="vc-watch">0명</small></button>
+        <button class="voteBtn v-pass" data-vote="pass" onclick="castVote('pass')">👎 아직은 아니에요<small id="vc-pass">0명</small></button>
+      </div>
+      <div class="voteBar"><span class="vb-buy" id="vb-buy" style="width:0"></span><span class="vb-watch" id="vb-watch" style="width:0"></span><span class="vb-pass" id="vb-pass" style="width:0"></span></div>
+      <div class="voteInfo" id="voteInfo">아직 투표가 없어요. 첫 번째로 의견을 남겨 보세요!</div>
+    </div>
+
     <a id="detailCta" class="ctaBanner" href="https://blog.naver.com/okykr/224284426807" target="_blank" rel="noopener">
       <div class="ctaIcon">🔎</div>
       <div class="ctaText">
@@ -2849,6 +3231,26 @@ HTML_TEMPLATE = r"""
       <h3>🏢 기업개요 <span id="overviewSourceBadge" class="cardBadge" style="background:#f1f5f9;color:#64748b;border-color:#e2e8f0;"></span></h3>
       <div class="overviewText" id="overviewText"></div>
       <div class="revBreak" id="revBreak"></div>
+    </div>
+
+    <!-- 📑 [v121] 재무정보 -->
+    <div class="card" id="finCard" style="display:none;">
+      <h3>📑 재무 정보 <span class="cardBadge">연간·분기 실적</span></h3>
+      <div class="finTabs"><button class="finTab on" data-p="annual" onclick="switchFin('annual')">연간</button>
+        <button class="finTab" data-p="quarter" onclick="switchFin('quarter')">분기</button></div>
+      <div id="finChart" style="min-height:220px;"></div>
+      <div class="finTableWrap"><table class="finTable" id="finTable"></table></div>
+      <div class="finNote">단위: 매출·이익 억원, 비율 %, EPS·BPS·배당 원 · <b style="color:#b45309;">노란 칸(E)</b>은 증권사 추정치 · 출처: 네이버 증권</div>
+      <div class="finGloss"><b>읽는 법</b> · <b>영업이익률</b>: 매출 중 본업으로 남긴 이익 비율(높을수록 장사를 잘함) ·
+        <b>ROE</b>: 자기 돈으로 1년에 몇 % 벌었는지(보통 10% 이상이면 양호) · <b>부채비율</b>: 자기 돈 대비 빚(100% 이하면 안정적인 편) ·
+        <b>EPS</b>: 1주당 순이익 · <b>BPS</b>: 1주당 순자산</div>
+    </div>
+
+    <!-- 📰 [v121] 최근 2주 뉴스 -->
+    <div class="card" id="newsCard" style="display:none;">
+      <h3>📰 최근 2주 관련 뉴스 <span class="cardBadge" id="newsCount"></span></h3>
+      <ul class="newsList" id="newsList"></ul>
+      <div class="finNote">네이버 증권이 이 종목 관련으로 분류한 기사 중 최근 14일 이내만 보여줍니다. 제목을 누르면 기사가 열립니다.</div>
     </div>
 
     <div class="card" id="peerCard" style="display:none;">
@@ -3005,6 +3407,7 @@ function loadStats(){
   }).catch(()=>{});
 }
 loadStats();
+loadVoteTop();
 window.addEventListener('load', ()=>pushAds(document.getElementById('emptyState')));
 
 // ── 🔗 [v118] 공유 링크로 들어온 경우(?t=종목코드) 자동으로 그 종목을 분석 ──
@@ -3307,6 +3710,154 @@ function renderResult(data){
     '💡 이 프로그램의 AI 분석은 참고용입니다 — 최종 투자 판단은 스스로 여러 자료를 함께 확인하고 내려주세요.',
   ];
   document.getElementById('tipBanner').innerHTML = TIPS[Math.floor(Math.random()*TIPS.length)];
+
+  try{ renderFinancials(d.financials); }catch(e){ console.error('[fin]', e); }
+  try{ renderNews(d.news); }catch(e){ console.error('[news]', e); }
+  loadVotes(data.ticker);
+}
+
+// ── 📑 [v121] 재무정보 ───────────────────────────────────────────
+let _FIN = null, _finPeriod = 'annual', _finChart = null;
+function _num(v, digits){
+  if(v === null || v === undefined) return '—';
+  return Number(v).toLocaleString('ko-KR', {maximumFractionDigits: digits == null ? 2 : digits});
+}
+function renderFinancials(fin){
+  _FIN = fin || null;
+  const has = fin && ((fin.annual && fin.annual.periods) || (fin.quarter && fin.quarter.periods));
+  document.getElementById('finCard').style.display = has ? 'block' : 'none';
+  if(!has) return;
+  switchFin(fin.annual ? 'annual' : 'quarter');
+}
+function switchFin(period){
+  _finPeriod = period;
+  document.querySelectorAll('.finTab').forEach(b=>b.classList.toggle('on', b.getAttribute('data-p') === period));
+  const f = _FIN && _FIN[period];
+  const tbl = document.getElementById('finTable');
+  if(!f || !f.periods){ tbl.innerHTML = '<tr><td>데이터 없음</td></tr>'; return; }
+  const heads = f.periods.map(p=>p.title + (p.estimate ? '(E)' : ''));
+  const money = {'매출액':1,'영업이익':1,'당기순이익':1};
+  let html = '<thead><tr><th>항목</th>' + f.periods.map((p,i)=>'<th class="' + (p.estimate?'est':'') + '">' + _escHtml(heads[i]) + '</th>').join('') + '</tr></thead><tbody>';
+  f.rows.forEach(r=>{
+    html += '<tr><td>' + _escHtml(r.name) + '</td>' + r.values.map((v,i)=>{
+      let yoy = '';
+      if(money[r.name] && i > 0 && v != null && r.values[i-1]){
+        const g = (v / r.values[i-1] - 1) * 100;
+        if(isFinite(g)) yoy = '<span class="yoy ' + (g>=0?'up':'down') + '">' + (g>=0?'+':'') + g.toFixed(1) + '%</span>';
+      }
+      const digits = money[r.name] || r.name === 'EPS' || r.name === 'BPS' || r.name === '주당배당금' ? 0 : 2;
+      return '<td class="' + (f.periods[i].estimate?'est':'') + '">' + _num(v, digits) + yoy + '</td>';
+    }).join('') + '</tr>';
+  });
+  tbl.innerHTML = html + '</tbody>';
+  // 매출액·영업이익 막대 + 영업이익률 선
+  try{
+    const get = n=>(f.rows.find(r=>r.name===n) || {values: []}).values;
+    const el = document.getElementById('finChart');
+    if(_finChart){ try{ _finChart.destroy(); }catch(e){} _finChart = null; }
+    el.innerHTML = '';
+    if(typeof ApexCharts === 'undefined') return;
+    _finChart = new ApexCharts(el, {
+      chart: {type: 'line', height: 230, toolbar: {show: false}, fontFamily: 'inherit', animations: {enabled: false}},
+      series: [
+        {name: '매출액(억원)', type: 'column', data: get('매출액')},
+        {name: '영업이익(억원)', type: 'column', data: get('영업이익')},
+        {name: '영업이익률(%)', type: 'line', data: get('영업이익률')},
+      ],
+      labels: heads, colors: ['#94a3b8', '#10203a', '#e11d48'],
+      stroke: {width: [0, 0, 3]}, markers: {size: 4}, dataLabels: {enabled: false},
+      plotOptions: {bar: {columnWidth: '55%', borderRadius: 3}},
+      yaxis: [
+        {seriesName: '매출액(억원)', labels: {formatter: v=>v==null?'':Math.round(v).toLocaleString('ko-KR')}},
+        {seriesName: '매출액(억원)', show: false},
+        {seriesName: '영업이익률(%)', opposite: true, labels: {formatter: v=>v==null?'':v.toFixed(0) + '%'}},
+      ],
+      legend: {position: 'top', fontSize: '11px'}, grid: {borderColor: '#eef1f6'},
+      tooltip: {shared: true, y: {formatter: v=>v==null?'—':Number(v).toLocaleString('ko-KR')}},
+    });
+    _finChart.render();
+  }catch(e){ console.error('[finChart]', e); }
+}
+
+// ── 📰 [v121] 최근 2주 뉴스 ──────────────────────────────────────
+function renderNews(news){
+  const card = document.getElementById('newsCard');
+  const list = document.getElementById('newsList');
+  card.style.display = 'block';
+  news = news || [];
+  document.getElementById('newsCount').textContent = news.length ? news.length + '건' : '';
+  if(!news.length){ list.innerHTML = '<li class="newsEmpty">최근 2주 동안 이 종목 관련 뉴스가 없어요.</li>'; return; }
+  list.innerHTML = news.map(n=>'<li><a href="' + _escHtml(n.url) + '" target="_blank" rel="noopener">' + _escHtml(n.title) + '</a>'
+    + '<span class="newsMeta">' + _escHtml(n.date) + ' · ' + _escHtml(n.press) + (n.related ? ' · 관련 기사 ' + n.related + '건' : '') + '</span></li>').join('');
+}
+
+// ── 💡 [v121] 매력도 체크 ────────────────────────────────────────
+function _renderVotes(v){
+  if(!v || !v.counts) return;
+  const c = v.counts, total = v.total || 0;
+  ['buy','watch','pass'].forEach(k=>{
+    document.getElementById('vc-' + k).textContent = (c[k] || 0) + '명';
+    document.getElementById('vb-' + k).style.width = total ? ((c[k] || 0) / total * 100) + '%' : '0';
+  });
+  document.querySelectorAll('.voteBtn').forEach(b=>b.classList.toggle('on', b.getAttribute('data-vote') === v.mine));
+  document.getElementById('voteInfo').textContent = total
+    ? '최근 ' + v.days + '일 ' + total + '명 참여 · 👍 매수 관심 ' + Math.round((c.buy || 0) / total * 100) + '%'
+      + (v.mine ? ' · 내 선택을 다시 누르면 취소돼요' : '') + ' · 참고용이며 투자 권유가 아닙니다'
+    : '아직 투표가 없어요. 첫 번째로 의견을 남겨 보세요!';
+}
+function loadVotes(ticker){
+  fetch('/api/vote/' + encodeURIComponent(ticker)).then(r=>r.json()).then(v=>{
+    if(CUR && CUR.ticker === ticker) _renderVotes(v);
+  }).catch(()=>{});
+}
+function castVote(choice){
+  if(!CUR) return;
+  const cur = document.querySelector('.voteBtn.on');
+  const vote = (cur && cur.getAttribute('data-vote') === choice) ? null : choice;   // 같은 걸 또 누르면 취소
+  const ticker = CUR.ticker;
+  fetch('/api/vote/' + encodeURIComponent(ticker), {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({vote: vote, name: CUR.name})}).then(r=>r.json()).then(v=>{
+    if(v.error){ showToast('⚠ ' + v.error); return; }
+    if(CUR && CUR.ticker === ticker) _renderVotes(v);
+    showToast(vote ? '🙌 의견이 반영됐어요!' : '투표를 취소했어요.');
+  }).catch(()=>showToast('⚠ 저장하지 못했어요.'));
+}
+function loadVoteTop(){
+  fetch('/api/vote-top').then(r=>r.json()).then(list=>{
+    if(!Array.isArray(list) || !list.length) return;
+    document.getElementById('topList').innerHTML = list.map(t=>'<li data-ticker="' + _escHtml(t.ticker) + '"><b>' + _escHtml(t.name || t.ticker)
+      + '</b><span>👍 ' + t.buys + '명 / 참여 ' + t.total + '명</span></li>').join('');
+    document.querySelectorAll('#topList li').forEach(li=>li.onclick = ()=>analyze(li.getAttribute('data-ticker')));
+    document.getElementById('topBox').style.display = 'block';
+  }).catch(()=>{});
+}
+
+// ── ↺ [v121] 초기화 — 첫 화면으로 돌아가고 검색·결과·AI 칸을 모두 비운다 ──
+function resetAll(){
+  CUR = null; CUR_PROMPT = null; AI_PENDING = null; _lastTried = null;
+  searchInput.value = ''; searchDrop.classList.remove('show');
+  hideError(); _showLoading(false);
+  ['aiPromptBox','blogDraftBox','aiPasteBox'].forEach(id=>{ const el = document.getElementById(id); el.value = ''; });
+  document.getElementById('aiPromptBox').style.display = 'none';
+  document.getElementById('blogDraftBox').style.display = 'none';
+  document.getElementById('aiResult').classList.remove('show');
+  document.getElementById('aiResult').innerHTML = '';
+  document.getElementById('pasteHint').classList.remove('show');
+  document.getElementById('shareLinkBox').classList.remove('show');
+  if(_finChart){ try{ _finChart.destroy(); }catch(e){} _finChart = null; }
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'block';
+  if(location.search) history.replaceState(null, '', location.pathname);
+  window.scrollTo({top: 0, behavior: 'smooth'});
+  loadRecentHistory(); loadStats(); loadVoteTop();
+  searchInput.focus();
+  showToast('↺ 초기화했어요.');
+}
+function clearRecent(){
+  if(!confirm('이 브라우저의 최근 본 종목 기록을 모두 지울까요?')) return;
+  fetch('/api/history', {method: 'DELETE'}).then(r=>r.json()).then(()=>{
+    RECENT = []; renderRecentChips(); showToast('🧹 최근 본 종목을 지웠어요.');
+  }).catch(()=>showToast('⚠ 지우지 못했어요.'));
 }
 
 function drawCharts(c, vp){
@@ -3742,7 +4293,7 @@ function _buildReportDom(){
   const clone = src.cloneNode(true);
   clone.style.display = 'block';
   clone.classList.remove('dim');
-  clone.querySelectorAll('button, textarea, .aiBtnRow, .aiHint, .shareLinkBox, .adSlot, .pasteHint, .termsLink, script')
+  clone.querySelectorAll('button, textarea, .aiBtnRow, .aiHint, .shareLinkBox, .adSlot, .pasteHint, .termsLink, .voteCard, .finTabs, script')
     .forEach(el=>el.remove());
   // AI 답변이 없으면 빈 AI 카드는 빼고, 있으면 제목을 리포트용으로 바꾼다.
   clone.querySelectorAll('.card').forEach(card=>{
@@ -4034,7 +4585,7 @@ HELP_HTML = r"""
       <li><a href="#sec-peer">④ 동일업종 비교·컨센서스</a></li>
       <li><a href="#sec-risk">⑤ 상장폐지 위험 경고</a></li>
       <li><a href="#sec-ai">⑥ AI 분석(수동 모드) 사용법</a></li>
-      <li><a href="#sec-share">⑦ 공유·PDF·블로그 내보내기·최근 본 종목</a></li>
+      <li><a href="#sec-share">⑦ 재무·뉴스·매력도 체크·공유·PDF</a></li>
     </ul>
   </div>
 
@@ -4152,20 +4703,21 @@ HELP_HTML = r"""
       <dd>
         <span class="ex">
         1. 종목을 검색해 분석 화면을 엽니다.<br>
+        (v121부터 프롬프트에 최근 3년·분기 재무 추이와 최근 2주 뉴스 제목이 함께 들어가, AI가 실적과 이슈까지 분석합니다.)<br>
         2. "AI 분석(수동 모드)" 카드에서 원하는 AI(제미나이·챗GPT·클로드) 버튼을 누르면 그 순간 분석 프롬프트가 이미 복사되어 있고, 안내창이 뜹니다.<br>
         3. 안내창의 [열기]를 누르면 AI 사이트가 새 창으로 열립니다. 입력칸에 Ctrl+V(휴대폰은 길게 눌러 붙여넣기) 후 전송합니다.<br>
         4. AI 답변이 끝나면 답변 아래 복사 버튼을 누르고 이 화면으로 돌아오세요. 답변이 AI 분석 칸에 자동으로 들어가 보기 좋게 정리됩니다.<br>
         5. 자동으로 안 들어오면(브라우저가 클립보드 읽기를 막는 경우) [📥 복사한 답변 붙여넣기]를 누르거나 칸을 누르고 Ctrl+V 하세요.</span>
       </dd>
       <dt>주의할 점</dt>
-      <dd>이 AI 리포트는 외국인·기관 수급, 다년도 재무제표 추이, 최신 뉴스·공시를 포함하지 않습니다(공개판 한계). 투자 결정 전 반드시
+      <dd>이 AI 리포트는 외국인·기관 수급과 공시 원문을 포함하지 않고, 뉴스는 제목만 참고합니다(공개판 한계). 투자 결정 전 반드시
         별도로 확인하시고, 리포트 내용은 투자 추천이 아닌 참고 의견입니다.</dd>
     </dl>
     <a class="back-to-top" href="#top">↑ 목차로</a>
   </section>
 
   <section class="card" id="sec-share">
-    <h2>⑦ 공유·PDF·블로그 내보내기·최근 본 종목</h2>
+    <h2>⑦ 재무·뉴스·매력도 체크·공유·PDF</h2>
     <dl class="termList">
       <dt>🔗 링크 공유</dt>
       <dd>지금 보고 있는 종목으로 바로 열리는 링크를 만듭니다. 휴대폰에서는 공유 화면이 뜨고, PC에서는 링크가 복사됩니다.
@@ -4175,6 +4727,17 @@ HELP_HTML = r"""
       <dt>📝 블로그 내보내기</dt>
       <dd>주요 수치(현재가·PER·PBR·RSI·매물대 등)를 정리한 글을 만들어 자동으로 복사합니다. AI를 거치지 않으므로 바로 만들어지며,
         블로그에 붙여넣은 뒤 본인 의견을 덧붙여 쓰시면 됩니다.</dd>
+      <dt>📑 재무 정보</dt>
+      <dd>최근 3년(연간)과 최근 분기의 매출액·영업이익·순이익·이익률·ROE·부채비율·EPS·배당을 표와 그래프로 보여줍니다.
+        노란 칸 (E)는 확정 실적이 아니라 증권사들의 추정치입니다. 매출·이익 아래 작은 숫자는 직전 기간 대비 증감률입니다.</dd>
+      <dt>📰 최근 2주 뉴스</dt>
+      <dd>네이버 증권이 이 종목 관련으로 분류한 기사 중 최근 14일 이내 것만 보여줍니다. AI 분석 프롬프트에도 제목이 함께 들어갑니다.</dd>
+      <dt>💡 매력도 체크</dt>
+      <dd>"사고 싶어요 / 지켜볼래요 / 아직은 아니에요" 중 하나를 누르면 다른 이용자들의 선택과 함께 보여줍니다(최근 30일 기준).
+        한 브라우저에서 종목마다 한 표이며, 같은 버튼을 다시 누르면 취소됩니다. 투표 결과는 참고용이며 투자 권유가 아닙니다.
+        첫 화면의 "이번 주 매수 관심 TOP"은 최근 7일 동안 '사고 싶어요'를 많이 받은 종목입니다.</dd>
+      <dt>↺ 초기화</dt>
+      <dd>검색어·분석 결과·AI 칸을 모두 비우고 첫 화면으로 돌아갑니다. 최근 본 종목의 [기록 지우기]는 이 브라우저의 조회 기록만 지웁니다.</dd>
       <dt>📄 PDF 리포트</dt>
       <dd>지금 화면의 분석 결과(AI 분석을 붙여넣었다면 그 내용까지)를 A4 PDF 파일로 저장합니다. 인쇄하거나 메신저로 보내기 좋습니다.</dd>
       <dt>🕘 최근 본 종목</dt>
@@ -4209,9 +4772,11 @@ PRIVACY_HTML = r"""
   <div class="card"><h2>1. 수집하는 정보</h2><ul>
     <li><b>익명 식별 쿠키(anon_uid)</b> — 처음 방문할 때 브라우저에 저장되는 무작위 문자열입니다. 이름·이메일·전화번호 등 개인을 알아볼 수 있는 정보와 연결되지 않습니다.</li>
     <li><b>조회 기록</b> — 분석한 종목코드·종목명·시장·조회 시각을 위 익명 식별값과 함께 저장합니다.</li>
+    <li><b>매력도 투표</b> — 종목별로 누른 선택(사고 싶어요/지켜볼래요/아직은)과 시각을 익명 식별값과 함께 저장하며, 다른 이용자에게는 합계만 보여줍니다.</li>
     <li><b>브라우저 저장소</b> — 이용 안내 동의 여부, 안내창 다시 보지 않기 설정을 이용자의 브라우저에만 저장합니다(서버로 전송하지 않음).</li>
   </ul><p>회원가입이 없으며, 이름·이메일·연락처 등은 수집하지 않습니다.</p></div>
   <div class="card"><h2>2. 이용 목적</h2><ul>
+    <li>종목별 매력도 투표 합계와 "이번 주 매수 관심 TOP" 표시</li>
     <li>"최근 본 종목" 목록 표시(같은 브라우저로 다시 방문했을 때)</li>
     <li>누적 이용 통계(예: 몇 명이 몇 건을 분석했는지) 표시와 서비스 개선</li>
   </ul></div>
@@ -4247,6 +4812,7 @@ if _WEB_MODE:
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 init_db()
+_ensure_votes_table()    # 💡 [v121] 매력도 투표 테이블
 _ensure_history_table()  # ⚠️ [v117] 검색 기록 테이블 준비. [v118] DB가 아직 안 붙어도 부팅은
                          # 계속되고(예외 삼킴), 첫 기록 요청 때 다시 시도한다.
 threading.Thread(target=build_ticker_cache, daemon=True).start()
