@@ -211,6 +211,9 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
+🐛 v127 — 서버의 모든 외부 요청이 멈추는 문제 대응: IPv4 전용 접속, 수치 라이브러리 스레드 1개 고정,
+  /api/diag에 TCP·TLS 단계별 측정·멈춘 스레드 위치·CPU/연결 상태 추가, 부팅 시 네트워크 점검 로그.
+
 🐛 v126 — /api/diag가 열리지 않던 문제: 16개 검사를 하나씩 하던 것을 동시에 실행, 최대 20초 안에 항상 응답.
 
 🐛 v125: [원인 확정·수정] "네이버·야후·네이버2·네이버3 모두 TimeoutError(9.0s)" — 야후까지 동시에 실패한 건
@@ -258,9 +261,22 @@ for _stream in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
+# 🐛 [v127] 서버는 CPU 8개가 보이지만 실제로는 0.1개만 쓸 수 있다 — 수치 라이브러리가 8개 스레드를 띄워
+#   CPU 할당을 순식간에 다 써 버리지 않도록 1개로 고정(반드시 numpy import 전에).
+for _k in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+    os.environ.setdefault(_k, "1")
+_BOOT_TS = time.time()
+
 import numpy as np
 import pandas as pd
 import requests
+# 🐛 [v127] Render는 IPv6로 나가는 길이 없는데 야후 등은 IPv6 주소를 먼저 알려준다 — IPv6 접속을 시도하며
+#   주소마다 제한 시간을 다 기다리는 일이 없도록 IPv4로만 접속한다.
+try:
+    import urllib3.util.connection as _u3c
+    _u3c.HAS_IPV6 = False
+except Exception:
+    pass
 from flask import Flask, jsonify, request, render_template_string, g
 
 # ── 선택적 의존성 ──────────────────────────────────────────────
@@ -285,7 +301,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v126"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v127"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -304,7 +320,7 @@ APP_VERSION_HARDCODED = "v126"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v126"
+HELP_CONTENT_ASOF = "v127"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -2695,6 +2711,94 @@ def api_vote_top():
     return jsonify(vote_top(7, 5))
 
 
+def _raw_net_probe(host, port=443):
+    """🩺 [v127] 한 서버에 대해 DNS → TCP 연결 → TLS 인사를 각각 몇 ms 걸리는지 잰다(IPv4, 주소 1개)."""
+    import ssl
+    r = {"host": host}
+    t0 = time.time()
+    try:
+        if re.match(r"^\d+\.\d+\.\d+\.\d+$", host):
+            ip = host
+        else:
+            ip = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+        r["ip"], r["dns_ms"] = ip, int((time.time() - t0) * 1000)
+        t1 = time.time()
+        sock = socket.create_connection((ip, port), timeout=4)
+        r["tcp_ms"] = int((time.time() - t1) * 1000)
+        try:
+            t2 = time.time()
+            ctx = ssl.create_default_context()
+            if r["ip"] == host:
+                ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+            tls = ctx.wrap_socket(sock, server_hostname=None if r["ip"] == host else host)
+            r["tls_ms"] = int((time.time() - t2) * 1000)
+            tls.close()
+        finally:
+            try: sock.close()
+            except Exception: pass
+        r["ok"] = True
+    except Exception as e:
+        r["ok"] = False
+        r["error"] = f"{type(e).__name__}: {str(e)[:100]}"
+        r["fail_after_ms"] = int((time.time() - t0) * 1000)
+    return r
+
+
+def _thread_dump():
+    """🩺 [v127] 지금 멈춰 있는 스레드들이 '어느 코드 줄에서' 기다리는지 묶어서 보여준다(원인 확정용)."""
+    import traceback
+    groups = {}
+    names = {t.ident: t.name for t in threading.enumerate()}
+    me = threading.get_ident()
+    for tid, frame in sys._current_frames().items():
+        if tid == me:
+            continue
+        st = traceback.extract_stack(frame)[-5:]
+        sig = " ← ".join(f"{os.path.basename(f.filename)}:{f.name}:{f.lineno}" for f in reversed(st))
+        g_ = groups.setdefault(sig, {"count": 0, "names": []})
+        g_["count"] += 1
+        if len(g_["names"]) < 4:
+            g_["names"].append(names.get(tid, "?"))
+    return sorted(({"where": k, **v} for k, v in groups.items()), key=lambda x: -x["count"])[:12]
+
+
+def _sys_snapshot():
+    """🩺 [v127] CPU 제한·쓰로틀링, 열린 파일 수, TCP 연결 상태 개수 — 서버 자원 문제인지 확인."""
+    out = {}
+    def rd(p):
+        try:
+            with open(p) as f: return f.read().strip()
+        except Exception: return None
+    out["cpu_max"] = rd("/sys/fs/cgroup/cpu.max") or rd("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+    st = rd("/sys/fs/cgroup/cpu.stat") or rd("/sys/fs/cgroup/cpu/cpu.stat")
+    if st:
+        out["cpu_stat"] = dict(l.split()[:2] for l in st.splitlines() if len(l.split()) >= 2)
+    try:
+        out["open_fds"] = len(os.listdir("/proc/self/fd"))
+    except Exception:
+        pass
+    try:
+        out["process_cpu_sec"] = round(time.process_time(), 1)
+    except Exception:
+        pass
+    names = {"01": "ESTABLISHED", "02": "SYN_SENT", "03": "SYN_RECV", "04": "FIN_WAIT1", "05": "FIN_WAIT2",
+             "06": "TIME_WAIT", "07": "CLOSE", "08": "CLOSE_WAIT", "09": "LAST_ACK", "0A": "LISTEN", "0B": "CLOSING"}
+    cnt = {}
+    for p in ("/proc/net/tcp", "/proc/net/tcp6"):
+        txt = rd(p)
+        for line in (txt or "").splitlines()[1:]:
+            parts = line.split()
+            if len(parts) > 3:
+                k = names.get(parts[3], parts[3]); cnt[k] = cnt.get(k, 0) + 1
+    out["tcp_states"] = cnt
+    t0 = time.perf_counter(); x = 0
+    for i in range(200000):
+        x += i
+    out["cpu_bench_ms"] = int((time.perf_counter() - t0) * 1000)   # 보통 PC 10ms 안팎 — 수백 ms면 CPU 부족
+    out["proxy_env"] = [k for k in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "NO_PROXY") if os.environ.get(k)]
+    return out
+
+
 @app.route("/api/diag")
 def api_diag():
     """🩺 [v120] 진단 — 브라우저로 /api/diag 를 열면 서버에서 네이버·FnGuide 각 경로가 되는지,
@@ -2743,6 +2847,9 @@ def api_diag():
         jobs.append(("dns", host, _bg(timed(lambda h=host: sorted({a[4][0] for a in socket.getaddrinfo(h, 443)})))))
     jobs.append(("ip", "server_ip", _bg(timed(lambda: _http_fast().get("https://api.ipify.org", timeout=(3.05, 5)).text.strip()[:45]))))
 
+    # 🩺 [v127] requests를 거치지 않고 "TCP 연결 → TLS 인사"를 단계별로 직접 재 본다 — 어느 층에서 멈추는지 확인
+    net_jobs = [_bg(_raw_net_probe, h, 443) for h in ("api.stock.naver.com", "query1.finance.yahoo.com", "api.ipify.org")]
+    net_jobs.append(_bg(_raw_net_probe, "1.1.1.1", 443))
     deadline = time.time() + DIAG_BUDGET_SEC
     out["probes"], out["dns"], out["server_ip"] = [], [], None
     for kind, name, fut in jobs:
@@ -2773,6 +2880,15 @@ def api_diag():
         else:
             out["server_ip"] = v if state == "ok" else None
     out["diag_sec"] = round(time.time() - (deadline - DIAG_BUDGET_SEC), 1)
+    out["uptime_sec"] = int(time.time() - _BOOT_TS)
+    out["net_raw"] = []
+    for f in net_jobs:
+        try:
+            out["net_raw"].append(f.result(timeout=max(0.0, deadline - time.time())))
+        except Exception:
+            out["net_raw"].append({"error": "20초 넘게 응답 없음"})
+    out["stuck_threads"] = _thread_dump()
+    out["system"] = _sys_snapshot()
     out["threads"] = threading.active_count()
     out["last_price_errors"] = dict(list(PRICE_LAST_ERRORS.items())[-10:])
     out["python"] = sys.version.split()[0]
@@ -5142,7 +5258,23 @@ _ensure_votes_table()    # 💡 [v121] 매력도 투표 테이블
 _ensure_history_table()  # ⚠️ [v117] 검색 기록 테이블 준비. [v118] DB가 아직 안 붙어도 부팅은
                          # 계속되고(예외 삼킴), 첫 기록 요청 때 다시 시도한다.
 threading.Thread(target=build_ticker_cache, daemon=True).start()
-threading.Thread(target=_warm_cache_loop, daemon=True).start()  # ⚡ [v119] 데모·인기 종목 미리 불러오기
+threading.Thread(target=_warm_cache_loop, daemon=True).start()
+
+
+def _boot_net_selftest():
+    """🩺 [v127] 서버가 켜질 때 네트워크 상태를 Render 로그에 한 줄로 남긴다."""
+    time.sleep(3)
+    try:
+        res = [_raw_net_probe(h) for h in ("api.stock.naver.com", "query1.finance.yahoo.com", "1.1.1.1")]
+        print("[네트워크점검] " + " | ".join(
+            f"{r['host']}: " + (f"TCP {r.get('tcp_ms')}ms TLS {r.get('tls_ms')}ms" if r.get("ok") else f"실패 {r.get('error')} ({r.get('fail_after_ms')}ms)")
+            for r in res))
+    except Exception as e:
+        print(f"[네트워크점검] 점검 자체 오류: {e}")
+
+
+if _WEB_MODE:
+    threading.Thread(target=_boot_net_selftest, daemon=True, name="net-selftest").start()  # ⚡ [v119] 데모·인기 종목 미리 불러오기
 
 
 # ══════════════════════════════════════════════════════════════
