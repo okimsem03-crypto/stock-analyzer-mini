@@ -211,6 +211,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
+✨ v132 — DB 연결 주소(DATABASE_URL)에 따옴표·channel_binding 등이 섞여 있어도 자동 정리해 연결.
 ✨ v131 — 모바일 검색창 개선(한 줄 전체·높이 50px·글자 16px, 확대 허용, 자동완성 항목 크게).
 
 ✨ v130 — ① 대표 주소를 stock.oky.kr로 변경(onrender.com·chostock.kr 접속 시 자동 이동) ② 첫 화면 접속 카운터(누적 이용자 24,583명에서 시작,
@@ -312,7 +313,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v131"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v132"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -331,7 +332,7 @@ APP_VERSION_HARDCODED = "v131"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v131"
+HELP_CONTENT_ASOF = "v132"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -743,7 +744,40 @@ def db_save_tickers(rows):
 # 캐시 파일에 저장해 최소한 "지금 세션"에서는 동작하게 한다. 로그인은 없고, 저장하는
 # 값도 종목코드·종목명·시장·조회시각뿐이다 — 이름·이메일 등 개인을 특정할 수 있는
 # 정보는 이 단계에서 전혀 받지 않는다(uid는 브라우저에 무작위로 심는 쿠키 값일 뿐).
-DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+def _clean_database_url(raw):
+    """[v132] Neon·Supabase 화면에서 복사한 연결 문자열에는 따옴표, 'psql ' 접두어, 줄바꿈,
+       &channel_binding=require 같은 옛 psycopg2가 못 읽는 옵션이 섞여 있는 경우가 많다
+       ('invalid dsn: extra key/value separator ... channel_binding' 오류의 원인).
+       주소만 골라내고 문제 옵션은 빼서, 붙여넣기 실수가 있어도 연결되게 한다."""
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    m = re.search(r"postgres(?:ql)?://[^\s'\"]+", s)
+    if not m:
+        return s
+    url = m.group(0).rstrip(";,")
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    base, _, query = url.partition("?")
+    keep = []
+    for part in re.split(r"[&?]", query):
+        part = part.strip()
+        if not part or "=" not in part:
+            continue
+        k, _, v = part.partition("=")
+        if k.lower() in ("channel_binding", "options", "sslrootcert"):
+            continue
+        if k.lower() == "sslmode" and v.lower() not in ("require", "disable", "allow", "prefer",
+                                                         "verify-ca", "verify-full"):
+            v = "require"
+        keep.append(k + "=" + v)
+    if not any(x.lower().startswith("sslmode=") for x in keep) and "localhost" not in base \
+            and "127.0.0.1" not in base:
+        keep.append("sslmode=require")
+    return base + ("?" + "&".join(keep) if keep else "")
+
+
+DATABASE_URL = _clean_database_url(os.environ.get("DATABASE_URL", ""))
 _USE_PG = bool(DATABASE_URL) and PG_OK
 if DATABASE_URL and not PG_OK:
     print("⚠️ [검색기록] DATABASE_URL은 설정되어 있지만 psycopg2가 설치되어 있지 않아 "
