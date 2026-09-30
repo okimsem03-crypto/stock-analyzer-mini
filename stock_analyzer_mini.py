@@ -211,6 +211,8 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
+🐛 v126 — /api/diag가 열리지 않던 문제: 16개 검사를 하나씩 하던 것을 동시에 실행, 최대 20초 안에 항상 응답.
+
 🐛 v125: [원인 확정·수정] "네이버·야후·네이버2·네이버3 모두 TimeoutError(9.0s)" — 야후까지 동시에 실패한 건
   야후 탓이 아니라 이 프로그램의 구조 문제였다(재현 확인). v119부터 외부 요청을 크기가 정해진 공용 스레드
   풀(24개·16개)에서 돌렸는데, 네이버가 연결을 붙잡고 놓지 않으면 붙잡힌 스레드가 풀을 꽉 채워, 그 뒤로는
@@ -283,7 +285,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v125"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v126"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -302,7 +304,7 @@ APP_VERSION_HARDCODED = "v125"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v125"
+HELP_CONTENT_ASOF = "v126"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -2710,17 +2712,10 @@ def api_diag():
         ("naver_integration", lambda: _naver_mobile_integration(ticker)),
         ("fnguide_revenue", lambda: _fnguide_revenue(ticker)),
     ]
-    for name, fn in checks:
-        t0 = time.time()
-        try:
-            v = _bg(fn).result(timeout=12)      # 🐛 [v125] 진단도 전용 스레드 + 12초 제한
-            size = len(v) if hasattr(v, "__len__") else (1 if v else 0)
-            out["checks"].append({"name": name, "ok": bool(v is not None and size), "ms": int((time.time()-t0)*1000),
-                                  "size": size})
-        except Exception as e:
-            out["checks"].append({"name": name, "ok": False, "ms": int((time.time()-t0)*1000),
-                                  "error": f"{type(e).__name__}: {str(e)[:160]}"})
-    # 🩺 [v123] 가공 없이 각 서버에 직접 요청했을 때의 HTTP 상태 — 403/429면 이 서버(IP)가 막힌 것
+    # 🐛 [v126] "/api/diag가 열리지 않아" — v125는 16개 검사를 하나씩 차례로 해서, 느린 곳이 몇 개만
+    #   있어도 합계가 서버 제한(120초)을 넘어 요청 자체가 끊길 수 있었다. 이제 전부 동시에 시작하고
+    #   DIAG_BUDGET_SEC(20초) 안에 끝난 것만 보여준다(안 끝난 항목은 "20초 넘게 응답 없음"으로 표시).
+    DIAG_BUDGET_SEC = 20
     probes = [
         ("naver_chart_api", f"https://api.stock.naver.com/chart/domestic/item/{ticker}/day?startDateTime=202601010000&endDateTime=202601102359", NAVER_M_HEADERS),
         ("naver_mobile_basic", f"https://m.stock.naver.com/api/stock/{ticker}/basic", NAVER_M_HEADERS),
@@ -2728,29 +2723,56 @@ def api_diag():
         ("yahoo_q1", f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}.KS?range=5d&interval=1d", None),
         ("yahoo_q2", f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}.KQ?range=5d&interval=1d", None),
     ]
-    out["probes"] = []
+    dns_hosts = ("api.stock.naver.com", "m.stock.naver.com", "query1.finance.yahoo.com")
+
+    def timed(fn):
+        def run():
+            t0 = time.time()
+            try:
+                return ("ok", fn(), int((time.time() - t0) * 1000))
+            except Exception as e:
+                return ("err", e, int((time.time() - t0) * 1000))
+        return run
+
+    jobs = []   # (분류, 이름, Future)
+    for name, fn in checks:
+        jobs.append(("check", name, _bg(timed(fn))))
     for name, url, hd in probes:
-        t0 = time.time()
+        jobs.append(("probe", name, _bg(timed(lambda u=url, h=hd: _http_fast().get(u, timeout=(3.05, 8), headers=h)))))
+    for host in dns_hosts:
+        jobs.append(("dns", host, _bg(timed(lambda h=host: sorted({a[4][0] for a in socket.getaddrinfo(h, 443)})))))
+    jobs.append(("ip", "server_ip", _bg(timed(lambda: _http_fast().get("https://api.ipify.org", timeout=(3.05, 5)).text.strip()[:45]))))
+
+    deadline = time.time() + DIAG_BUDGET_SEC
+    out["probes"], out["dns"], out["server_ip"] = [], [], None
+    for kind, name, fut in jobs:
         try:
-            r = _bg(lambda u=url, h=hd: _http_fast().get(u, timeout=(3.05, 6), headers=h)).result(timeout=10)
-            out["probes"].append({"name": name, "status": r.status_code, "ms": int((time.time()-t0)*1000),
-                                  "bytes": len(r.content), "head": r.text[:80].replace("\n", " ")})
-        except Exception as e:
-            out["probes"].append({"name": name, "status": None, "ms": int((time.time()-t0)*1000),
-                                  "error": f"{type(e).__name__}: {str(e)[:120]}"})
-    try:
-        out["server_ip"] = _bg(lambda: _http_fast().get("https://api.ipify.org", timeout=(3.05, 4)).text.strip()[:45]).result(timeout=6)
-    except Exception:
-        out["server_ip"] = None
-    # 🐛 [v125] DNS(주소 찾기) 시간 — requests의 timeout은 DNS에는 적용되지 않아 여기서 멈출 수도 있다
-    out["dns"] = []
-    for host in ("api.stock.naver.com", "m.stock.naver.com", "query1.finance.yahoo.com"):
-        t0 = time.time()
-        try:
-            addrs = _bg(lambda h=host: sorted({a[4][0] for a in socket.getaddrinfo(h, 443)})).result(timeout=6)
-            out["dns"].append({"host": host, "ms": int((time.time()-t0)*1000), "addrs": addrs[:4]})
-        except Exception as e:
-            out["dns"].append({"host": host, "ms": int((time.time()-t0)*1000), "error": type(e).__name__})
+            res = fut.result(timeout=max(0.0, deadline - time.time()))
+        except Exception:
+            res = ("timeout", None, DIAG_BUDGET_SEC * 1000)
+        state, v, ms = res
+        if kind == "check":
+            if state == "ok":
+                size = len(v) if hasattr(v, "__len__") else (1 if v else 0)
+                out["checks"].append({"name": name, "ok": bool(v is not None and size), "ms": ms, "size": size})
+            else:
+                err = f"{type(v).__name__}: {str(v)[:160]}" if state == "err" else f"{DIAG_BUDGET_SEC}초 넘게 응답 없음"
+                out["checks"].append({"name": name, "ok": False, "ms": ms, "error": err})
+        elif kind == "probe":
+            if state == "ok":
+                out["probes"].append({"name": name, "status": v.status_code, "ms": ms,
+                                      "bytes": len(v.content), "head": v.text[:80].replace("\n", " ")})
+            else:
+                err = f"{type(v).__name__}: {str(v)[:120]}" if state == "err" else f"{DIAG_BUDGET_SEC}초 넘게 응답 없음"
+                out["probes"].append({"name": name, "status": None, "ms": ms, "error": err})
+        elif kind == "dns":
+            if state == "ok":
+                out["dns"].append({"host": name, "ms": ms, "addrs": v[:4]})
+            else:
+                out["dns"].append({"host": name, "ms": ms, "error": type(v).__name__ if state == "err" else "timeout"})
+        else:
+            out["server_ip"] = v if state == "ok" else None
+    out["diag_sec"] = round(time.time() - (deadline - DIAG_BUDGET_SEC), 1)
     out["threads"] = threading.active_count()
     out["last_price_errors"] = dict(list(PRICE_LAST_ERRORS.items())[-10:])
     out["python"] = sys.version.split()[0]
