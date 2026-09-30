@@ -211,6 +211,11 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
+✨ v131 — 모바일 검색창 개선(한 줄 전체·높이 50px·글자 16px, 확대 허용, 자동완성 항목 크게).
+
+✨ v130 — ① 대표 주소를 stock.oky.kr로 변경(onrender.com·chostock.kr 접속 시 자동 이동) ② 첫 화면 접속 카운터(누적 이용자 24,583명에서 시작,
+  오늘 방문) ③ 처음 접속 시 서버 깨우는 시간 안내 문구 ④ Cloudflare 뒤에서 방문자 IP를 올바르게 읽도록 수정(댓글 IP 제한).
+
 ✨ v129 — ① 오른쪽 '최근 종목' 패널(모두가 본/내가 본, 10개씩 스크롤 로딩, 모바일은 아래에서 올라오는 시트)
   ② 종목별 익명 댓글(링크·홍보 차단, 도배 방지, 신고 3회 자동 숨김, 내 댓글 삭제, /admin/comments 운영자 삭제).
 
@@ -307,7 +312,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v129"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v131"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -326,7 +331,7 @@ APP_VERSION_HARDCODED = "v129"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v129"
+HELP_CONTENT_ASOF = "v131"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -346,12 +351,21 @@ DEMO_TICKER_NAME = "삼성전자"
 # 🌐 [v118] 공개 사이트 주소 — 공유 링크·블로그 글 링크·공유 이미지 하단 표기에 쓰인다.
 # 데스크톱(exe)으로 실행해도 링크가 내 PC 주소(127.0.0.1)가 아니라 이 주소로 만들어지고,
 # onrender.com 주소로 들어온 사람에게도 대표 주소로 통일된다. 비우면 접속한 주소를 그대로 쓴다.
-PUBLIC_SITE_URL = "https://chostock.kr"
+PUBLIC_SITE_URL = "https://stock.oky.kr"
 
-# 🔁 [v119] chostock.kr 연결이 끝난 뒤 True로 바꾸면, onrender.com 주소로 들어온 방문자를
-# chostock.kr로 자동으로 옮겨준다(검색엔진·공유 주소를 대표 주소 하나로 모음). 도메인이
-# 아직 연결되지 않았을 때 켜면 사이트가 안 열리니, 연결 확인 후에만 켜세요.
-REDIRECT_TO_PUBLIC_SITE = False
+# 🔁 [v130] stock.oky.kr 연결 확인 완료 → 켬. onrender.com(과 예전 chostock.kr) 주소로 들어온 방문자를
+# stock.oky.kr로 자동으로 옮겨준다(검색엔진·공유 주소를 대표 주소 하나로 모음). 도메인 연결이 끊기면
+# 사이트가 안 열리니, 도메인을 바꾸거나 해제할 때는 먼저 False로 돌려 두세요.
+REDIRECT_TO_PUBLIC_SITE = True
+OLD_SITE_HOSTS = ("chostock.kr", "www.chostock.kr")
+
+# 👥 [v130] 접속 카운터 — "누적 이용자" = COUNTER_BASE + 이 사이트를 연 서로 다른 브라우저 수(쿠키 기준).
+#   COUNTER_BASE는 카운터를 달기 전까지의 이용자 수(기준값)이며, 앞으로 새 방문자가 올 때마다 1씩 늘어난다.
+COUNTER_BASE = 24583
+
+# ☕ [v130] 무료 서버는 한동안 쓰지 않으면 잠들어서, 처음 열 때 10~60초 걸릴 수 있다는 안내를 첫 화면에 보여준다.
+#   유료 요금제(항상 켜짐)로 옮기면 False로 바꾸세요.
+SHOW_WAKEUP_NOTICE = True
 
 # ✍️ [v119] 제작자 블로그 — 상단 버튼과 PDF 리포트 위·아래 광고 배너에 쓰인다.
 CREATOR_BLOG_URL = "https://blog.naver.com/okykr"
@@ -1077,6 +1091,14 @@ def _cmt_check_text(body):
     return None
 
 
+def _client_ip():
+    """🐛 [v130] Cloudflare → Render 뒤에서는 remote_addr가 모든 방문자 공통(프록시) 주소라 IP 제한이 전체 이용자를
+       한 사람으로 세게 된다. Cloudflare가 넣어 주는 실제 방문자 IP를 우선 쓴다."""
+    return ((request.headers.get("CF-Connecting-IP") or "").strip()
+            or (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+            or request.remote_addr or "?")
+
+
 def _cmt_ip_ok(ip):
     """같은 IP에서 10분에 성공한 댓글이 30개를 넘으면 막는다(통신사·학교처럼 IP를 여럿이 나눠 쓰는 곳을 고려해 넉넉하게)."""
     now = time.time()
@@ -1218,6 +1240,92 @@ def comment_report(cid, uid):
     except Exception as e:
         print(f"[댓글] 신고 실패: {e}")
         return "error"
+
+
+# ══════════════════════════════════════════════════════════════
+# 👥 [v130] 접속 카운터 — 첫 화면을 연 서로 다른 브라우저(anon_uid 쿠키)를 세어 "누적 이용자"·"오늘 방문"으로 보여준다.
+#   누적 = COUNTER_BASE + 지금까지 기록된 브라우저 수. 같은 사람이 다시 와도 1번만 센다(쿠키를 지우면 새 사람으로 셈).
+#   검색 로봇·상태 점검(HEAD)은 세지 않는다. 저장하는 것은 익명 식별값과 처음 온 날뿐이다.
+# ══════════════════════════════════════════════════════════════
+_counter_ready = False
+_VISIT_SEEN = set()
+_BOT_UA_RE = re.compile(r"bot|crawl|spider|slurp|preview|monitor|uptime|curl|wget|python-requests|go-http-client|headless|lighthouse|facebookexternalhit",
+                        re.I)
+
+
+def _ensure_counter_tables():
+    global _counter_ready
+    if _counter_ready:
+        return True
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            c.execute("CREATE TABLE IF NOT EXISTS site_visitors(uid TEXT PRIMARY KEY, first_seen TEXT NOT NULL)")
+            c.execute("CREATE TABLE IF NOT EXISTS site_daily(day TEXT NOT NULL, uid TEXT NOT NULL, PRIMARY KEY(day, uid))")
+            conn.commit()
+            _counter_ready = True
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[카운터] 테이블 준비 실패(나중에 다시 시도): {e}")
+    return _counter_ready
+
+
+def visit_record(uid):
+    """첫 화면을 연 브라우저 1개를 기록(이미 기록된 브라우저·오늘 방문은 DB를 건드리지 않고 넘어간다)."""
+    if not uid or not _ensure_counter_tables():
+        return
+    day = _now_kst().strftime("%Y-%m-%d")
+    if (day, uid) in _VISIT_SEEN:
+        return
+    ph = "%s" if _USE_PG else "?"
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            ts = _now_kst().strftime("%Y-%m-%d %H:%M:%S")
+            c.execute(f"INSERT INTO site_visitors(uid, first_seen) VALUES({ph},{ph}) ON CONFLICT DO NOTHING", (uid, ts))
+            c.execute(f"INSERT INTO site_daily(day, uid) VALUES({ph},{ph}) ON CONFLICT DO NOTHING", (day, uid))
+            conn.commit()
+        finally:
+            conn.close()
+        if len(_VISIT_SEEN) > 50000:
+            _VISIT_SEEN.clear()
+        _VISIT_SEEN.add((day, uid))
+        _cache_drop_counter()
+    except Exception as e:
+        print(f"[카운터] 기록 실패(무시): {e}")
+
+
+def _cache_drop_counter():
+    with _CACHE_LOCK:
+        _CACHE.pop(("counter",), None)
+
+
+def counter_stats():
+    """{"total": 누적 이용자(기준값 포함), "today": 오늘 방문 브라우저 수} — 20초 동안 같은 값을 재사용."""
+    hit = _cache_get(("counter",))
+    if hit is not None:
+        return hit
+    out = {"total": COUNTER_BASE, "today": 0}
+    if _ensure_counter_tables():
+        ph = "%s" if _USE_PG else "?"
+        try:
+            conn = _history_conn()
+            try:
+                c = conn.cursor()
+                c.execute("SELECT COUNT(*) FROM site_visitors")
+                out["total"] = COUNTER_BASE + int(c.fetchone()[0])
+                c.execute(f"SELECT COUNT(*) FROM site_daily WHERE day={ph}", (_now_kst().strftime("%Y-%m-%d"),))
+                out["today"] = int(c.fetchone()[0])
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[카운터] 조회 실패: {e}")
+            return out
+    _cache_set(("counter",), out, 20)
+    return out
 
 
 def history_stats():
@@ -2864,8 +2972,18 @@ def build_blog_draft(ticker, name, market, price_d, fundamentals, details, delis
 # ══════════════════════════════════════════════════════════════
 # Flask 라우트
 # ══════════════════════════════════════════════════════════════
+@app.route("/api/counter")
+def api_counter():
+    """👥 [v130] 첫 화면의 "누적 이용자 · 오늘 방문" 숫자."""
+    resp = jsonify(counter_stats())
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app.route("/")
 def index():
+    if request.method == "GET" and not _BOT_UA_RE.search(request.headers.get("User-Agent") or ""):
+        visit_record(g.get("anon_uid"))
     return render_template_string(
         HTML_TEMPLATE, app_version=APP_VERSION, slogan=APP_SLOGAN,
         kakao_url=KAKAO_OPENCHAT_URL or None,
@@ -2876,6 +2994,7 @@ def index():
         blog_url=CREATOR_BLOG_URL,
         ad_client=ADSENSE_CLIENT, ad_slots=ADSENSE_SLOTS, ad_hints=ADSENSE_SLOT_HINTS,
         ad_preview=(request.args.get("adpreview") == "1"),
+        wakeup_notice=SHOW_WAKEUP_NOTICE,
     )
 
 
@@ -3054,7 +3173,9 @@ def _redirect_to_public_site():
         return None
     host = (request.host or "").split(":")[0].lower()
     target = PUBLIC_SITE_URL.split("//", 1)[-1].split("/")[0].lower()
-    if host.endswith(".onrender.com") and host != target:
+    if "Go-http-client" in (request.headers.get("User-Agent") or ""):
+        return None                    # Render 자체 상태 점검은 이동시키지 않는다
+    if (host.endswith(".onrender.com") or host in OLD_SITE_HOSTS) and host != target:
         from flask import redirect
         qs = request.query_string.decode("utf-8", "ignore")
         return redirect(PUBLIC_SITE_URL.rstrip("/") + request.path + ("?" + qs if qs else ""), code=301)
@@ -3146,14 +3267,14 @@ def api_comments(ticker):
         return jsonify({"error": "올바른 종목코드가 아닙니다."}), 400
     uid = g.get("anon_uid")
     if request.method == "POST":
-        if not _cmt_ip_ok(request.remote_addr or "?"):
+        if not _cmt_ip_ok(_client_ip()):
             return jsonify({"error": "짧은 시간에 너무 많이 썼어요. 잠시 뒤에 다시 해 주세요."}), 429
         data = request.get_json(silent=True) or {}
         item, err, code = comment_add(uid, ticker, str(data.get("name") or "")[:40] or ticker,
                                       data.get("nick"), data.get("body"))
         if err:
             return jsonify({"error": err}), code
-        _cmt_ip_add(request.remote_addr or "?")
+        _cmt_ip_add(_client_ip())
         return jsonify({"item": item})
     try:
         before = int(request.args.get("before") or 0) or None
@@ -3424,7 +3545,7 @@ def _public_site_url():
     """공유·블로그 링크에 쓸 주소.
        🐛 [v119] "링크 만들기가 안 됨" 대응 — v118은 웹에서도 항상 chostock.kr로 링크를 만들어,
        도메인 연결 전에는 받은 사람이 링크를 열 수 없었다. 이제 웹 배포에서는 "지금 방문자가
-       실제로 들어와 있는 주소"로 만들어 항상 열리게 하고(chostock.kr로 들어왔으면 chostock.kr),
+       실제로 들어와 있는 주소"로 만들어 항상 열리게 하고(stock.oky.kr로 들어왔으면 stock.oky.kr),
        데스크톱(127.0.0.1)에서만 PUBLIC_SITE_URL을 쓴다. 둘 다 없으면 빈 값(=링크 생략)."""
     if _WEB_MODE:
         return request.host_url.rstrip("/")
@@ -3505,7 +3626,7 @@ HTML_TEMPLATE = r"""
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>종목분석 미니 {{ app_version }}</title>
 <script>window.__APP_VER__ = "{{ app_version }}"; window.__SITE_URL__ = "{{ site_url }}";
   window.__BRAND_URL__ = "{{ brand_url }}"; window.__BRAND_LABEL__ = "{{ site_label }}"; window.__BLOG_URL__ = "{{ blog_url }}";
@@ -3752,6 +3873,43 @@ HTML_TEMPLATE = r"""
   .cmtText{margin-top:4px; font-size:14px; line-height:1.6; white-space:pre-wrap; word-break:break-word;}
   .cmtMore{width:100%; margin-top:8px; border:1px solid var(--border); background:#f8fafc; border-radius:10px; padding:10px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; color:var(--navy);}
   .cmtEmpty{padding:16px 0 4px; font-size:13px; color:var(--muted); text-align:center;}
+
+  /* 📱 [v131] 모바일 헤더 — 검색창이 한 줄 전체를 쓰고(크고 또렷하게), 버튼은 그 아래 줄로 내린다 */
+  @media (max-width:1080px){
+    .topbar{padding:10px 12px 12px; gap:8px 8px;}
+    .brandBlock{order:1; flex:1 1 auto; min-width:0;}
+    .brand{font-size:17px;}
+    .topbar > button.refreshBtn:nth-of-type(1){order:2;}
+    .searchWrap{order:3; flex:1 1 100%; max-width:none; width:100%;}
+    .searchInput{
+      font-size:16px; padding:0 16px; height:50px; border-radius:14px;
+      background:#fff; color:var(--text); border:2px solid transparent; box-shadow:0 2px 8px rgba(0,0,0,.18);
+      -webkit-user-select:text; user-select:text; -webkit-appearance:none; appearance:none;
+    }
+    .searchInput::placeholder{color:#94a3b8;}
+    .searchInput:focus{border-color:var(--gold);}
+    .searchDrop{max-height:60vh; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;}
+    .searchItem{padding:0 16px; min-height:52px; font-size:15px; border-bottom:1px solid #eef1f6;}
+    .searchItem:last-child{border-bottom:none;}
+    .marketPill{font-size:11px; padding:3px 9px;}
+    .topbar > .refreshBtn:nth-of-type(n+2), .topbar > a.refreshBtn, .topbar > .blogBtn{order:4;}
+    .topbar > .refreshBtn, .topbar > .blogBtn{padding:10px 13px; font-size:12.5px; min-height:40px; display:inline-flex; align-items:center;}
+  }
+  @media (max-width:720px){
+    .topbar{position:static;}                                   /* 휴대폰에서는 헤더가 화면을 계속 가리지 않게 */
+    .topbar > button.refreshBtn:nth-of-type(2){display:none;}   /* '종목목록 갱신'은 서버가 알아서 하므로 휴대폰에선 숨김 */
+    .topbar > a.refreshBtn, .topbar > .blogBtn{flex:1 1 auto; justify-content:center;}
+  }
+
+  /* 👥 [v130] 접속 카운터 + ☕ 깨우기 안내 */
+  .counterBadge{margin-top:16px; display:inline-flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center;
+    background:linear-gradient(135deg,#0f1f3d,#1e3a6e); color:#fff; border-radius:999px; padding:9px 20px; font-size:13px; box-shadow:0 4px 14px rgba(16,32,58,.22);}
+  .counterBadge .cbMain b{font-size:17px; color:#fcd34d; font-variant-numeric:tabular-nums; letter-spacing:.2px;}
+  .counterBadge .cbSub{font-size:12px; color:#cbd5e1; border-left:1px solid rgba(255,255,255,.25); padding-left:10px;}
+  .counterBadge .cbSub b{color:#fff;}
+  .wakeNote{max-width:520px; margin:14px auto 0; background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:12px;
+    padding:10px 14px; font-size:12px; line-height:1.65; text-align:left;}
+  .wakeNote b{color:#78350f;}
 
   /* 🎬 [v118] 데모 버튼 — 슬로건 바로 아래, 눈에 띄지만 실제 검색창보다는 강조를 낮춘다 */
   .demoBtn{
@@ -4086,6 +4244,8 @@ HTML_TEMPLATE = r"""
     종목명이나 종목코드를 검색해서<br>기술적분석 리포트를 확인해 보세요.
     <div style="margin-top:18px;font-size:12px;">FinanceDataReader · 네이버 공개 데이터 기반 · 로그인 불필요</div>
     <div style="margin-top:6px;font-size:11.5px;">검색이 안 되면 6자리 종목코드(예: 005930)를 입력하고 Enter를 눌러도 바로 분석돼요.</div>
+    {% if wakeup_notice %}<div class="wakeNote">☕ <b>처음 접속하면 잠깐만 기다려 주세요.</b> 무료 서버라 한동안 아무도 안 쓰면 잠들어서,
+      오랜만에 열면 <b>10~60초</b> 정도 걸릴 수 있어요. 한 번 깨어나면 종목 분석은 2~3초면 끝나요.</div>{% endif %}
 
     <!-- 🎬 [v118] 로드맵 '초기 보급' 3순위 — 첫 방문자가 검색 없이 결과 화면을 바로
          체험하게 하는 데모 버튼(전환율 개선용). -->
@@ -4093,6 +4253,11 @@ HTML_TEMPLATE = r"""
 
     <!-- 👥 [v118] 로드맵 '초기 보급' 4순위 — 누적 분석 건수로 사회적 증거를 보여준다.
          집계가 없거나(신규 배포 직후) 0건이면 자바스크립트가 그대로 숨겨둔다. -->
+    <div id="counterBadge" class="counterBadge" style="display:none;">
+      <span class="cbIcon">👥</span>
+      <span class="cbMain">누적 이용자 <b id="cbTotal">0</b>명</span>
+      <span class="cbSub">오늘 <b id="cbToday">0</b>명 방문</span>
+    </div>
     <div id="statsBadge" class="statsBadge" style="display:none;"></div>
 
     <!-- 🚀 [v117] 로드맵 1단계 — 이 브라우저가 최근에 본 종목 칩 목록. 기록이 없으면
@@ -4442,6 +4607,23 @@ function loadStats(){
 }
 loadStats();
 loadVoteTop();
+
+// ── 👥 [v130] 접속 카운터: 숫자가 0에서 올라가는 효과 ──
+function loadCounter(){
+  fetch('/api/counter').then(r=>r.json()).then(function(d){
+    if(!d || !d.total) return;
+    const box = document.getElementById('counterBadge'), el = document.getElementById('cbTotal');
+    document.getElementById('cbToday').textContent = (d.today || 0).toLocaleString('ko-KR');
+    box.style.display = 'inline-flex';
+    const t0 = performance.now(), from = Math.max(0, d.total - 300), dur = 900;
+    (function tick(now){
+      const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(from + (d.total - from) * e).toLocaleString('ko-KR');
+      if(p < 1) requestAnimationFrame(tick);
+    })(t0);
+  }).catch(function(){});
+}
+loadCounter();
 window.addEventListener('load', ()=>pushAds(document.getElementById('emptyState')));
 
 // ── 🔗 [v118] 공유 링크로 들어온 경우(?t=종목코드) 자동으로 그 종목을 분석 ──
@@ -5030,7 +5212,7 @@ function resetAll(){
   document.getElementById('emptyState').style.display = 'block';
   if(location.search) history.replaceState(null, '', location.pathname);
   window.scrollTo({top: 0, behavior: 'smooth'});
-  loadRecentHistory(); loadStats(); loadVoteTop(); rsLoad(true, true);
+  loadRecentHistory(); loadStats(); loadVoteTop(); loadCounter(); rsLoad(true, true);
   searchInput.focus();
   showToast('↺ 초기화했어요.');
 }
@@ -5964,6 +6146,7 @@ PRIVACY_HTML = r"""
   <div class="card"><h2>1. 수집하는 정보</h2><ul>
     <li><b>익명 식별 쿠키(anon_uid)</b> — 처음 방문할 때 브라우저에 저장되는 무작위 문자열입니다. 이름·이메일·전화번호 등 개인을 알아볼 수 있는 정보와 연결되지 않습니다.</li>
     <li><b>조회 기록</b> — 분석한 종목코드·종목명·시장·조회 시각을 위 익명 식별값과 함께 저장합니다.</li>
+    <li><b>접속 카운터</b> — 첫 화면을 연 브라우저를 세기 위해 익명 식별값과 처음 방문한 날짜·시각을 저장합니다. 화면에는 합계(누적 이용자·오늘 방문)만 표시됩니다.</li>
     <li><b>종목 댓글</b> — 작성한 댓글 내용, 닉네임(입력한 경우), 작성 시각을 익명 식별값과 함께 저장하며 종목 화면에 공개됩니다. 내 댓글은 직접 삭제할 수 있고, 운영 원칙에 어긋나거나 신고가 쌓인 댓글은 숨기거나 삭제합니다. 개인정보(전화번호·계좌 등)는 적지 마세요.</li>
     <li><b>최근 종목 목록</b> — "모두가 본" 목록에는 종목명·시장·몇 분 전인지만 표시되며, 누가 봤는지는 표시하지 않습니다.</li>
     <li><b>매력도 투표</b> — 종목별로 누른 선택(사고 싶어요/지켜볼래요/아직은)과 시각을 익명 식별값과 함께 저장하며, 다른 이용자에게는 합계만 보여줍니다.</li>
