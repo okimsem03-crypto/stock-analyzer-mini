@@ -211,6 +211,9 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
+🐛 v128 — [원인 확정] 진단에서 멈춘 스레드 23개가 모두 requests의 netrc 불러오기 잠금에서 대기. 주가 조회를 requests 없이
+  파이썬 기본 통신 모듈로 교체, requests는 시작 시 미리 준비, 프록시 없으면 netrc 조회 끔.
+
 🐛 v127 — 서버의 모든 외부 요청이 멈추는 문제 대응: IPv4 전용 접속, 수치 라이브러리 스레드 1개 고정,
   /api/diag에 TCP·TLS 단계별 측정·멈춘 스레드 위치·CPU/연결 상태 추가, 부팅 시 네트워크 점검 로그.
 
@@ -301,7 +304,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v127"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v128"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -320,7 +323,7 @@ APP_VERSION_HARDCODED = "v127"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v127"
+HELP_CONTENT_ASOF = "v128"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -1040,34 +1043,170 @@ _HTTP_TLS = threading.local()
 
 
 def _http():
-    """스레드마다 하나씩 쓰는 requests.Session — 같은 서버(네이버 등)에 다시 접속할 때
-       연결을 재사용해 TLS 접속 시간을 아낀다."""
-    s = getattr(_HTTP_TLS, "s", None)
-    if s is None:
-        s = requests.Session()
-        s.headers.update(UA)
-        # 🐛 [v120] 네이버가 일시적으로 끊기거나 429/5xx를 주면 잠깐 쉬고 최대 2번 다시 시도
-        from urllib3.util.retry import Retry
-        retry = Retry(total=2, connect=2, read=1, backoff_factor=0.4,
-                      status_forcelist=(429, 500, 502, 503, 504), allowed_methods=frozenset(["GET"]))
-        adapter = requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=8, max_retries=retry)
-        s.mount("https://", adapter)
-        s.mount("http://", adapter)
-        _HTTP_TLS.s = s
-    return s
+    """🐛 [v128] 네이버·FnGuide 부가 정보용 — requests 대신 단순 클라이언트 + 재시도 1회(429/5xx·연결오류)."""
+    return _RAW_RETRY
+
+
+import ssl as _ssl, json as _json, urllib.parse as _uparse, zlib as _zlib   # 시작 시 메인 스레드에서 미리 불러옴
+_SSL_CTX = _ssl.create_default_context(
+    cafile=os.environ.get("SSL_CERT_FILE") or os.environ.get("REQUESTS_CA_BUNDLE") or None)
+
+
+class _RawHTTPError(Exception):
+    def __init__(self, resp):
+        super().__init__(f"HTTP {resp.status_code} {resp.url[:80]}")
+        self.response = resp
+
+
+class _RawResp:
+    def __init__(self, status, headers, body, url):
+        self.status_code, self.headers, self.content, self.url = status, headers, body, url
+
+    @property
+    def text(self):
+        return self.content.decode("utf-8", "replace")
+
+    def json(self):
+        return _json.loads(self.content.decode("utf-8", "replace"))
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise _RawHTTPError(self)
+
+
+class _RawHTTP:
+    """🐛 [v128] requests 라이브러리를 쓰지 않는 아주 단순한 HTTP 클라이언트(파이썬 기본 모듈만 사용).
+       Render 진단에서 "모든 외부 요청이 requests 내부(netrc 불러오기 잠금)에서 멈춤"이 확인되어, 주가 조회
+       경로는 그 코드를 아예 거치지 않게 했다. 요청마다 새로 접속(IPv4), 압축 없이(identity) 받는다.
+       timeout은 (연결, 읽기) 또는 숫자 — 읽기 제한은 '조각 하나'가 아니라 전체 응답에도 걸리도록 마감시간을 둔다."""
+
+    def get(self, url, params=None, timeout=(3.05, 6), headers=None, _redirects=3):
+        ct, rt = (timeout if isinstance(timeout, tuple) else (timeout, timeout))
+        t_end = time.time() + ct + rt + 2
+        u = _uparse.urlsplit(url)
+        q = u.query
+        if params:
+            q = (q + "&" if q else "") + _uparse.urlencode(params)
+        path = (u.path or "/") + ("?" + q if q else "")
+        port = u.port or (443 if u.scheme == "https" else 80)
+        px = (os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")) if u.scheme == "https" else None
+        noproxy = (os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or "")
+        if px and any(h and u.hostname.endswith(h.strip().lstrip("*")) for h in noproxy.split(",")):
+            px = None
+        if px:      # 회사·개발 환경처럼 프록시를 거쳐야 하는 곳(Render에는 없음): CONNECT 터널
+            pu = _uparse.urlsplit(px)
+            sock = socket.create_connection((pu.hostname, pu.port or 8080), timeout=ct)
+            cr = f"CONNECT {u.hostname}:{port} HTTP/1.1\r\nHost: {u.hostname}:{port}\r\n"
+            if pu.username:
+                import base64
+                tok = base64.b64encode(f"{_uparse.unquote(pu.username)}:{_uparse.unquote(pu.password or '')}".encode()).decode()
+                cr += f"Proxy-Authorization: Basic {tok}\r\n"
+            sock.sendall((cr + "\r\n").encode())
+            resp0 = b""
+            while b"\r\n\r\n" not in resp0:
+                c0 = sock.recv(4096)
+                if not c0:
+                    break
+                resp0 += c0
+            if b" 200" not in resp0.split(b"\r\n")[0]:
+                sock.close()
+                raise ConnectionError("프록시 연결 실패: " + resp0.split(b"\r\n")[0].decode("latin-1")[:60])
+        else:
+            ip = socket.getaddrinfo(u.hostname, port, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+            sock = socket.create_connection((ip, port), timeout=ct)
+        try:
+            if u.scheme == "https":
+                sock = _SSL_CTX.wrap_socket(sock, server_hostname=u.hostname)
+            sock.settimeout(rt)
+            hd = {"Host": u.netloc, "Accept-Encoding": "identity", "Connection": "close"}
+            hd.update(UA)
+            if headers:
+                hd.update(headers)
+            req = f"GET {path} HTTP/1.1\r\n" + "".join(f"{k}: {v}\r\n" for k, v in hd.items()) + "\r\n"
+            sock.sendall(req.encode("latin-1", "replace"))
+            buf = b""
+            while True:
+                if time.time() > t_end:
+                    raise TimeoutError("전체 응답 마감시간 초과")
+                chunk = sock.recv(65536)
+                if not chunk:
+                    break
+                buf += chunk
+                if len(buf) > 30_000_000:
+                    raise ValueError("응답이 너무 큼")
+        finally:
+            try: sock.close()
+            except Exception: pass
+        head, _, body = buf.partition(b"\r\n\r\n")
+        lines = head.decode("latin-1").split("\r\n")
+        status = int(lines[0].split()[1])
+        h = {}
+        for ln in lines[1:]:
+            k, _, v = ln.partition(":")
+            h[k.strip().lower()] = v.strip()
+        if "chunked" in h.get("transfer-encoding", "").lower():
+            out, rest = b"", body
+            while rest:
+                sz, _, rest = rest.partition(b"\r\n")
+                n = int(sz.split(b";")[0] or b"0", 16)
+                if n == 0:
+                    break
+                out += rest[:n]
+                rest = rest[n + 2:]
+            body = out
+        enc = h.get("content-encoding", "").lower()
+        if enc == "gzip":
+            body = _zlib.decompress(body, 47)
+        elif enc == "deflate":
+            body = _zlib.decompress(body)
+        if status in (301, 302, 303, 307, 308) and h.get("location") and _redirects > 0:
+            return self.get(_uparse.urljoin(url, h["location"]), None, timeout, headers, _redirects - 1)
+        return _RawResp(status, h, body, url)
+
+
+_RAW_HTTP = _RawHTTP()
+
+
+class _RawRetry:
+    def get(self, url, params=None, timeout=6, headers=None):
+        last = None
+        for i in range(2):
+            try:
+                r = _RAW_HTTP.get(url, params=params, timeout=timeout, headers=headers)
+                if r.status_code in (429, 500, 502, 503, 504) and i == 0:
+                    time.sleep(0.4)
+                    continue
+                return r
+            except (OSError, TimeoutError) as e:
+                last = e
+                if i == 0:
+                    time.sleep(0.4)
+        raise last
+
+
+_RAW_RETRY = _RawRetry()
 
 
 def _http_fast():
-    """⚡ [v122] 재시도 없는 세션 — 주가 소스끼리는 '같은 곳에 다시 시도'보다 '바로 다음 곳으로'가
-       빠르다(네이버가 막혔을 때 야후로 넘어가는 시간을 줄임)."""
-    s = getattr(_HTTP_TLS, "fast", None)
-    if s is None:
-        s = requests.Session()
-        s.headers.update(UA)
-        a = requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=8, max_retries=0)
-        s.mount("https://", a); s.mount("http://", a)
-        _HTTP_TLS.fast = s
-    return s
+    """⚡ [v122→v128] 주가 소스용 — requests를 거치지 않는 단순 클라이언트."""
+    return _RAW_HTTP
+
+
+def _warm_requests_once():
+    """🐛 [v128] requests가 처음 쓸 때 늦게 불러오는 모듈들(netrc 등)을 서버 시작 시 '혼자' 미리 불러 둔다.
+       스레드 수십 개가 동시에 처음 불러오다 서로 잠금을 기다리며 멈추는 일을 막는다."""
+    try:
+        import netrc, http.cookiejar, encodings.idna  # noqa: F401
+        se = requests.Session()
+        se.prepare_request(requests.Request("GET", "https://example.com/", params={"a": 1}))
+        from urllib3.util.retry import Retry  # noqa: F401
+    except Exception as e:
+        print(f"[미리불러오기] requests 준비 중 오류(무시): {e}")
+
+
+_wt = threading.Thread(target=_warm_requests_once, daemon=True, name="warm-requests")
+_wt.start()
+_wt.join(8)          # 준비가 멈추더라도 서버 시작은 8초까지만 기다린다(주가 조회는 requests를 안 쓰므로 무관)
 
 
 def _bg(fn, *args):
