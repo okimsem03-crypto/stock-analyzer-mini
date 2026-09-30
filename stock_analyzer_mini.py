@@ -211,6 +211,9 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
+✨ v129 — ① 오른쪽 '최근 종목' 패널(모두가 본/내가 본, 10개씩 스크롤 로딩, 모바일은 아래에서 올라오는 시트)
+  ② 종목별 익명 댓글(링크·홍보 차단, 도배 방지, 신고 3회 자동 숨김, 내 댓글 삭제, /admin/comments 운영자 삭제).
+
 🐛 v128 — [원인 확정] 진단에서 멈춘 스레드 23개가 모두 requests의 netrc 불러오기 잠금에서 대기. 주가 조회를 requests 없이
   파이썬 기본 통신 모듈로 교체, requests는 시작 시 미리 준비, 프록시 없으면 netrc 조회 끔.
 
@@ -304,7 +307,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v128"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v129"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -323,7 +326,7 @@ APP_VERSION_HARDCODED = "v128"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v128"
+HELP_CONTENT_ASOF = "v129"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -772,6 +775,7 @@ def init_history_db():
                 market TEXT,
                 viewed_at TIMESTAMP NOT NULL DEFAULT NOW())""")
             c.execute("CREATE INDEX IF NOT EXISTS idx_history_uid ON search_history(uid, viewed_at DESC)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_history_ticker ON search_history(ticker, id)")
         else:
             c.execute("""CREATE TABLE IF NOT EXISTS search_history(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -781,6 +785,7 @@ def init_history_db():
                 market TEXT,
                 viewed_at TEXT NOT NULL)""")
             c.execute("CREATE INDEX IF NOT EXISTS idx_history_uid ON search_history(uid, viewed_at DESC)")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_history_ticker ON search_history(ticker, id)")
         conn.commit()
     finally:
         conn.close()
@@ -961,6 +966,258 @@ def vote_top(days=7, limit=5):
     except Exception as e:
         print(f"[투표] TOP 조회 실패: {e}")
         return []
+
+
+# ══════════════════════════════════════════════════════════════
+# 🕘 [v129] 최근 종목 패널 — "모두가 본"(다른 이용자 포함, 종목 정보만) / "내가 본" 두 목록을 10개씩 이어서 불러온다.
+#   공개되는 것은 종목명·시장·몇 분 전인지뿐이다(누가 봤는지 알 수 있는 값은 내보내지 않는다).
+# ══════════════════════════════════════════════════════════════
+def _age_from_sqlite(v):
+    try:
+        return max(0, int((datetime.now() - datetime.fromisoformat(str(v))).total_seconds()))
+    except Exception:
+        return None
+
+
+def recent_list(uid, scope="all", limit=10, offset=0):
+    """종목별 '가장 마지막 조회' 한 줄씩, 최신순. scope='me'면 이 브라우저(uid)만."""
+    if not _ensure_history_table():
+        return []
+    if scope == "me" and not uid:
+        return []
+    ph = "%s" if _USE_PG else "?"
+    age_col = "EXTRACT(EPOCH FROM (NOW()::timestamp - viewed_at))" if _USE_PG else "viewed_at"
+    if scope == "me":
+        inner, args = f"SELECT MAX(id) FROM search_history WHERE uid={ph} GROUP BY ticker", [uid]
+    else:
+        inner, args = "SELECT MAX(id) FROM search_history GROUP BY ticker", []
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            c.execute(f"""SELECT ticker, name, market, {age_col} FROM search_history
+                          WHERE id IN ({inner}) ORDER BY id DESC LIMIT {ph} OFFSET {ph}""",
+                      tuple(args + [int(limit), int(offset)]))
+            out = []
+            for t, n, m, a in c.fetchall():
+                age = int(a) if (_USE_PG and a is not None) else (None if _USE_PG else _age_from_sqlite(a))
+                out.append({"ticker": t, "name": n or t, "market": m or "", "age_sec": age})
+            return out
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[최근종목] 조회 실패: {e}")
+        return []
+
+
+# ══════════════════════════════════════════════════════════════
+# 💬 [v129] 종목 댓글 — 익명(닉네임은 선택), 종목마다 따로.
+#   운영 안전장치: 링크·홍보성 문구·심한 욕설 차단 / 20초에 1개, 하루 30개, IP당 10분에 30개 /
+#   신고가 3번 쌓이면 자동 숨김 / 내 댓글은 내가 삭제 / 운영자는 /admin/comments?key=… 에서 삭제(ADMIN_KEY 설정 시).
+# ══════════════════════════════════════════════════════════════
+COMMENT_MAX, COMMENT_MIN = 300, 2
+COMMENT_COOLDOWN_SEC, COMMENT_DAILY_MAX = 20, 30
+COMMENT_HIDE_REPORTS = 3
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
+_comments_ready = False
+_CMT_IP = {}
+_CMT_SPAM_RE = re.compile(
+    r"(https?://|www\.|[a-z0-9\-]+\.(com|net|org|kr|co|io|me|ly|xyz|site|top)\b|t\.me/|kakao|카톡|카카오톡|오픈\s*채팅|텔레그램|리딩\s*방|단톡|vip\s*방|수익\s*인증|무료\s*추천)",
+    re.I)
+_CMT_BAD_WORDS = ("씨발", "시발", "ㅅㅂ", "병신", "ㅂㅅ", "좆", "지랄", "개새끼", "미친놈", "미친년", "꺼져", "닥쳐")
+
+
+def _ensure_comments_table():
+    global _comments_ready
+    if _comments_ready:
+        return True
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            pk = "SERIAL PRIMARY KEY" if _USE_PG else "INTEGER PRIMARY KEY AUTOINCREMENT"
+            c.execute(f"""CREATE TABLE IF NOT EXISTS stock_comments(
+                id {pk}, ticker TEXT NOT NULL, name TEXT, uid TEXT NOT NULL, nick TEXT, body TEXT NOT NULL,
+                created_at TEXT NOT NULL, reports INTEGER NOT NULL DEFAULT 0, hidden INTEGER NOT NULL DEFAULT 0)""")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_comments_ticker ON stock_comments(ticker, id)")
+            c.execute("""CREATE TABLE IF NOT EXISTS comment_reports(
+                comment_id INTEGER NOT NULL, uid TEXT NOT NULL, PRIMARY KEY(comment_id, uid))""")
+            conn.commit()
+            _comments_ready = True
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[댓글] 테이블 준비 실패(나중에 다시 시도): {e}")
+    return _comments_ready
+
+
+def _cmt_age(created_at):
+    try:
+        t = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
+        return max(0, int((_now_kst().replace(tzinfo=None) - t).total_seconds()))
+    except Exception:
+        return None
+
+
+def _cmt_clean_nick(nick, uid):
+    n = re.sub(r"[<>&\"'`\x00-\x1f]", "", str(nick or "")).strip()[:12]
+    return n or ("익명" + (uid or "0000")[:4])
+
+
+def _cmt_check_text(body):
+    if len(body) < COMMENT_MIN:
+        return "두 글자 이상 적어 주세요."
+    if len(body) > COMMENT_MAX:
+        return f"{COMMENT_MAX}자까지 쓸 수 있어요."
+    flat = re.sub(r"\s+", "", body)
+    if _CMT_SPAM_RE.search(body) or _CMT_SPAM_RE.search(flat):
+        return "링크나 홍보성 문구(오픈채팅·리딩방 등)는 올릴 수 없어요."
+    if any(w in flat for w in _CMT_BAD_WORDS):
+        return "거친 표현은 올릴 수 없어요. 조금만 다듬어 주세요."
+    return None
+
+
+def _cmt_ip_ok(ip):
+    """같은 IP에서 10분에 성공한 댓글이 30개를 넘으면 막는다(통신사·학교처럼 IP를 여럿이 나눠 쓰는 곳을 고려해 넉넉하게)."""
+    now = time.time()
+    return len([t for t in _CMT_IP.get(ip, []) if now - t < 600]) < 30
+
+
+def _cmt_ip_add(ip):
+    now = time.time()
+    _CMT_IP[ip] = [t for t in _CMT_IP.get(ip, []) if now - t < 600] + [now]
+    if len(_CMT_IP) > 5000:
+        for k in [k for k, v in _CMT_IP.items() if not v or now - v[-1] > 600]:
+            _CMT_IP.pop(k, None)
+
+
+def comment_list(ticker, uid, before=None, limit=10):
+    if not _ensure_comments_table():
+        return {"items": [], "total": 0, "has_more": False}
+    ph = "%s" if _USE_PG else "?"
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            c.execute(f"SELECT COUNT(*) FROM stock_comments WHERE ticker={ph} AND hidden=0", (ticker,))
+            total = int(c.fetchone()[0])
+            q = f"SELECT id, uid, nick, body, created_at FROM stock_comments WHERE ticker={ph} AND hidden=0"
+            args = [ticker]
+            if before:
+                q += f" AND id<{ph}"
+                args.append(int(before))
+            c.execute(q + f" ORDER BY id DESC LIMIT {ph}", tuple(args + [int(limit) + 1]))
+            rows = c.fetchall()
+            items = [{"id": r[0], "nick": r[2] or "익명", "body": r[3], "age_sec": _cmt_age(r[4]),
+                      "mine": bool(uid) and r[1] == uid} for r in rows[:int(limit)]]
+            return {"items": items, "total": total, "has_more": len(rows) > int(limit)}
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[댓글] 조회 실패: {e}")
+        return {"items": [], "total": 0, "has_more": False}
+
+
+def comment_add(uid, ticker, name, nick, body):
+    """반환: (item 또는 None, 오류문구 또는 None, HTTP 코드)"""
+    if not uid or not _ensure_comments_table():
+        return None, "지금은 댓글을 저장할 수 없어요. 잠시 후 다시 시도해 주세요.", 503
+    body = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(body or "")).strip()
+    body = re.sub(r"\n{3,}", "\n\n", body)
+    err = _cmt_check_text(body)
+    if err:
+        return None, err, 400
+    ph = "%s" if _USE_PG else "?"
+    now = _now_kst()
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            c.execute(f"SELECT created_at FROM stock_comments WHERE uid={ph} ORDER BY id DESC LIMIT 1", (uid,))
+            row = c.fetchone()
+            last_age = _cmt_age(row[0]) if row else None
+            if last_age is not None and last_age < COMMENT_COOLDOWN_SEC:
+                return None, f"{COMMENT_COOLDOWN_SEC}초에 한 번만 쓸 수 있어요. 잠시 뒤에 다시 해 주세요.", 429
+            day_ago = (now - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+            c.execute(f"SELECT COUNT(*) FROM stock_comments WHERE uid={ph} AND created_at>={ph}", (uid, day_ago))
+            if int(c.fetchone()[0]) >= COMMENT_DAILY_MAX:
+                return None, "오늘 쓸 수 있는 댓글 수를 넘었어요. 내일 다시 이야기해요.", 429
+            c.execute(f"SELECT 1 FROM stock_comments WHERE uid={ph} AND ticker={ph} AND body={ph} AND created_at>={ph}",
+                      (uid, ticker, body, day_ago))
+            if c.fetchone():
+                return None, "같은 내용을 이미 올렸어요.", 400
+            nick_c = _cmt_clean_nick(nick, uid)
+            ts = now.strftime("%Y-%m-%d %H:%M:%S")
+            if _USE_PG:
+                c.execute("INSERT INTO stock_comments(ticker,name,uid,nick,body,created_at) VALUES(%s,%s,%s,%s,%s,%s) RETURNING id",
+                          (ticker, name, uid, nick_c, body, ts))
+                cid = c.fetchone()[0]
+            else:
+                c.execute("INSERT INTO stock_comments(ticker,name,uid,nick,body,created_at) VALUES(?,?,?,?,?,?)",
+                          (ticker, name, uid, nick_c, body, ts))
+                cid = c.lastrowid
+            conn.commit()
+            return {"id": cid, "nick": nick_c, "body": body, "age_sec": 0, "mine": True}, None, 200
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[댓글] 저장 실패: {e}")
+        return None, "저장하지 못했어요. 잠시 후 다시 시도해 주세요.", 500
+
+
+def comment_delete(cid, uid, admin=False):
+    if not _ensure_comments_table():
+        return False
+    ph = "%s" if _USE_PG else "?"
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            if admin:
+                c.execute(f"DELETE FROM stock_comments WHERE id={ph}", (cid,))
+            else:
+                if not uid:
+                    return False
+                c.execute(f"DELETE FROM stock_comments WHERE id={ph} AND uid={ph}", (cid, uid))
+            ok = c.rowcount > 0
+            if ok:
+                c.execute(f"DELETE FROM comment_reports WHERE comment_id={ph}", (cid,))
+            conn.commit()
+            return ok
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[댓글] 삭제 실패: {e}")
+        return False
+
+
+def comment_report(cid, uid):
+    """반환: 'ok' / 'own'(내 댓글) / 'none'(없는 댓글) / 'error'. 같은 사람이 여러 번 눌러도 1번만 센다."""
+    if not uid or not _ensure_comments_table():
+        return "error"
+    ph = "%s" if _USE_PG else "?"
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            c.execute(f"SELECT uid FROM stock_comments WHERE id={ph}", (cid,))
+            row = c.fetchone()
+            if not row:
+                return "none"
+            if row[0] == uid:
+                return "own"
+            c.execute(f"INSERT INTO comment_reports(comment_id, uid) VALUES({ph},{ph}) ON CONFLICT DO NOTHING", (cid, uid))
+            c.execute(f"SELECT COUNT(*) FROM comment_reports WHERE comment_id={ph}", (cid,))
+            n = int(c.fetchone()[0])
+            c.execute(f"UPDATE stock_comments SET reports={ph}, hidden={ph} WHERE id={ph}",
+                      (n, 1 if n >= COMMENT_HIDE_REPORTS else 0, cid))
+            conn.commit()
+            return "ok"
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[댓글] 신고 실패: {e}")
+        return "error"
 
 
 def history_stats():
@@ -1252,6 +1509,13 @@ def _cache_get(key):
             _CACHE.pop(key, None)
             return None
         return v[1]
+
+
+def _cache_drop_recent_all():
+    """🕘 [v129] 누군가 종목을 분석해 기록이 늘면 '모두가 본' 목록 저장본을 비워, 바로 맨 위에 보이게 한다."""
+    with _CACHE_LOCK:
+        for k in [k for k in _CACHE if isinstance(k, tuple) and k and k[0] == "recent_all"]:
+            _CACHE.pop(k, None)
 
 
 def _cache_set(key, val, ttl):
@@ -2768,6 +3032,7 @@ def api_analyze(ticker):
 
     # 💡 [v117] 로드맵 1단계 — 이 종목을 봤다는 사실을 익명 uid로 기록한다.
     history_save(g.get("anon_uid"), ticker, payload.get("name"), payload.get("market") or "—")
+    _cache_drop_recent_all()
     resp = jsonify(payload)
     resp.headers["X-Analyze-Cache"] = "hit" if cached else "miss"
     resp.headers["X-Analyze-Ms"] = str(int((time.time() - t0) * 1000))
@@ -2848,6 +3113,117 @@ def api_vote(ticker):
 def api_vote_top():
     """💡 [v121] 이번 주(7일) 매수 관심 TOP 5."""
     return jsonify(vote_top(7, 5))
+
+
+@app.route("/api/recent")
+def api_recent():
+    """🕘 [v129] 최근 종목 패널 — scope=all(모두가 본)|me(내가 본), limit(기본 10)씩 offset부터."""
+    scope = "me" if request.args.get("scope") == "me" else "all"
+    try:
+        limit = max(1, min(30, int(request.args.get("limit", 10))))
+        offset = max(0, min(500, int(request.args.get("offset", 0))))
+    except ValueError:
+        limit, offset = 10, 0
+    if scope == "all":
+        key = ("recent_all", limit, offset)
+        hit = None if request.args.get("fresh") else _cache_get(key)
+        if hit is None:
+            hit = recent_list(None, "all", limit, offset)
+            _cache_set(key, hit, 15)
+        items = hit
+    else:
+        items = recent_list(g.get("anon_uid"), "me", limit, offset)
+    resp = jsonify({"items": items, "has_more": len(items) == limit})
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/comments/<ticker>", methods=["GET", "POST"])
+def api_comments(ticker):
+    """💬 [v129] GET: 댓글 목록(최신순, before=마지막 id로 이어서) / POST {body, nick, name}: 댓글 쓰기."""
+    ticker = normalize_ticker(ticker)
+    if not ticker:
+        return jsonify({"error": "올바른 종목코드가 아닙니다."}), 400
+    uid = g.get("anon_uid")
+    if request.method == "POST":
+        if not _cmt_ip_ok(request.remote_addr or "?"):
+            return jsonify({"error": "짧은 시간에 너무 많이 썼어요. 잠시 뒤에 다시 해 주세요."}), 429
+        data = request.get_json(silent=True) or {}
+        item, err, code = comment_add(uid, ticker, str(data.get("name") or "")[:40] or ticker,
+                                      data.get("nick"), data.get("body"))
+        if err:
+            return jsonify({"error": err}), code
+        _cmt_ip_add(request.remote_addr or "?")
+        return jsonify({"item": item})
+    try:
+        before = int(request.args.get("before") or 0) or None
+        limit = max(1, min(30, int(request.args.get("limit", 10))))
+    except ValueError:
+        before, limit = None, 10
+    resp = jsonify(comment_list(ticker, uid, before, limit))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+def _is_admin():
+    import hmac
+    key = request.headers.get("X-Admin-Key") or request.args.get("key") or ""
+    return bool(ADMIN_KEY) and hmac.compare_digest(key.encode(), ADMIN_KEY.encode())
+
+
+@app.route("/api/comment/<int:cid>", methods=["DELETE"])
+def api_comment_delete(cid):
+    ok = comment_delete(cid, g.get("anon_uid"), admin=_is_admin())
+    return (jsonify({"ok": True}) if ok else (jsonify({"error": "삭제할 수 없는 댓글이에요."}), 403))
+
+
+@app.route("/api/comment/<int:cid>/report", methods=["POST"])
+def api_comment_report(cid):
+    r = comment_report(cid, g.get("anon_uid"))
+    if r == "ok":
+        return jsonify({"ok": True})
+    msg = {"own": "내가 쓴 댓글은 신고할 수 없어요.", "none": "이미 지워진 댓글이에요."}.get(r, "지금은 신고를 받을 수 없어요.")
+    return jsonify({"error": msg}), 400
+
+
+ADMIN_COMMENTS_HTML = r"""<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>댓글 관리</title>
+<style>body{font-family:system-ui,'Malgun Gothic',sans-serif;margin:0;background:#f6f8fb;color:#1f2937}
+.w{max-width:860px;margin:0 auto;padding:18px}h1{font-size:18px}
+.c{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin:10px 0}
+.m{font-size:12px;color:#64748b;margin-bottom:6px}.b{white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.55}
+.h{background:#fff7ed;border-color:#fdba74}button{margin-top:8px;border:none;background:#dc2626;color:#fff;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer}</style></head>
+<body><div class="w"><h1>💬 댓글 관리 (최근 {{ rows|length }}개)</h1>
+<p style="font-size:12.5px;color:#64748b">주황색은 신고 {{ hide_n }}회 이상으로 자동 숨김된 댓글입니다. 삭제하면 복구할 수 없습니다.</p>
+{% for r in rows %}<div class="c {{ 'h' if r.hidden else '' }}" id="c{{ r.id }}">
+<div class="m">#{{ r.id }} · {{ r.name }}({{ r.ticker }}) · {{ r.nick }} · {{ r.created_at }} · 신고 {{ r.reports }}{{ ' · 숨김' if r.hidden else '' }}</div>
+<div class="b">{{ r.body }}</div><button onclick="del({{ r.id }})">삭제</button></div>{% endfor %}
+{% if not rows %}<p>아직 댓글이 없어요.</p>{% endif %}</div>
+<script>function del(id){if(!confirm('이 댓글을 삭제할까요?'))return;
+fetch('/api/comment/'+id,{method:'DELETE',headers:{'X-Admin-Key':new URLSearchParams(location.search).get('key')||''}})
+.then(function(r){return r.json()}).then(function(d){if(d.ok){var e=document.getElementById('c'+id);e.parentNode.removeChild(e)}else alert(d.error||'실패')})}</script></body></html>"""
+
+
+@app.route("/admin/comments")
+def admin_comments():
+    """🛠 [v129] 운영자용 — 환경변수 ADMIN_KEY를 정하고 /admin/comments?key=그값 으로 열면 최근 댓글 100개를 보고 지운다."""
+    if not _is_admin():
+        return "not found", 404
+    rows = []
+    if _ensure_comments_table():
+        try:
+            conn = _history_conn()
+            try:
+                c = conn.cursor()
+                c.execute("SELECT id, ticker, name, nick, body, created_at, reports, hidden FROM stock_comments ORDER BY id DESC LIMIT 100")
+                rows = [dict(zip(("id", "ticker", "name", "nick", "body", "created_at", "reports", "hidden"), r)) for r in c.fetchall()]
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[댓글] 관리 조회 실패: {e}")
+    resp = app.make_response(render_template_string(ADMIN_COMMENTS_HTML, rows=rows, hide_n=COMMENT_HIDE_REPORTS))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 def _raw_net_probe(host, port=443):
@@ -3321,6 +3697,62 @@ HTML_TEMPLATE = r"""
   .recentClear{background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer; text-decoration:underline;
     font-family:inherit; margin-left:8px; padding:0;}
 
+  /* 🕘 [v129] 최근 종목 패널(데스크톱: 오른쪽 고정 / 모바일: 아래에서 올라오는 시트) + 💬 댓글 */
+  .pageGrid{display:block;}
+  .rsFab{position:fixed; right:14px; bottom:calc(14px + env(safe-area-inset-bottom)); z-index:60; border:none; cursor:pointer;
+    background:var(--navy); color:#fff; border-radius:999px; padding:12px 18px; font-size:13.5px; font-weight:800; font-family:inherit;
+    box-shadow:0 6px 18px rgba(16,32,58,.35); min-height:46px;}
+  .rsBackdrop{display:none; position:fixed; inset:0; background:rgba(16,32,58,.45); z-index:70;}
+  .rsBackdrop.show{display:block;}
+  .recentSide{position:fixed; left:0; right:0; bottom:0; z-index:80; background:#fff; border-radius:18px 18px 0 0;
+    box-shadow:0 -10px 34px rgba(16,32,58,.28); padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+    transform:translateY(105%); transition:transform .22s ease; max-height:82vh; display:flex; flex-direction:column;}
+  .recentSide.open{transform:translateY(0);}
+  .rsHead{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; font-size:14px; color:var(--navy);}
+  .rsClose{border:none; background:#f1f5f9; border-radius:999px; width:34px; height:34px; font-size:15px; cursor:pointer;}
+  .rsTabs{display:flex; gap:6px; margin-bottom:8px;}
+  .rsTab{flex:1; border:1px solid var(--border); background:#f8fafc; border-radius:10px; padding:9px 4px; font-size:12.5px; font-weight:700;
+    cursor:pointer; font-family:inherit; color:var(--muted); min-height:40px;}
+  .rsTab.on{background:var(--navy); color:#fff; border-color:var(--navy);}
+  .rsList{list-style:none; margin:0; padding:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+    max-height:min(480px, 52vh); border-top:1px solid #eef1f6;}
+  .rsItem{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 4px; height:48px; border-bottom:1px solid #eef1f6; cursor:pointer;}
+  .rsItem:hover,.rsItem:active{background:#f8fafc;}
+  .rsMain{min-width:0; display:flex; flex-direction:column; gap:1px;}
+  .rsMain b{font-size:13.5px; color:var(--navy); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .rsMain span{font-size:11px; color:var(--muted);}
+  .rsItem em{font-style:normal; font-size:11px; color:var(--muted); white-space:nowrap;}
+  .rsMsg{padding:18px 6px; font-size:12.5px; color:var(--muted); text-align:center; line-height:1.6;}
+  .rsFoot{display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:11px; color:var(--muted); min-height:20px;}
+  @media (min-width:1180px){
+    .wrap{max-width:1280px;}
+    .pageGrid{display:grid; grid-template-columns:minmax(0,1fr) 290px; gap:22px; align-items:start;}
+    .mainCol{min-width:0;}
+    .rsFab,.rsBackdrop,.rsClose{display:none !important;}
+    .recentSide{position:sticky; top:16px; transform:none; transition:none; z-index:1; border-radius:16px; max-height:none;
+      border:1px solid var(--border); box-shadow:0 2px 10px rgba(16,32,58,.06); padding:14px;}
+    .rsList{max-height:480px;}
+  }
+  .cmtCard{background:#fff; border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; margin:0 0 20px;}
+  .cmtHead{font-size:14.5px; font-weight:800; color:var(--navy); display:flex; align-items:baseline; gap:8px;}
+  .cmtHead small{font-size:12px; color:var(--muted); font-weight:600;}
+  .cmtNotice{font-size:11.5px; color:#64748b; background:#f8fafc; border-radius:10px; padding:8px 10px; margin:10px 0; line-height:1.55;}
+  .cmtNick{width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:10px; padding:10px 12px; font-size:16px; font-family:inherit; margin-bottom:6px;}
+  .cmtBody{width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:10px; padding:10px 12px; font-size:16px; font-family:inherit;
+    resize:vertical; min-height:74px; line-height:1.5;}
+  .cmtRow{display:flex; align-items:center; justify-content:space-between; margin-top:6px; font-size:11.5px; color:var(--muted);}
+  .cmtSend{border:none; background:var(--navy); color:#fff; border-radius:10px; padding:10px 22px; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; min-height:42px;}
+  .cmtSend:disabled{opacity:.5;}
+  .cmtList{list-style:none; margin:12px 0 0; padding:0;}
+  .cmtItem{padding:11px 0; border-top:1px solid #eef1f6;}
+  .cmtMeta{font-size:11.5px; color:var(--muted); display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .cmtMeta b{color:var(--navy); font-size:12.5px;}
+  .cmtMine{background:#eef2ff; color:#4338ca; border-radius:999px; padding:1px 8px; font-size:10.5px; font-weight:700;}
+  .cmtAct{margin-left:auto; border:none; background:none; color:var(--muted); font-size:11.5px; cursor:pointer; text-decoration:underline; font-family:inherit; padding:4px 0;}
+  .cmtText{margin-top:4px; font-size:14px; line-height:1.6; white-space:pre-wrap; word-break:break-word;}
+  .cmtMore{width:100%; margin-top:8px; border:1px solid var(--border); background:#f8fafc; border-radius:10px; padding:10px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; color:var(--navy);}
+  .cmtEmpty{padding:16px 0 4px; font-size:13px; color:var(--muted); text-align:center;}
+
   /* 🎬 [v118] 데모 버튼 — 슬로건 바로 아래, 눈에 띄지만 실제 검색창보다는 강조를 낮춘다 */
   .demoBtn{
     margin-top:16px; background:var(--navy); color:#fff; border:none; border-radius:999px;
@@ -3635,7 +4067,7 @@ HTML_TEMPLATE = r"""
      title="이 프로그램을 만든 제작자의 투자 블로그입니다">✍️ 제작자 블로그 ↗</a>
 </div>
 
-<div class="wrap">
+<div class="wrap"><div class="pageGrid"><div class="mainCol">
   <!-- ⏳ [v119] 분석 중 표시 -->
   <!-- 🐛 [v120] 분석 실패 시 빈 화면 대신 이유와 [다시 시도]를 보여준다 -->
   <div id="errorCard" class="errorCard">
@@ -3746,6 +4178,18 @@ HTML_TEMPLATE = r"""
       </div>
       <div class="voteBar"><span class="vb-buy" id="vb-buy" style="width:0"></span><span class="vb-watch" id="vb-watch" style="width:0"></span><span class="vb-pass" id="vb-pass" style="width:0"></span></div>
       <div class="voteInfo" id="voteInfo">아직 투표가 없어요. 첫 번째로 의견을 남겨 보세요!</div>
+    </div>
+
+
+    <!-- 💬 [v129] 종목 댓글 — 익명, 링크·홍보 차단, 신고 3번이면 자동 숨김 -->
+    <div class="cmtCard" id="cmtCard">
+      <div class="cmtHead">💬 이 종목 이야기 <small id="cmtCount"></small></div>
+      <div class="cmtNotice">개인 의견을 나누는 곳이에요. 특정 종목 매수·매도 권유, 수익 인증, 링크·단톡방 홍보는 삭제될 수 있고, 투자 판단과 책임은 본인에게 있어요.</div>
+      <input id="cmtNick" class="cmtNick" maxlength="12" placeholder="닉네임 (비워 두면 자동으로 정해져요)" autocomplete="off">
+      <textarea id="cmtBody" class="cmtBody" maxlength="300" placeholder="이 종목에 대한 생각을 남겨 보세요 (300자까지)"></textarea>
+      <div class="cmtRow"><span id="cmtLen">0 / 300</span><button id="cmtSend" class="cmtSend" onclick="postComment()">등록</button></div>
+      <ul id="cmtList" class="cmtList"></ul>
+      <button id="cmtMore" class="cmtMore" style="display:none;" onclick="loadComments(true)">댓글 더 보기</button>
     </div>
 
     <a id="detailCta" class="ctaBanner" href="https://blog.naver.com/okykr/224284426807" target="_blank" rel="noopener">
@@ -3868,6 +4312,20 @@ HTML_TEMPLATE = r"""
   </div>
 </div>
 
+<!-- 🕘 [v129] 최근 종목 패널 — 데스크톱은 오른쪽에 고정, 모바일은 [🕘 최근 종목] 버튼을 누르면 아래에서 올라온다 -->
+<aside id="recentSide" class="recentSide" aria-label="최근 종목">
+  <div class="rsHead"><b>🕘 최근 종목</b><button class="rsClose" onclick="toggleRecentSheet(false)" aria-label="닫기">✕</button></div>
+  <div class="rsTabs">
+    <button class="rsTab on" data-tab="all" onclick="rsSwitch('all')">🌐 모두가 본</button>
+    <button class="rsTab" data-tab="me" onclick="rsSwitch('me')">👤 내가 본</button>
+  </div>
+  <ul id="rsList" class="rsList"></ul>
+  <div class="rsFoot"><span id="rsStatus"></span><button id="rsClear" class="recentClear" style="display:none;" onclick="clearRecent()">내 기록 지우기</button></div>
+</aside>
+<button id="rsFab" class="rsFab" onclick="toggleRecentSheet(true)">🕘 최근 종목</button>
+<div id="rsBackdrop" class="rsBackdrop" onclick="toggleRecentSheet(false)"></div>
+</div></div>
+
 <!-- 🤖 [v119] AI 안내창 — 버튼을 누르는 순간 프롬프트는 이미 복사되어 있고, 이 창의
      [열기]는 진짜 링크라서 팝업 차단에 걸리지 않는다(브라우저 기본 alert 뒤에 새 창을 열면
      팝업 차단기가 막는 경우가 많아, alert 대신 같은 역할의 안내창을 쓴다). -->
@@ -3941,6 +4399,7 @@ let RECENT = [];
 function renderRecentChips(){
   const box = document.getElementById('recentBox');
   const wrap = document.getElementById('recentChips');
+  box.style.display = 'none'; return;   // 🕘 [v129] 첫 화면 칩은 오른쪽 "최근 종목" 패널로 대체됨
   if(!RECENT.length){ box.style.display = 'none'; return; }
   wrap.innerHTML = RECENT.map(function(it){
     return '<div class="recentChip" data-ticker="' + _escHtml(it.ticker) + '">' + _escHtml(it.name)
@@ -3966,6 +4425,7 @@ function addRecentLocal(item){
   RECENT.unshift(item);
   RECENT = RECENT.slice(0, 8);
   renderRecentChips();
+  rsLoad(true, true);          // 🕘 [v129] 패널도 새로 불러온다(방금 본 종목이 맨 위로)
 }
 
 loadRecentHistory();
@@ -4292,6 +4752,7 @@ function renderResult(data){
   try{ renderFinancials(d.financials); }catch(e){ console.error('[fin]', e); }
   try{ renderNews(d.news); }catch(e){ console.error('[news]', e); }
   loadVotes(data.ticker);
+  loadComments(false);
 }
 
 // ── 📑 [v121] 재무정보 ───────────────────────────────────────────
@@ -4410,6 +4871,148 @@ function loadVoteTop(){
   }).catch(()=>{});
 }
 
+// ── 🕘 [v129] 최근 종목 패널: 10개씩 이어서 불러오기 ─────────────
+const RS = {tab: 'all', offset: 0, done: false, loading: false, seq: 0, count: 0};
+function _ago(sec){
+  if(sec === null || sec === undefined) return '';
+  if(sec < 60) return '방금';
+  if(sec < 3600) return Math.floor(sec / 60) + '분 전';
+  if(sec < 86400) return Math.floor(sec / 3600) + '시간 전';
+  return Math.floor(sec / 86400) + '일 전';
+}
+function toggleRecentSheet(open){
+  document.getElementById('recentSide').classList.toggle('open', !!open);
+  document.getElementById('rsBackdrop').classList.toggle('show', !!open);
+  document.getElementById('rsFab').style.visibility = open ? 'hidden' : 'visible';
+  if(open) rsLoad(true, true);
+}
+function rsSwitch(tab){
+  RS.tab = tab;
+  document.querySelectorAll('.rsTab').forEach(b=>b.classList.toggle('on', b.getAttribute('data-tab') === tab));
+  document.getElementById('rsClear').style.display = tab === 'me' ? 'inline' : 'none';
+  rsLoad(true, false);
+}
+function rsLoad(reset, fresh){
+  const list = document.getElementById('rsList'), status = document.getElementById('rsStatus');
+  if(reset){ RS.seq++; RS.offset = 0; RS.done = false; RS.loading = false; RS.count = 0; list.scrollTop = 0; }
+  if(RS.loading || RS.done) return;
+  RS.loading = true;
+  const seq = RS.seq, tab = RS.tab;
+  if(reset && !list.children.length) list.innerHTML = '<li class="rsMsg">불러오는 중…</li>';
+  else if(!reset) status.textContent = '더 불러오는 중…';
+  fetch('/api/recent?scope=' + tab + '&limit=10&offset=' + RS.offset + (fresh ? '&fresh=1' : ''))
+    .then(r=>r.json()).then(function(d){
+      if(seq !== RS.seq) return;
+      const items = d.items || [];
+      if(reset) list.innerHTML = '';
+      else Array.prototype.forEach.call(list.querySelectorAll('.rsMsg'), function(m){ m.remove(); });
+      items.forEach(function(it){
+        const li = document.createElement('li');
+        li.className = 'rsItem'; li.setAttribute('data-ticker', it.ticker);
+        li.innerHTML = '<div class="rsMain"><b>' + _escHtml(it.name) + '</b><span>' + _escHtml(it.ticker)
+          + (it.market ? ' · ' + _escHtml(it.market) : '') + '</span></div><em>' + _ago(it.age_sec) + '</em>';
+        li.onclick = function(){ toggleRecentSheet(false); analyze(it.ticker); };
+        list.appendChild(li);
+      });
+      RS.count += items.length; RS.offset += items.length; RS.done = !d.has_more;
+      if(!RS.count) list.innerHTML = '<li class="rsMsg">' + (tab === 'me'
+        ? '아직 본 종목이 없어요.<br>검색창에서 종목을 찾아 보세요.' : '아직 분석한 사람이 없어요.<br>첫 번째가 되어 보세요!') + '</li>';
+      status.textContent = RS.count ? (RS.done ? '모두 불러왔어요 (' + RS.count + '개)' : '아래로 내리면 10개 더') : '';
+      RS.loading = false;
+    }).catch(function(){
+      if(seq !== RS.seq) return;
+      RS.loading = false;
+      if(reset) list.innerHTML = '<li class="rsMsg">목록을 불러오지 못했어요.</li>';
+      status.textContent = '';
+    });
+}
+document.getElementById('rsList').addEventListener('scroll', function(){
+  if(this.scrollTop + this.clientHeight >= this.scrollHeight - 40) rsLoad(false);
+});
+rsLoad(true, false);
+
+// ── 💬 [v129] 종목 댓글 ─────────────────────────────────────────
+const CMT = {ticker: null, oldest: null, hasMore: false, busy: false};
+try{ const _n = localStorage.getItem('stockMiniNick'); if(_n) document.getElementById('cmtNick').value = _n; }catch(e){}
+document.getElementById('cmtBody').addEventListener('input', function(){
+  document.getElementById('cmtLen').textContent = this.value.length + ' / 300';
+});
+document.getElementById('cmtBody').addEventListener('keydown', function(e){
+  if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); postComment(); }
+});
+function _cmtRow(it){
+  const li = document.createElement('li');
+  li.className = 'cmtItem'; li.setAttribute('data-id', it.id);
+  li.innerHTML = '<div class="cmtMeta"><b>' + _escHtml(it.nick) + '</b>' + (it.mine ? '<span class="cmtMine">내 댓글</span>' : '')
+    + '<span>' + _ago(it.age_sec) + '</span><button class="cmtAct">' + (it.mine ? '삭제' : '신고') + '</button></div>'
+    + '<div class="cmtText">' + _escHtml(it.body) + '</div>';
+  li.querySelector('.cmtAct').onclick = function(){ it.mine ? delComment(it.id, li) : reportComment(it.id, li); };
+  return li;
+}
+function _cmtCount(total){
+  document.getElementById('cmtCount').textContent = total ? ('· ' + total + '개') : '';
+  const list = document.getElementById('cmtList');
+  if(!list.children.length) list.innerHTML = '<li class="cmtEmpty">아직 댓글이 없어요. 첫 이야기를 남겨 보세요!</li>';
+}
+function loadComments(more){
+  const ticker = more ? CMT.ticker : (CUR && CUR.ticker);
+  if(!ticker || CMT.busy) return;
+  CMT.busy = true;
+  const list = document.getElementById('cmtList');
+  if(!more){ CMT.ticker = ticker; CMT.oldest = null; list.innerHTML = ''; document.getElementById('cmtMore').style.display = 'none'; }
+  fetch('/api/comments/' + encodeURIComponent(ticker) + '?limit=10' + (more && CMT.oldest ? '&before=' + CMT.oldest : ''))
+    .then(r=>r.json()).then(function(d){
+      CMT.busy = false;
+      if(CMT.ticker !== ticker) return;
+      Array.prototype.forEach.call(list.querySelectorAll('.cmtEmpty'), function(m){ m.remove(); });
+      (d.items || []).forEach(function(it){ list.appendChild(_cmtRow(it)); CMT.oldest = it.id; });
+      CMT.hasMore = !!d.has_more;
+      document.getElementById('cmtMore').style.display = CMT.hasMore ? 'block' : 'none';
+      _cmtCount(d.total || 0);
+    }).catch(function(){ CMT.busy = false; });
+}
+function postComment(){
+  if(!CUR) return;
+  const bodyEl = document.getElementById('cmtBody'), nickEl = document.getElementById('cmtNick'), btn = document.getElementById('cmtSend');
+  const body = bodyEl.value.trim();
+  if(body.length < 2){ showToast('두 글자 이상 적어 주세요.'); return; }
+  const ticker = CUR.ticker;
+  btn.disabled = true;
+  fetch('/api/comments/' + encodeURIComponent(ticker), {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({body: body, nick: nickEl.value, name: CUR.name})})
+    .then(r=>r.json()).then(function(d){
+      btn.disabled = false;
+      if(d.error){ showToast('⚠ ' + d.error); return; }
+      try{ localStorage.setItem('stockMiniNick', nickEl.value.trim()); }catch(e){}
+      bodyEl.value = ''; document.getElementById('cmtLen').textContent = '0 / 300';
+      if(CMT.ticker === ticker){
+        const list = document.getElementById('cmtList');
+        Array.prototype.forEach.call(list.querySelectorAll('.cmtEmpty'), function(m){ m.remove(); });
+        list.insertBefore(_cmtRow(d.item), list.firstChild);
+        const n = (parseInt((document.getElementById('cmtCount').textContent.match(/\d+/) || [0])[0], 10) || 0) + 1;
+        _cmtCount(n);
+      }
+      showToast('💬 댓글을 남겼어요!');
+    }).catch(function(){ btn.disabled = false; showToast('⚠ 저장하지 못했어요.'); });
+}
+function delComment(id, li){
+  if(!confirm('이 댓글을 삭제할까요?')) return;
+  fetch('/api/comment/' + id, {method: 'DELETE'}).then(r=>r.json()).then(function(d){
+    if(d.error){ showToast('⚠ ' + d.error); return; }
+    li.remove();
+    const n = Math.max(0, (parseInt((document.getElementById('cmtCount').textContent.match(/\d+/) || [0])[0], 10) || 0) - 1);
+    _cmtCount(n); showToast('🧹 삭제했어요.');
+  }).catch(()=>showToast('⚠ 삭제하지 못했어요.'));
+}
+function reportComment(id, li){
+  if(!confirm('이 댓글을 신고할까요? 신고가 3번 쌓이면 자동으로 가려져요.')) return;
+  fetch('/api/comment/' + id + '/report', {method: 'POST'}).then(r=>r.json()).then(function(d){
+    if(d.error){ showToast('⚠ ' + d.error); return; }
+    showToast('🚨 신고했어요. 확인 후 조치할게요.');
+    li.querySelector('.cmtAct').textContent = '신고함'; li.querySelector('.cmtAct').disabled = true;
+  }).catch(()=>showToast('⚠ 신고하지 못했어요.'));
+}
+
 // ── ↺ [v121] 초기화 — 첫 화면으로 돌아가고 검색·결과·AI 칸을 모두 비운다 ──
 function resetAll(){
   CUR = null; CUR_PROMPT = null; AI_PENDING = null; _lastTried = null;
@@ -4427,14 +5030,14 @@ function resetAll(){
   document.getElementById('emptyState').style.display = 'block';
   if(location.search) history.replaceState(null, '', location.pathname);
   window.scrollTo({top: 0, behavior: 'smooth'});
-  loadRecentHistory(); loadStats(); loadVoteTop();
+  loadRecentHistory(); loadStats(); loadVoteTop(); rsLoad(true, true);
   searchInput.focus();
   showToast('↺ 초기화했어요.');
 }
 function clearRecent(){
   if(!confirm('이 브라우저의 최근 본 종목 기록을 모두 지울까요?')) return;
   fetch('/api/history', {method: 'DELETE'}).then(r=>r.json()).then(()=>{
-    RECENT = []; renderRecentChips(); showToast('🧹 최근 본 종목을 지웠어요.');
+    RECENT = []; renderRecentChips(); rsLoad(true, true); showToast('🧹 최근 본 종목을 지웠어요.');
   }).catch(()=>showToast('⚠ 지우지 못했어요.'));
 }
 
@@ -4871,7 +5474,7 @@ function _buildReportDom(){
   const clone = src.cloneNode(true);
   clone.style.display = 'block';
   clone.classList.remove('dim');
-  clone.querySelectorAll('button, textarea, .aiBtnRow, .aiHint, .shareLinkBox, .adSlot, .pasteHint, .termsLink, .voteCard, .finTabs, script')
+  clone.querySelectorAll('button, textarea, .aiBtnRow, .aiHint, .shareLinkBox, .adSlot, .pasteHint, .termsLink, .voteCard, .cmtCard, .finTabs, script')
     .forEach(el=>el.remove());
   // AI 답변이 없으면 빈 AI 카드는 빼고, 있으면 제목을 리포트용으로 바꾼다.
   clone.querySelectorAll('.card').forEach(card=>{
@@ -5314,6 +5917,14 @@ HELP_HTML = r"""
       <dd>"사고 싶어요 / 지켜볼래요 / 아직은 아니에요" 중 하나를 누르면 다른 이용자들의 선택과 함께 보여줍니다(최근 30일 기준).
         한 브라우저에서 종목마다 한 표이며, 같은 버튼을 다시 누르면 취소됩니다. 투표 결과는 참고용이며 투자 권유가 아닙니다.
         첫 화면의 "이번 주 매수 관심 TOP"은 최근 7일 동안 '사고 싶어요'를 많이 받은 종목입니다.</dd>
+      <dt>🕘 최근 종목</dt>
+      <dd>PC에서는 화면 오른쪽에, 휴대폰에서는 아래쪽 [🕘 최근 종목] 버튼을 누르면 나타납니다. "모두가 본"은 다른 이용자들이 최근
+        분석한 종목(누가 봤는지는 표시되지 않음), "내가 본"은 이 브라우저에서 본 종목입니다. 목록을 아래로 내리면 10개씩 더 나오고,
+        종목을 누르면 바로 분석됩니다. "내 기록 지우기"는 내가 본 목록만 지웁니다.</dd>
+      <dt>💬 종목 댓글</dt>
+      <dd>종목마다 익명으로 의견을 남길 수 있습니다(닉네임은 비워 두면 자동으로 정해집니다). 내가 쓴 댓글은 [삭제]할 수 있고,
+        부적절한 댓글은 [신고]하세요 — 신고가 3번 쌓이면 자동으로 가려집니다. 링크·단톡방 홍보·수익 인증 등은 올릴 수 없고,
+        도배를 막기 위해 20초에 한 번, 하루 30개까지 쓸 수 있습니다. 댓글은 개인 의견이며 투자 권유가 아닙니다.</dd>
       <dt>🌐 시세 출처</dt>
       <dd>시세는 기본적으로 네이버 증권에서 가져오고, 네이버가 응답하지 않으면 야후 파이낸스에서 대신 가져옵니다.
         야후 시세는 장중에 15~20분 늦을 수 있으며, 가격 아래 "시세 출처"에 표시됩니다. 이때 재무·뉴스 등 네이버 전용 정보는 일부 빠질 수 있습니다.</dd>
@@ -5353,6 +5964,8 @@ PRIVACY_HTML = r"""
   <div class="card"><h2>1. 수집하는 정보</h2><ul>
     <li><b>익명 식별 쿠키(anon_uid)</b> — 처음 방문할 때 브라우저에 저장되는 무작위 문자열입니다. 이름·이메일·전화번호 등 개인을 알아볼 수 있는 정보와 연결되지 않습니다.</li>
     <li><b>조회 기록</b> — 분석한 종목코드·종목명·시장·조회 시각을 위 익명 식별값과 함께 저장합니다.</li>
+    <li><b>종목 댓글</b> — 작성한 댓글 내용, 닉네임(입력한 경우), 작성 시각을 익명 식별값과 함께 저장하며 종목 화면에 공개됩니다. 내 댓글은 직접 삭제할 수 있고, 운영 원칙에 어긋나거나 신고가 쌓인 댓글은 숨기거나 삭제합니다. 개인정보(전화번호·계좌 등)는 적지 마세요.</li>
+    <li><b>최근 종목 목록</b> — "모두가 본" 목록에는 종목명·시장·몇 분 전인지만 표시되며, 누가 봤는지는 표시하지 않습니다.</li>
     <li><b>매력도 투표</b> — 종목별로 누른 선택(사고 싶어요/지켜볼래요/아직은)과 시각을 익명 식별값과 함께 저장하며, 다른 이용자에게는 합계만 보여줍니다.</li>
     <li><b>브라우저 저장소</b> — 이용 안내 동의 여부, 안내창 다시 보지 않기 설정을 이용자의 브라우저에만 저장합니다(서버로 전송하지 않음).</li>
   </ul><p>회원가입이 없으며, 이름·이메일·연락처 등은 수집하지 않습니다.</p></div>
