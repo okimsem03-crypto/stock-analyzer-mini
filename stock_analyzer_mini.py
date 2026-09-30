@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-📈 종목분석 미니 (공개판) — v124
+📈 종목분석 미니 (공개판) — v125
 ────────────────────────────────────────────────────────────────
 FinanceDataReader + 네이버 모바일 증권 API/FnGuide 공개 페이지만 사용합니다.
 KRX 로그인, DART API 키, 유료 AI API 키가 전혀 필요 없습니다.
@@ -211,6 +211,16 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
+🐛 v125: [원인 확정·수정] "네이버·야후·네이버2·네이버3 모두 TimeoutError(9.0s)" — 야후까지 동시에 실패한 건
+  야후 탓이 아니라 이 프로그램의 구조 문제였다(재현 확인). v119부터 외부 요청을 크기가 정해진 공용 스레드
+  풀(24개·16개)에서 돌렸는데, 네이버가 연결을 붙잡고 놓지 않으면 붙잡힌 스레드가 풀을 꽉 채워, 그 뒤로는
+  야후 요청조차 시작하지 못하고 전부 시간초과가 났다(서버가 재시작될 때까지 계속).
+  ① 공용 풀 제거 — 외부 요청마다 전용(데몬) 스레드. 붙잡혀도 다른 요청을 막지 않는다.
+  ② 주가 소스 "경주": 네이버를 시작하고 2.5초 안에 답이 없으면 야후를 동시에 시작, 먼저 성공한 쪽을 쓴다.
+     (각 소스 10초·전체 30초 제한) → 네이버가 붙잡아도 약 3초 만에 결과.
+  ③ 네이버를 한 덩어리로 판단: 네이버 어느 경로든 2번 늦거나 실패하면 3분간 네이버 전체를 건너뛰어 야후로 즉시.
+  ④ /api/diag도 전용 스레드·제한 시간 적용, DNS 조회 시간과 활성 스레드 수 표시.
+
 실행(로컬/데스크톱):  python stock_analyzer_mini.py
 실행(웹 서버, 예: Render):  gunicorn stock_analyzer_mini:app --bind 0.0.0.0:$PORT
 필요:  pip install flask finance-datareader pandas numpy requests beautifulsoup4
@@ -221,7 +231,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 
 exe 빌드(PyInstaller):
   pip install pyinstaller pywebview
-  pyinstaller --onefile --noconsole --name "종목분석미니_v124" stock_analyzer_mini.py
+  pyinstaller --onefile --noconsole --name "종목분석미니_v125" stock_analyzer_mini.py
   (--noconsole은 창 앱 모드일 때만 권장 — 콘솔 로그로 문제를 확인하려면 빼고 빌드하세요)
   빌드된 exe와 같은 폴더에 mini_tickers.db 캐시 파일이 자동 생성됩니다.
 
@@ -236,7 +246,7 @@ GitHub 자동 업데이트를 쓰려면(선택, exe 전용 — 웹 배포 모드
 
 import os, sys, math, re, sqlite3, threading, socket, webbrowser, time, subprocess, uuid, gzip
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, Future, TimeoutError as FuturesTimeoutError
+from concurrent.futures import Future
 from datetime import datetime, timedelta
 
 # 🩺 [v123] 서버(gunicorn)에서 print가 버퍼에 갇혀 Render 로그에 안 보이던 문제 — 줄 단위로 바로 내보낸다.
@@ -273,7 +283,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v124"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v125"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -292,7 +302,7 @@ APP_VERSION_HARDCODED = "v124"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v124"
+HELP_CONTENT_ASOF = "v125"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -1042,7 +1052,23 @@ def _http_fast():
     return s
 
 
-_POOL = ThreadPoolExecutor(max_workers=24, thread_name_prefix="fetch")
+def _bg(fn, *args):
+    """🐛 [v125] 외부 요청은 공용 스레드 풀이 아니라 "요청마다 전용 스레드"에서 돌린다.
+       v119~v124는 크기가 정해진 풀(24개·16개)을 썼는데, 네이버가 연결을 붙잡고 놓지 않으면 그 스레드들이
+       풀을 꽉 채워 — 이후에는 야후는 물론 어떤 요청도 시작조차 못 하고 전부 시간초과로 실패했다(재현 확인:
+       네이버가 붙잡는 상태에서 3번째 분석 이후 서버가 재시작 전까지 계속 실패). 전용 데몬 스레드는
+       붙잡혀도 다른 요청을 막지 않고, 결과는 concurrent.futures.Future로 돌려준다."""
+    f = Future()
+
+    def run():
+        if not f.set_running_or_notify_cancel():
+            return
+        try:
+            f.set_result(fn(*args))
+        except BaseException as e:
+            f.set_exception(e)
+    threading.Thread(target=run, daemon=True, name=f"bg-{getattr(fn, '__name__', 'task')}").start()
+    return f
 _CACHE = {}
 _CACHE_LOCK = threading.Lock()
 FNGUIDE_WAIT_SEC = 2.5      # 매출 구성(FnGuide)이 이보다 늦으면 이번 화면에선 생략(끝나면 캐시에 저장)
@@ -1210,19 +1236,19 @@ def _fetch_all_parallel(ticker, need_price=True):
     t0 = time.time()
     PRICE_LAST_ERRORS.pop(ticker, None)
     cached_price = _cache_get(("price", ticker)) if need_price else None   # 🩺 [v124] 지난번 늦게 끝난 결과
-    f_price = (_POOL.submit(lambda: cached_price) if cached_price else _POOL.submit(get_price_data, ticker)) \
+    f_price = (_bg(lambda: cached_price) if cached_price else _bg(get_price_data, ticker)) \
         if need_price else None
     # ⚡ [v122] 네이버가 최근 계속 실패 중이면 네이버 전용 정보(기본정보·재무·뉴스)는 요청하지 않는다
     # — 막힌 곳을 기다리느라 주가(야후)까지 늦어지지 않게. 캐시에 남은 재무는 그대로 쓴다.
     skip_naver = _naver_unhealthy()
-    noop = _POOL.submit(lambda: None)
-    f_basic = noop if skip_naver else _POOL.submit(_naver_mobile_basic, ticker)
-    f_integ = noop if skip_naver else _POOL.submit(_naver_mobile_integration, ticker)
+    noop = _bg(lambda: None)
+    f_basic = noop if skip_naver else _bg(_naver_mobile_basic, ticker)
+    f_integ = noop if skip_naver else _bg(_naver_mobile_integration, ticker)
     rev = _cache_get(("rev", ticker))
-    f_rev = None if (rev is not None or skip_naver) else _POOL.submit(_fnguide_revenue, ticker)
-    f_fin_a = _POOL.submit(_naver_finance, ticker, "annual")      # 📑 [v121] (캐시 있으면 즉시)
-    f_fin_q = _POOL.submit(_naver_finance, ticker, "quarter")
-    f_news = noop if skip_naver else _POOL.submit(_naver_news, ticker)   # 📰 [v121]
+    f_rev = None if (rev is not None or skip_naver) else _bg(_fnguide_revenue, ticker)
+    f_fin_a = _bg(_naver_finance, ticker, "annual")      # 📑 [v121] (캐시 있으면 즉시)
+    f_fin_q = _bg(_naver_finance, ticker, "quarter")
+    f_news = noop if skip_naver else _bg(_naver_news, ticker)   # 📰 [v121]
 
     def _res(f, timeout):
         try:
@@ -1244,15 +1270,18 @@ def _fetch_all_parallel(ticker, need_price=True):
         f_price.add_done_callback(_keep)
     # 주가를 야후에서 받았다면 네이버가 불안정하다는 뜻 — 부가정보는 최대 3초만 더 기다린다.
     naver_slow = bool(f_price) and PRICE_LAST_SOURCE.get(ticker) == "yahoo"
-    deadline = time.time() + (3 if naver_slow else 10)
+    deadline = time.time() + (1.5 if naver_slow else 10)   # 🐛 [v125] 네이버가 느린 게 확인되면 1.5초만
     left = lambda: deadline - time.time()
     basic = _res(f_basic, left())
     integ = _res(f_integ, left())
+    if not skip_naver and not (f_basic.done() and f_integ.done()):
+        _src_report("naver", False)       # 🐛 [v125] 네이버 기본정보가 제시간에 안 옴 → 네이버 전체 상태에 반영
     if f_rev is not None:
         rev = _res(f_rev, min(left(), max(0.2, FNGUIDE_WAIT_SEC - (time.time() - t0)))) or ""
     rev = rev or ""
-    extra = {"fin_annual": _res(f_fin_a, left() + 2), "fin_quarter": _res(f_fin_q, left() + 2),
-             "news": _res(f_news, left() + 2) or [],
+    grace = 0 if naver_slow else 2
+    extra = {"fin_annual": _res(f_fin_a, left() + grace), "fin_quarter": _res(f_fin_q, left() + grace),
+             "news": _res(f_news, left() + grace) or [],
              "partial": skip_naver or naver_slow, "price_source": PRICE_LAST_SOURCE.get(ticker)}
     return price, basic, integ, rev, extra
 
@@ -1443,11 +1472,11 @@ def _v(x, default=None):
 #   ③ fchart XML 직접 호출(8초 제한)
 # 어느 쪽이든 같은 모양의 표(Open·High·Low·Close·Volume, 날짜 인덱스)로 맞춰 넘긴다.
 # ══════════════════════════════════════════════════════════════
-_FDR_POOL = ThreadPoolExecutor(max_workers=6, thread_name_prefix="fdr")
 # 🩺 [v124] 소스 하나를 부를 때의 "전체" 시간 제한. requests의 timeout은 '한 번 기다리는 시간'이라
-# 서버가 조금씩 찔끔찔끔 보내면 끝없이 늘어질 수 있다 — 별도 스레드에서 돌리고 이 시간이 지나면 포기한다.
-_SRC_POOL = ThreadPoolExecutor(max_workers=16, thread_name_prefix="src")
-SRC_DEADLINE_SEC = 9
+# 서버가 조금씩 찔끔찔끔 보내면 끝없이 늘어질 수 있다 — 전용 스레드에서 돌리고 이 시간이 지나면 포기한다.
+SRC_DEADLINE_SEC = 10
+HEDGE_SEC = 2.5          # 🐛 [v125] 앞 소스가 이 시간 안에 답이 없으면 다음 소스를 "동시에" 시작
+PRICE_TOTAL_SEC = 30     # 주가 확보 전체 제한
 PRICE_LAST_SOURCE = {}   # 종목별로 마지막에 성공한 소스(진단용)
 PRICE_LAST_ERRORS = {}   # 🩺 [v123] 종목별 마지막 실패 사유(화면 오류 문구·진단용)
 
@@ -1479,8 +1508,7 @@ def _ohlcv_naver_api(ticker, start):
 def _ohlcv_fdr(ticker, start):
     if not FDR_OK:
         return None
-    f = _FDR_POOL.submit(fdr.DataReader, ticker, start)
-    df = f.result(timeout=10)
+    df = fdr.DataReader(ticker, start)       # 시간 제한은 _fetch_ohlcv가 전용 스레드로 건다
     return df if (df is not None and not df.empty) else None
 
 
@@ -1568,13 +1596,20 @@ _SRC_HEALTH = {}
 _SRC_LOCK = threading.Lock()
 
 
+def _host_of(name):
+    """🐛 [v125] 네이버 서버들은 한 덩어리로 본다 — 하나가 붙잡으면 보통 다 같이 막히기 때문(서버 IP 단위 차단)."""
+    return "yahoo" if name == "yahoo" else "naver"
+
+
 def _src_ok(name):
+    name = _host_of(name)
     with _SRC_LOCK:
         h = _SRC_HEALTH.get(name)
         return not h or h.get("until", 0) < time.time()
 
 
 def _src_report(name, ok):
+    name = _host_of(name)
     now = time.time()
     with _SRC_LOCK:
         if ok:
@@ -1584,38 +1619,76 @@ def _src_report(name, ok):
         h["fails"] = [t for t in h["fails"] if now - t < 300] + [now]
         if len(h["fails"]) >= 2:
             if h["until"] < now:
-                print(f"[주가] 소스 '{name}' 연속 실패 — 3분 동안 뒤로 미룹니다")
+                print(f"[주가] '{name}' 연속 실패 — 3분 동안 건너뜁니다")
             h["until"] = now + 180
 
 
 def _naver_unhealthy():
     """네이버 주가 API가 최근 연속 실패 중이면 True — 이때는 재무·뉴스 등 네이버 전용 정보를 건너뛴다."""
-    return not _src_ok("naver_api")
+    return not _src_ok("naver")
 
 
 def _fetch_ohlcv(ticker, start):
-    """주가 소스를 차례로 시도해 처음 성공한 표를 돌려준다. 최근 계속 실패한 소스는 맨 뒤로 보내고,
-       실패 사유는 Render 로그에 남긴다."""
+    """🐛 [v125] 주가 소스 "경주" — 첫 소스를 시작하고, HEDGE_SEC(2.5초) 안에 답이 없으면 다음 소스를 동시에
+       시작한다. 가장 먼저 성공한 결과를 쓰고 나머지는 버린다. 각 소스는 전용 스레드 + SRC_DEADLINE_SEC 제한,
+       전체는 PRICE_TOTAL_SEC 제한. 네이버가 붙잡아도 약 3초 뒤 야후 결과로 끝나고, 붙잡힌 스레드가 다른
+       요청을 막지도 않는다. 최근 계속 실패한 곳(네이버 전체/야후)은 순서를 맨 뒤로 보낸다."""
+    import queue as _queue
     order = [x for x in _PRICE_SOURCES if _src_ok(x[0])] + [x for x in _PRICE_SOURCES if not _src_ok(x[0])]
-    errors = []
-    for name, fn in order:
+    q = _queue.Queue()
+    launched, pending, errors = {}, set(), []
+    t_all = time.time()
+
+    def launch(name, fn):
         t0 = time.time()
-        try:
+        launched[name] = t0
+        pending.add(name)
+
+        def run():
             try:
-                df = _SRC_POOL.submit(fn, ticker, start).result(timeout=SRC_DEADLINE_SEC)
-            except FuturesTimeoutError:
-                raise TimeoutError(f"{SRC_DEADLINE_SEC}초 안에 응답 없음")
+                q.put((name, fn(ticker, start), None, time.time() - t0))
+            except BaseException as e:
+                q.put((name, None, e, time.time() - t0))
+        threading.Thread(target=run, daemon=True, name=f"price-{name}").start()
+
+    idx, next_launch = 0, 0.0
+    while True:
+        now = time.time()
+        if now - t_all > PRICE_TOTAL_SEC:
+            break
+        # 제한 시간을 넘긴 소스는 실패로 처리(스레드는 버려두지만 다른 요청을 막지 않음)
+        for n in [n for n in pending if now - launched[n] > SRC_DEADLINE_SEC]:
+            pending.discard(n)
+            errors.append(f"{n}=TimeoutError({SRC_DEADLINE_SEC}s)")
+            _src_report(n, False)
+        if idx < len(order) and (not pending or now >= next_launch):
+            launch(*order[idx])
+            idx += 1
+            next_launch = time.time() + HEDGE_SEC
+            continue
+        if not pending and idx >= len(order):
+            break
+        try:
+            name, df, err, dt = q.get(timeout=0.2)
+        except _queue.Empty:
+            continue
+        if name not in pending:
+            continue                      # 이미 시간초과 처리한 소스가 늦게 도착 — 무시
+        pending.discard(name)
+        if err is None and df is not None and len(df) >= 2:
             _src_report(name, True)
-            if df is not None and len(df) >= 2:
-                PRICE_LAST_SOURCE[ticker] = name
-                if errors:
-                    print(f"[주가] {ticker}: {name}로 대체 성공 ({time.time()-t0:.1f}s) — 앞선 실패: {'; '.join(errors)}")
-                return df
-            errors.append(f"{name}=빈 데이터")
-        except Exception as e:
+            PRICE_LAST_SOURCE[ticker] = name
+            if errors or dt > HEDGE_SEC:
+                print(f"[주가] {ticker}: {name} 성공 ({dt:.1f}s) — 앞선 실패/지연: {'; '.join(errors) or '없음'}")
+            return df
+        if err is None:
+            errors.append(f"{name}=빈 데이터")   # 종목 탓(없는 코드 등) — 서버 상태에는 반영하지 않음
+        else:
             _src_report(name, False)
-            code = getattr(getattr(e, "response", None), "status_code", None)
-            errors.append(f"{name}={'HTTP ' + str(code) if code else type(e).__name__}({time.time()-t0:.1f}s)")
+            code = getattr(getattr(err, "response", None), "status_code", None)
+            errors.append(f"{name}={'HTTP ' + str(code) if code else type(err).__name__}({dt:.1f}s)")
+    for n in pending:
+        errors.append(f"{n}=TimeoutError({time.time() - launched[n]:.0f}s)")
     PRICE_LAST_ERRORS[ticker] = errors
     print(f"[주가] {ticker}: 모든 소스 실패 — {'; '.join(errors)}")
     return None
@@ -2640,7 +2713,7 @@ def api_diag():
     for name, fn in checks:
         t0 = time.time()
         try:
-            v = fn()
+            v = _bg(fn).result(timeout=12)      # 🐛 [v125] 진단도 전용 스레드 + 12초 제한
             size = len(v) if hasattr(v, "__len__") else (1 if v else 0)
             out["checks"].append({"name": name, "ok": bool(v is not None and size), "ms": int((time.time()-t0)*1000),
                                   "size": size})
@@ -2659,16 +2732,26 @@ def api_diag():
     for name, url, hd in probes:
         t0 = time.time()
         try:
-            r = _http_fast().get(url, timeout=(3.05, 6), headers=hd)
+            r = _bg(lambda u=url, h=hd: _http_fast().get(u, timeout=(3.05, 6), headers=h)).result(timeout=10)
             out["probes"].append({"name": name, "status": r.status_code, "ms": int((time.time()-t0)*1000),
                                   "bytes": len(r.content), "head": r.text[:80].replace("\n", " ")})
         except Exception as e:
             out["probes"].append({"name": name, "status": None, "ms": int((time.time()-t0)*1000),
                                   "error": f"{type(e).__name__}: {str(e)[:120]}"})
     try:
-        out["server_ip"] = _http_fast().get("https://api.ipify.org", timeout=(3.05, 4)).text.strip()[:45]
+        out["server_ip"] = _bg(lambda: _http_fast().get("https://api.ipify.org", timeout=(3.05, 4)).text.strip()[:45]).result(timeout=6)
     except Exception:
         out["server_ip"] = None
+    # 🐛 [v125] DNS(주소 찾기) 시간 — requests의 timeout은 DNS에는 적용되지 않아 여기서 멈출 수도 있다
+    out["dns"] = []
+    for host in ("api.stock.naver.com", "m.stock.naver.com", "query1.finance.yahoo.com"):
+        t0 = time.time()
+        try:
+            addrs = _bg(lambda h=host: sorted({a[4][0] for a in socket.getaddrinfo(h, 443)})).result(timeout=6)
+            out["dns"].append({"host": host, "ms": int((time.time()-t0)*1000), "addrs": addrs[:4]})
+        except Exception as e:
+            out["dns"].append({"host": host, "ms": int((time.time()-t0)*1000), "error": type(e).__name__})
+    out["threads"] = threading.active_count()
     out["last_price_errors"] = dict(list(PRICE_LAST_ERRORS.items())[-10:])
     out["python"] = sys.version.split()[0]
     out["pandas"] = pd.__version__
