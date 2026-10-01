@@ -211,6 +211,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
+✨ v135 — 관리자 전용 메뉴 '거래정지·상폐'(후보 스캔·AI 수동/자동 검증·관리자 확정), 프롬프트 편집·AI 강화, 메뉴 공개/관리자 전용 설정, 관리자 로그인 표시.
 ✨ v134 — 관리자 콘솔(Ctrl+Shift+A 또는 /admin): 관리자 이메일로 받은 일회용 코드로만 로그인(요청 제한·잠금·세션·CSRF·보안 기록·로그인 알림 메일).
 ✨ v133 — 기업개요 이력 저장: 누군가 AI 분석을 붙여넣으면 그 [1. 기업 소개]를 DB에 저장하고, 같은 종목을 여는 다른 이용자에게는 바로 보여줌(운영자 /admin/overviews 에서 삭제).
 ✨ v132 — DB 연결 주소(DATABASE_URL)에 따옴표·channel_binding 등이 섞여 있어도 자동 정리해 연결.
@@ -315,7 +316,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v134"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v135"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -334,7 +335,7 @@ APP_VERSION_HARDCODED = "v134"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v134"
+HELP_CONTENT_ASOF = "v135"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -4213,13 +4214,17 @@ nav button.on{background:#0f172a;color:#fff;border-color:#0f172a}
 .k small{display:block;color:#64748b;font-size:11.5px}.k b{font-size:20px}table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:12px;overflow:hidden}
 td,th{padding:7px 9px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top;word-break:break-all}th{background:#f8fafc}.bad{color:#b91c1c;font-weight:700}.good{color:#15803d;font-weight:700}
 .note{font-size:12.5px;color:#64748b;margin:6px 0}#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0f172a;color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;display:none}
+.bt{border:none;background:#0f172a;color:#fff;border-radius:8px;padding:8px 13px;font-size:13px;cursor:pointer}.bt2{border:1px solid #94a3b8;background:#fff;color:#0f172a;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+.bt3{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer}.bt:disabled{opacity:.45}
+th{white-space:nowrap}.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}.bar input,.bar select{border:1px solid #cbd5e1;border-radius:8px;padding:7px 9px;font-size:13px;background:#fff}
+textarea{border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-size:12.5px;font-family:inherit;line-height:1.5}
 </style></head><body>
 <header><b>🛠 종목분석 미니 관리자 <span id="ver" style="font-weight:400;opacity:.7"></span></b>
 <button id="lo">로그아웃</button><button id="loall" class="red">모든 세션 종료</button></header>
 <div class="w"><nav id="nav"></nav><div id="pane"></div></div><div id="toast"></div>
 <script nonce="{{ nonce }}">
 var CSRF="{{ csrf }}";var cur='sum';
-var TABS=[['sum','요약'],['cmt','댓글'],['ovw','기업개요'],['log','보안 기록']];
+var TABS=[['sum','요약'],['dl','🚫 거래정지·상폐'],['pr','✍ 프롬프트'],['mn','⚙ 메뉴·설정'],['cmt','댓글'],['ovw','기업개요'],['log','보안 기록']];
 function $(i){return document.getElementById(i)}
 function el(t,cls,txt){var e=document.createElement(t);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
 function toast(t){var x=$('toast');x.textContent=t;x.style.display='block';setTimeout(function(){x.style.display='none'},2200)}
@@ -4240,13 +4245,1200 @@ function load(){var p=$('pane');p.textContent='불러오는 중…';
   d.rows.forEach(function(r){var c=el('div','c');c.appendChild(el('div','m',r.name+'('+r.ticker+') · '+r.saved_at));c.appendChild(el('div','b',r.body));
    var b=el('button','del','삭제');b.onclick=function(){if(!confirm('저장된 개요를 삭제할까요?'))return;api('/admin/api/overview/'+r.ticker+'/delete',1).then(function(j){if(j.ok){c.remove();toast('삭제했어요')}else toast(j.error||'실패')})};c.appendChild(b);p.appendChild(c)});
   if(!d.rows.length)p.appendChild(el('p','note','아직 저장된 개요가 없어요.'))});
+ else if(cur==='dl')dlLoad(p);else if(cur==='pr')prLoad(p);else if(cur==='mn')mnLoad(p);
  else api('/admin/api/log').then(function(d){p.innerHTML='';p.appendChild(el('p','note','최근 80건 · 모르는 IP의 login_ok 가 있으면 바로 [모든 세션 종료]를 누르고 환경변수를 점검하세요.'));
   var t=el('table');var h=el('tr');['시각(KST)','이벤트','IP','브라우저','내용'].forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
   d.rows.forEach(function(r){var tr=el('tr');[r.at,r.event,r.ip,(r.ua||'').slice(0,50),r.detail||''].forEach(function(x,i){var td=el('td',i===1&&/fail|blocked|lock/.test(x)?'bad':(i===1&&x==='login_ok'?'good':''),x);tr.appendChild(td)});t.appendChild(tr)});p.appendChild(t)})}
 $('lo').onclick=function(){api('/admin/auth/logout',1).then(function(){location.replace('/admin')})};
 $('loall').onclick=function(){if(!confirm('이 브라우저를 포함해 모든 관리자 로그인을 끝낼까요?'))return;api('/admin/auth/logout-all',1).then(function(){location.replace('/admin')})};
+/* ── v135: 거래정지·상폐 / 프롬프트 / 메뉴·설정 ── */
+function apiJ(u,obj){return fetch(u,{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':CSRF,'Content-Type':'application/json'},body:JSON.stringify(obj||{})}).then(function(r){
+  if(r.status===401){location.replace('/admin');throw 0}return r.json()})}
+function bt(txt,cls,fn){var b=el('button',cls||'bt',txt);b.onclick=fn;return b}
+function copyTxt(t){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast('복사했어요')},function(){fbCopy(t)})}else fbCopy(t)}
+function fbCopy(t){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');toast('복사했어요')}catch(e){toast('복사하지 못했어요 — 직접 선택해 복사하세요')}a.remove()}
+function poll(job,onTick,onEnd){var t=setInterval(function(){api('/admin/api/job/'+job).then(function(j){onTick(j);if(j.status!=='running'){clearInterval(t);onEnd(j)}}).catch(function(){clearInterval(t)})},2500)}
+var KIND={halt:'거래정지 의심',delist:'상폐·정리매매 의심',manual:'직접 추가',caution:'동전주'};
+
+/* ── 거래정지·상폐 ── */
+var DL={rows:[],f:{kind:'',st:'',q:''},sel:{},meta:null,timer:null};
+function dlLoad(p){
+ api('/admin/api/delist/list').then(function(d){
+  if(cur!=='dl')return;DL.rows=d.rows;DL.meta=d;p.innerHTML='';
+  var top=el('div','c');
+  var pub=el('div','note');pub.appendChild(el('b',null,'이 메뉴는 지금 '+(d.public?'🌐 공개 중':'🔒 관리자 전용')+'입니다. '));
+  pub.appendChild(document.createTextNode(d.public?'일반 이용자는 "확정"한 종목만 볼 수 있어요.':'일반 이용자에게는 보이지 않아요.'));
+  pub.appendChild(bt(d.public?'비공개로 전환':'공개로 전환','bt2',function(){if(!confirm(d.public?'일반 이용자에게서 이 메뉴를 숨길까요?':'이 메뉴를 공개할까요? 공개되면 \'확정\'한 종목만 일반 이용자에게 보입니다.'))return;apiJ('/admin/api/settings',{menu_delist_public:d.public?'0':'1'}).then(function(){toast('바꿨어요');load()})}));
+  top.appendChild(pub);
+  var ls=d.last_scan||{};var info=el('div','note','검사 대상 '+d.universe+'종목'+(ls.finished?' · 마지막 스캔 '+new Date(ls.finished*1000).toLocaleString('ko-KR')+' (응답 '+ls.ok+'/'+ls.total+', 후보 '+ls.flagged+')':' · 아직 스캔한 적 없어요'));
+  top.appendChild(info);
+  var st=el('div','note');st.id='dlst';top.appendChild(st);
+  var row=el('div','bar');
+  var sb=bt('🔎 후보 스캔 시작','bt',function(){if(!confirm('네이버에서 전 종목의 거래 상태를 확인합니다(수 분 걸려요). 계속할까요?'))return;apiJ('/admin/api/delist/scan',{}).then(function(j){if(j.error)toast(j.error);else{toast('스캔을 시작했어요');DL._wasRunning=true;dlWatch()}})});
+  row.appendChild(sb);row.appendChild(bt('중단','bt2',function(){apiJ('/admin/api/delist/scan-cancel',{}).then(function(){toast('중단 요청')})}));
+  var ai=el('input');ai.placeholder='종목코드 6자리 직접 추가';ai.maxLength=6;ai.style.width='170px';row.appendChild(ai);
+  row.appendChild(bt('추가','bt2',function(){apiJ('/admin/api/delist/add',{ticker:ai.value}).then(function(j){if(j.error)toast(j.error);else{toast(j.name+' 추가');load()}})}));
+  top.appendChild(row);p.appendChild(top);
+  /* 필터 */
+  var fb=el('div','bar');
+  var k=el('select');[['','종류: 전체'],['halt','거래정지 의심'],['delist','상폐·정리매매 의심'],['manual','직접 추가'],['caution','동전주']].forEach(function(o){var x=el('option',null,o[1]);x.value=o[0];k.appendChild(x)});k.value=DL.f.kind;k.onchange=function(){DL.f.kind=k.value;dlTable()};fb.appendChild(k);
+  var s=el('select');[['','상태: 전체'],['todo','미검증'],['ai','AI 검증됨'],['confirmed','확정'],['excluded','제외']].forEach(function(o){var x=el('option',null,o[1]);x.value=o[0];s.appendChild(x)});s.value=DL.f.st;s.onchange=function(){DL.f.st=s.value;dlTable()};fb.appendChild(s);
+  var q=el('input');q.placeholder='종목명·코드 검색';q.value=DL.f.q;q.oninput=function(){DL.f.q=q.value;dlTable()};fb.appendChild(q);p.appendChild(fb);
+  /* 일괄 작업 */
+  var ab=el('div','bar');
+  ab.appendChild(bt('📋 AI 검증 프롬프트 만들기(수동)','bt',function(){dlManual()}));
+  var auto=bt('🤖 AI 자동 검증(서버 키)','bt',function(){dlAuto()});ab.appendChild(auto);
+  ab.appendChild(bt('✔ 확정','bt2',function(){dlMark('confirmed')}));ab.appendChild(bt('✖ 제외','bt2',function(){dlMark('excluded')}));ab.appendChild(bt('↺ 상태 해제','bt2',function(){dlMark('')}));
+  ab.appendChild(el('span','note','선택한 종목이 없으면 "아직 AI 검증 안 한 후보" 전체(최대 150개)를 대상으로 합니다.'));
+  p.appendChild(ab);
+  var panel=el('div');panel.id='dlpanel';p.appendChild(panel);
+  var tb=el('div');tb.id='dltb';p.appendChild(tb);dlTable();dlWatch(true);
+ })}
+function dlWatch(quiet){
+ if(DL.timer)clearInterval(DL.timer);
+ function tick(){if(cur!=='dl'||!$('dlst')){clearInterval(DL.timer);return}
+  api('/admin/api/delist/scan-status').then(function(s){var e=$('dlst');if(!e)return;
+   if(s.running){e.textContent='⏳ 스캔 중… '+s.done+' / '+s.total+' (후보 확인 중, 응답 '+s.ok+')';e.className='note'}
+   else{e.textContent=s.error?'⚠ '+s.error:(s.total?'✅ 스캔 끝 — '+s.total+'종목 중 응답 '+s.ok+', 후보 '+s.flagged:'');e.className='note'+(s.error?' bad':'');
+    if(DL.timer&&DL._wasRunning){DL._wasRunning=false;clearInterval(DL.timer);load();return}}
+   DL._wasRunning=s.running})}
+ tick();DL.timer=setInterval(tick,2500)}
+function dlVisible(){var f=DL.f;return DL.rows.filter(function(r){
+  if(f.kind&&r.kind!==f.kind)return false;
+  if(f.st==='todo'&&(r.ai_verdict||r.admin_state))return false;
+  if(f.st==='ai'&&!r.ai_verdict)return false;
+  if(f.st==='confirmed'&&r.admin_state!=='confirmed')return false;
+  if(f.st==='excluded'&&r.admin_state!=='excluded')return false;
+  if(f.q&&(r.name+r.ticker).indexOf(f.q)<0)return false;return true})}
+function dlTable(){var box=$('dltb');if(!box)return;box.innerHTML='';var rows=dlVisible();
+ box.appendChild(el('p','note',rows.length+'개 표시 (전체 '+DL.rows.length+'개) · 자동 신호는 틀릴 수 있어요. AI 검증과 공시 확인 뒤에 확정하세요.'));
+ if(!rows.length){box.appendChild(el('p','note','표시할 종목이 없어요. [후보 스캔 시작]을 눌러 보세요.'));return}
+ var t=el('table'),h=el('tr');var all=el('input');all.type='checkbox';all.onchange=function(){rows.forEach(function(r){if(all.checked)DL.sel[r.ticker]=1;else delete DL.sel[r.ticker]});dlTable()};var th0=el('th');th0.appendChild(all);h.appendChild(th0);
+ ['종목','종류 · 자동 신호','AI 판정','내 결정',''].forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
+ rows.forEach(function(r){var tr=el('tr');var c=el('td');var cb=el('input');cb.type='checkbox';cb.checked=!!DL.sel[r.ticker];cb.onchange=function(){if(cb.checked)DL.sel[r.ticker]=1;else delete DL.sel[r.ticker]};c.appendChild(cb);tr.appendChild(c);
+  var n=el('td');n.style.cssText='min-width:130px;word-break:keep-all';n.appendChild(el('b',null,r.name));n.appendChild(el('div','m',r.ticker+' · '+(r.market||'')+(r.price?' · '+r.price.toLocaleString()+'원':'')));tr.appendChild(n);
+  var s=el('td');s.appendChild(el('div',null,KIND[r.kind]||r.kind));(r.signals||[]).forEach(function(x){s.appendChild(el('div','m',x))});tr.appendChild(s);
+  var a=el('td');if(r.ai_verdict){a.appendChild(el('b',/정상|확인불가/.test(r.ai_verdict)?'':'bad',r.ai_verdict));a.appendChild(el('div','m',(r.ai_basis||'')+(r.ai_date?' ('+r.ai_date+')':'')));if(r.ai_source)a.appendChild(el('div','m','출처: '+r.ai_source));a.appendChild(el('div','m',(r.ai_mode==='auto'?'자동':'수동')+' · '+r.ai_at))}else a.appendChild(el('span','m','—'));tr.appendChild(a);
+  var m=el('td');if(r.admin_state==='confirmed')m.appendChild(el('b','good','확정: '+r.admin_label));else if(r.admin_state==='excluded')m.appendChild(el('span','m','제외'));else m.appendChild(el('span','m','—'));if(r.admin_note)m.appendChild(el('div','m',r.admin_note));tr.appendChild(m);
+  var g=el('td');g.appendChild(bt('원본','bt3',function(){dlRaw(r.ticker)}));tr.appendChild(g);t.appendChild(tr)});
+ box.appendChild(t)}
+function dlRaw(tk){var pn=$('dlpanel');api('/admin/api/delist/diag/'+tk).then(function(j){pn.innerHTML='';var c=el('div','c');c.appendChild(el('div','m',tk+' — 네이버가 보내 준 기본정보 원본(자동 신호가 맞는지 확인용)'));var pre=el('pre',null,j.raw||j.error||'');pre.style.cssText='white-space:pre-wrap;font-size:11.5px;max-height:260px;overflow:auto';c.appendChild(pre);c.appendChild(bt('닫기','bt3',function(){pn.innerHTML=''}));pn.appendChild(c);pn.scrollIntoView()})}
+function dlSelList(){return Object.keys(DL.sel)}
+function dlMark(state){var tk=dlSelList();if(!tk.length){toast('먼저 종목을 체크하세요');return}
+ var label='',note='';
+ if(state==='confirmed'){var opts=DL.meta.public_labels;label=prompt('확정할 상태를 입력하세요: '+opts.join(' / '),'');if(!label)return;label=label.trim();if(opts.indexOf(label)<0){toast('목록 중 하나를 정확히 입력하세요');return}
+  note=prompt('공개 화면에 보일 메모(선택, 120자까지)','')||''}
+ else if(!confirm(tk.length+'개 종목을 '+(state==='excluded'?'목록에서 제외':'상태 해제')+'할까요?'))return;
+ apiJ('/admin/api/delist/mark',{tickers:tk,state:state,label:label,note:note}).then(function(j){if(j.error)toast(j.error);else{DL.sel={};toast(j.n+'개 처리했어요');load()}})}
+function dlManual(){var tk=dlSelList();var pn=$('dlpanel');pn.innerHTML='만드는 중…';
+ apiJ('/admin/api/delist/ai-prompt',{tickers:tk}).then(function(j){pn.innerHTML='';if(j.error){pn.appendChild(el('p','note bad',j.error));return}
+  var c=el('div','c');c.appendChild(el('b',null,'수동 AI 검증 — '+j.total+'개 종목, 프롬프트 '+j.chunks.length+'개'));
+  c.appendChild(el('p','note','① 아래 프롬프트를 하나씩 복사해 웹검색이 되는 AI(ChatGPT·Gemini·Claude 등)에 붙여넣으세요. ② 답변 전체를 맨 아래 칸에 붙여넣고 [미리보기] → [저장]을 누르세요. 프롬프트가 여러 개면 한 번에 하나씩 반복합니다.'));
+  j.chunks.forEach(function(ch){var r=el('div','bar');r.appendChild(el('span',null,ch.n+'번 · '+ch.count+'종목'));r.appendChild(bt('복사','bt',function(){copyTxt(ch.prompt)}));var v=bt('보기','bt3',function(){var x=this.nextSibling;x.style.display=x.style.display==='none'?'block':'none'});r.appendChild(v);var ta=el('textarea');ta.readOnly=true;ta.value=ch.prompt;ta.style.display='none';ta.rows=10;r.appendChild(ta);c.appendChild(r)});
+  var pa=el('textarea');pa.placeholder='AI의 답변을 여기에 붙여넣기';pa.rows=8;c.appendChild(pa);
+  var out=el('div');var r2=el('div','bar');
+  r2.appendChild(bt('미리보기','bt2',function(){apiJ('/admin/api/delist/ai-paste',{text:pa.value,dry:true}).then(function(x){dlPreview(out,x,false)})}));
+  r2.appendChild(bt('저장','bt',function(){apiJ('/admin/api/delist/ai-paste',{text:pa.value}).then(function(x){dlPreview(out,x,true);toast((x.applied||0)+'건 저장');DL.sel={};setTimeout(load,1200)})}));
+  c.appendChild(r2);c.appendChild(out);pn.appendChild(c);pn.scrollIntoView()})}
+function dlPreview(out,x,saved){out.innerHTML='';out.appendChild(el('p','note',(saved?'저장 결과: ':'읽은 결과: ')+x.rows.length+'줄 · 목록에 있는 종목 '+x.known+'개'+(x.bad?' · 판정을 못 읽은 줄 '+x.bad:'')+(x.rows.length?'':' — "종목코드|판정|근거|기준일|출처" 형식의 줄이 없어요.')));
+ if(!x.rows.length)return;var t=el('table'),h=el('tr');['종목','판정','근거','기준일','출처'].forEach(function(y){h.appendChild(el('th',null,y))});t.appendChild(h);
+ x.rows.forEach(function(r){var tr=el('tr');[(r.name||'(목록에 없음)')+' '+r.ticker,r.verdict,r.basis,r.date,r.source].forEach(function(y,i){tr.appendChild(el('td',i===0&&!r.known?'bad':'',y))});t.appendChild(tr)});out.appendChild(t)}
+function dlAuto(){var tk=dlSelList();if(!confirm('서버의 AI API 키로 '+(tk.length?tk.length+'개':'아직 검증 안 한 후보 전체(최대 150개)')+'를 검증합니다. 사용량(비용)이 발생할 수 있어요. 계속할까요?'))return;
+ var pn=$('dlpanel');apiJ('/admin/api/delist/ai-auto',{tickers:tk}).then(function(j){if(j.error){toast(j.error);return}
+  pn.innerHTML='';var c=el('div','c');var msg=el('div','note','⏳ AI 검증 중… ('+j.n+'개)');c.appendChild(msg);pn.appendChild(c);
+  poll(j.job,function(s){msg.textContent='⏳ AI 검증 중… '+s.done+' / '+s.total+' 묶음'},function(s){
+   msg.textContent=(s.status==='done'?'✅ 끝 — '+s.result.applied+'건 저장':'⚠ 오류로 멈췄어요')+(s.msg?' · '+s.msg:'');
+   s.errors.forEach(function(e){c.appendChild(el('div','m bad',e))});c.appendChild(bt('목록 새로고침','bt2',function(){load()}))})})}
+
+/* ── 프롬프트 ── */
+function prLoad(p){api('/admin/api/prompts').then(function(d){if(cur!=='pr')return;p.innerHTML='';
+ p.appendChild(el('p','note','AI에게 보내는 문구를 직접 고치거나, AI의 도움으로 더 좋게 만들 수 있어요. 고친 내용은 저장하기 전에는 적용되지 않고, 저장하면 이력이 남아 언제든 되돌릴 수 있어요.'));
+ d.prompts.forEach(function(pr){var c=el('div','c');c.appendChild(el('b',null,pr.title+(pr.custom?'  · 수정됨':'  · 기본값')));c.appendChild(el('div','m',pr.desc));c.appendChild(el('div','m','자리표시자: '+pr.vars));
+  var ta=el('textarea');ta.value=pr.body;ta.rows=14;ta.style.width='100%';c.appendChild(ta);
+  var cnt=el('div','m');function upd(){cnt.textContent=ta.value.length.toLocaleString()+'자 (허용 '+pr.min+'~'+pr.max.toLocaleString()+')'}ta.oninput=upd;upd();c.appendChild(cnt);
+  var bar=el('div','bar');
+  bar.appendChild(bt('저장','bt',function(){apiJ('/admin/api/prompt/'+pr.key,{body:ta.value,note:'직접 수정'}).then(function(j){if(j.error)toast(j.error);else{toast('저장했어요');prLoad(p)}})}));
+  bar.appendChild(bt('기본값으로 되돌리기','bt2',function(){if(!confirm('기본 문구로 되돌릴까요? (이력에는 남아요)'))return;apiJ('/admin/api/prompt/'+pr.key+'/reset',{}).then(function(){toast('되돌렸어요');prLoad(p)})}));
+  bar.appendChild(bt('이력','bt3',function(){prHist(pr.key,ta,c)}));
+  if(pr.key==='delist_verify'){bar.appendChild(bt('샘플 미리보기','bt3',function(){apiJ('/admin/api/delist/ai-prompt',{body:ta.value,tickers:Object.keys(DL.sel||{}).slice(0,3)}).then(function(j){if(j.error){toast(j.error);return}var o=c.querySelector('.pv');if(o)o.remove();var x=el('pre','pv',j.chunks[0].prompt);x.style.cssText='white-space:pre-wrap;font-size:11.5px;max-height:240px;overflow:auto;background:#f8fafc;padding:8px;border-radius:8px';c.appendChild(x)})}))}
+  c.appendChild(bar);
+  if(pr.key!=='prompt_enhance'){
+   var eb=el('div','c');eb.style.background='#faf5ff';eb.appendChild(el('b',null,'✨ AI로 프롬프트 강화'));
+   var goal=el('textarea');goal.placeholder='어떻게 좋게 만들고 싶은지 적어 주세요(예: 확인불가 비율을 줄이고, 거래정지 사유를 더 구체적으로 쓰게). 비워도 돼요.';goal.rows=2;goal.style.width='100%';eb.appendChild(goal);
+   var r=el('div','bar');var out=el('div');
+   r.appendChild(bt('📋 AI에 보낼 요청문 만들기(수동)','bt2',function(){apiJ('/admin/api/prompt/'+pr.key+'/enhance',{goal:goal.value,body:ta.value}).then(function(j){if(j.error){toast(j.error);return}prEnhManual(out,pr.key,j.request,ta,upd)})}));
+   var au=bt('🤖 서버 AI로 바로 강화(자동)','bt2',function(){if(!d.provider){toast('서버에 AI API 키가 없어요 — 수동 방식을 쓰세요');return}apiJ('/admin/api/prompt/'+pr.key+'/enhance',{goal:goal.value,body:ta.value,mode:'auto'}).then(function(j){if(j.error){toast(j.error);return}out.innerHTML='';var m=el('div','note','⏳ AI가 개선안을 만드는 중…');out.appendChild(m);poll(j.job,function(){},function(s){if(s.status!=='done'){m.textContent='⚠ '+(s.errors[0]||'실패');return}m.textContent='';prEnhShow(out,s.result,ta,upd)})})});
+   if(!d.provider)au.title='서버에 AI API 키가 없어요';r.appendChild(au);eb.appendChild(r);eb.appendChild(out);c.appendChild(eb)}
+  p.appendChild(c)})})}
+function prEnhManual(out,key,req,ta,upd){out.innerHTML='';out.appendChild(el('p','note','① 아래 요청문을 복사해 AI(ChatGPT·Gemini·Claude 등)에 붙여넣고 ② 답변 전체를 아래 칸에 붙여넣은 뒤 [개선안 보기]를 누르세요.'));
+ var b=el('div','bar');b.appendChild(bt('요청문 복사','bt',function(){copyTxt(req)}));out.appendChild(b);
+ var pa=el('textarea');pa.placeholder='AI의 답변을 여기에 붙여넣기';pa.rows=6;pa.style.width='100%';out.appendChild(pa);var o2=el('div');
+ out.appendChild(bt('개선안 보기','bt2',function(){apiJ('/admin/api/prompt/'+key+'/enhance-parse',{text:pa.value}).then(function(j){prEnhShow(o2,j,ta,upd)})}));out.appendChild(o2)}
+function prEnhShow(out,j,ta,upd){out.innerHTML='';if(j.reasons){var r=el('div','note','개선한 점: '+j.reasons);r.style.whiteSpace='pre-wrap';out.appendChild(r)}
+ if(j.problem){out.appendChild(el('p','note bad','⚠ 이 개선안은 바로 쓸 수 없어요: '+j.problem+' (위 편집 칸에서 고친 뒤 저장하세요)'))}
+ var x=el('textarea');x.value=j.body||'';x.rows=10;x.style.width='100%';out.appendChild(x);
+ out.appendChild(bt('위 편집 칸에 채우기(저장은 따로)','bt2',function(){ta.value=x.value;upd();toast('편집 칸에 넣었어요 — 확인하고 [저장]을 누르세요')}))}
+function prHist(key,ta,c){api('/admin/api/prompt/'+key+'/history').then(function(j){var o=c.querySelector('.hv');if(o)o.remove();var w=el('div','hv');w.style.cssText='max-height:220px;overflow:auto';
+ j.rows.forEach(function(r){var l=el('div','bar');l.appendChild(el('span','m',r.at+' · '+r.body.length+'자 · '+(r.note||'')));l.appendChild(bt('편집 칸에 불러오기','bt3',function(){ta.value=r.body;ta.dispatchEvent(new Event('input'));toast('불러왔어요 — [저장]을 눌러야 적용돼요')}));w.appendChild(l)});
+ if(!j.rows.length)w.appendChild(el('p','note','아직 이력이 없어요.'));c.appendChild(w)})}
+
+/* ── 메뉴·설정 ── */
+function mnLoad(p){api('/admin/api/settings').then(function(d){if(cur!=='mn')return;p.innerHTML='';
+ var c=el('div','c');c.appendChild(el('b',null,'메뉴 공개 설정'));c.appendChild(el('p','note','🔒 관리자 전용 = 일반 이용자에게 보이지 않음 · 🌐 공개 = 메인 화면 상단에 메뉴가 생김. 관리자로 로그인하면 공개 여부와 상관없이 항상 보여요.'));
+ d.menus.forEach(function(m){var r=el('div','bar');r.appendChild(el('span',null,m.icon+' '+m.label+' — '+m.desc));
+  r.appendChild(bt(m.public?'🌐 공개 중 (누르면 비공개)':'🔒 관리자 전용 (누르면 공개)',m.public?'bt':'bt2',function(){if(!confirm(m.public?'비공개로 바꿀까요?':'공개로 바꿀까요? 공개 화면에는 관리자가 확정한 종목만 나옵니다.'))return;apiJ('/admin/api/settings',{menu_delist_public:m.public?'0':'1'}).then(function(){toast('바꿨어요');mnLoad(p)})}));c.appendChild(r)});p.appendChild(c);
+ var a=el('div','c');a.appendChild(el('b',null,'AI 설정'));
+ var prov=['gemini','anthropic','openai'];var names={gemini:'Gemini',anthropic:'Claude',openai:'OpenAI'};
+ a.appendChild(el('p','note','서버 API 키: '+prov.map(function(x){return names[x]+(d.providers[x]?' ✅':' ✖')}).join(' · ')+' — 키는 Render 환경변수(GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY)에만 넣어요. 화면과 DB에는 저장하지 않아요. 지금 자동 모드에 쓰는 것: '+(d.provider_now?names[d.provider_now]:'없음(수동 모드만 가능)')));
+ var sel=el('select');[['auto','자동 선택(키가 있는 순서: Gemini → Claude → OpenAI)'],['gemini','Gemini'],['anthropic','Claude'],['openai','OpenAI']].forEach(function(o){var x=el('option',null,o[1]);x.value=o[0];sel.appendChild(x)});sel.value=d.ai_provider;
+ var r1=el('div','bar');r1.appendChild(el('span',null,'사용할 AI'));r1.appendChild(sel);a.appendChild(r1);
+ var sc=el('input');sc.type='checkbox';sc.checked=d.ai_search==='1';var r2=el('div','bar');r2.appendChild(sc);r2.appendChild(el('span',null,'웹검색 사용(Gemini·Claude) — 공시를 실제로 검색해 확인하려면 켜 두세요'));a.appendChild(r2);
+ var md={};prov.forEach(function(x){var i=el('input');i.placeholder='기본: '+d.default_models[x];i.value=d['ai_model_'+x];i.style.width='260px';md[x]=i;var r=el('div','bar');r.appendChild(el('span',null,names[x]+' 모델'));r.appendChild(i);a.appendChild(r)});
+ a.appendChild(bt('AI 설정 저장','bt',function(){var o={ai_provider:sel.value,ai_search:sc.checked?'1':'0'};prov.forEach(function(x){o['ai_model_'+x]=md[x].value.trim()});apiJ('/admin/api/settings',o).then(function(j){if(j.error)toast(j.error);else{toast('저장했어요');mnLoad(p)}})}));p.appendChild(a);
+ var s=el('div','c');s.appendChild(el('b',null,'스캔 설정'));
+ var days=el('input');days.type='number';days.min=3;days.max=60;days.value=d.delist_stale_days;days.style.width='80px';var r3=el('div','bar');r3.appendChild(el('span',null,'마지막 거래일이 며칠 이상 지나면 거래정지 의심으로 볼까요?'));r3.appendChild(days);s.appendChild(r3);
+ var cs=el('input');cs.type='checkbox';cs.checked=d.delist_include_caution==='1';var r4=el('div','bar');r4.appendChild(cs);r4.appendChild(el('span',null,'동전주(1,000원 미만)도 후보에 넣기 — 목록이 많이 길어져요'));s.appendChild(r4);
+ s.appendChild(bt('스캔 설정 저장','bt',function(){apiJ('/admin/api/settings',{delist_stale_days:String(days.value),delist_include_caution:cs.checked?'1':'0'}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));p.appendChild(s)})}
+
+if(['dl','pr','mn'].indexOf((location.hash||'').slice(1))>=0)cur=location.hash.slice(1);
 nav();load();
 </script></body></html>"""
+
+
+# ══════════════════════════════════════════════════════════════
+# 🚫 [v135] 관리자 전용 메뉴 — 거래정지·상장폐지 후보 걸러내기 + AI 검증 + 프롬프트 편집
+# ──────────────────────────────────────────────────────────────
+#  · 메뉴마다 "공개 / 관리자 전용"을 관리자 화면에서 켜고 끈다(기본: 관리자 전용). 관리자로 로그인하면 공개 여부와 상관없이 모두 보인다.
+#  · 후보 수집: 네이버 모바일 증권 API(거래 상태·최근 거래일·등락률)로 전 종목을 훑어 신호가 있는 종목만 모은다(자동 신호는 틀릴 수 있다).
+#  · 검증: AI 프롬프트(수동 = 복사·붙여넣기 / 자동 = 서버 API 키)로 공시 근거를 확인하고, 최종 확정은 관리자가 누른다.
+#  · 공개 화면에는 "관리자가 확정한 종목"만 나온다(자동 신호·AI 의견은 공개하지 않음).
+#  · API 키는 환경변수에만 둔다(GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY) — 화면·DB·기록에 남기지 않는다.
+# ══════════════════════════════════════════════════════════════
+import json
+MENUS = [
+    {"id": "delist", "label": "거래정지·상폐", "icon": "🚫", "public_path": "/delist", "admin_path": "/admin#dl",
+     "desc": "거래정지·상장폐지(확정·정리매매) 종목 목록"},
+]
+DL_VERDICTS = ("거래정지", "관리종목", "상장폐지확정", "정리매매", "정상", "확인불가")
+DL_PUBLIC_LABELS = ("거래정지", "관리종목", "상장폐지확정", "정리매매")
+DL_CHUNK = 15                 # AI 한 번(프롬프트 하나)에 넣는 종목 수
+DL_AI_MAX_PER_RUN = 150       # 한 번에 AI로 검증하는 최대 종목 수(비용·시간 보호)
+DL_PCT_LIMIT = 30.5           # 일일 가격제한폭(±30%)을 넘는 등락 = 정리매매·신규상장일 가능성
+_v135_ready = False
+_SETTING_CACHE = {}
+_AIJOBS = {}
+_DL_SCAN = {"running": False, "total": 0, "done": 0, "ok": 0, "flagged": 0, "started": 0, "finished": 0,
+            "error": "", "cancel": False}
+
+SETTING_DEFAULTS = {
+    "menu_delist_public": "0", "ai_provider": "auto", "ai_search": "1",
+    "ai_model_gemini": "", "ai_model_anthropic": "", "ai_model_openai": "",
+    "delist_stale_days": "10", "delist_include_caution": "0",
+}
+AI_DEFAULT_MODELS = {"gemini": "gemini-2.5-flash", "anthropic": "claude-haiku-4-5-20251001", "openai": "gpt-4o-mini"}
+_MODEL_RE = re.compile(r"^[A-Za-z0-9._\-]{3,64}$")
+
+
+def _ensure_v135_tables():
+    global _v135_ready
+    if _v135_ready:
+        return True
+    try:
+        conn = _history_conn()
+        try:
+            c = conn.cursor()
+            pk = "SERIAL PRIMARY KEY" if _USE_PG else "INTEGER PRIMARY KEY AUTOINCREMENT"
+            c.execute("CREATE TABLE IF NOT EXISTS admin_settings(k TEXT PRIMARY KEY, v TEXT NOT NULL, at BIGINT NOT NULL)")
+            c.execute("""CREATE TABLE IF NOT EXISTS delist_watch(
+                ticker TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '', market TEXT NOT NULL DEFAULT '',
+                kind TEXT NOT NULL DEFAULT '', signals TEXT NOT NULL DEFAULT '', price BIGINT NOT NULL DEFAULT 0,
+                last_trade TEXT NOT NULL DEFAULT '', first_seen BIGINT NOT NULL DEFAULT 0, last_seen BIGINT NOT NULL DEFAULT 0,
+                active INTEGER NOT NULL DEFAULT 1,
+                ai_verdict TEXT NOT NULL DEFAULT '', ai_basis TEXT NOT NULL DEFAULT '', ai_source TEXT NOT NULL DEFAULT '',
+                ai_date TEXT NOT NULL DEFAULT '', ai_at BIGINT NOT NULL DEFAULT 0, ai_mode TEXT NOT NULL DEFAULT '',
+                admin_state TEXT NOT NULL DEFAULT '', admin_label TEXT NOT NULL DEFAULT '', admin_note TEXT NOT NULL DEFAULT '',
+                admin_at BIGINT NOT NULL DEFAULT 0)""")
+            c.execute("CREATE TABLE IF NOT EXISTS admin_prompts(k TEXT PRIMARY KEY, body TEXT NOT NULL, at BIGINT NOT NULL)")
+            c.execute(f"CREATE TABLE IF NOT EXISTS admin_prompt_hist(id {pk}, k TEXT NOT NULL, body TEXT NOT NULL, at BIGINT NOT NULL, note TEXT NOT NULL DEFAULT '')")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_prompt_hist_k ON admin_prompt_hist(k, id)")
+            conn.commit()
+            _v135_ready = True
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[관리자메뉴] 테이블 준비 실패(나중에 다시 시도): {e}")
+    return _v135_ready
+
+
+def _dbx(sql, args=(), fetch=False):
+    """SQL은 ? 로 쓰면 Postgres에서는 자동으로 %s 로 바꿔 실행한다."""
+    conn = _history_conn()
+    try:
+        c = conn.cursor()
+        q = sql.replace("?", "%s") if _USE_PG else sql
+        if args:
+            c.execute(q, tuple(args))
+        else:
+            c.execute(q)       # 파라미터가 없으면 아예 넘기지 않는다(Postgres에서 LIKE '%..' 의 % 가 오해되지 않도록)
+        rows = c.fetchall() if fetch else None
+        conn.commit()
+        return rows
+    finally:
+        conn.close()
+
+
+def _dbrows(sql, cols, args=()):
+    return [dict(zip(cols, r)) for r in (_dbx(sql, args, fetch=True) or [])]
+
+
+# ── 설정 ──
+def setting_get(k, default=None):
+    if default is None:
+        default = SETTING_DEFAULTS.get(k, "")
+    hit = _SETTING_CACHE.get(k)
+    if hit and time.time() - hit[1] < 8:
+        return hit[0]
+    val = default
+    try:
+        if _ensure_v135_tables():
+            rows = _dbx("SELECT v FROM admin_settings WHERE k=?", (k,), fetch=True)
+            if rows:
+                val = rows[0][0]
+    except Exception as e:
+        print(f"[관리자메뉴] 설정 읽기 실패(기본값 사용): {e}")
+    _SETTING_CACHE[k] = (val, time.time())
+    return val
+
+
+def setting_set(k, v):
+    v = str(v)
+    _ensure_v135_tables()
+    _dbx("INSERT INTO admin_settings(k,v,at) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v, at=excluded.at",
+         (k, v, int(time.time())))
+    _SETTING_CACHE[k] = (v, time.time())
+
+
+def _setting_valid(k, v):
+    """설정 값 검사 — 통과하면 정리된 문자열, 아니면 None."""
+    v = str(v).strip()
+    if k in ("menu_delist_public", "ai_search", "delist_include_caution"):
+        return v if v in ("0", "1") else None
+    if k == "ai_provider":
+        return v if v in ("auto", "gemini", "anthropic", "openai") else None
+    if k.startswith("ai_model_"):
+        return v if (v == "" or _MODEL_RE.match(v)) else None
+    if k == "delist_stale_days":
+        return str(int(v)) if v.isdigit() and 3 <= int(v) <= 60 else None
+    return None
+
+
+def menu_public(menu_id):
+    return setting_get(f"menu_{menu_id}_public", "0") == "1"
+
+
+def _menus_public_list():
+    return [{"id": m["id"], "label": m["label"], "icon": m["icon"], "path": m["public_path"]} for m in MENUS if menu_public(m["id"])]
+
+
+def _menus_admin_list():
+    return [{"id": m["id"], "label": m["label"], "icon": m["icon"], "public": menu_public(m["id"]),
+             "path": m["public_path"] if menu_public(m["id"]) else m["admin_path"], "admin_path": m["admin_path"],
+             "desc": m["desc"]} for m in MENUS]
+
+
+@app.route("/api/menus")
+def api_menus():
+    resp = jsonify({"menus": _menus_public_list()})
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/admin/api/whoami")
+def admin_api_whoami():
+    """메인 화면이 '지금 관리자로 로그인한 상태인지' 묻는 곳. 아니어도 오류 없이 admin:false 만 돌려준다."""
+    if not ADMIN_EMAILS or not _admin_ip_allowed() or not _admin_session():
+        return _admin_json({"admin": False})
+    return _admin_json({"admin": True, "menus": _menus_admin_list(), "console": "/admin"})
+
+
+# ── AI 프롬프트(관리자가 수정) ──
+DELIST_VERIFY_DEFAULT = """당신은 한국 주식시장(KOSPI·KOSDAQ·KONEX)의 공시를 확인하는 조사 보조원입니다. 오늘은 {today}입니다.
+아래 {count}개 종목은 프로그램이 '거래정지 또는 상장폐지 절차에 있을 가능성'이 있다고 자동으로 걸러낸 후보입니다. 자동 신호는 틀릴 수 있습니다.
+각 종목의 현재 상태를 한국거래소 KIND(kind.krx.co.kr)·금융감독원 DART(dart.fss.or.kr) 등 공식 공시를 근거로 확인해 주세요.
+
+[판정 — 반드시 아래 6개 단어 중 하나만 사용]
+- 거래정지: 지금 매매거래가 정지된 상태(감사의견 거절·횡령/배임·기업심사·불성실공시 등 사유 포함)
+- 관리종목: 관리종목으로 지정되어 있지만 거래는 이뤄지는 상태
+- 상장폐지확정: 거래소가 상장폐지를 결정·확정한 상태(정리매매 예정 포함)
+- 정리매매: 정리매매 기간 중
+- 정상: 정상 거래 중이며 위 사유가 없음
+- 확인불가: 공식 자료로 확인하지 못함
+
+[규칙]
+1. 공식 공시로 확인한 사실만 쓰세요. 추측·소문·커뮤니티 글은 근거로 쓰지 마세요. 확실하지 않으면 '확인불가'라고 쓰세요.
+2. '상장폐지확정'은 거래소의 결정 공시 등 근거가 있을 때만 쓰세요.
+3. 근거에는 공시 제목·날짜·사유를 한 줄로 쓰고, 투자 조언·전망·평가는 쓰지 마세요.
+4. 특정 회사나 개인을 비방하는 표현을 쓰지 마세요.
+
+[출력 형식 — 이 형식 외의 문장은 쓰지 마세요]
+종목마다 정확히 한 줄이며, 칸은 | 로 구분합니다.
+종목코드|판정|근거(한 줄)|기준일(YYYY-MM-DD, 모르면 -)|출처(공시명 또는 사이트)
+예) 123456|거래정지|감사의견 거절로 매매거래 정지(사업보고서 감사의견 비적정)|2026-04-01|KIND 공시
+
+[대상 종목]
+{items}
+"""
+
+PROMPT_ENHANCE_DEFAULT = """당신은 프롬프트 엔지니어입니다. 아래 [현재 프롬프트]를 개선해 주세요.
+목적: 한국 주식 종목의 거래정지·상장폐지 상태를 AI가 공시 근거로 정확히 판정하고, 프로그램이 읽을 수 있는 형식으로만 답하게 하는 것.
+
+[관리자 개선 요청]
+{goal}
+
+[최근 사용 결과]
+{stats}
+
+[반드시 지킬 것]
+- {items}, {today}, {count} 자리표시자는 글자 그대로 유지하세요(없애거나 바꾸지 마세요).
+- 출력 형식(종목코드|판정|근거|기준일|출처, 종목마다 한 줄)과 판정 6개 단어(거래정지·관리종목·상장폐지확정·정리매매·정상·확인불가)는 바꾸지 마세요.
+- 사실 확인 규칙(추측 금지, 모르면 확인불가)은 더 엄격하게 할 수는 있어도 느슨하게 하지 마세요.
+- 먼저 개선한 점을 3~5줄로 쓰고, 다음 줄에 ===== 한 줄을 쓰고, 그 아래에는 개선된 프롬프트 전문만 쓰세요.
+
+[현재 프롬프트]
+{prompt}
+"""
+
+PROMPTS = {
+    "delist_verify": {"title": "거래정지·상폐 검증 프롬프트", "default": DELIST_VERIFY_DEFAULT,
+                      "required": ["{items}"], "must_have": ["종목코드|판정"],
+                      "vars": "{today}=오늘 날짜 · {count}=종목 수 · {items}=대상 종목 목록(필수)",
+                      "desc": "후보 종목을 AI에게 확인시킬 때 쓰는 프롬프트(수동·자동 공통)."},
+    "prompt_enhance": {"title": "프롬프트 강화 요청문", "default": PROMPT_ENHANCE_DEFAULT,
+                       "required": ["{prompt}"], "must_have": [],
+                       "vars": "{prompt}=개선할 프롬프트(필수) · {goal}=관리자 요청 · {stats}=최근 결과",
+                       "desc": "‘AI로 프롬프트 강화’를 누르면 AI에게 보내는 요청문."},
+}
+PROMPT_MIN, PROMPT_MAX = 150, 12000
+
+
+def prompt_get(key):
+    spec = PROMPTS.get(key)
+    if not spec:
+        return ""
+    try:
+        if _ensure_v135_tables():
+            rows = _dbx("SELECT body FROM admin_prompts WHERE k=?", (key,), fetch=True)
+            if rows and rows[0][0].strip():
+                return rows[0][0]
+    except Exception as e:
+        print(f"[관리자메뉴] 프롬프트 읽기 실패(기본값 사용): {e}")
+    return spec["default"]
+
+
+def _prompt_check(key, body):
+    spec = PROMPTS.get(key)
+    if not spec:
+        return "알 수 없는 프롬프트입니다."
+    body = (body or "").strip()
+    if len(body) < PROMPT_MIN:
+        return f"너무 짧아요(최소 {PROMPT_MIN}자)."
+    if len(body) > PROMPT_MAX:
+        return f"너무 길어요(최대 {PROMPT_MAX:,}자)."
+    for ph in spec["required"]:
+        if ph not in body:
+            return f"{ph} 자리표시자가 빠졌어요. 이 자리에 대상 내용이 들어갑니다."
+    for s in spec["must_have"]:
+        if s not in body:
+            return f"출력 형식 문구('{s}')가 빠졌어요 — 이 형식이 있어야 AI 답변을 읽어 저장할 수 있어요."
+    return None
+
+
+def prompt_save(key, body, note=""):
+    body = body.strip()
+    _ensure_v135_tables()
+    now = int(time.time())
+    _dbx("INSERT INTO admin_prompts(k,body,at) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET body=excluded.body, at=excluded.at",
+         (key, body, now))
+    _dbx("INSERT INTO admin_prompt_hist(k,body,at,note) VALUES(?,?,?,?)", (key, body, now, note[:60]))
+    _dbx("DELETE FROM admin_prompt_hist WHERE k=? AND id NOT IN (SELECT id FROM admin_prompt_hist WHERE k=? ORDER BY id DESC LIMIT 20)", (key, key))
+
+
+def prompt_reset(key):
+    _ensure_v135_tables()
+    _dbx("DELETE FROM admin_prompts WHERE k=?", (key,))
+    _dbx("INSERT INTO admin_prompt_hist(k,body,at,note) VALUES(?,?,?,?)", (key, PROMPTS[key]["default"], int(time.time()), "기본값으로 되돌림"))
+
+
+def _prompt_fill(body, **vals):
+    """{이름} 자리만 바꾼다(.format을 쓰지 않으므로 관리자가 쓴 다른 중괄호는 그대로 둔다)."""
+    for k, v in vals.items():
+        body = body.replace("{" + k + "}", str(v))
+    return body
+
+
+# ── 후보 수집 ──
+_DL_KEYWORDS = ("거래정지", "매매거래정지", "상장폐지", "정리매매", "관리종목", "불성실공시", "투자주의환기")
+
+
+def _dl_walk_strings(obj, depth=0, path=""):
+    if depth > 3:
+        return
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _dl_walk_strings(v, depth + 1, f"{path}.{k}" if path else str(k))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj[:20]):
+            yield from _dl_walk_strings(v, depth + 1, path)
+    elif isinstance(obj, str):
+        yield path, obj
+
+
+def _dl_signals(basic, stale_days, include_caution, today):
+    """네이버 기본정보(JSON)에서 신호를 뽑는다. 반환 (kind|None, [신호문장], 가격, 최근거래일)."""
+    sig, kind = [], None
+    price = 0
+    try:
+        price = int(str(basic.get("closePrice") or "0").replace(",", "") or 0)
+    except Exception:
+        price = 0
+    last = ""
+    lt = str(basic.get("localTradedAt") or "")
+    if re.match(r"\d{4}-\d{2}-\d{2}", lt):
+        last = lt[:10]
+    for f in _naver_trading_status_flags(basic):
+        sig.append("네이버 " + f)
+        kind = "halt"
+    for path, s in _dl_walk_strings(basic):
+        for kw in _DL_KEYWORDS:
+            if kw in s and len(s) <= 60:
+                sig.append(f"네이버 표시: {path.split('.')[-1]}={s}")
+                kind = "delist" if kw in ("상장폐지", "정리매매") else (kind or "halt")
+                break
+    if last:
+        try:
+            d = datetime.strptime(last, "%Y-%m-%d").date()
+            days = (today - d).days
+            if days >= stale_days:
+                sig.append(f"마지막 거래일 {last} ({days}일째 거래 기록 없음 — 거래정지 가능성)")
+                kind = kind or "halt"
+        except Exception:
+            pass
+    try:
+        pct = float(basic.get("fluctuationsRatio"))
+        if abs(pct) > DL_PCT_LIMIT:
+            sig.append(f"하루 등락률 {pct:+.1f}% (가격제한폭 ±30% 초과 — 정리매매 또는 신규상장일 가능성)")
+            kind = "delist" if kind in (None, "delist") else kind
+    except Exception:
+        pass
+    if include_caution and 0 < price < 1000 and not kind:
+        sig.append(f"현재가 {price:,}원 (동전주 구간 — 관리종목 사유가 될 수 있음)")
+        kind = "caution"
+    seen, out = set(), []
+    for s in sig:
+        if s not in seen:
+            seen.add(s); out.append(s)
+    return kind, out[:6], price, last
+
+
+def _dl_universe():
+    try:
+        with sqlite3.connect(get_db()) as c:
+            rows = c.execute("SELECT ticker, name, market FROM ticker_names").fetchall()
+        return [(t, n or "", m or "") for t, n, m in rows if re.fullmatch(r"[0-9A-Z]{6}", t or "")]
+    except Exception:
+        return []
+
+
+def _dl_scan_run(stale_days, include_caution):
+    job = _DL_SCAN
+    try:
+        _ensure_v135_tables()
+        uni = _dl_universe()
+        job.update(total=len(uni), done=0, ok=0, flagged=0, error="")
+        if not uni:
+            job["error"] = "종목 목록이 비어 있어요. 첫 화면의 [종목목록 갱신]을 먼저 눌러 주세요."
+            return
+        today = _now_kst().date()
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def one(item):
+            if job["cancel"]:
+                return item, None
+            return item, _naver_mobile_basic(item[0])
+
+        results = {}
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            futs = [ex.submit(one, it) for it in uni]
+            for f in as_completed(futs):
+                try:
+                    it, basic = f.result()
+                except Exception:
+                    job["done"] += 1
+                    continue
+                job["done"] += 1
+                if basic:
+                    job["ok"] += 1
+                    kind, sig, price, last = _dl_signals(basic, stale_days, include_caution, today)
+                    results[it[0]] = (it, kind, sig, price, last)
+        if job["cancel"]:
+            job["error"] = "중단했어요(받아 온 결과까지만 반영하지 않고 버렸어요)."
+            return
+        job["flagged"] = sum(1 for v in results.values() if v[1])
+        now = int(time.time())
+        existing = {r[0]: r[1] for r in (_dbx("SELECT ticker, kind FROM delist_watch", fetch=True) or [])}
+        for tk, (it, kind, sig, price, last) in results.items():
+            if kind:
+                _dbx("""INSERT INTO delist_watch(ticker,name,market,kind,signals,price,last_trade,first_seen,last_seen,active)
+                        VALUES(?,?,?,?,?,?,?,?,?,1)
+                        ON CONFLICT(ticker) DO UPDATE SET name=excluded.name, market=excluded.market, kind=excluded.kind,
+                          signals=excluded.signals, price=excluded.price, last_trade=excluded.last_trade,
+                          last_seen=excluded.last_seen, active=1""",
+                     (tk, it[1], it[2], kind, json.dumps(sig, ensure_ascii=False), price, last, now, now))
+            elif tk in existing and existing[tk] != "manual":
+                # 이번엔 신호가 없다 → 목록에서 내린다(AI·관리자 기록이 없으면 지운다). 받아 오지 못한 종목은 건드리지 않는다.
+                _dbx("UPDATE delist_watch SET active=0, signals=?, last_seen=? WHERE ticker=?",
+                     (json.dumps(["최근 스캔에서는 신호가 없었어요"], ensure_ascii=False), now, tk))
+        _dbx("DELETE FROM delist_watch WHERE active=0 AND ai_verdict='' AND admin_state=''")
+        if job["ok"] < len(uni) * 0.5:
+            job["error"] = f"네이버 응답이 적었어요({job['ok']}/{len(uni)}). 결과가 불완전할 수 있으니 잠시 뒤 다시 실행해 보세요."
+    except Exception as e:
+        job["error"] = f"스캔 중 오류: {type(e).__name__}: {str(e)[:120]}"
+        print(f"[관리자메뉴] 스캔 오류: {e}")
+    finally:
+        job["running"] = False
+        job["finished"] = int(time.time())
+        try:
+            setting_set("delist_last_scan", json.dumps({k: job[k] for k in ("total", "ok", "flagged", "finished", "error")}, ensure_ascii=False))
+        except Exception:
+            pass
+
+
+def _dl_row_out(r):
+    try:
+        r["signals"] = json.loads(r.get("signals") or "[]")
+    except Exception:
+        r["signals"] = []
+    return r
+
+
+DL_COLS = ("ticker", "name", "market", "kind", "signals", "price", "last_trade", "first_seen", "last_seen", "active",
+           "ai_verdict", "ai_basis", "ai_source", "ai_date", "ai_at", "ai_mode", "admin_state", "admin_label", "admin_note", "admin_at")
+
+
+def _dl_items_text(rows):
+    lines = []
+    for r in rows:
+        sig = "; ".join(r["signals"]) if isinstance(r["signals"], list) else str(r["signals"])
+        lines.append(f"{r['ticker']} | {r['name']} | {r['market']} | 자동신호: {sig or '-'} | 최근가 {int(r['price'] or 0):,}원 | 마지막 거래일 {r['last_trade'] or '-'}")
+    return "\n".join(lines)
+
+
+def _dl_pick(tickers, scope):
+    """AI에 보낼 종목 고르기: 직접 고른 것 또는 '아직 AI 검증 안 한 후보' 전체."""
+    if tickers:
+        tks = [normalize_ticker(t) for t in tickers[:400]]
+        tks = [t for t in tks if t]
+        if not tks:
+            return []
+        q = ",".join("?" * len(tks))
+        rows = _dbrows(f"SELECT {','.join(DL_COLS)} FROM delist_watch WHERE ticker IN ({q})", DL_COLS, tks)
+    else:
+        rows = _dbrows(f"SELECT {','.join(DL_COLS)} FROM delist_watch WHERE active=1 AND ai_verdict='' AND admin_state='' "
+                       "ORDER BY (kind='delist') DESC, ticker", DL_COLS)
+    rows = [_dl_row_out(r) for r in rows][:DL_AI_MAX_PER_RUN]
+    return rows
+
+
+def _dl_build_prompts(rows, body=None):
+    body = body or prompt_get("delist_verify")
+    today = _now_kst().strftime("%Y-%m-%d")
+    out = []
+    for i in range(0, len(rows), DL_CHUNK):
+        part = rows[i:i + DL_CHUNK]
+        out.append({"n": len(out) + 1, "count": len(part), "tickers": [r["ticker"] for r in part],
+                    "prompt": _prompt_fill(body, today=today, count=len(part), items=_dl_items_text(part))})
+    return out
+
+
+# ── AI 답변 읽기 ──
+_DL_SYN = (
+    ("상장폐지확정", ("상장폐지확정", "상장폐지 확정", "상폐확정", "상장폐지결정", "상장폐지 결정", "상장폐지")),
+    ("정리매매", ("정리매매",)),
+    ("거래정지", ("거래정지", "매매거래정지", "매매정지")),
+    ("관리종목", ("관리종목", "관리 종목")),
+    ("확인불가", ("확인불가", "확인 불가", "알 수 없", "확인되지", "불명")),
+)
+
+
+def _dl_norm_verdict(s):
+    s = re.sub(r"[\*\`_\[\]\(\)]", "", (s or "")).strip()
+    if s in DL_VERDICTS:
+        return s
+    compact = s.replace(" ", "")
+    for label, keys in _DL_SYN:
+        for k in keys:
+            if k.replace(" ", "") in compact:
+                return label
+    if compact.startswith("정상") or "이상없" in compact:
+        return "정상"
+    return ""
+
+
+def dl_parse_ai_text(text):
+    """AI 답변 → [{ticker, verdict, basis, date, source}] 와 읽지 못한 줄 수. '|' 로 칸을 나눈 줄만 읽는다."""
+    rows, bad = [], 0
+    for line in (text or "").splitlines():
+        raw = line.strip()
+        if not raw or "|" not in raw.replace("｜", "|"):
+            continue
+        cells = [x.strip() for x in raw.replace("｜", "|").strip("|").split("|")]
+        cells = [re.sub(r"\*\*|`", "", x).strip() for x in cells]
+        if len(cells) < 2:
+            continue
+        m = re.search(r"\b([0-9A-Z]{6})\b", cells[0])
+        if not m or cells[0].startswith("종목코드") or set(cells[0]) <= set("-: "):
+            continue
+        verdict = _dl_norm_verdict(cells[1])
+        if not verdict:
+            bad += 1
+            continue
+        date = cells[3] if len(cells) > 3 and re.fullmatch(r"\d{4}-\d{2}-\d{2}", cells[3]) else ""
+        clean = lambda s, n: re.sub(r"[<>]", "", s)[:n]
+        rows.append({"ticker": m.group(1), "verdict": verdict, "basis": clean(cells[2] if len(cells) > 2 else "", 200),
+                     "date": date, "source": clean(cells[4] if len(cells) > 4 else "", 80)})
+    return rows, bad
+
+
+def dl_apply_ai(rows, mode):
+    """읽은 결과를 후보 목록에 저장. 목록에 없는 종목은 무시."""
+    known = {r[0] for r in (_dbx("SELECT ticker FROM delist_watch", fetch=True) or [])}
+    now, applied, unknown = int(time.time()), 0, 0
+    for r in rows:
+        if r["ticker"] not in known:
+            unknown += 1
+            continue
+        _dbx("UPDATE delist_watch SET ai_verdict=?, ai_basis=?, ai_source=?, ai_date=?, ai_at=?, ai_mode=? WHERE ticker=?",
+             (r["verdict"], r["basis"], r["source"], r["date"], now, mode, r["ticker"]))
+        applied += 1
+    return applied, unknown
+
+
+# ── AI 서버 호출(자동 모드) ──
+def ai_providers():
+    keys = {"gemini": os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "",
+            "anthropic": os.environ.get("ANTHROPIC_API_KEY") or "", "openai": os.environ.get("OPENAI_API_KEY") or ""}
+    return {k: bool(v.strip()) for k, v in keys.items()}, keys
+
+
+def ai_pick_provider():
+    avail, _ = ai_providers()
+    want = setting_get("ai_provider")
+    if want in avail and avail[want]:
+        return want
+    if want == "auto":
+        for p in ("gemini", "anthropic", "openai"):
+            if avail[p]:
+                return p
+    return ""
+
+
+def ai_complete(prompt, max_tokens=4096):
+    """서버 API 키로 AI를 한 번 부른다. 반환 (본문, 안내문). 실패하면 RuntimeError(키 값은 절대 넣지 않음)."""
+    prov = ai_pick_provider()
+    if not prov:
+        raise RuntimeError("서버에 사용할 수 있는 AI API 키가 없어요(Render 환경변수 GEMINI_API_KEY 등).")
+    _, keys = ai_providers()
+    key = keys[prov].strip()
+    model = setting_get(f"ai_model_{prov}") or os.environ.get(f"AI_MODEL_{prov.upper()}", "") or AI_DEFAULT_MODELS[prov]
+    if not _MODEL_RE.match(model):
+        raise RuntimeError("모델 이름 형식이 올바르지 않아요.")
+    search = setting_get("ai_search") == "1"
+    note = ""
+
+    def call(use_search):
+        if prov == "gemini":
+            body = {"contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": max_tokens}}
+            if use_search:
+                body["tools"] = [{"google_search": {}}]
+            r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                              headers={"x-goog-api-key": key, "Content-Type": "application/json"}, json=body, timeout=150)
+            if r.status_code != 200:
+                raise RuntimeError(f"HTTP {r.status_code}: {r.text[:160]}")
+            parts = (((r.json().get("candidates") or [{}])[0].get("content") or {}).get("parts")) or []
+            return "".join(p.get("text", "") for p in parts)
+        if prov == "anthropic":
+            body = {"model": model, "max_tokens": max_tokens, "temperature": 0.1,
+                    "messages": [{"role": "user", "content": prompt}]}
+            if use_search:
+                body["tools"] = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}]
+            r = requests.post("https://api.anthropic.com/v1/messages",
+                              headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                              json=body, timeout=150)
+            if r.status_code != 200:
+                raise RuntimeError(f"HTTP {r.status_code}: {r.text[:160]}")
+            return "".join(b.get("text", "") for b in (r.json().get("content") or []) if b.get("type") == "text")
+        r = requests.post("https://api.openai.com/v1/chat/completions",
+                          headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                          json={"model": model, "temperature": 0.1, "max_tokens": max_tokens,
+                                "messages": [{"role": "user", "content": prompt}]}, timeout=150)
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}: {r.text[:160]}")
+        return (((r.json().get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
+
+    use_search = search and prov in ("gemini", "anthropic")
+    if search and prov == "openai":
+        note = "OpenAI 방식은 웹검색 없이 AI가 알고 있는 지식으로만 답해요."
+    try:
+        text = call(use_search)
+    except Exception as e:
+        if use_search:
+            note = f"웹검색 없이 다시 시도했어요({str(e)[:80]})."
+            text = call(False)
+        else:
+            raise RuntimeError(str(e)[:200])
+    if not (text or "").strip():
+        raise RuntimeError("AI가 빈 답을 보냈어요.")
+    return text, note
+
+
+def _job_new(kind, total=0):
+    now = time.time()
+    for k in [k for k, v in _AIJOBS.items() if now - v["started"] > 3600]:
+        _AIJOBS.pop(k, None)
+    import secrets
+    jid = secrets.token_hex(6)
+    _AIJOBS[jid] = {"kind": kind, "status": "running", "done": 0, "total": total, "msg": "", "errors": [],
+                    "result": None, "started": now}
+    return jid
+
+
+def _job_busy(kind):
+    return any(v["kind"] == kind and v["status"] == "running" for v in _AIJOBS.values())
+
+
+def _dl_ai_job(jid, rows):
+    job = _AIJOBS[jid]
+    applied_total = unknown_total = 0
+    try:
+        prompts = _dl_build_prompts(rows)
+        job["total"] = len(prompts)
+        for p in prompts:
+            try:
+                text, note = ai_complete(p["prompt"], max_tokens=4096)
+                parsed, bad = dl_parse_ai_text(text)
+                a, u = dl_apply_ai(parsed, "auto")
+                applied_total += a
+                unknown_total += u
+                if note and note not in job["msg"]:
+                    job["msg"] = (job["msg"] + " " + note).strip()
+                if bad or a < p["count"]:
+                    job["errors"].append(f"{p['n']}번째 묶음: {p['count']}개 중 {a}개만 읽었어요")
+            except Exception as e:
+                job["errors"].append(f"{p['n']}번째 묶음 실패: {str(e)[:120]}")
+            job["done"] += 1
+            time.sleep(1)
+        job["result"] = {"applied": applied_total, "unknown": unknown_total, "requested": len(rows)}
+        job["status"] = "done"
+    except Exception as e:
+        job["errors"].append(f"{type(e).__name__}: {str(e)[:120]}")
+        job["status"] = "error"
+
+
+def _dl_enhance_stats():
+    try:
+        rows = _dbx("SELECT ai_verdict, COUNT(*) FROM delist_watch WHERE ai_verdict<>'' GROUP BY ai_verdict", fetch=True) or []
+        parts = [f"{v} {n}건" for v, n in rows]
+        last = setting_get("delist_last_parse", "")
+        s = "AI 판정 분포: " + (", ".join(parts) if parts else "아직 없음")
+        return s + (f"\n마지막 붙여넣기 결과: {last}" if last else "")
+    except Exception:
+        return "통계 없음"
+
+
+def _enhance_prompt_text(key, goal, body):
+    meta = prompt_get("prompt_enhance")
+    return _prompt_fill(meta, goal=(goal.strip() or "(특별한 요청 없음 — 정확도와 형식 준수를 높여 주세요)"),
+                        stats=_dl_enhance_stats(), prompt=body)
+
+
+def _enhance_parse(text):
+    """AI가 보낸 '개선 이유 ===== 프롬프트 전문' 에서 두 부분을 나눈다."""
+    t = (text or "").strip()
+    reasons, body = "", t
+    if "=====" in t:
+        reasons, _, body = t.partition("=====")
+    body = body.strip()
+    m = re.match(r"^```[a-zA-Z]*\n(.*?)\n```\s*$", body, re.S)
+    if m:
+        body = m.group(1).strip()
+    return reasons.strip()[:800], body
+
+
+def _enhance_job(jid, key, goal, body):
+    job = _AIJOBS[jid]
+    try:
+        text, note = ai_complete(_enhance_prompt_text(key, goal, body), max_tokens=6000)
+        reasons, new = _enhance_parse(text)
+        err = _prompt_check(key, new)
+        job["result"] = {"reasons": reasons, "body": new, "problem": err or "", "note": note}
+        job["status"] = "done"
+    except Exception as e:
+        job["errors"].append(str(e)[:200])
+        job["status"] = "error"
+
+
+# ── 관리자 API ──
+def _json_body():
+    d = request.get_json(silent=True)
+    return d if isinstance(d, dict) else {}
+
+
+@app.route("/admin/api/settings", methods=["GET", "POST"])
+def admin_api_settings():
+    write = request.method == "POST"
+    deny = _admin_deny(write=write)
+    if deny:
+        return deny
+    if write:
+        changed = []
+        for k, v in _json_body().items():
+            if k not in SETTING_DEFAULTS:
+                continue
+            ok = _setting_valid(k, v)
+            if ok is None:
+                return _admin_json({"error": f"'{k}' 값이 올바르지 않아요."}, 400)
+            setting_set(k, ok)
+            changed.append(f"{k}={ok if not k.startswith('ai_model') else '…'}")
+        if changed:
+            _alog("setting_change", ", ".join(changed))
+    avail, _ = ai_providers()
+    out = {k: setting_get(k) for k in SETTING_DEFAULTS}
+    out.update(menus=_menus_admin_list(), providers=avail, provider_now=ai_pick_provider(),
+               default_models=AI_DEFAULT_MODELS)
+    return _admin_json(out)
+
+
+@app.route("/admin/api/delist/list")
+def admin_api_delist_list():
+    deny = _admin_deny()
+    if deny:
+        return deny
+    rows = []
+    if _ensure_v135_tables():
+        rows = [_dl_row_out(r) for r in _dbrows(
+            f"SELECT {','.join(DL_COLS)} FROM delist_watch WHERE active=1 OR admin_state<>'' OR ai_verdict<>'' "
+            "ORDER BY (kind='delist') DESC, last_seen DESC, ticker LIMIT 800", DL_COLS)]
+    try:
+        last = json.loads(setting_get("delist_last_scan", "") or "{}")
+    except Exception:
+        last = {}
+    for r in rows:
+        r["first_seen"] = _kst_str(r["first_seen"]); r["last_seen"] = _kst_str(r["last_seen"])
+        r["ai_at"] = _kst_str(r["ai_at"]) if r["ai_at"] else ""
+        r["admin_at"] = _kst_str(r["admin_at"]) if r["admin_at"] else ""
+    return _admin_json({"rows": rows, "last_scan": last, "scan": {k: _DL_SCAN[k] for k in ("running", "total", "done", "ok", "flagged", "error")},
+                        "universe": len(_dl_universe()), "verdicts": list(DL_VERDICTS), "public_labels": list(DL_PUBLIC_LABELS),
+                        "public": menu_public("delist")})
+
+
+@app.route("/admin/api/delist/scan", methods=["POST"])
+def admin_api_delist_scan():
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    if _DL_SCAN["running"]:
+        return _admin_json({"error": "이미 스캔 중이에요."}, 409)
+    if not _ensure_v135_tables():
+        return _admin_json({"error": "저장소를 준비하지 못했어요."}, 500)
+    stale = int(setting_get("delist_stale_days") or 10)
+    caution = setting_get("delist_include_caution") == "1"
+    _DL_SCAN.update(running=True, cancel=False, total=0, done=0, ok=0, flagged=0, started=int(time.time()), error="")
+    threading.Thread(target=_dl_scan_run, args=(stale, caution), daemon=True).start()
+    _alog("delist_scan", f"stale={stale} caution={int(caution)}")
+    return _admin_json({"ok": True})
+
+
+@app.route("/admin/api/delist/scan-cancel", methods=["POST"])
+def admin_api_delist_scan_cancel():
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    _DL_SCAN["cancel"] = True
+    return _admin_json({"ok": True})
+
+
+@app.route("/admin/api/delist/scan-status")
+def admin_api_delist_scan_status():
+    deny = _admin_deny()
+    if deny:
+        return deny
+    return _admin_json({k: _DL_SCAN[k] for k in ("running", "total", "done", "ok", "flagged", "error")})
+
+
+@app.route("/admin/api/delist/mark", methods=["POST"])
+def admin_api_delist_mark():
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    d = _json_body()
+    tks = [normalize_ticker(t) for t in (d.get("tickers") or [])[:400]]
+    tks = [t for t in tks if t]
+    state = str(d.get("state", ""))
+    label = str(d.get("label", "")).strip()
+    note = re.sub(r"[<>]", "", str(d.get("note", "")))[:120]
+    if not tks or state not in ("confirmed", "excluded", ""):
+        return _admin_json({"error": "요청이 올바르지 않아요."}, 400)
+    if state == "confirmed" and label not in DL_PUBLIC_LABELS:
+        return _admin_json({"error": "확정할 때는 판정(거래정지·관리종목·상장폐지확정·정리매매) 중 하나를 골라 주세요."}, 400)
+    now = int(time.time())
+    n = 0
+    for t in tks:
+        _dbx("UPDATE delist_watch SET admin_state=?, admin_label=?, admin_note=?, admin_at=? WHERE ticker=?",
+             (state, label if state == "confirmed" else "", note, now if state else 0, t))
+        n += 1
+    _alog("delist_mark", f"{state or 'clear'} {label} n={n}")
+    return _admin_json({"ok": True, "n": n})
+
+
+@app.route("/admin/api/delist/add", methods=["POST"])
+def admin_api_delist_add():
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    t = normalize_ticker(str(_json_body().get("ticker", "")))
+    nm, mk = get_ticker_info(t) if t else (None, None)
+    if not t or not nm:
+        return _admin_json({"error": "종목을 찾지 못했어요(종목코드 6자리 확인)."}, 400)
+    now = int(time.time())
+    _dbx("""INSERT INTO delist_watch(ticker,name,market,kind,signals,first_seen,last_seen,active) VALUES(?,?,?,?,?,?,?,1)
+            ON CONFLICT(ticker) DO UPDATE SET active=1, last_seen=excluded.last_seen""",
+         (t, nm, mk or "", "manual", json.dumps(["관리자가 직접 추가"], ensure_ascii=False), now, now))
+    _alog("delist_add", t)
+    return _admin_json({"ok": True, "ticker": t, "name": nm})
+
+
+@app.route("/admin/api/delist/diag/<ticker>")
+def admin_api_delist_diag(ticker):
+    """네이버가 실제로 보내 주는 기본정보를 그대로 보여 준다(자동 신호가 맞는지 확인용)."""
+    deny = _admin_deny()
+    if deny:
+        return deny
+    t = normalize_ticker(ticker)
+    basic = _naver_mobile_basic(t) if t else None
+    if not basic:
+        return _admin_json({"error": "네이버에서 받지 못했어요."}, 502)
+    txt = json.dumps(basic, ensure_ascii=False, indent=1)
+    return _admin_json({"ticker": t, "raw": txt[:4000]})
+
+
+@app.route("/admin/api/delist/ai-prompt", methods=["POST"])
+def admin_api_delist_ai_prompt():
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    d = _json_body()
+    body = str(d.get("body") or "").strip() or None
+    if body:
+        err = _prompt_check("delist_verify", body)
+        if err:
+            return _admin_json({"error": err}, 400)
+    rows = _dl_pick(d.get("tickers") or [], d.get("scope"))
+    if not rows:
+        return _admin_json({"error": "AI에 보낼 후보가 없어요(먼저 스캔하거나 종목을 고르세요)."}, 400)
+    return _admin_json({"chunks": _dl_build_prompts(rows, body), "total": len(rows), "max": DL_AI_MAX_PER_RUN})
+
+
+@app.route("/admin/api/delist/ai-paste", methods=["POST"])
+def admin_api_delist_ai_paste():
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    d = _json_body()
+    text = str(d.get("text") or "")[:60000]
+    rows, bad = dl_parse_ai_text(text)
+    names = {r[0]: r[1] for r in (_dbx("SELECT ticker, name FROM delist_watch", fetch=True) or [])}
+    for r in rows:
+        r["name"] = names.get(r["ticker"], "")
+        r["known"] = r["ticker"] in names
+    out = {"rows": rows, "bad": bad, "known": sum(1 for r in rows if r["known"])}
+    if not d.get("dry"):
+        applied, unknown = dl_apply_ai(rows, "manual")
+        out.update(applied=applied, unknown=unknown)
+        try:
+            setting_set("delist_last_parse", f"{len(rows)}줄 읽음, 못 읽은 줄 {bad}, 목록에 없는 종목 {unknown}")
+        except Exception:
+            pass
+        _alog("delist_ai_paste", f"applied={applied} bad={bad}")
+    return _admin_json(out)
+
+
+@app.route("/admin/api/delist/ai-auto", methods=["POST"])
+def admin_api_delist_ai_auto():
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    if not ai_pick_provider():
+        return _admin_json({"error": "서버에 AI API 키가 없어요. 수동 방식을 쓰거나 Render 환경변수에 키를 넣어 주세요."}, 400)
+    if _job_busy("ai"):
+        return _admin_json({"error": "이미 AI 검증이 진행 중이에요."}, 409)
+    rows = _dl_pick(_json_body().get("tickers") or [], _json_body().get("scope"))
+    if not rows:
+        return _admin_json({"error": "AI에 보낼 후보가 없어요."}, 400)
+    jid = _job_new("ai", total=(len(rows) + DL_CHUNK - 1) // DL_CHUNK)
+    threading.Thread(target=_dl_ai_job, args=(jid, rows), daemon=True).start()
+    _alog("delist_ai_auto", f"n={len(rows)} provider={ai_pick_provider()}")
+    return _admin_json({"job": jid, "n": len(rows)})
+
+
+@app.route("/admin/api/job/<jid>")
+def admin_api_job(jid):
+    deny = _admin_deny()
+    if deny:
+        return deny
+    j = _AIJOBS.get(jid)
+    if not j:
+        return _admin_json({"error": "없는 작업이에요(서버가 다시 시작됐을 수 있어요)."}, 404)
+    return _admin_json({k: j[k] for k in ("kind", "status", "done", "total", "msg", "errors", "result")})
+
+
+@app.route("/admin/api/prompts")
+def admin_api_prompts():
+    deny = _admin_deny()
+    if deny:
+        return deny
+    out = []
+    for k, spec in PROMPTS.items():
+        body = prompt_get(k)
+        out.append({"key": k, "title": spec["title"], "desc": spec["desc"], "vars": spec["vars"], "body": body,
+                    "custom": body.strip() != spec["default"].strip(), "min": PROMPT_MIN, "max": PROMPT_MAX})
+    return _admin_json({"prompts": out, "provider": ai_pick_provider()})
+
+
+@app.route("/admin/api/prompt/<key>", methods=["POST"])
+def admin_api_prompt_save(key):
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    if key not in PROMPTS:
+        return _admin_json({"error": "없는 프롬프트예요."}, 404)
+    body = str(_json_body().get("body") or "")
+    err = _prompt_check(key, body)
+    if err:
+        return _admin_json({"error": err}, 400)
+    prompt_save(key, body, str(_json_body().get("note") or "직접 수정"))
+    _alog("prompt_save", f"{key} {len(body)}자")
+    return _admin_json({"ok": True})
+
+
+@app.route("/admin/api/prompt/<key>/reset", methods=["POST"])
+def admin_api_prompt_reset(key):
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    if key not in PROMPTS:
+        return _admin_json({"error": "없는 프롬프트예요."}, 404)
+    prompt_reset(key)
+    _alog("prompt_reset", key)
+    return _admin_json({"ok": True, "body": PROMPTS[key]["default"]})
+
+
+@app.route("/admin/api/prompt/<key>/history")
+def admin_api_prompt_history(key):
+    deny = _admin_deny()
+    if deny:
+        return deny
+    if key not in PROMPTS:
+        return _admin_json({"error": "없는 프롬프트예요."}, 404)
+    rows = _dbrows("SELECT id, body, at, note FROM admin_prompt_hist WHERE k=? ORDER BY id DESC LIMIT 20", ("id", "body", "at", "note"), (key,))
+    for r in rows:
+        r["at"] = _kst_str(r["at"])
+    return _admin_json({"rows": rows})
+
+
+@app.route("/admin/api/prompt/<key>/enhance", methods=["POST"])
+def admin_api_prompt_enhance(key):
+    """수동: 'AI에게 보낼 요청문'을 만들어 준다. 자동(mode=auto): 서버 키로 바로 개선안을 받아 온다(작업 번호 반환)."""
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    if key not in PROMPTS or key == "prompt_enhance":
+        return _admin_json({"error": "이 프롬프트는 강화 대상이 아니에요."}, 400)
+    d = _json_body()
+    body = str(d.get("body") or "").strip() or prompt_get(key)
+    goal = re.sub(r"[<>]", "", str(d.get("goal") or ""))[:500]
+    if d.get("mode") == "auto":
+        if not ai_pick_provider():
+            return _admin_json({"error": "서버에 AI API 키가 없어요. 수동 방식을 쓰세요."}, 400)
+        if _job_busy("enhance"):
+            return _admin_json({"error": "이미 진행 중이에요."}, 409)
+        jid = _job_new("enhance", total=1)
+        threading.Thread(target=_enhance_job, args=(jid, key, goal, body), daemon=True).start()
+        _alog("prompt_enhance_auto", key)
+        return _admin_json({"job": jid})
+    return _admin_json({"request": _enhance_prompt_text(key, goal, body)})
+
+
+@app.route("/admin/api/prompt/<key>/enhance-parse", methods=["POST"])
+def admin_api_prompt_enhance_parse(key):
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    if key not in PROMPTS:
+        return _admin_json({"error": "없는 프롬프트예요."}, 404)
+    reasons, body = _enhance_parse(str(_json_body().get("text") or "")[:40000])
+    return _admin_json({"reasons": reasons, "body": body, "problem": _prompt_check(key, body) or ""})
+
+
+# ── 공개 화면 ──
+@app.route("/api/delist/public")
+def api_delist_public():
+    if not menu_public("delist"):
+        return "not found", 404
+    rows = []
+    if _ensure_v135_tables():
+        rows = _dbrows("SELECT ticker, name, market, admin_label, admin_note, admin_at FROM delist_watch "
+                       "WHERE admin_state='confirmed' ORDER BY admin_at DESC, ticker LIMIT 500",
+                       ("ticker", "name", "market", "label", "note", "at"))
+    for r in rows:
+        r["at"] = datetime.fromtimestamp(int(r["at"]), _now_kst().tzinfo).strftime("%Y-%m-%d") if r["at"] else ""
+    resp = jsonify({"rows": rows})
+    resp.headers["Cache-Control"] = "public, max-age=60"
+    return resp
+
+
+DELIST_PUBLIC_HTML = r"""<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>거래정지·상장폐지 종목 · 종목분석 미니</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f1f5f9;font-family:system-ui,'Malgun Gothic',sans-serif;color:#1f2937}
+header{background:#0f172a;color:#fff;padding:12px 16px;display:flex;gap:10px;align-items:center}header a{color:#93c5fd;text-decoration:none;font-size:13px}header b{flex:1}
+.w{max-width:860px;margin:0 auto;padding:14px 16px 40px}.note{background:#fff7ed;border:1px solid #fdba74;border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.6;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;font-size:14px}td,th{padding:9px 10px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}th{background:#f8fafc;font-size:12.5px}
+.tag{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700;background:#fee2e2;color:#b91c1c}.sub{color:#64748b;font-size:12px}a.s{color:#2563eb;text-decoration:none}
+.empty{background:#fff;border-radius:12px;padding:22px;text-align:center;color:#64748b}
+</style></head><body><header><b>🚫 거래정지·상장폐지 종목</b><a href="/">← 종목분석으로</a></header>
+<div class="w"><div class="note">운영자가 거래소 공시 등을 확인해 직접 확정한 종목만 보여드립니다. <b>실제 상태는 바뀔 수 있으므로 투자 전에 반드시 한국거래소(KIND)·DART 공시로 다시 확인하세요.</b> 투자 권유가 아니며, 투자 판단과 책임은 본인에게 있습니다.</div>
+<div id="box"><div class="empty">불러오는 중…</div></div></div>
+<script>
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+fetch('/api/delist/public').then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(d){
+ var b=document.getElementById('box');b.innerHTML='';
+ if(!d.rows.length){b.appendChild(el('div','empty','현재 확정된 종목이 없습니다.'));return}
+ var t=el('table'),h=el('tr');['종목','상태','메모','확정일'].forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
+ d.rows.forEach(function(r){var tr=el('tr'),td=el('td');var a=el('a','s',r.name+' ('+r.ticker+')');a.href='/?t='+encodeURIComponent(r.ticker);td.appendChild(a);td.appendChild(el('div','sub',r.market||''));tr.appendChild(td);
+  var s=el('td');s.appendChild(el('span','tag',r.label));tr.appendChild(s);tr.appendChild(el('td','sub',r.note||''));tr.appendChild(el('td','sub',r.at||''));t.appendChild(tr)});
+ b.appendChild(t)}).catch(function(){var b=document.getElementById('box');b.innerHTML='';b.appendChild(el('div','empty','지금은 볼 수 없는 화면입니다.'))});
+</script></body></html>"""
+
+
+@app.route("/delist")
+def delist_public_page():
+    if not menu_public("delist"):
+        return "not found", 404
+    resp = app.make_response(DELIST_PUBLIC_HTML)
+    resp.headers["X-Robots-Tag"] = "noindex"
+    return resp
+
 
 
 
@@ -5108,6 +6300,7 @@ HTML_TEMPLATE = r"""
   </div>
 </div>
 
+<div id="admBar" style="display:none;background:#0f172a;color:#fff;font-size:12.5px;padding:7px 14px;align-items:center;gap:10px;flex-wrap:wrap"></div>
 <div class="topbar">
   <div class="brandBlock">
     <div class="brand">📈 종목분석<span> 미니</span> <span class="verTag">{{ app_version }}</span></div>
@@ -5119,6 +6312,7 @@ HTML_TEMPLATE = r"""
   </div>
   <button class="refreshBtn" onclick="resetAll()" title="검색·결과·AI 칸을 모두 비우고 첫 화면으로 돌아갑니다">↺ 초기화</button>
   <button class="refreshBtn" onclick="refreshTickers()">🔄 종목목록 갱신</button>
+  <span id="menuLinks" style="display:contents"></span>
   <a class="refreshBtn" href="/help" target="_blank" rel="noopener" style="text-decoration:none;">❓ 도움말</a>
   {% if kakao_url %}
   <a class="refreshBtn" href="{{ kakao_url }}" target="_blank" rel="noopener"
@@ -6783,6 +7977,50 @@ document.addEventListener('keydown', function(e){
     if(!w){ location.href = '/admin'; }
   }
 });
+
+// 🧭 [v135] 상단 메뉴 + 관리자 로그인 표시. 공개된 메뉴는 모두에게, 관리자 전용 메뉴(🔒)는 관리자로 로그인한 브라우저에만 보인다.
+(function(){
+  var PREVIEW = false;
+  try { PREVIEW = sessionStorage.getItem('adm_preview') === '1'; } catch(e) {}
+  var wrap = document.getElementById('menuLinks'), bar = document.getElementById('admBar');
+  if(!wrap || !bar) return;
+  function mk(href, txt, title){
+    var a = document.createElement('a'); a.className = 'refreshBtn'; a.href = href; a.textContent = txt;
+    a.style.textDecoration = 'none'; if(title) a.title = title; return a;
+  }
+  function setPreview(v){ try { sessionStorage.setItem('adm_preview', v ? '1' : '0'); } catch(e) {} location.reload(); }
+  function draw(pub, adm){
+    wrap.innerHTML = ''; bar.innerHTML = ''; bar.style.display = 'none';
+    var isAdm = !!(adm && adm.admin);
+    var shown = {};
+    pub.forEach(function(m){ shown[m.id] = 1; wrap.appendChild(mk(m.path, m.icon + ' ' + m.label)); });
+    if(isAdm && !PREVIEW){
+      (adm.menus || []).forEach(function(m){
+        if(shown[m.id]) return;
+        var a = mk(m.admin_path, m.icon + ' ' + m.label + ' 🔒', '관리자에게만 보이는 메뉴입니다(일반 이용자에게는 보이지 않아요)');
+        a.style.border = '1px dashed #f59e0b'; a.style.background = '#fffbeb'; a.style.color = '#92400e';
+        wrap.appendChild(a);
+      });
+    }
+    if(isAdm){
+      bar.style.display = 'flex';
+      var t = document.createElement('b');
+      t.textContent = PREVIEW ? '👀 일반 이용자 화면 미리보기 중' : '👑 관리자로 로그인됨';
+      bar.appendChild(t);
+      var d = document.createElement('span'); d.style.opacity = '.75';
+      d.textContent = PREVIEW ? '— 관리자 전용 메뉴가 숨겨진, 일반 이용자가 보는 모습입니다.' : '— 🔒 표시 메뉴는 일반 이용자에게 보이지 않아요.';
+      bar.appendChild(d);
+      var c = document.createElement('a'); c.href = '/admin'; c.target = '_blank'; c.rel = 'noopener'; c.textContent = '관리자 콘솔 열기';
+      c.style.cssText = 'color:#93c5fd;margin-left:auto;text-decoration:none'; bar.appendChild(c);
+      var b = document.createElement('button'); b.textContent = PREVIEW ? '관리자 화면으로 돌아가기' : '일반 이용자 화면으로 보기';
+      b.style.cssText = 'background:#334155;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer';
+      b.onclick = function(){ setPreview(!PREVIEW); }; bar.appendChild(b);
+    }
+  }
+  var p1 = fetch('/api/menus', {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(j){ return j.menus || []; }).catch(function(){ return []; });
+  var p2 = fetch('/admin/api/whoami', {credentials:'same-origin', cache:'no-store'}).then(function(r){ return r.ok ? r.json() : {admin:false}; }).catch(function(){ return {admin:false}; });
+  Promise.all([p1, p2]).then(function(v){ draw(v[0], v[1]); });
+})();
 </script>
 </body>
 </html>
