@@ -22,6 +22,18 @@ services:
         fromDatabase:
           name: stock-analyzer-db
           property: connectionString
+      - key: ADMIN_KEY                 # (예전 방식) ADMIN_EMAIL을 설정하면 자동으로 꺼집니다
+        sync: false
+      - key: ADMIN_EMAIL               # 관리자 콘솔(Ctrl+Shift+A) 인증번호를 받을 메일 — Render 화면에서 직접 입력
+        sync: false
+      - key: RESEND_API_KEY            # 인증번호 메일 발송용(resend.com) — 코드·GitHub에 적지 않음
+        sync: false
+      - key: GEMINI_API_KEY            # (선택) 관리자 '거래정지·상폐' AI 자동 검증용. 없으면 수동(복사·붙여넣기)만 가능
+        sync: false
+      - key: ANTHROPIC_API_KEY         # (선택) 위와 같음 — 셋 중 하나만 있어도 됨
+        sync: false
+      - key: OPENAI_API_KEY            # (선택) 위와 같음
+        sync: false
 
 databases:
   - name: stock-analyzer-db
