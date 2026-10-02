@@ -67,7 +67,9 @@ function toast(m){if(typeof window.toast==='function')window.toast(m);else if(ty
 K.toast=toast;
 /* ── 서버 설정(메뉴 폴더 이름·배율) ── */
 K.loadCfg=function(force){if(K._cfg&&!force)return Promise.resolve(K._cfg);
- return fetch('/admin/api/settings',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){
+ var tm=new Promise(function(res){setTimeout(function(){res({__timeout:1})},6000)});
+ var rq=fetch('/admin/api/settings',{credentials:'same-origin',cache:'no-store'});
+ return Promise.race([rq,tm]).then(function(r){if(r&&r.__timeout)throw new Error('timeout');return r}).then(function(r){return r.json()}).then(function(j){
   var d={};try{d=JSON.parse(j.img_cfg||'{}')}catch(e){}
   var fo={};Object.keys(DEF.folders).forEach(function(k){fo[k]=DEF.folders[k]});Object.keys(d.folders||{}).forEach(function(k){fo[k]=d.folders[k]});
   K._cfg={folders:fo,scale:Number(d.scale)||DEF.scale};return K._cfg}).catch(function(){K._cfg={folders:DEF.folders,scale:DEF.scale};return K._cfg})};
@@ -378,15 +380,24 @@ K.stock={drawMain:drawMain,drawCombo:drawCombo,
 # ══════════════════════════════════════════════════════════════
 TAB_JS = r"""
 var IK={cfg:null};
+function ikWhy(e){return (e&&(e.stack||e.message))?String(e.message||e).slice(0,200):String(e||'알 수 없는 오류')}
+function ikFail(msg){['ikFolder','ikMode','ikNames'].forEach(function(id){var b=$(id);if(!b)return;b.innerHTML='';b.appendChild(el('b',null,id==='ikFolder'?'📁 다운로드 폴더':id==='ikMode'?'⚙ 저장 방식':'🗂 메뉴 폴더 이름'));b.appendChild(el('p','note bad','⚠ '+msg))})}
 function ikLoad(p){p.innerHTML='';var top=el('div','c');top.appendChild(el('b',null,'🖼 이미지 저장 설정'));
  top.appendChild(el('p','note','블로그에 올릴 분석 이미지를 어디에·어떻게 저장할지 정해요. 저장 위치는 [지정 폴더]/날짜(20261002)/메뉴 폴더(종목분석)/① 종목명_종목코드.png 형태로 자동 정리됩니다. 폴더·자동/수동 모드는 이 기기(이 브라우저)에만 저장돼요.'));p.appendChild(top);
- var fc=el('div','c');fc.id='ikFolder';p.appendChild(fc);var mc=el('div','c');mc.id='ikMode';p.appendChild(mc);var nc=el('div','c');nc.id='ikNames';p.appendChild(nc);
- window.ImgKit.loadCfg(true).then(function(c){IK.cfg=JSON.parse(JSON.stringify(c));ikDraw()})}
+ var fc=el('div','c');fc.id='ikFolder';fc.appendChild(el('p','note','불러오는 중…'));p.appendChild(fc);var mc=el('div','c');mc.id='ikMode';p.appendChild(mc);var nc=el('div','c');nc.id='ikNames';nc.appendChild(el('p','note','불러오는 중…'));p.appendChild(nc);
+ var K=window.ImgKit;
+ if(!K||typeof K.info!=='function'||typeof K.loadCfg!=='function'){ikFail('이미지 도구가 불러와지지 않았어요. 페이지를 새로고침(Ctrl+Shift+R)해 보시고, 계속되면 아래 문구를 알려 주세요: '+(window.__ikBoot?ikWhy(window.__ikBoot):'ImgKit 없음'));return}
+ IK.cfg={folders:{stock:'종목분석',deep:'심층분석',daily:'오늘추천'},scale:2};
+ try{ikFolder();ikMode()}catch(e){ikFail('화면을 그리다 오류가 났어요: '+ikWhy(e))}
+ var drew=false;function names(c){if(drew)return;drew=true;try{if(c)IK.cfg=JSON.parse(JSON.stringify(c));ikNames()}catch(e){var b=$('ikNames');if(b){b.innerHTML='';b.appendChild(el('p','note bad','⚠ 폴더 이름 화면 오류: '+ikWhy(e)))}}}
+ setTimeout(function(){names(null)},7000);
+ K.loadCfg(true).then(names,function(){names(null)})}
 function ikDraw(){ikFolder();ikMode();ikNames()}
 function ikFolder(){var b=$('ikFolder');if(!b)return;b.innerHTML='';b.appendChild(el('b',null,'📁 다운로드 폴더'));
  var dg=el('p','note','브라우저 점검: 폴더 선택 기능 '+(window.ImgKit.supported?'✅ 사용 가능':'❌ 지원 안 함')+' · 보안 연결(https) '+(window.isSecureContext?'✅':'❌')+' · 이 창 '+(window.top===window?'✅ 단독 창':'⚠ 다른 화면 안에 들어 있음'));b.appendChild(dg);
  if(!window.ImgKit.supported){b.appendChild(el('p','note bad','이 브라우저는 폴더 지정을 지원하지 않아요. 데스크톱 크롬·엣지를 쓰시면 폴더를 지정할 수 있고, 지금은 일반 다운로드 폴더에 저장됩니다(파일 이름은 ① 종목명_코드.png 로 같아요).'));return}
- window.ImgKit.info().then(function(i){var s=el('p','m');
+ var infoP=Promise.race([window.ImgKit.info(),new Promise(function(res){setTimeout(function(){res({name:'',perm:'none',slow:1})},4000)})]).catch(function(e){return {name:'',perm:'none',err:ikWhy(e)}});
+ infoP.then(function(i){var s=el('p','m');if(i.err)b.appendChild(el('p','note bad','⚠ 저장된 폴더 정보를 읽지 못했어요: '+i.err));else if(i.slow)b.appendChild(el('p','note','저장된 폴더 정보를 읽는 중이에요(브라우저가 느리게 응답해요). 새로 지정하셔도 됩니다.'));
   if(!i.name)s.textContent='아직 폴더를 지정하지 않았어요 → 브라우저 기본 다운로드 폴더에 저장됩니다.';
   else s.textContent='지정된 폴더: '+i.name+(i.perm==='granted'?' · ✅ 접근 허용됨':' · 🔒 이 세션에서 접근 허용이 필요해요(저장할 때 한 번 물어봐요)');
   b.appendChild(s);var r=el('div','bar');
@@ -411,6 +422,6 @@ function ikNames(){var b=$('ikNames');if(!b)return;b.innerHTML='';b.appendChild(
 
 def register():
     C.register_settings({"img_cfg": json.dumps(DEFAULT_CFG, ensure_ascii=False)}, {"img_cfg": _valid_cfg})
-    C.register_admin_lib(IMGKIT_JS + STOCK_JS)
+    C.register_admin_lib("try{" + IMGKIT_JS + "\n" + STOCK_JS + "\n}catch(e){window.__ikBoot=e}\n;")
     C.register_admin_tab("ik", "🖼 이미지 저장", TAB_JS, "ikLoad")
     return bp
