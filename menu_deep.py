@@ -588,7 +588,8 @@ def build_deep_blog(d, ai_text="", inc=None, title=""):
     if not title:
         title = titles[0] if titles else f"{name}({ticker}) 기업 심층분석 — 재무·밸류에이션·리스크 정리 ({date_k})"
     kw = [f"{name} 주가", f"{name} 심층분석", f"{name} 재무", f"{name} 전망", ticker, "기업분석", "재무제표 분석"]
-    tags, tag_html = B.hashtags([name, name + "심층분석"], date_k, extra=["기업분석", "재무분석", "기업심층분석"])
+    dl_lead, dl_bottom, dl_tags = B.delist_blocks(d.get("delisting"), name, ticker)   # 상폐·거래정지 위험 신호가 있으면 글 위·아래에 경고
+    tags, tag_html = B.hashtags([name, name + "심층분석"], date_k, extra=dl_tags + ["기업분석", "재무분석", "기업심층분석"])
     h = [B.seo_box(title, f"{name}의 5개년 재무와 체력 진단, 밸류에이션, 수급·공시를 데이터로 정리한 기업 심층분석입니다. (기준 {d.get('as_of')})", kw)]
     badge = f'<span style="font-size:12px;font-weight:800;color:{B.NAVY};background-color:{B.GOLD};padding:2px 10px;border-radius:10px;">종합 {s["total"]}점 · {s["grade"]}등급</span>'
     h.append(B.head_box("COMPANY DEEP DIVE", f'🏛 {E(name)} <span style="font-size:15px;color:#cbd5e1;">{E(ticker)}</span>',
@@ -597,6 +598,8 @@ def build_deep_blog(d, ai_text="", inc=None, title=""):
     h.append(B.engage_box())
     p = d.get("price") or {}
     f = d.get("fundamentals") or {}
+    if dl_lead:
+        h.append(dl_lead)
     pf = d.get("profile")
     if inc.get("profile"):
         rows = [("현재가", f"{(p.get('price') or 0):,.0f}원 ({p.get('day_pct', 0):+.2f}%)"), ("시가총액", E(d.get("cap") or "-")), ("PER / PBR", f"{_n(f.get('PER'))}배 / {_n(f.get('PBR'), 2)}배"),
@@ -696,6 +699,8 @@ def build_deep_blog(d, ai_text="", inc=None, title=""):
     lk = d["links"]
     h.append(f'<p style="font-size:12px;color:#6b7280;margin:14px 0 0;">&#128279; <a href="{lk["naver"]}" target="_blank" style="color:#03c75a;font-weight:700;">네이버증권</a> · <a href="{lk["dart"]}" target="_blank" style="color:#1d4ed8;font-weight:700;">DART 공시</a> · '
              f'<a href="{lk["kind"]}" target="_blank" style="color:#1d4ed8;font-weight:700;">KIND</a> · 데이터 출처: 네이버증권{", DART" if d.get("profile_src") or d["years_src"].startswith("원본") else ""}</p>')
+    if dl_bottom:
+        h.append(dl_bottom)
     h.append(B.risk_box())
     h.append(tag_html)
     body = "".join(h)
@@ -786,52 +791,99 @@ function dpSavedDraw(p){var sv=$('dpSaved');if(!sv)return;sv.innerHTML='';if(!DP
  DP.saved.slice(0,24).forEach(function(x){var b=bt((x.name||x.ticker)+' '+x.at.slice(5),'bt3',function(){dpOpen(x.ticker,p)});b.style.margin='2px';sv.appendChild(b)})}
 function dpOpen(tk,p,peers){DP.tk=tk;var b=$('dpBody');b.innerHTML='';b.appendChild(el('div','c','⏳ 재무·수급·공시·PEER를 모으는 중… (처음 한 번 5~10초)'));
  apiJ('/admin/api/deep/data',{ticker:tk,peers:peers||DP.peers[tk]||[]}).then(function(j){if(j.error){b.innerHTML='';b.appendChild(el('div','c bad','⚠ '+j.error));return}DP.d=j;dpDraw(p)})}
-function dpBar(parent,name,score,grade,note){var r=el('div');dpSty(r,'display:grid;grid-template-columns:90px 42px 34px 1fr;gap:8px;align-items:center;margin:6px 0;font-size:13px');r.appendChild(el('b',null,name));var n=el('b',null,score);n.style.color=dpCol(score);r.appendChild(n);var g=el('b',null,grade||'');g.style.color=dpCol(score);r.appendChild(g);
- var w=el('div');dpSty(w,'height:10px;background:#e5e7eb;border-radius:6px;overflow:hidden');var i=el('div');dpSty(i,'height:100%;width:'+score+'%;background:'+dpCol(score));w.appendChild(i);r.appendChild(w);parent.appendChild(r);if(note){var m=el('div','m',note);m.style.margin='-2px 0 4px 132px';parent.appendChild(m)}}
-function dpTable(parent,head,rows,opt){var tw=el('div');tw.style.overflowX='auto';var t=el('table'),h=el('tr');head.forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
- rows.forEach(function(r){var tr=el('tr');r.forEach(function(c,i){var td=el('td',(opt&&opt.cls&&opt.cls[i])||'',c==null?'-':String(c));tr.appendChild(td)});t.appendChild(tr)});tw.appendChild(t);parent.appendChild(tw)}
-function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;b.innerHTML='';var s=d.score;
- var hero=el('div','c');var hh=el('div');dpSty(hh,'display:flex;align-items:center;gap:16px;flex-wrap:wrap');
- var big=el('div',null,s.total+'점');dpSty(big,'font-size:42px;font-weight:900;line-height:1;color:'+dpCol(s.total));hh.appendChild(big);
- var t=el('div');t.appendChild(el('b',null,d.name+' ('+d.ticker+') · '+s.grade+'등급'));t.appendChild(el('div','m',(d.market||'')+' · '+(d.sector||'-')+' · 시총 '+(d.cap||'-')+' · 기준 '+(d.as_of||'')));t.appendChild(el('div','m','재무 출처: '+d.years_src+(d.saved.quant_at?' ('+d.saved.quant_at+' 저장)':'')));hh.appendChild(t);hero.appendChild(hh);
- if(d.dup_warn){var w=el('div','note bad','⚠ '+d.dup_warn);w.style.marginTop='8px';hero.appendChild(w)}
- if(d.delisting&&d.delisting.level&&d.delisting.level!=='none'){var w2=el('div','note bad','⚠ 상장폐지·거래정지 유의 신호('+d.delisting.level+'): '+(d.delisting.reasons||[]).join(' / '));w2.style.marginTop='6px';hero.appendChild(w2)}
- var lk=el('div','m');[['네이버증권',d.links.naver],['DART',d.links.dart],['KIND',d.links.kind]].forEach(function(x){var a=el('a',null,x[0]);a.href=x[1];a.target='_blank';a.rel='noopener';lk.appendChild(a);lk.appendChild(document.createTextNode('  '))});hero.appendChild(lk);b.appendChild(hero);
- // 5축
- var c1=el('div','c');c1.appendChild(el('b',null,'🎯 5축 체력 진단'));var g=s.grades,bs=s.basis;
- dpBar(c1,'수익성',s.prof,g.prof,'영업이익률 '+dpN(bs.opm)+'% · ROE '+dpN(bs.roe)+'%');dpBar(c1,'안정성',s.stab,g.stab,'부채비율 '+dpN(bs.debt_ratio,0)+'% · 유동(당좌)비율 '+dpN(bs.cur_ratio,0)+'% · 흑자 '+bs.black_years+'년');
- dpBar(c1,'성장성',s.grow,g.grow,'매출 CAGR '+dpN(bs.rev_cagr)+'% · 영업이익 CAGR '+dpN(bs.op_cagr)+'%');dpBar(c1,'거버넌스',s.gov,g.gov,'최근3년 배당 '+bs.div_paid_3y+'회 · 수익률 '+dpN(bs.div_yld)+'% · 성향 '+dpN(bs.payout)+'%');
- dpBar(c1,'밸류에이션',s.valu,g.valu,(d.valuation.notes||[]).join(' · '));c1.appendChild(el('p','note','종합 = 수익성 25% + 안정성 20% + 성장성 20% + 거버넌스 15% + 밸류에이션 20%. 원본 4축 방식으로 계산하면 '+s.orig_total+'점('+s.orig_grade+'등급)이에요. 참고용 지표입니다.'));b.appendChild(c1);
- // 재무표
- var c2=el('div','c');c2.appendChild(el('b',null,'📊 연도별 재무 (억원)'));var ys=d.years;var rows=[['매출액'].concat(ys.map(function(y){return dpN(y.rev,0)})),['  전년비(%)'].concat(ys.map(function(y){return dpN(y.rev_g)})),['영업이익'].concat(ys.map(function(y){return dpN(y.op,0)})),['영업이익률(%)'].concat(ys.map(function(y){return dpN(y.opm)})),['순이익'].concat(ys.map(function(y){return dpN(y.ni,0)})),['ROE(%)'].concat(ys.map(function(y){return dpN(y.roe)})),['부채비율(%)'].concat(ys.map(function(y){return dpN(y.debt_ratio,0)})),['유동(당좌)비율(%)'].concat(ys.map(function(y){return dpN(y.cur_ratio,0)}))];
+var DPCSS='.dpH{background:linear-gradient(135deg,#0a1228 0%,#16275a 62%,#243a73 100%);color:#fff;border-radius:18px;padding:20px 22px;display:grid;grid-template-columns:200px 1fr 340px;gap:14px;align-items:center;position:relative;overflow:hidden;margin-bottom:12px;box-shadow:0 14px 36px -16px rgba(10,18,40,.7)}'+
+'.dpH:after{content:"";position:absolute;right:-70px;top:-70px;width:260px;height:260px;border-radius:50%;background:radial-gradient(closest-side,rgba(214,178,94,.38),transparent)}'+
+'.dpH>*{position:relative;z-index:1}.dpHm h2{margin:0;font-size:26px;font-weight:900;letter-spacing:-.02em}.dpHm .kk{font-size:11px;letter-spacing:.2em;color:#d6b25e;font-weight:800}.dpHm .mt{color:#cbd5e1;font-size:13px;margin-top:6px;line-height:1.7}'+
+'.dpHm .hl{margin-top:10px;display:inline-block;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 13px;font-size:13px;font-weight:800;color:#f6e7b4}.dpHm .lk a{color:#93c5fd;font-size:12px;margin-right:12px}'+
+'@media(max-width:1100px){.dpH{grid-template-columns:1fr;justify-items:center;text-align:center}}'+
+'.dpW{border-radius:14px;padding:12px 15px;margin-bottom:10px;font-size:13.5px;line-height:1.7;font-weight:700}.dpW.d{background:#fef2f2;border:2px solid #dc2626;color:#991b1b}.dpW.c{background:#fffbeb;border:2px solid #d97706;color:#92400e}.dpW small{display:block;font-weight:600;opacity:.9}'+
+'.dpTiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:9px;margin-bottom:12px}.dpTile{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:11px 13px;box-shadow:0 1px 2px rgba(15,23,42,.04)}.dpTile .l{font-size:11.5px;color:#64748b;font-weight:700}.dpTile .v{font-size:19px;font-weight:900;color:#0f172a;margin-top:2px}.dpTile .s{font-size:11.5px;font-weight:700;margin-top:1px}'+
+'.dpNav{position:sticky;top:44px;z-index:4;display:flex;gap:6px;flex-wrap:wrap;background:rgba(244,246,251,.94);backdrop-filter:blur(6px);padding:8px 2px;margin-bottom:6px}.dpNav button{border:1.5px solid #c7d2fe;background:#fff;color:#312e81;border-radius:999px;padding:5px 12px;font:inherit;font-size:12.5px;font-weight:800;cursor:pointer}.dpNav button:hover{background:#312e81;color:#fff}'+
+'.dpS{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px 18px;margin-bottom:12px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 10px 26px -18px rgba(15,23,42,.35);scroll-margin-top:90px}.dpS>.dpT{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:900;color:#0f172a;margin-bottom:10px}.dpS>.dpT:before{content:"";width:5px;height:20px;border-radius:3px;background:var(--ac,#2563eb)}.dpS>.dpT small{font-size:12px;color:#94a3b8;font-weight:700}'+
+'.dpAx{display:grid;grid-template-columns:78px 40px 1fr;gap:10px;align-items:center;margin:9px 0;font-size:13px}.dpAx .n{font-weight:800}.dpAx .sc{font-weight:900;font-size:16px;text-align:right}.dpAx .tr{height:12px;background:#eef2f7;border-radius:7px;overflow:hidden;position:relative}.dpAx .tr i{display:block;height:100%;border-radius:7px}.dpAx .nt{grid-column:2/4;color:#64748b;font-size:12px;margin-top:-4px}'+
+'.dpt{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}.dpt th{background:#f1f5f9;color:#475569;font-weight:800;padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:2px solid #e2e8f0}.dpt th:first-child,.dpt td:first-child{text-align:left}.dpt td{padding:8px 10px;text-align:right;border-bottom:1px solid #eef2f7;white-space:nowrap}.dpt tr:nth-child(even) td{background:#fafbfd}.dpt td.up{color:#e11d48;font-weight:700}.dpt td.dn{color:#2563eb;font-weight:700}'+
+'.dpCk{display:grid;grid-template-columns:30px 130px 1fr;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #eef2f7;font-size:13px}.dpCk .ic{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:13px}.dpCk .ic.ok{background:#16a34a}.dpCk .ic.warn{background:#d97706}.dpCk .ic.na{background:#94a3b8}.dpCk b{font-weight:800}.dpCk span{color:#64748b}'+
+'.dpCv{max-width:100%;height:auto;display:block}.dpTop .dpCv{margin:0 auto}';
+function dpCss(){if(window.ImgKit&&ImgKit.addCss)ImgKit.addCss('dpCss',DPCSS)}
+function dpCv(w,h,fn){var K=window.ImgKit;var m=K.make(w,h,2);fn(m.c,w,h);m.cv.className='dpCv';m.cv.style.width=w+'px';m.cv.style.maxWidth='100%';return m.cv}
+function dpAxes(d,dark){var s=d.score,c=dark?['#60a5fa','#2dd4bf','#c4b5fd','#fbbf24','#fb7185']:['#2563eb','#0f766e','#7c3aed','#d97706','#e11d48'];
+ return [{name:'수익성',score:s.prof,col:c[0],g:s.grades.prof},{name:'안정성',score:s.stab,col:c[1],g:s.grades.stab},{name:'성장성',score:s.grow,col:c[2],g:s.grades.grow},{name:'거버넌스',score:s.gov,col:c[3],g:s.grades.gov},{name:'밸류에이션',score:s.valu,col:c[4],g:s.grades.valu}]}
+function dpHead(d){var ax=dpAxes(d).filter(function(a){return a.score!=null});if(!ax.length)return '';var o=ax.slice().sort(function(a,b){return b.score-a.score}),b=o[0],w=o[o.length-1];
+ if(ax.length<2||b.score-w.score<12)return '5개 축이 고르게 '+(b.score>=60?'양호한':'중립적인')+' 모습';return b.name+' 강점 · '+w.name+(w.score<50?' 점검 필요':' 보완 여지')}
+function dpCap(c){var m=String(c||'').replace(/,/g,'').match(/([0-9.]+)\s*억/);if(!m)return c||'-';var v=Number(m[1]);return v>=10000?(v/10000).toLocaleString('ko-KR',{maximumFractionDigits:1})+'조원':Number(v).toLocaleString('ko-KR')+'억원'}
+function dpSector(d){var x=d.sector;return (x&&x!=='—'&&x!=='-')?x:''}
+function dpCol2(sc){return sc>=70?'#22c55e':(sc>=50?'#f59e0b':'#ef4444')}
+function dpTile(par,l,v,sub,cls){var t=el('div','dpTile');t.appendChild(el('div','l',l));t.appendChild(el('div','v',v));if(sub){var s=el('div','s '+(cls||''),sub);s.style.color=cls==='up'?'#e11d48':(cls==='dn'?'#2563eb':'#64748b');t.appendChild(s)}par.appendChild(t)}
+function dpSec(b,id,title,sub,color){var s=el('div','dpS');s.id='dps_'+id;if(color)s.style.setProperty('--ac',color);var t=el('div','dpT');t.appendChild(document.createTextNode(title));if(sub)t.appendChild(el('small',null,sub));s.appendChild(t);b.appendChild(s);return s}
+function dpTable(parent,head,rows,opt){var tw=el('div');tw.style.overflowX='auto';var t=el('table','dpt'),h=el('tr');head.forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
+ rows.forEach(function(r){var tr=el('tr');r.forEach(function(c,i){var td=el('td',(opt&&opt.cls&&opt.cls(r,i))||'',c==null?'-':String(c));tr.appendChild(td)});t.appendChild(tr)});tw.appendChild(t);parent.appendChild(tw)}
+function dpSign(v){return v>0?'up':(v<0?'dn':'')}
+function dpBandCv(v){var bands=v.bands.filter(function(x){return x.low!=null&&x.mid!=null&&x.high!=null}).slice(0,4);if(!bands.length)return document.createElement('div');var W=760,rh=64,H=bands.length*rh+14;return dpCv(W,H,function(c){bands.forEach(function(x,i){var y=i*rh+8,lo=Math.min(x.low,v.price||x.low)*0.9,hi=Math.max(x.high,v.price||x.high)*1.08,sx=function(z){return 150+(z-lo)/(hi-lo)*(W-170)};
+  ImgKit.text(c,x.name,0,y+22,{s:13,w:800,c:'#334155',max:140});
+  ImgKit.rr(c,150,y+10,W-170,12,6);c.fillStyle='#eef2f7';c.fill();ImgKit.rr(c,sx(x.low),y+6,Math.max(6,sx(x.high)-sx(x.low)),20,8);c.fillStyle='rgba(13,148,136,.35)';c.fill();c.strokeStyle='#0d9488';c.lineWidth=1.6;c.stroke();
+  c.fillStyle='#0f766e';c.fillRect(sx(x.mid)-1.5,y+3,3,26);
+  if(v.price){var px=sx(v.price);c.fillStyle='#e11d48';c.fillRect(px-1.5,y-2,3,36);ImgKit.text(c,'현재가 '+dpN(v.price,0),px,y-5,{s:11,w:800,c:'#e11d48',a:'center'})}
+  var xl=sx(x.low),xm=sx(x.mid),xh=sx(x.high);ImgKit.text(c,dpN(x.low,0),xl,y+46,{s:11.5,w:700,c:'#64748b',a:xl<190?'left':'center'});ImgKit.text(c,dpN(x.high,0),xh,y+46,{s:11.5,w:700,c:'#64748b',a:'right'});if(xm-xl>80&&xh-xm>80)ImgKit.text(c,dpN(x.mid,0),xm,y+46,{s:12,w:900,c:'#0f766e',a:'center'})})})}
+function dpFinCv(ys){var K=ImgKit,W=820,H=330;return dpCv(W,H,function(c){K.legend(c,6,16,[{name:'매출액',color:'#2563eb'},{name:'영업이익',color:'#f59e0b'},{name:'영업이익률(%)',color:'#e11d48',line:1}],13);
+ K.bars(c,0,24,W,H-24,{labels:ys.map(function(y){return String(y.y).slice(2)+'년'}),est:ys.map(function(y){return !!y.estimate}),bars:[{name:'매출액',values:ys.map(function(y){return y.rev}),color:'#2563eb'},{name:'영업이익',values:ys.map(function(y){return y.op}),color:'#f59e0b'}],
+  line:{name:'영업이익률',values:ys.map(function(y){return y.opm}),color:'#e11d48',unit:'%'},fmt:dpEok,fs:13})})}
+function dpEok(v){if(v==null||isNaN(v))return '-';var a=Math.abs(v);if(a>=10000)return (v/10000).toLocaleString('ko-KR',{maximumFractionDigits:1})+'조';return Math.round(v).toLocaleString('ko-KR')}
+function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML='';var s=d.score,bs=s.basis,AX=dpAxes(d),pr0=d.price||{},fu=d.fundamentals||{};
+ /* ── 위쪽 큰 카드 ── */
+ var H=el('div','dpH');var hl=el('div');hl.appendChild(dpCv(190,190,function(c){ImgKit.ring(c,95,95,74,s.total,{th:17,col:dpCol2(s.total),sub:s.grade+'등급',glow:10,ss:15})}));H.appendChild(hl);
+ var hm=el('div','dpHm');hm.appendChild(el('div','kk','COMPANY DEEP DIVE'));hm.appendChild(el('h2',null,d.name));hm.appendChild(el('div','mt',d.ticker+' · '+(d.market||'')+(dpSector(d)?' · '+dpSector(d):'')+' · 시총 '+dpCap(d.cap)+' · 기준 '+(d.as_of||'')));
+ var hs=dpHead(d);if(hs)hm.appendChild(el('div','hl','💡 '+hs));hm.appendChild(el('div','mt','재무 출처: '+d.years_src+(d.saved.quant_at?' ('+d.saved.quant_at+' 저장)':'')));
+ var lk=el('div','lk');[['네이버증권',d.links.naver],['DART',d.links.dart],['KIND',d.links.kind]].forEach(function(x){var a=el('a',null,x[0]+' ↗');a.href=x[1];a.target='_blank';a.rel='noopener';lk.appendChild(a)});hm.appendChild(lk);H.appendChild(hm);
+ var hr=el('div','dpTop');hr.appendChild(dpCv(340,270,function(c){ImgKit.radar(c,170,132,80,dpAxes(d,true),{fs:12.5,label:'#e2e8f0',grid:'rgba(255,255,255,.28)',fill:'rgba(250,204,21,.22)',stroke:'#facc15',lw:2.6})}));H.appendChild(hr);b.appendChild(H);
+ /* ── 경고 ── */
+ if(d.dup_warn){var w=el('div','dpW c','⚠ '+d.dup_warn);b.appendChild(w)}
+ if(d.delisting&&d.delisting.level&&d.delisting.level!=='none'){var dg=d.delisting.level==='danger';var w2=el('div','dpW '+(dg?'d':'c'),(dg?'🚨 투자 유의 — 거래 상태 이상 신호가 확인됐어요 (확정 아님)':'⚠️ 투자 유의 — 거래 상태와 관련해 살펴볼 정황이 있어요 (확정 아님)'));
+  w2.appendChild(el('small',null,(d.delisting.reasons||[]).join(' / ')));w2.appendChild(el('small',null,'블로그 글·이미지에도 단정하지 않는 표현으로 경고가 함께 들어가요. 매매 전 KIND·DART 공시 원문으로 꼭 확인하세요.'));b.appendChild(w2)}
+ /* ── 핵심 타일 ── */
+ var T=el('div','dpTiles');dpTile(T,'현재가',pr0.price!=null?dpN(pr0.price,0)+'원':'-',pr0.day_pct!=null?((pr0.day_pct>0?'▲ ':(pr0.day_pct<0?'▼ ':''))+Math.abs(pr0.day_pct).toFixed(2)+'%'):'',dpSign(pr0.day_pct));
+ dpTile(T,'시가총액',dpCap(d.cap));dpTile(T,'PER',fu.PER!=null?dpN(fu.PER)+'배':'-');dpTile(T,'PBR',fu.PBR!=null?dpN(fu.PBR,2)+'배':'-');dpTile(T,'ROE',bs.roe!=null?dpN(bs.roe)+'%':'-');dpTile(T,'영업이익률',bs.opm!=null?dpN(bs.opm)+'%':'-');dpTile(T,'부채비율',bs.debt_ratio!=null?dpN(bs.debt_ratio,0)+'%':'-');dpTile(T,'배당수익률',bs.div_yld!=null?dpN(bs.div_yld)+'%':(fu.DIV!=null?dpN(fu.DIV)+'%':'-'));b.appendChild(T);
+ var nav=el('div','dpNav');b.appendChild(nav);function navAdd(id,t){nav.appendChild(bt(t,'',function(){var e=$('dps_'+id);if(e)e.scrollIntoView({behavior:'smooth',block:'start'})}))}
+ /* ── 5축 ── */
+ var c1=dpSec(b,'ax','🎯 5축 체력 진단','종합 '+s.total+'점 · '+s.grade+'등급','#2563eb');navAdd('ax','🎯 체력');
+ var NT=[ '영업이익률 '+dpN(bs.opm)+'% · ROE '+dpN(bs.roe)+'%','부채비율 '+dpN(bs.debt_ratio,0)+'% · 유동(당좌)비율 '+dpN(bs.cur_ratio,0)+'% · 흑자 '+bs.black_years+'년','매출 CAGR '+dpN(bs.rev_cagr)+'% · 영업이익 CAGR '+dpN(bs.op_cagr)+'%','최근3년 배당 '+bs.div_paid_3y+'회 · 수익률 '+dpN(bs.div_yld)+'% · 성향 '+dpN(bs.payout)+'%',(d.valuation.notes||[]).join(' · ')];
+ AX.forEach(function(a,i){var r=el('div','dpAx');r.appendChild(el('span','n',a.name));var sc=el('span','sc',a.score==null?'-':a.score);sc.style.color=dpCol2(a.score||0);r.appendChild(sc);var tr=el('div','tr');var f=el('i');f.style.width=(a.score||0)+'%';f.style.background='linear-gradient(90deg,'+a.col+','+dpCol2(a.score||0)+')';tr.appendChild(f);r.appendChild(tr);if(NT[i])r.appendChild(el('div','nt',(a.g?a.g+' · ':'')+NT[i]));c1.appendChild(r)});
+ c1.appendChild(el('p','note','종합 = 수익성 25% + 안정성 20% + 성장성 20% + 거버넌스 15% + 밸류에이션 20%. 원본 4축 방식으로 계산하면 '+s.orig_total+'점('+s.orig_grade+'등급)이에요. 참고용 지표입니다.'));
+ /* ── 재무 ── */
+ var ys=d.years,c2=dpSec(b,'fin','📊 5개년 재무','단위 억원 · (E)=컨센서스 추정','#0891b2');navAdd('fin','📊 재무');if(ys.length)c2.appendChild(dpFinCv(ys));
+ var rows=[['매출액'].concat(ys.map(function(y){return dpN(y.rev,0)})),['  전년비(%)'].concat(ys.map(function(y){return dpN(y.rev_g)})),['영업이익'].concat(ys.map(function(y){return dpN(y.op,0)})),['영업이익률(%)'].concat(ys.map(function(y){return dpN(y.opm)})),['순이익'].concat(ys.map(function(y){return dpN(y.ni,0)})),['ROE(%)'].concat(ys.map(function(y){return dpN(y.roe)})),['부채비율(%)'].concat(ys.map(function(y){return dpN(y.debt_ratio,0)})),['유동(당좌)비율(%)'].concat(ys.map(function(y){return dpN(y.cur_ratio,0)}))];
  if(ys.some(function(y){return y.ocf!=null}))rows.push(['영업현금흐름'].concat(ys.map(function(y){return dpN(y.ocf,0)})),['간이 FCF'].concat(ys.map(function(y){return dpN(y.fcf,0)})));rows.push(['EPS(원)'].concat(ys.map(function(y){return dpN(y.eps,0)})),['주당배당금(원)'].concat(ys.map(function(y){return dpN(y.dps,0)})));
- dpTable(c2,['항목'].concat(ys.map(function(y){return y.label+(y.estimate?'(E)':'')})),rows);c2.appendChild(el('p','note','(E)는 증권사 컨센서스 추정치. 5개년 DART 자료는 원본 저장분이 있는 종목에서 나와요.'));b.appendChild(c2);
- // 프로필·주주
- if(d.profile||d.holders.length){var c3=el('div','c');c3.appendChild(el('b',null,'🏢 기업 현황'+(d.profile_src?' ('+d.profile_src+')':'')));if(d.profile){var pr=d.profile;c3.appendChild(el('p','note',['대표 '+(pr.ceo||'-'),'설립 '+(pr.est_dt||'-'),'결산 '+(pr.acc_mt||'-'),(pr.corp_cls||''),(pr.adres||'')].join(' · ')))}
-  if(d.holders.length)dpTable(c3,['주주','관계','지분율(%)'],d.holders.map(function(h){return [h.nm,h.relate,dpN(h.rt,2)]}));b.appendChild(c3)}
- // 밸류에이션
- var c4=el('div','c');c4.appendChild(el('b',null,'💹 밸류에이션 밴드 (참고 계산)'));var v=d.valuation;
- if(v.bands.length){dpTable(c4,['방법','낮은 값','중간','높은 값','근거'],v.bands.map(function(x){return [x.name,dpN(x.low,0),dpN(x.mid,0),dpN(x.high,0),x.basis]}));c4.appendChild(el('p','note','현재가 '+dpN(v.price,0)+'원'+(v.upside!=null?' · 컨센서스 목표가 대비 '+(v.upside>0?'+':'')+v.upside+'%':'')+'. PEER·업종 배수를 단순 적용한 값이라 적정주가·목표가가 아니에요.'))}else c4.appendChild(el('p','note','PEER 배수나 EPS 자료가 부족해 밴드를 만들지 못했어요.'));b.appendChild(c4);
- // PEER
- var c5=el('div','c');c5.appendChild(el('b',null,'🤝 PEER 비교'));
- if(d.peers.length){var me=[d.name+' (본 종목)',dpN(d.fundamentals.PER),dpN(d.fundamentals.PBR,2),dpN(bs.roe),dpN(bs.opm),'-',dpN((d.price||{}).pct20)];dpTable(c5,['종목','PER','PBR','ROE(%)','영업이익률(%)','시총(억)','20일(%)'],[me].concat(d.peers.map(function(x){return [x.name+' '+x.ticker,dpN(x.per),dpN(x.pbr,2),dpN(x.roe),dpN(x.opm),dpN(x.cap_eok,0),dpN(x.pct20)]})))}else c5.appendChild(el('p','note','동일 업종 PEER를 찾지 못했어요. 아래에 종목코드를 직접 넣을 수 있어요.'));
- var pr=el('div','bar');var pi=el('input');pi.placeholder='PEER 종목코드 (쉼표로 구분, 예: 000660,005380)';pi.style.width='300px';pi.value=(DP.peers[d.ticker]||[]).join(',');pr.appendChild(pi);pr.appendChild(bt('PEER 다시 계산','bt2',function(){var a=pi.value.split(/[ ,]+/).map(function(x){return x.trim().toUpperCase()}).filter(function(x){return /^[0-9A-Z]{6}$/.test(x)}).slice(0,6);DP.peers[d.ticker]=a;dpOpen(d.ticker,p,a)}));c5.appendChild(pr);b.appendChild(c5);
- // 체크리스트
- var c6=el('div','c');var okn=d.checklist.filter(function(x){return x.state==='ok'}).length,tot=d.checklist.filter(function(x){return x.state!=='na'}).length;c6.appendChild(el('b',null,'📝 투자 전 체크리스트 ('+okn+'/'+tot+' 충족)'));
- dpTable(c6,['','항목','내용'],d.checklist.map(function(x){return [x.state==='ok'?'✅':(x.state==='warn'?'⚠️':'➖'),x.label,x.note]}));b.appendChild(c6);
- // 수급·공시
- var c7=el('div','c');c7.appendChild(el('b',null,'👥 수급 · 📄 공시 · 📰 뉴스'));var sp=d.supply;if(sp){c7.appendChild(el('p','note',sp.summary||''));
-  dpTable(c7,['기간','외국인(억)','기관(억)','개인(억)'],['1','3','5','10','20'].filter(function(n){return sp.per[n]&&sp.per[n].days>=Number(n)}).map(function(n){var x=sp.per[n];return [n+'일',dpN(x.foreign_eok,0),dpN(x.inst_eok,0),dpN(x.indiv_eok,0)]}))}
- dpTable(c7,['날짜','분류','공시 제목'],(d.disc||[]).slice(0,8).map(function(x){return [x.date.slice(5),x.tag,x.title]}));
- (d.news||[]).slice(0,6).forEach(function(n){c7.appendChild(el('div','m','▪ '+n.title+' ('+n.press+' '+n.date+')'))});b.appendChild(c7);
- // AI
- var c8=el('div','c');c8.appendChild(el('b',null,'🤖 AI 정성 분석 (사업현황·밸류체인·정량해석·정성분석·리스크·뉴스)'));
+ dpTable(c2,['항목'].concat(ys.map(function(y){return y.label+(y.estimate?'(E)':'')})),rows,{cls:function(r,i){if(i===0)return '';if(r[0].indexOf('전년비')>=0||r[0]==='영업이익'||r[0]==='순이익'){var n=Number(String(r[i]).replace(/,/g,''));return isNaN(n)?'':(n>0?(r[0]==='영업이익'||r[0]==='순이익'?'':'up'):(n<0?'dn':''))}return ''}});
+ c2.appendChild(el('p','note','5개년 DART 자료는 원본 저장분이 있는 종목에서 나와요.'));
+ /* ── 기업 현황 ── */
+ if(d.profile||d.holders.length){var c3=dpSec(b,'prof','🏢 기업 현황',d.profile_src||'','#64748b');if(d.profile){var pr=d.profile;c3.appendChild(el('p','note',['대표 '+(pr.ceo||'-'),'설립 '+(pr.est_dt||'-'),'결산 '+(pr.acc_mt||'-'),(pr.corp_cls||''),(pr.adres||'')].join(' · ')))}
+  if(d.holders.length)dpTable(c3,['주주','관계','지분율(%)'],d.holders.map(function(h){return [h.nm,h.relate,dpN(h.rt,2)]}))}
+ /* ── 밸류에이션 ── */
+ var c4=dpSec(b,'val','💹 밸류에이션 밴드','참고 계산 · 적정주가 아님','#0d9488');navAdd('val','💹 밸류에이션');var v=d.valuation;
+ if(v.bands.length){c4.appendChild(dpBandCv(v));dpTable(c4,['방법','낮은 값','중간','높은 값','근거'],v.bands.map(function(x){return [x.name,dpN(x.low,0),dpN(x.mid,0),dpN(x.high,0),x.basis]}));c4.appendChild(el('p','note','🔴 현재가 '+dpN(v.price,0)+'원'+(v.upside!=null?' · 컨센서스 목표가 대비 '+(v.upside>0?'+':'')+v.upside+'%':'')+'. 초록 막대=낮은~높은 값, 짙은 선=중간. PEER·업종 배수를 단순 적용한 값이라 적정주가·목표가가 아니에요.'))}else c4.appendChild(el('p','note','PEER 배수나 EPS 자료가 부족해 밴드를 만들지 못했어요.'));
+ /* ── PEER ── */
+ var c5=dpSec(b,'peer','🤝 PEER 비교','동일 업종','#7c3aed');navAdd('peer','🤝 PEER');
+ if(d.peers.length){var me=[d.name+' (본 종목)',dpN(fu.PER),dpN(fu.PBR,2),dpN(bs.roe),dpN(bs.opm),'-',dpN((d.price||{}).pct20)];dpTable(c5,['종목','PER','PBR','ROE(%)','영업이익률(%)','시총(억)','20일(%)'],[me].concat(d.peers.map(function(x){return [x.name+' '+x.ticker,dpN(x.per),dpN(x.pbr,2),dpN(x.roe),dpN(x.opm),dpN(x.cap_eok,0),dpN(x.pct20)]})))}else c5.appendChild(el('p','note','동일 업종 PEER를 찾지 못했어요. 아래에 종목코드를 직접 넣을 수 있어요.'));
+ var pr=el('div','bar');var pi=el('input');pi.placeholder='PEER 종목코드 (쉼표로 구분, 예: 000660,005380)';pi.style.width='300px';pi.value=(DP.peers[d.ticker]||[]).join(',');pr.appendChild(pi);pr.appendChild(bt('PEER 다시 계산','bt2',function(){var a=pi.value.split(/[ ,]+/).map(function(x){return x.trim().toUpperCase()}).filter(function(x){return /^[0-9A-Z]{6}$/.test(x)}).slice(0,6);DP.peers[d.ticker]=a;dpOpen(d.ticker,p,a)}));c5.appendChild(pr);
+ /* ── 체크리스트 ── */
+ var okn=d.checklist.filter(function(x){return x.state==='ok'}).length,tot=d.checklist.filter(function(x){return x.state!=='na'}).length;var c6=dpSec(b,'chk','📝 투자 전 체크리스트',okn+'/'+tot+' 충족','#ca8a04');navAdd('chk','📝 체크');
+ d.checklist.forEach(function(x){var r=el('div','dpCk');r.appendChild(el('div','ic '+x.state,x.state==='ok'?'✓':(x.state==='warn'?'!':'–')));r.appendChild(el('b',null,x.label));r.appendChild(el('span',null,x.note));c6.appendChild(r)});
+ /* ── 수급·공시 ── */
+ var c7=dpSec(b,'sup','👥 수급 · 📄 공시 · 📰 뉴스','','#0f766e');navAdd('sup','👥 수급·공시');var sp=d.supply;if(sp){c7.appendChild(el('p','note',sp.summary||''));
+  dpTable(c7,['기간','외국인(억)','기관(억)','개인(억)'],['1','3','5','10','20'].filter(function(n){return sp.per[n]&&sp.per[n].days>=Number(n)}).map(function(n){var x=sp.per[n];return [n+'일',dpN(x.foreign_eok,0),dpN(x.inst_eok,0),dpN(x.indiv_eok,0)]}),{cls:function(r,i){if(i===0)return '';var n=Number(String(r[i]).replace(/,/g,''));return n>0?'up':(n<0?'dn':'')}})}
+ if((d.disc||[]).length)dpTable(c7,['날짜','분류','공시 제목'],d.disc.slice(0,8).map(function(x){return [x.date.slice(5),x.tag,x.title]}));
+ (d.news||[]).slice(0,6).forEach(function(n){c7.appendChild(el('div','m','▪ '+n.title+' ('+n.press+' '+n.date+')'))});
+ /* ── AI ── */
+ var c8=dpSec(b,'ai','🤖 AI 정성 분석','사업현황·밸류체인·정량해석·정성분석·리스크·뉴스','#4f46e5');navAdd('ai','🤖 AI');
  c8.appendChild(el('p','note','위 데이터를 정리한 프롬프트를 만들어 설정된 AI를 열어요. 답변을 복사하고 이 탭으로 돌아오면 자동으로 읽어 옵니다. 프롬프트는 [프롬프트] 탭에서 고칠 수 있어요.'));
- var rr=el('div');rr.appendChild(bt('🤖 AI 분석 만들기','bt',function(){dpAI(d)}));
+ var rr=el('div','bar');rr.appendChild(bt('🤖 AI 분석 만들기','bt',function(){dpAI(d)}));
  if(d.saved.has_ai){rr.appendChild(bt('📂 원본 저장 AI 글 불러오기 ('+d.saved.ai_at+')','bt2',function(){DP.ai[d.ticker]=d.saved.ai_text;var ta=$('dpAiTa');if(ta)ta.value=d.saved.ai_text;dpAiState();toast('원본 프로그램이 저장해 둔 AI 글을 불러왔어요')}))}c8.appendChild(rr);
- var st=el('div','m');st.id='dpAiState';c8.appendChild(st);var ta=el('textarea');ta.id='dpAiTa';ta.placeholder='AI 답변을 직접 붙여넣어도 돼요.';dpSty(ta,'width:100%;min-height:120px;box-sizing:border-box');ta.value=DP.ai[d.ticker]||'';ta.oninput=function(){DP.ai[d.ticker]=ta.value;dpAiState()};c8.appendChild(ta);b.appendChild(c8);dpAiState();
- // 블로그
- var c9=el('div','c');c9.appendChild(el('b',null,'📝 블로그 글 만들기 (원본 방식 HTML)'));var bx=el('div');c9.appendChild(bx);b.appendChild(c9);
+ var st=el('div','m');st.id='dpAiState';c8.appendChild(st);var ta=el('textarea');ta.id='dpAiTa';ta.placeholder='AI 답변을 직접 붙여넣어도 돼요.';dpSty(ta,'width:100%;min-height:120px;box-sizing:border-box');ta.value=DP.ai[d.ticker]||'';ta.oninput=function(){DP.ai[d.ticker]=ta.value;dpAiState()};c8.appendChild(ta);dpAiState();
+ /* ── 이미지 ── */
+ var c10=dpSec(b,'img','🖼 블로그용 이미지 (3장)','① 메인 · ② 5개년 재무 · ③ 통합 요약','#e11d48');navAdd('img','🖼 이미지');
+ c10.appendChild(el('p','note','① 종합점수·5축 레이더가 가운데 오는 메인 이미지, ② 5개년 매출·영업이익 차트와 재무표, ③ 체력·밸류에이션·PEER·체크리스트를 한 장에 모은 통합 이미지예요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
+ var ib=el('div');c10.appendChild(ib);DP.imgPanel=ImgKit.panel(ib,{menu:'deep',name:d.name,ticker:d.ticker,gen:function(scale){return Promise.resolve(window.DpImg.build(d,scale))}});
+ /* ── 블로그 ── */
+ var c9=dpSec(b,'blog','📝 블로그 글 만들기','원본 방식 HTML'+((d.delisting&&d.delisting.level&&d.delisting.level!=='none')?' · ⚠ 위험 경고 자동 포함':''),'#16a34a');navAdd('blog','📝 글');var bx=el('div');c9.appendChild(bx);
  var secs=[['profile','기업현황'],['fin','5개년재무'],['score','체력진단'],['valu','밸류에이션'],['peers','PEER'],['check','체크리스트'],['supply','수급'],['disc','공시·뉴스'],['ai','AI분석'],['terms','용어풀이']];
  window.BlogKit.panel(bx,{idp:'dp',key:'deepdive',kind:'deepdive',ticker:d.ticker,name:d.name,sections:secs,dup_warn:d.dup_warn,
   build:function(inc,title){return apiJ('/admin/api/deep/blog',{ticker:d.ticker,peers:DP.peers[d.ticker]||[],ai:DP.ai[d.ticker]||'',inc:inc,title:title})},onLogged:function(z){d.dup_warn=z.dup_warn}})}
@@ -841,6 +893,98 @@ function dpAI(d){if(!window.MiniAI){toast('AI 도우미 파일(menu_ui.py)이 �
   window.MiniAI.run({title:'기업 심층분석 AI — '+j.name,key:'deep',steps:[{label:j.name,prompt:j.prompt}],minLen:400,hint:'AI가 "## 1. 사업 현황 …" 형식으로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
    preview:function(t){var ok=/##\s*1\./.test(t)||t.length>900;var n=(t.match(/^#{1,4}\s*\d+\./gm)||[]).length;var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString()+'자 · 섹션 '+n+'개 — '+t.slice(0,300)+(t.length>300?' …':'');return {node:x,canApply:ok,text:ok?null:'형식(## 1. 사업 현황 …)이 보이지 않아요. 다른 답변이 복사된 건 아닌지 확인하세요.'}},
    apply:function(t){DP.ai[d.ticker]=t;var ta=$('dpAiTa');if(ta)ta.value=t;dpAiState();return Promise.resolve({message:'AI 글을 읽어 왔어요. 아래 [글 만들기]를 누르세요.'})}})})}
+(function(){
+var K=window.ImgKit;if(!K||window.DpImg)return;
+var T=K.text,N=K.n,RR=K.rr;
+var NAVY0='#0a1228',NAVY1='#16275a',GOLD='#d6b25e',GOLD2='#f6e7b4',PAPER='#f4f0e6',INK='#0f172a',MUT='#64748b',UP='#e11d48',DN='#2563eb';
+function col(s){return s>=70?'#22c55e':(s>=50?'#f59e0b':'#ef4444')}
+function cap(c){var m=String(c||'').replace(/,/g,'').match(/([0-9.]+)\s*억/);if(!m)return c||'';var v=Number(m[1]);return v>=10000?(v/10000).toLocaleString('ko-KR',{maximumFractionDigits:1})+'조원':Number(v).toLocaleString('ko-KR')+'억원'}
+function sec(d){var x=d.sector;return (x&&x!=='—'&&x!=='-')?x:''}
+function eok(v){if(v==null||isNaN(v))return '-';var a=Math.abs(v);if(a>=10000)return (v/10000).toLocaleString('ko-KR',{maximumFractionDigits:1})+'조';return Math.round(v).toLocaleString('ko-KR')}
+function axes(d,dark){var s=d.score,c=dark?['#60a5fa','#2dd4bf','#c4b5fd','#fbbf24','#fb7185']:['#2563eb','#0f766e','#7c3aed','#d97706','#e11d48'];
+ return [{name:'수익성',score:s.prof,col:c[0],g:s.grades.prof},{name:'안정성',score:s.stab,col:c[1],g:s.grades.stab},{name:'성장성',score:s.grow,col:c[2],g:s.grades.grow},{name:'거버넌스',score:s.gov,col:c[3],g:s.grades.gov},{name:'밸류에이션',score:s.valu,col:c[4],g:s.grades.valu}]}
+function headline(d){var ax=axes(d).filter(function(a){return a.score!=null});if(!ax.length)return '';var o=ax.slice().sort(function(a,b){return b.score-a.score}),b=o[0],w=o[o.length-1];
+ if(ax.length<2||b.score-w.score<12)return '5개 축이 고르게 '+(b.score>=60?'양호한':'중립적인')+' 모습';return b.name+' 강점 · '+w.name+(w.score<50?' 점검 필요':' 보완 여지')}
+function risk(d){var r=d.delisting;return r&&(r.level==='danger'||r.level==='caution')?r.level:''}
+function today(){var x=new Date(),z=function(n){return ('0'+n).slice(-2)};return x.getFullYear()+'.'+z(x.getMonth()+1)+'.'+z(x.getDate())}
+function card(c,x,y,w,h,title,color){c.save();c.shadowColor='rgba(15,23,42,.14)';c.shadowBlur=22;c.shadowOffsetY=6;RR(c,x,y,w,h,24);c.fillStyle='#fff';c.fill();c.restore();
+ if(title){c.fillStyle=color||'#2563eb';RR(c,x+26,y+26,8,30,4);c.fill();T(c,title,x+46,y+50,{s:28,w:900,c:INK})}}
+function riskBand(c,x,y,w,lv){var dg=lv==='danger',bg=dg?'#fef2f2':'#fffbeb',bd=dg?'#dc2626':'#d97706',tc=dg?'#991b1b':'#92400e';RR(c,x,y,w,86,18);c.fillStyle=bg;c.fill();c.lineWidth=3;c.strokeStyle=bd;c.stroke();
+ T(c,(dg?'투자 유의 — 거래 상태 이상 신호가 공개 데이터에서 확인됐어요':'투자 유의 — 거래 상태와 관련해 살펴볼 정황이 있어요'),x+w/2,y+36,{s:25,w:900,c:tc,a:'center',max:w-40});
+ T(c,'확정이 아닌 자동 점검 결과예요 · 매매 전 KIND·DART 공시 원문을 꼭 확인하세요',x+w/2,y+68,{s:20,w:700,c:tc,a:'center',max:w-40})}
+function foot(c,W,y,d){c.fillStyle='rgba(100,116,139,.35)';c.fillRect(60,y,W-120,2);
+ T(c,'공개 데이터 기반 참고 자료이며 투자 권유가 아닙니다. 모든 투자 판단과 책임은 투자자 본인에게 있어요.',W/2,y+40,{s:19,w:600,c:MUT,a:'center',max:W-120});
+ T(c,'기준 '+(d.as_of||today())+' · 출처 네이버증권·DART · stock.oky.kr',W/2,y+72,{s:19,w:700,c:'#94a3b8',a:'center',max:W-120})}
+function band(c,W,kick,title,sub){var g=c.createLinearGradient(0,0,0,200);g.addColorStop(0,NAVY0);g.addColorStop(1,NAVY1);c.fillStyle=g;c.fillRect(0,0,W,200);c.fillStyle=GOLD;c.fillRect(0,0,W,8);
+ T(c,kick,W/2,58,{s:20,w:800,c:GOLD,a:'center',ls:5});T(c,title,W/2,124,{s:50,w:900,c:'#fff',a:'center',max:W-120});T(c,sub,W/2,170,{s:22,w:600,c:'#cbd5e1',a:'center',max:W-120})}
+
+/* ① 메인 */
+function main(d,scale){var rk=risk(d),dy=rk?70:0,W=1080,H=1490+dy,m=K.make(W,H,scale),c=m.c,s=d.score,bs=s.basis,p=d.price||{},f=d.fundamentals||{};
+ c.fillStyle=PAPER;c.fillRect(0,0,W,H);var g=c.createLinearGradient(0,0,0,800+dy);g.addColorStop(0,NAVY0);g.addColorStop(1,NAVY1);c.fillStyle=g;c.fillRect(0,0,W,800+dy);
+ var rg=c.createRadialGradient(W-120,80,10,W-120,80,360);rg.addColorStop(0,'rgba(214,178,94,.38)');rg.addColorStop(1,'rgba(214,178,94,0)');c.fillStyle=rg;c.fillRect(0,0,W,800);
+ c.fillStyle=GOLD;c.fillRect(0,0,W,8);
+ T(c,'COMPANY DEEP DIVE · 기업 심층분석',W/2,66,{s:20,w:800,c:GOLD,a:'center',ls:4});
+ T(c,d.name,W/2,160,{s:74,w:900,c:'#fff',a:'center',max:900});
+ T(c,d.ticker+' · '+(d.market||'')+(sec(d)?' · '+sec(d):'')+(d.cap?' · 시총 '+cap(d.cap):''),W/2,210,{s:26,w:600,c:'#cbd5e1',a:'center',max:940});
+ if(rk)riskBand(c,60,236,W-120,rk);
+ var cy=470+dy,r=158;K.ring(c,W/2,cy,r,s.total,{th:30,col:col(s.total),glow:26,fs:118,sub:s.grade+'등급',ss:34,sc:GOLD2});
+ var hl=headline(d);if(hl)T(c,hl,W/2,cy+r+60,{s:32,w:800,c:GOLD2,a:'center',max:900});
+ T(c,'원본 4축 기준 '+s.orig_total+'점('+s.orig_grade+'등급) · 종합 = 수익성·안정성·성장성·거버넌스·밸류에이션',W/2,cy+r+104,{s:21,w:600,c:'#94a3b8',a:'center',max:960});
+ card(c,50,780+dy,W-100,350,'5축 체력 진단','#2563eb');
+ K.radar(c,W/2,962+dy,106,axes(d),{fs:22,label:'#334155',grid:'rgba(100,116,139,.35)',fill:'rgba(37,99,235,.2)',stroke:'#2563eb',lw:4,dot:7,fillBg:'rgba(37,99,235,.04)'});
+ var tiles=[['현재가',p.price!=null?N(p.price,0)+'원':'-',p.day_pct!=null?((p.day_pct>0?'▲ ':(p.day_pct<0?'▼ ':''))+Math.abs(p.day_pct).toFixed(2)+'%'):'',p.day_pct>0?UP:(p.day_pct<0?DN:MUT)],['PER',f.PER!=null?N(f.PER,1)+'배':'-','',MUT],['PBR',f.PBR!=null?N(f.PBR,2)+'배':'-','',MUT],
+  ['ROE',bs.roe!=null?N(bs.roe,1)+'%':'-','',MUT],['영업이익률',bs.opm!=null?N(bs.opm,1)+'%':'-','',MUT],['부채비율',bs.debt_ratio!=null?N(bs.debt_ratio,0)+'%':'-','',MUT]];
+ tiles.forEach(function(t,i){var x=50+(i%3)*337,y=1160+dy+Math.floor(i/3)*112;c.save();c.shadowColor='rgba(15,23,42,.12)';c.shadowBlur=16;c.shadowOffsetY=4;RR(c,x,y,306,98,18);c.fillStyle='#fff';c.fill();c.restore();
+  T(c,t[0],x+22,y+34,{s:20,w:700,c:MUT});T(c,t[1],x+22,y+76,{s:38,w:900,c:INK,max:200});if(t[2])T(c,t[2],x+284,y+34,{s:22,w:800,c:t[3],a:'right'})});
+ foot(c,W,1396+dy,d);return m.cv}
+
+/* ② 5개년 재무 */
+function fin(d,scale){var W=1080,H=1450,m=K.make(W,H,scale),c=m.c,ys=d.years||[];c.fillStyle=PAPER;c.fillRect(0,0,W,H);band(c,W,'5-YEAR FINANCIALS',d.name+' 5개년 재무',d.ticker+' · 금액 억원(1만 억 이상은 조) · E=컨센서스 추정');
+ card(c,50,226,W-100,500,'매출 · 영업이익 · 영업이익률','#0891b2');K.legend(c,84,300,[{name:'매출액',color:'#2563eb'},{name:'영업이익',color:'#f59e0b'},{name:'영업이익률(%)',color:'#e11d48',line:1}],20);
+ K.bars(c,76,314,W-152,386,{labels:ys.map(function(y){return String(y.y).slice(2)+'년'}),est:ys.map(function(y){return !!y.estimate}),bars:[{name:'매출액',values:ys.map(function(y){return y.rev}),color:'#2563eb'},{name:'영업이익',values:ys.map(function(y){return y.op}),color:'#f59e0b'}],line:{name:'영업이익률',values:ys.map(function(y){return y.opm}),color:'#e11d48',unit:'%'},fmt:eok,fs:19});
+ card(c,50,756,W-100,520,'연도별 요약','#4f46e5');
+ var rows=[['매출액',function(y){return N(y.rev,0)}],['전년비(%)',function(y){return y.rev_g==null?'-':(y.rev_g>0?'+':'')+N(y.rev_g,1)},'sg'],['영업이익',function(y){return N(y.op,0)},'sg0'],['영업이익률(%)',function(y){return N(y.opm,1)}],['순이익',function(y){return N(y.ni,0)},'sg0'],['ROE(%)',function(y){return N(y.roe,1)}],['부채비율(%)',function(y){return N(y.debt_ratio,0)}]];
+ var n=Math.max(1,ys.length),x0=84,lw=230,cw=(W-100-34-lw-20)/n,y0=842,rh=56;
+ ys.forEach(function(y,i){T(c,String(y.y).slice(2)+'년'+(y.estimate?'E':''),x0+lw+cw*i+cw-6,y0,{s:22,w:800,c:'#475569',a:'right'})});c.fillStyle='#e2e8f0';c.fillRect(x0,y0+14,W-100-68,2);
+ rows.forEach(function(r,ri){var y=y0+34+ri*rh;if(ri%2===0){c.fillStyle='rgba(241,245,249,.8)';RR(c,x0-8,y-4,W-100-52,rh-6,10);c.fill()}T(c,r[0],x0,y+30,{s:23,w:800,c:'#334155'});
+  ys.forEach(function(yy,i){var v=r[1](yy),cc=INK;if(r[2]==='sg'&&yy.rev_g!=null)cc=yy.rev_g>0?UP:(yy.rev_g<0?DN:INK);if(r[2]==='sg0'){var raw=r[0]==='영업이익'?yy.op:yy.ni;if(raw!=null)cc=raw<0?DN:INK}T(c,v,x0+lw+cw*i+cw-6,y+30,{s:23,w:700,c:cc,a:'right',max:cw-8})})});
+ foot(c,W,1308,d);return m.cv}
+
+/* ③ 통합 */
+function sum(d,scale){var rk=risk(d),oy=rk?100:0,W=1080,vv0=((d.valuation||{}).bands||[]).filter(function(b){return b.low!=null&&b.mid!=null&&b.high!=null}).slice(0,3),bh0=Math.max(150,120+vv0.length*78),ph0=100+(((d.peers||[]).slice(0,3)).length+2)*54,chh0=100+((d.checklist||[]).slice(0,6)).length*62,H=226+oy+440+bh0+30+ph0+30+chh0+34+110,m=K.make(W,H,scale),c=m.c,s=d.score,bs=s.basis,AX=axes(d);c.fillStyle=PAPER;c.fillRect(0,0,W,H);band(c,W,'DEEP DIVE SUMMARY',d.name+' 통합 요약',d.ticker+' · '+(d.market||'')+(sec(d)?' · '+sec(d):'')+(d.cap?' · 시총 '+cap(d.cap):''));
+ if(rk)riskBand(c,60,220,W-120,rk);
+ var y=226+oy;
+ /* A. 5축 */
+ card(c,50,y,W-100,410,'5축 체력 진단 · 종합 '+s.total+'점','#2563eb');
+ var NT=['영업이익률 '+N(bs.opm,1)+'% · ROE '+N(bs.roe,1)+'%','부채비율 '+N(bs.debt_ratio,0)+'% · 당좌비율 '+N(bs.cur_ratio,0)+'%','매출 CAGR '+N(bs.rev_cagr,1)+'% · 영업이익 CAGR '+N(bs.op_cagr,1)+'%','최근3년 배당 '+bs.div_paid_3y+'회 · 성향 '+N(bs.payout,1)+'%',((d.valuation&&d.valuation.notes)||[]).join(' · ')];
+ AX.forEach(function(a,i){var yy=y+92+i*62;T(c,a.name,84,yy+10,{s:24,w:800,c:'#334155'});RR(c,236,yy-8,430,20,10);c.fillStyle='#eef2f7';c.fill();RR(c,236,yy-8,Math.max(14,430*(a.score||0)/100),20,10);var gg=c.createLinearGradient(236,0,666,0);gg.addColorStop(0,a.col);gg.addColorStop(1,col(a.score||0));c.fillStyle=gg;c.fill();
+  T(c,a.score==null?'-':String(a.score),712,yy+12,{s:28,w:900,c:col(a.score||0),a:'right'});T(c,NT[i]||'',236,yy+34,{s:18,w:600,c:MUT,max:470})});
+ K.ring(c,882,y+232,76,s.total,{th:16,col:col(s.total),tc:INK,fs:46,sub:s.grade+'등급',ss:20,sc:MUT,track:'rgba(148,163,184,.3)'});
+ y+=440;
+ /* B. 밸류에이션 */
+  var v=d.valuation||{bands:[]},bands=(v.bands||[]).filter(function(b){return b.low!=null&&b.mid!=null&&b.high!=null}).slice(0,3),bh=Math.max(150,120+bands.length*78);card(c,50,y,W-100,bh,'밸류에이션 밴드 (참고 계산)','#0d9488');
+ if(!bands.length)T(c,'PEER 배수·EPS 자료가 부족해 밴드를 만들지 못했어요.',84,y+110,{s:22,w:600,c:MUT});
+ bands.forEach(function(b,i){var yy=y+120+i*78,lo=Math.min(b.low,v.price||b.low)*0.9,hi=Math.max(b.high,v.price||b.high)*1.08,sx=function(z){return 300+(z-lo)/(hi-lo)*(W-100-300-40)};T(c,b.name,84,yy+12,{s:22,w:800,c:'#334155',max:200});
+  RR(c,300,yy-2,W-100-340,14,7);c.fillStyle='#eef2f7';c.fill();RR(c,sx(b.low),yy-8,Math.max(8,sx(b.high)-sx(b.low)),26,10);c.fillStyle='rgba(13,148,136,.35)';c.fill();c.strokeStyle='#0d9488';c.lineWidth=2;c.stroke();c.fillStyle='#0f766e';c.fillRect(sx(b.mid)-2,yy-12,4,34);
+  if(v.price){var px=sx(v.price);c.fillStyle=UP;c.fillRect(px-2,yy-18,4,46);if(i===0)T(c,'현재가 '+N(v.price,0),Math.max(px,330),yy-26,{s:19,w:900,c:UP,a:'center'})}
+  var xl=sx(b.low),xm=sx(b.mid),xh=sx(b.high);T(c,N(b.low,0),xl,yy+44,{s:17,w:700,c:MUT,a:xl<340?'left':'center'});T(c,N(b.high,0),xh,yy+44,{s:17,w:700,c:MUT,a:'right'});if(xm-xl>110&&xh-xm>110)T(c,N(b.mid,0),xm,yy+44,{s:19,w:900,c:'#0f766e',a:'center'})});
+ y+=bh+30;
+ /* C. PEER */
+ var peers=(d.peers||[]).slice(0,3),ph=100+(peers.length+2)*54;card(c,50,y,W-100,ph,'PEER 비교 (동일 업종)','#7c3aed');
+ var cols=[['종목',84,'left'],['PER',560,'right'],['PBR',650,'right'],['ROE',760,'right'],['영업이익률',900,'right'],['20일',1004,'right']];cols.forEach(function(k){T(c,k[0],k[1],y+104,{s:20,w:800,c:'#475569',a:k[2]})});c.fillStyle='#e2e8f0';c.fillRect(84,y+116,W-100-68,2);
+ var f=d.fundamentals||{},prs=[[d.name+' (본 종목)',f.PER,f.PBR,bs.roe,bs.opm,(d.price||{}).pct20,1]].concat(peers.map(function(x){return [x.name,x.per,x.pbr,x.roe,x.opm,x.pct20,0]}));
+ prs.forEach(function(r,i){var yy=y+124+i*54;if(r[6]){c.fillStyle='rgba(124,58,237,.08)';RR(c,76,yy-2,W-100-52,50,10);c.fill()}T(c,r[0],84,yy+32,{s:22,w:r[6]?900:700,c:INK,max:440});
+  [[1,560,1],[2,650,2],[3,760,1],[4,900,1],[5,1004,1]].forEach(function(k){var val=r[k[0]];T(c,val==null?'-':N(val,k[2]),k[1],yy+32,{s:22,w:700,c:k[0]===5&&val!=null?(val>0?UP:(val<0?DN:INK)):INK,a:'right'})})});
+ if(!peers.length)T(c,'동일 업종 PEER 자료를 찾지 못했어요.',84,y+ph-24,{s:19,w:600,c:MUT});
+ y+=ph+30;
+ /* D. 체크리스트 */
+ var ck=(d.checklist||[]).slice(0,6),okn=(d.checklist||[]).filter(function(x){return x.state==='ok'}).length,tot=(d.checklist||[]).filter(function(x){return x.state!=='na'}).length,chh=100+ck.length*62;card(c,50,y,W-100,chh,'투자 전 체크리스트 ('+okn+'/'+tot+' 충족)','#ca8a04');
+ ck.forEach(function(x,i){var yy=y+96+i*62,cc=x.state==='ok'?'#16a34a':(x.state==='warn'?'#d97706':'#94a3b8');c.beginPath();c.arc(100,yy+20,17,0,Math.PI*2);c.fillStyle=cc;c.fill();T(c,x.state==='ok'?'✓':(x.state==='warn'?'!':'–'),100,yy+28,{s:22,w:900,c:'#fff',a:'center'});
+  T(c,x.label,132,yy+16,{s:22,w:800,c:INK,max:260});T(c,x.note||'',132,yy+42,{s:18,w:600,c:MUT,max:W-100-120})});
+ y+=chh+34;foot(c,W,y,d);
+ return m.cv}
+window.DpImg={build:function(d,scale){return [{idx:1,label:'메인 이미지',canvas:main(d,scale)},{idx:2,label:'5개년 재무',canvas:fin(d,scale)},{idx:3,label:'통합 요약',canvas:sum(d,scale)}]}};
+})();
 """
 
 

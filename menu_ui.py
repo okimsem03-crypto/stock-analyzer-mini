@@ -116,7 +116,7 @@ body.mu{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 'Pretendar
 .ma-pv{margin-top:10px;max-height:300px;overflow:auto;border:1px solid var(--line,#e5e9f2);border-radius:12px}
 .ma-sw{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink2,#475569);margin-top:10px}
 .ma-btn{appearance:none;border:1px solid var(--line,#e5e9f2);background:var(--surface,#fff);color:var(--ink,#0f172a);border-radius:12px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer}
-.ma-btn.p{background:linear-gradient(135deg,#3151d3,#5b7cfa);color:#fff;border-color:transparent;box-shadow:0 6px 16px -6px rgba(49,81,211,.6)}.ma-btn.big{padding:13px 22px;font-size:16px;border-radius:14px}.ma-btn[disabled]{opacity:.5;cursor:default}
+.ma-btn.p{background:linear-gradient(135deg,#3151d3,#5b7cfa);color:#fff;border-color:transparent;box-shadow:0 6px 16px -6px rgba(49,81,211,.6)}.ma-btn.big{padding:13px 22px;font-size:16px;border-radius:14px}.ma-btn[disabled]{opacity:.5;cursor:default}.ma-btn.okd[disabled]{opacity:1;background:#16a34a;color:#fff;box-shadow:none}
 .ma-pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,Consolas,monospace;max-height:200px;overflow:auto;background:var(--surface,#fff);border:1px solid var(--line,#e5e9f2);border-radius:10px;padding:8px 10px;margin-top:10px}
 """
 
@@ -147,7 +147,7 @@ fetch('/api/ui/config',{cache:'no-store'}).then(function(r){return r.json()}).th
 function run(opt){
  ensureStyle();
  var steps=(opt.steps||[]).filter(function(s){return s&&s.prompt});if(!steps.length)return;
- var cur=0,site=siteDefault(),armed=false,seen={},lastText='',busy=false,closed=false,doneSet={};
+ var cur=0,notice='',site=siteDefault(),armed=false,seen={},lastText='',busy=false,closed=false,doneSet={};
  var minLen=opt.minLen||60;
  var ov=el('div','ma-ov'),box=el('div','ma-box');ov.appendChild(box);
  var h=el('div','ma-h');h.appendChild(el('b',null,opt.title||'AI로 분석하기'));var x=el('button','ma-x','✕');x.onclick=close;h.appendChild(x);box.appendChild(h);
@@ -161,6 +161,7 @@ function run(opt){
  function setLive(msg,kind,pulse){if(!live)return;live.className='ma-live'+(kind?' '+kind:'');live.innerHTML='';if(pulse)live.appendChild(el('span','ma-pulse'));live.appendChild(el('span',null,msg))}
  function draw(){
   drawDots();body.innerHTML='';var s=steps[cur];
+  if(notice){body.appendChild(el('div','ma-live ok',notice));notice=''}
   // 1) AI 열기
   var s1=el('div','ma-step'+(armed?'':' cur'));var t1=el('div');t1.appendChild(el('span','ma-sn','1'));t1.appendChild(el('span','ma-st','프롬프트 복사하고 AI 열기'));s1.appendChild(t1);
   var chips=el('div','ma-chips');Object.keys(SITES).forEach(function(k){var c=el('button','ma-chip'+(k===site?' on':''),SITES[k].i+' '+SITES[k].n);c.onclick=function(){site=k;lsSet('mini_ai_site',k);draw()};chips.appendChild(c)});s1.appendChild(chips);
@@ -181,7 +182,7 @@ function run(opt){
   pvBox=el('div');s3.appendChild(pvBox);var r3=el('div','ma-row');
   var pv=el('button','ma-btn','미리보기');pv.onclick=function(){preview(ta.value)};r3.appendChild(pv);
   applyBtn=el('button','ma-btn p','저장');applyBtn.disabled=true;applyBtn.onclick=function(){doApply()};r3.appendChild(applyBtn);s3.appendChild(r3);
-  if(opt.apply){var sw=el('label','ma-sw');autoCb=el('input');autoCb.type='checkbox';autoCb.checked=(lsGet('mini_ai_auto_'+(opt.key||'x'))==='1')||!!opt.autoApply;autoCb.onchange=function(){lsSet('mini_ai_auto_'+(opt.key||'x'),autoCb.checked?'1':'0')};sw.appendChild(autoCb);sw.appendChild(el('span',null,'답변을 읽으면 확인 없이 바로 저장'));s3.appendChild(sw)}
+  if(opt.apply){var sw=el('label','ma-sw');autoCb=el('input');autoCb.type='checkbox';autoCb.checked=(lsGet('mini_ai_auto_'+(opt.key||'x'))==='1')||!!opt.autoApply;autoCb.onchange=function(){lsSet('mini_ai_auto_'+(opt.key||'x'),autoCb.checked?'1':'0')};sw.appendChild(autoCb);sw.appendChild(el('span',null,'답변을 읽으면 확인 없이 바로 저장 (저장되면 "✅ 저장 완료"로 바뀌어요)'));s3.appendChild(sw)}
   body.appendChild(s3);if(lastText)preview(lastText,true)}
  function openAI(s){var ok=copyText(s.prompt);var S=SITES[site],u=S.u;
   if(S.q){var enc=encodeURIComponent(s.prompt);if(enc.length<=PREFILL_MAX*3)u=S.q+enc}
@@ -201,11 +202,14 @@ function run(opt){
   if(!t||!t.trim()){if(!quiet)setLive('답변 내용이 비어 있어요.','bad');return Promise.resolve(null)}
   return Promise.resolve(opt.preview(t,steps[cur])).then(function(r){r=r||{};pvBox.innerHTML='';if(r.node){var w=el('div','ma-pv');w.appendChild(r.node);pvBox.appendChild(w)}else if(r.text){pvBox.appendChild(el('div','ma-live'+(r.canApply?' ok':' bad'),r.text))}
    if(applyBtn)applyBtn.disabled=!r.canApply;return r}).catch(function(){setLive('미리보기 중 오류가 났어요.','bad');return null})}
- function doApply(){if(busy||!opt.apply)return;busy=true;if(applyBtn)applyBtn.disabled=true;
-  Promise.resolve(opt.apply(ta.value,steps[cur])).then(function(r){busy=false;r=r||{};doneSet[cur]=1;
-   if(cur<steps.length-1){cur++;armed=false;lastText='';draw();setLive((r.message||'저장했어요.')+' 다음 프롬프트로 이어서 진행하세요.','ok')}
-   else{drawDots();body.innerHTML='';var d=el('div','ma-step done');d.appendChild(el('div','ma-st','🎉 '+(r.message||'모두 저장했어요.')));var b=el('button','ma-btn p','닫기');b.style.marginTop='12px';b.onclick=close;d.appendChild(b);body.appendChild(d);armed=false}})
-  .catch(function(){busy=false;if(applyBtn)applyBtn.disabled=false;setLive('저장 중 오류가 났어요.','bad')})}
+ function doApply(){if(busy||!opt.apply)return;busy=true;if(applyBtn){applyBtn.disabled=true;applyBtn.textContent='저장 중…'}
+  Promise.resolve(opt.apply(ta.value,steps[cur])).then(function(r){r=r||{};doneSet[cur]=1;drawDots();
+   var msg=r.message||'저장했어요.';
+   if(applyBtn){applyBtn.textContent='✅ 저장 완료';applyBtn.classList.add('okd')}if(ta)ta.readOnly=true;setLive('✅ '+msg,'ok');
+   setTimeout(function(){busy=false;if(closed)return;
+    if(cur<steps.length-1){cur++;armed=false;lastText='';notice='✅ '+msg+' — 이제 아래 '+(steps[cur].label||'다음')+' 단계를 진행하세요.';draw()}
+    else{drawDots();body.innerHTML='';var d=el('div','ma-step done');d.appendChild(el('div','ma-st','🎉 '+msg));var b=el('button','ma-btn p','닫기');b.style.marginTop='12px';b.onclick=close;d.appendChild(b);body.appendChild(d);armed=false}},1200)})
+  .catch(function(){busy=false;if(applyBtn){applyBtn.disabled=false;applyBtn.textContent='저장'}setLive('저장 중 오류가 났어요. 다시 [저장]을 눌러 주세요.','bad')})}
  draw();
  return {close:close};
 }
@@ -238,7 +242,7 @@ def page(title, body, icon="", subtitle="", script="", active="", disclaimer=Tru
     nav = ('<nav class="mu-nav" id="muNav"><a href="/">종목분석</a><a href="/menus"' + (' class="on"' if active == "menus" else "") + '>전체 메뉴</a></nav>')
     nav_js = ("fetch('/api/menus',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){var n=document.getElementById('muNav');"
               "(j.menus||[]).forEach(function(m){var a=document.createElement('a');a.href=m.path;a.textContent=m.icon+' '+m.label;"
-              f"if(m.id==={_js_str(active)})a.className='on';n.appendChild(a)}})}}).catch(function(){{}});")
+              f"if(m.id==={_js_str(active)})a.className='on';n.appendChild(a)}});var on=n.querySelector('a.on');if(on&&n.scrollTo){{n.scrollTo({{left:Math.max(0,on.offsetLeft-(n.clientWidth-on.offsetWidth)/2),behavior:'smooth'}})}}}}).catch(function(){{}});")
     return (f'<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<meta name="theme-color" content="#0b1730"><title>{esc(title)} · 종목분석 미니</title>'
             f'<link rel="stylesheet" href="/assets/mini-ui.css?v={ver}"></head><body class="mu">'

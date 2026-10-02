@@ -505,6 +505,42 @@ def risk_box():
             f'<table width="100%" cellpadding="0" cellspacing="0"><tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:11px 14px;"><p style="font-size:12px;line-height:1.9;margin:0;">{body}</p></td></tr></table></td></tr></table>')
 
 
+def delist_blocks(risk, name="", ticker=""):
+    """상장폐지·거래정지 위험 신호가 있을 때 글 위쪽(눈에 띄게)·아래쪽(자세히)에 넣을 경고 상자.
+    단정·예측 표현은 피하고 '공개 데이터상 ~로 표시/확인된다'로만 쓰며, 확인은 원문(KIND·DART)으로 돌린다. 위험이 없으면 ("", "", [])."""
+    risk = risk or {}
+    lv = risk.get("level")
+    if lv not in ("danger", "caution"):
+        return "", "", []
+    nm = E(name or "해당 종목")
+    reasons = [str(r) for r in (risk.get("reasons") or []) if r][:6]
+    strong = lv == "danger"
+    bd, bg, tc, ac = ("#dc2626", "#fef2f2", "#991b1b", "#b91c1c") if strong else ("#d97706", "#fffbeb", "#92400e", "#b45309")
+    head = ("&#128680; 투자 유의 — 거래 상태와 관련된 이상 신호가 공개 데이터에서 확인되었습니다" if strong
+            else "&#9888;&#65039; 투자 유의 — 거래 상태와 관련해 살펴볼 만한 정황이 일부 확인되었습니다")
+    lead = (f'<table width="100%" cellpadding="0" cellspacing="0" style="border:3px solid {bd};border-collapse:collapse;margin:0 0 14px;{FONT}"><tr>'
+            f'<td bgcolor="{bg}" style="background-color:{bg};padding:13px 16px;">'
+            f'<div style="font-size:15px;font-weight:900;color:{tc};line-height:1.6;">{head}</div>'
+            f'<div style="font-size:12.5px;color:{tc};line-height:1.85;margin-top:6px;">{nm}에 대해 공개된 시세·거래상태 데이터에서 아래와 같은 신호가 표시되어 있습니다. '
+            f'이는 <b>상장폐지나 거래정지를 단정하거나 예측하는 내용이 아니며</b>, 자동 점검 결과를 참고용으로 옮긴 것입니다. '
+            f'매매 전 <b>한국거래소(KIND)·DART의 공시 원문</b>으로 실제 지정 여부와 사유를 꼭 직접 확인해 주세요.</div></td></tr></table>')
+    li = "".join(f'<tr><td width="4%" valign="top" style="padding:4px 0;font-size:13px;color:{ac};">&#9642;</td><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.75;">{E(r)}</td></tr>' for r in reasons)
+    kind = "https://kind.krx.co.kr/common/searchcorpname.do?method=searchCorpNameMain&searchCorpName=" + (ticker or "")
+    dart = "https://dart.fss.or.kr/dsab007/main.do?option=corp&textCrpNm=" + (ticker or "")
+    bottom = (f'<table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid {bd};border-collapse:collapse;margin:16px 0 6px;{FONT}"><tr>'
+              f'<td bgcolor="{bg}" style="background-color:{bg};padding:14px 18px;">'
+              f'<div style="font-size:14px;font-weight:900;color:{tc};margin-bottom:6px;">&#128680; 꼭 읽어 주세요 — 거래 상태 관련 유의사항</div>'
+              f'<table width="100%" cellpadding="0" cellspacing="0">{li}</table>'
+              f'<div style="font-size:12px;color:{tc};line-height:1.9;margin-top:8px;">'
+              f'&#128308; 위 내용은 공개 데이터를 자동으로 점검한 결과로, <b>오류나 지연이 있을 수 있으며 사실 확정이 아닙니다.</b><br>'
+              f'&#128308; 투자주의·경고·위험 지정, 관리종목, 거래정지, 상장적격성 심사 등 <b>실제 현황은 시시각각 달라질 수 있습니다.</b><br>'
+              f'&#128308; 이런 신호가 있는 종목은 <b>가격 변동 폭과 거래 중단 위험이 클 수 있어</b> 투자 결정에 각별한 주의가 필요합니다.<br>'
+              f'&#128308; 본 글은 특정 종목의 매수·매도를 권유하지 않으며, <b>모든 판단과 책임은 투자자 본인에게 있습니다.</b><br>'
+              f'<a href="{kind}" target="_blank" style="color:#1d4ed8;font-weight:800;">KIND 공시 확인</a> · '
+              f'<a href="{dart}" target="_blank" style="color:#1d4ed8;font-weight:800;">DART 확인</a></div></td></tr></table>')
+    return lead, bottom, ["투자유의", "거래상태확인"]
+
+
 def hashtags(names, date_str, extra=()):
     base = ["주식투자", "재테크", "주식분석", "기술적분석", "국내주식"]
     ex = [re.sub(r"\s", "", n or "") for n in names] + [re.sub(r"[년월일\s.\-]", "", date_str)]

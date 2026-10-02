@@ -213,6 +213,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
+✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
 ✨ v143 — 관리자 [🖼 이미지 저장] 설정 화면이 비어 보이던 문제 보강: 설정을 기다리지 않고 폴더·저장 방식 칸을 먼저 표시, 응답이 늦거나 실패하면 이유를 화면에 안내.
 ✨ v142 — 관리자 분석실을 작업 순서(① 분석 자동 → ② AI 분석+종합 리포트 → ③ 이미지 만들기(자동 저장 선택) → ④ 글 만들기 → ⑤ 블로그에 쓰기) 버튼으로 재구성, 이미지 저장 폴더 지정 오류 안내·점검 보강, '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 왼쪽 아래 떠 있는 버튼으로 이동(스마트폰은 아래에서 올라오는 창).
 ✨ v139 — 관리자 전용 [🧪 분석실]: 종목분석 화면에서 5축 종합점수·수급(외국인/기관/개인)·재무 심층분석·공시 분류·AI 종합 리포트(수동 AI 자동화)와, 원본 방식 블로그 HTML(서식 그대로 복사) 만들기·작성 이력(중복 경고) 추가. 관리자 화면에 [📝 블로그 이력] 탭, 프롬프트 탭에 분석실 프롬프트.
@@ -325,7 +326,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v143"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v144"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4240,7 +4241,7 @@ nav button.on{background:#0f172a;color:#fff;border-color:#0f172a}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.k{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px}
 .k small{display:block;color:#64748b;font-size:11.5px}.k b{font-size:20px}table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:12px;overflow:hidden}
 td,th{padding:7px 9px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top;word-break:break-all}th{background:#f8fafc}.bad{color:#b91c1c;font-weight:700}.good{color:#15803d;font-weight:700}
-.note{font-size:12.5px;color:#64748b;margin:6px 0}#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0f172a;color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;display:none}
+.note{font-size:12.5px;color:#64748b;margin:6px 0}#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0f172a;color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;display:none}#toast.ok{top:18px;bottom:auto;background:#15803d;font-size:15px;font-weight:800;padding:13px 24px;border-radius:999px;box-shadow:0 10px 30px rgba(21,128,61,.45);z-index:9999}#toast.bad{background:#b91c1c}.savedAt{color:#15803d;font-size:12.5px;font-weight:700;margin-left:10px}#saveStat{margin-left:auto;font-size:12px;color:#86efac;font-weight:700}
 .bt{border:none;background:#0f172a;color:#fff;border-radius:8px;padding:8px 13px;font-size:13px;cursor:pointer}.bt2{border:1px solid #94a3b8;background:#fff;color:#0f172a;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
 .bt3{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer}.bt:disabled{opacity:.45}
 th{white-space:nowrap}.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}.bar input,.bar select{border:1px solid #cbd5e1;border-radius:8px;padding:7px 9px;font-size:13px;background:#fff}
@@ -4254,7 +4255,13 @@ var CSRF="{{ csrf }}";var cur='sum';var EXT={};
 var TABS=[['sum','요약'],['dl','🚫 거래정지·상폐'],['pr','✍ 프롬프트'],['mn','⚙ 메뉴·설정'],['cmt','댓글'],['ovw','기업개요'],['log','보안 기록']];
 function $(i){return document.getElementById(i)}
 function el(t,cls,txt){var e=document.createElement(t);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
-function toast(t){var x=$('toast');x.textContent=t;x.style.display='block';setTimeout(function(){x.style.display='none'},2200)}
+var LASTBTN=null,_tt=null;document.addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('button'):null;if(b)LASTBTN=b},true);
+function hms(){var d=new Date(),z=function(n){return ('0'+n).slice(-2)};return z(d.getHours())+':'+z(d.getMinutes())+':'+z(d.getSeconds())}
+function savedMark(b){var h=document.querySelector('header'),s=$('saveStat');if(!s&&h){s=el('span');s.id='saveStat';h.appendChild(s)}if(s)s.textContent='✅ 마지막 저장 '+hms();
+ if(b&&document.body.contains(b)&&b.parentNode){var m=b.parentNode.querySelector('.savedAt');if(!m){m=el('span','savedAt');b.parentNode.insertBefore(m,b.nextSibling)}m.textContent='✅ '+hms()+' 저장됨'}}
+function toast(t,kind){var x=$('toast');t=String(t==null?'':t);var bad=kind==='bad'||/오류|실패|못 |못했|없어요|올바르지|⚠|❌|먼저|비어/.test(t);var ok=!bad&&(kind==='ok'||/저장|완료|바꿨|했어요|반영/.test(t));
+ x.textContent=(ok&&t.indexOf('✅')<0?'✅ ':'')+t;x.className=ok?'ok':(bad?'bad':'');x.style.display='block';clearTimeout(_tt);_tt=setTimeout(function(){x.style.display='none'},ok?3800:2600);
+ if(ok&&/저장|바꿨|반영/.test(t))savedMark(LASTBTN)}
 function api(u,post){return fetch(u,{method:post?'POST':'GET',credentials:'same-origin',headers:post?{'X-CSRF-Token':CSRF}:{}}).then(function(r){
   if(r.status===401){location.replace('/admin');throw 0}return r.json()})}
 function nav(){var n=$('nav');n.innerHTML='';TABS.forEach(function(t){var b=el('button',t[0]===cur?'on':'',t[1]);b.onclick=function(){cur=t[0];nav();load()};n.appendChild(b)})}
@@ -4281,7 +4288,7 @@ $('lo').onclick=function(){api('/admin/auth/logout',1).then(function(){location.
 $('loall').onclick=function(){if(!confirm('이 브라우저를 포함해 모든 관리자 로그인을 끝낼까요?'))return;api('/admin/auth/logout-all',1).then(function(){location.replace('/admin')})};
 /* ── v135: 거래정지·상폐 / 프롬프트 / 메뉴·설정 ── */
 function apiJ(u,obj){return fetch(u,{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':CSRF,'Content-Type':'application/json'},body:JSON.stringify(obj||{})}).then(function(r){
-  if(r.status===401){location.replace('/admin');throw 0}return r.json()})}
+  if(r.status===401){location.replace('/admin');throw 0}return r.json()}).then(function(j){if(u==='/admin/api/settings'&&j&&!j.error)toast('저장이 완료되었어요');return j})}
 function bt(txt,cls,fn){var b=el('button',cls||'bt',txt);b.onclick=fn;return b}
 function copyTxt(t){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast('복사했어요')},function(){fbCopy(t)})}else fbCopy(t)}
 function fbCopy(t){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');toast('복사했어요')}catch(e){toast('복사하지 못했어요 — 직접 선택해 복사하세요')}a.remove()}
@@ -5754,24 +5761,26 @@ HTML_TEMPLATE = r"""
     .rsList{max-height:480px;}
   }
   .cmtCard{background:#fff; border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; margin:0 0 20px;}
-  /* 🎈 [v142] 왼쪽 아래에 떠 있는 버튼 + 눌렀을 때 열리는 창(투표·종목 이야기). 오른쪽 아래 '최근 종목' 버튼과 겹치지 않게 작게. */
-  .flDock{position:fixed; left:10px; bottom:calc(14px + env(safe-area-inset-bottom)); z-index:60; display:flex; flex-direction:column; gap:8px; align-items:flex-start;}
-  .flBtn{display:inline-flex; align-items:center; gap:6px; border:1.5px solid #c7d2fe; cursor:pointer; font-family:inherit; background:#fff; color:var(--navy);
-    border-radius:999px; padding:8px 13px 8px 10px; font-size:12.5px; font-weight:800; min-height:42px; box-shadow:0 6px 18px rgba(16,32,58,.28); white-space:nowrap;}
-  .flBtn .ic{font-size:17px; line-height:1;} .flBtn small{font-size:11px; font-weight:700; color:#6366f1;}
-  .flBtn .sh{display:none;}
-  .flBackdrop{display:none; position:fixed; inset:0; background:rgba(16,32,58,.42); z-index:82;}
-  .flBackdrop.show{display:block;}
-  .voteCard,.cmtCard{display:none;}
-  .voteCard.flOpen,.cmtCard.flOpen{display:block; position:fixed; z-index:90; left:12px; bottom:calc(12px + env(safe-area-inset-bottom)); margin:0;
-    width:min(430px, calc(100vw - 24px)); max-height:80vh; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; box-sizing:border-box;
-    box-shadow:0 14px 44px rgba(16,32,58,.38); padding-top:44px;}
-  .flClose{display:none; position:absolute; top:8px; right:10px; border:none; background:#eef1f6; border-radius:999px; width:32px; height:32px; font-size:14px; cursor:pointer; color:#334155;}
-  .flOpen > .flClose{display:block;}
-  @media (max-width:720px){
-    .flBtn{padding:7px 11px 7px 9px; font-size:12px; min-height:40px;}
-    .flBtn .lg{display:none;} .flBtn .sh{display:inline;}
-    .voteCard.flOpen,.cmtCard.flOpen{left:0; right:0; bottom:0; width:auto; max-height:84vh; border-radius:18px 18px 0 0; padding-bottom:calc(18px + env(safe-area-inset-bottom));}
+  /* 🎈 [v144] 투표·종목 이야기: 큰 화면에서는 왼쪽에 떠 있는 패널(처음부터 펼쳐짐, 제목을 누르면 접힘). 스마트폰·좁은 화면에서는 본문 안에 펼쳐진 카드로 보이고, 왼쪽 아래 작은 버튼으로 바로 이동. */
+  .flRail{display:block;}
+  .flHead{display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; -webkit-user-select:none;}
+  .flHead > .flTtl{flex:1 1 auto; min-width:0;}
+  .flFold{flex:0 0 auto; border:none; background:#eef1f6; color:#334155; border-radius:999px; min-width:62px; height:30px; padding:0 11px; font-size:12px; font-weight:800; cursor:pointer; font-family:inherit;}
+  .fl-card.fold .flBody{display:none;}
+  .fl-card.fold{padding-bottom:12px;}
+  .flDock{display:none;}
+  @media (min-width:1180px){
+    .flRail{position:fixed; left:12px; bottom:calc(12px + env(safe-area-inset-bottom)); z-index:60; width:300px; max-height:calc(100vh - 96px); overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:10px; padding-right:2px;}
+    .flRail .fl-card{margin:0; box-shadow:0 10px 30px rgba(16,32,58,.22); padding:12px 14px;}
+    .flRail .cmtList{max-height:230px; overflow-y:auto; overscroll-behavior:contain;}
+    .flRail .voteBtns{gap:6px;} .flRail .voteBtn{padding:9px 6px; font-size:12.5px;}
+  }
+  @media (min-width:1180px) and (max-width:1880px){ body.flOn .wrap{padding-left:334px;} }
+  @media (max-width:1179px){
+    .flDock{display:flex; position:fixed; left:10px; bottom:calc(14px + env(safe-area-inset-bottom)); z-index:60; flex-direction:column; gap:8px; align-items:flex-start;}
+    .flBtn{display:inline-flex; align-items:center; gap:6px; border:1.5px solid #c7d2fe; cursor:pointer; font-family:inherit; background:#fff; color:var(--navy);
+      border-radius:999px; padding:7px 11px 7px 9px; font-size:12px; font-weight:800; min-height:40px; box-shadow:0 6px 18px rgba(16,32,58,.28); white-space:nowrap;}
+    .flBtn .ic{font-size:17px; line-height:1;} .flBtn small{font-size:11px; font-weight:700; color:#6366f1;}
   }
   .cmtHead{font-size:14.5px; font-weight:800; color:var(--navy); display:flex; align-items:baseline; gap:8px;}
   .cmtHead small{font-size:12px; color:var(--muted); font-weight:600;}
@@ -6255,17 +6264,16 @@ HTML_TEMPLATE = r"""
     <textarea id="blogDraftBox" class="promptBox" style="display:none;" readonly></textarea>
     <div id="labSlot"></div>
 
-    <!-- 🎈 [v142] 투표·댓글은 화면 왼쪽 아래에 떠 있는 버튼으로 열린다(스마트폰: 아래에서 올라오는 창) -->
+    <!-- 🎈 [v144] 투표·이야기: 큰 화면=왼쪽 떠 있는 패널(펼침·접기), 좁은 화면=본문 속 카드 + 왼쪽 아래 이동 버튼 -->
     <div class="flDock" id="flDock">
-      <button type="button" class="flBtn" id="flVote" onclick="flToggle('vote')"><span class="ic">💡</span><span class="tx"><span class="lg">이 종목, 지금 사고 싶으세요?</span><span class="sh">지금 사고 싶으세요?</span></span></button>
-      <button type="button" class="flBtn" id="flCmt" onclick="flToggle('cmt')"><span class="ic">💬</span><span class="tx"><span class="lg">이 종목 이야기</span><span class="sh">종목 이야기</span> <small id="flCmtN"></small></span></button>
+      <button type="button" class="flBtn" onclick="flGo('voteCard')"><span class="ic">💡</span><span class="tx">지금 사고 싶으세요?</span></button>
+      <button type="button" class="flBtn" onclick="flGo('cmtCard')"><span class="ic">💬</span><span class="tx">종목 이야기 <small id="flCmtN"></small></span></button>
     </div>
-    <div class="flBackdrop" id="flBackdrop" onclick="flToggle(null)"></div>
-
+    <div class="flRail" id="flRail">
     <!-- 💡 [v121] 매력도 체크 — 이용자들의 매수 의도를 모은다(한 브라우저 한 표, 다시 누르면 취소) -->
-    <div class="voteCard" id="voteCard">
-      <button type="button" class="flClose" onclick="flToggle(null)" aria-label="닫기">✕</button>
-      <div class="voteQ">💡 이 종목, 지금 사고 싶으세요?</div>
+    <div class="voteCard fl-card" id="voteCard">
+      <div class="flHead" onclick="flFold('voteCard')"><div class="voteQ flTtl">💡 이 종목, 지금 사고 싶으세요?</div><button type="button" class="flFold" aria-label="접기 또는 펼치기">접기 ▴</button></div>
+      <div class="flBody">
       <div class="voteBtns">
         <button class="voteBtn v-buy" data-vote="buy" onclick="castVote('buy')">👍 사고 싶어요<small id="vc-buy">0명</small></button>
         <button class="voteBtn v-watch" data-vote="watch" onclick="castVote('watch')">🤔 지켜볼래요<small id="vc-watch">0명</small></button>
@@ -6273,19 +6281,21 @@ HTML_TEMPLATE = r"""
       </div>
       <div class="voteBar"><span class="vb-buy" id="vb-buy" style="width:0"></span><span class="vb-watch" id="vb-watch" style="width:0"></span><span class="vb-pass" id="vb-pass" style="width:0"></span></div>
       <div class="voteInfo" id="voteInfo">아직 투표가 없어요. 첫 번째로 의견을 남겨 보세요!</div>
+      </div>
     </div>
 
-
     <!-- 💬 [v129] 종목 댓글 — 익명, 링크·홍보 차단, 신고 3번이면 자동 숨김 -->
-    <div class="cmtCard" id="cmtCard">
-      <button type="button" class="flClose" onclick="flToggle(null)" aria-label="닫기">✕</button>
-      <div class="cmtHead">💬 이 종목 이야기 <small id="cmtCount"></small></div>
+    <div class="cmtCard fl-card" id="cmtCard">
+      <div class="flHead" onclick="flFold('cmtCard')"><div class="cmtHead flTtl">💬 이 종목 이야기 <small id="cmtCount"></small></div><button type="button" class="flFold" aria-label="접기 또는 펼치기">접기 ▴</button></div>
+      <div class="flBody">
       <div class="cmtNotice">개인 의견을 나누는 곳이에요. 특정 종목 매수·매도 권유, 수익 인증, 링크·단톡방 홍보는 삭제될 수 있고, 투자 판단과 책임은 본인에게 있어요.</div>
       <input id="cmtNick" class="cmtNick" maxlength="12" placeholder="닉네임 (비워 두면 자동으로 정해져요)" autocomplete="off">
       <textarea id="cmtBody" class="cmtBody" maxlength="300" placeholder="이 종목에 대한 생각을 남겨 보세요 (300자까지)"></textarea>
       <div class="cmtRow"><span id="cmtLen">0 / 300</span><button id="cmtSend" class="cmtSend" onclick="postComment()">등록</button></div>
       <ul id="cmtList" class="cmtList"></ul>
       <button id="cmtMore" class="cmtMore" style="display:none;" onclick="loadComments(true)">댓글 더 보기</button>
+      </div>
+    </div>
     </div>
 
     <a id="detailCta" class="ctaBanner" href="https://blog.naver.com/okykr/224284426807" target="_blank" rel="noopener">
@@ -6998,14 +7008,29 @@ function _ago(sec){
   if(sec < 86400) return Math.floor(sec / 3600) + '시간 전';
   return Math.floor(sec / 86400) + '일 전';
 }
-// 🎈 [v142] 왼쪽 아래 떠 있는 버튼 → 투표/종목 이야기 창 열기·닫기
-function flToggle(which){
-  const map = {vote:'voteCard', cmt:'cmtCard'};
-  Object.keys(map).forEach(k=>{ document.getElementById(map[k]).classList.toggle('flOpen', k === which); });
-  document.getElementById('flBackdrop').classList.toggle('show', !!which);
-  document.getElementById('flDock').style.visibility = which ? 'hidden' : 'visible';
+// 🎈 [v144] 투표·종목 이야기 패널 — 펼침/접기(기억함) · 좁은 화면 이동 버튼
+function _flState(){ try{ return JSON.parse(localStorage.getItem('mini_fl_fold')||'{}') || {}; }catch(e){ return {}; } }
+function _flSave(st){ try{ localStorage.setItem('mini_fl_fold', JSON.stringify(st)); }catch(e){} }
+function _flApply(id, folded){
+  const c = document.getElementById(id); if(!c) return;
+  c.classList.toggle('fold', !!folded);
+  const b = c.querySelector('.flFold'); if(b) b.textContent = folded ? '펼치기 ▾' : '접기 ▴';
 }
-document.addEventListener('keydown', function(e){ if(e.key === 'Escape') flToggle(null); });
+function flFold(id, force){
+  const c = document.getElementById(id); if(!c) return;
+  const folded = (force === undefined) ? !c.classList.contains('fold') : !!force;
+  _flApply(id, folded); const st = _flState(); st[id] = folded ? 1 : 0; _flSave(st);
+}
+function flGo(id){
+  flFold(id, false);
+  const c = document.getElementById(id); if(c) c.scrollIntoView({behavior:'smooth', block:'center'});
+}
+(function(){
+  const st = _flState(); ['voteCard','cmtCard'].forEach(id=>_flApply(id, st[id] === 1));
+  const r = document.getElementById('result');
+  const sync = ()=>document.body.classList.toggle('flOn', !!r && r.style.display !== 'none');
+  if(r){ new MutationObserver(sync).observe(r, {attributes:true, attributeFilter:['style']}); sync(); }
+})();
 function toggleRecentSheet(open){
   document.getElementById('recentSide').classList.toggle('open', !!open);
   document.getElementById('rsBackdrop').classList.toggle('show', !!open);
@@ -7628,7 +7653,7 @@ function _buildReportDom(){
   const clone = src.cloneNode(true);
   clone.style.display = 'block';
   clone.classList.remove('dim');
-  clone.querySelectorAll('button, textarea, .aiBtnRow, .aiHint, .shareLinkBox, .adSlot, .pasteHint, .termsLink, .voteCard, .cmtCard, .flDock, .flBackdrop, #labSlot, .finTabs, script')
+  clone.querySelectorAll('button, textarea, .aiBtnRow, .aiHint, .shareLinkBox, .adSlot, .pasteHint, .termsLink, .voteCard, .cmtCard, .flDock, .flRail, #labSlot, .finTabs, script')
     .forEach(el=>el.remove());
   // AI 답변이 없으면 빈 AI 카드는 빼고, 있으면 제목을 리포트용으로 바꾼다.
   clone.querySelectorAll('.card').forEach(card=>{

@@ -567,8 +567,8 @@ _up, _h, _bar, _tc = B.updown, B.title_bar, B.bar, B.tone
 ai_to_html, extract_titles, engage_box, risk_box = B.ai_to_html, B.extract_titles, B.engage_box, B.risk_box
 
 
-def hashtags(x, date_str):
-    return B.hashtags([x["name"], (x["name"] or "") + "주가"], date_str)
+def hashtags(x, date_str, extra=()):
+    return B.hashtags([x["name"], (x["name"] or "") + "주가"], date_str, extra=extra)
 
 
 def build_blog(x, ai_text="", inc=None, title="", pub_ai=""):
@@ -583,7 +583,8 @@ def build_blog(x, ai_text="", inc=None, title="", pub_ai=""):
         title = titles[0] if titles else f"{name}({ticker}) 주가 분석 — 수급·재무·공시 한눈에 ({date_k})"
     sup = x.get("supply")
     kw = [f"{name} 주가", f"{name} 전망", f"{name} 수급", f"{ticker}", "AI 주식 분석", "기술적 분석", date_k.replace("년 ", "").replace("월 ", "").replace("일", "")]
-    tags, tag_html = hashtags(x, date_k)
+    dl_lead, dl_bottom, dl_tags = B.delist_blocks(x.get("delisting"), name, ticker)   # 상폐·거래정지 위험 신호가 있으면 글 위·아래에 경고
+    tags, tag_html = hashtags(x, date_k, extra=dl_tags)
     naver = f"https://finance.naver.com/item/main.naver?code={ticker}"
     h = []
     # SEO 박스
@@ -600,6 +601,8 @@ def build_blog(x, ai_text="", inc=None, title="", pub_ai=""):
              f'<div style="font-size:13px;color:#d1d5db;margin-top:8px;">{date_k} · {E(x.get("market"))} · 통합점수 {s["total"]}점 ({s["grade"]})</div></td></tr>'
              f'<tr><td bgcolor="#fff3cd" style="background-color:#fff3cd;padding:12px 16px;border-left:5px solid #f59e0b;"><div style="font-size:12.5px;color:{BROWN};line-height:1.9;">'
              '&#9888;&#65039; <b>투자 경고문</b> | 본 자료는 공개 데이터를 정리한 참고 정보이며 <b>특정 종목의 매수·매도를 권유하지 않습니다.</b> 주식 투자는 원금 손실의 위험이 있고, 투자 결정과 손익의 책임은 <b>투자자 본인</b>에게 있습니다.</div></td></tr></table>')
+    if dl_lead:
+        h.append(dl_lead)
     h.append(engage_box())
     # 핵심 지표
     if inc.get("summary") and p:
@@ -708,6 +711,8 @@ def build_blog(x, ai_text="", inc=None, title="", pub_ai=""):
         h.append(ai_to_html(ai_text))
     h.append(f'<p style="font-size:12px;color:#6b7280;margin:14px 0 0;">&#128279; <a href="{naver}" target="_blank" style="color:#03c75a;font-weight:700;">네이버증권에서 {E(name)} 보기</a> · 데이터 출처: 네이버증권(시세·수급·공시·재무)'
              + (", DART" if fin.get("dart") else "") + "</p>")
+    if dl_bottom:
+        h.append(dl_bottom)
     h.append(risk_box())
     h.append(tag_html)
     body = "".join(h)
@@ -807,7 +812,7 @@ var css='#labCard{margin:0 0 20px;border:1.5px solid #c7d2fe;border-radius:16px;
 '#labCard .warn{background:#fff7ed;border:1.5px solid #fdba74;color:#9a3412;border-radius:10px;padding:9px 12px;font-size:12.5px;line-height:1.6;margin:8px 0}#labCard .note{font-size:12px;color:#6b7280;line-height:1.6}'+
 '#labCard textarea,#labCard input[type=text]{width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1.5px solid #d1d5db;border-radius:9px;padding:8px}#labCard textarea{min-height:110px}#labCard iframe{width:100%;height:520px;border:1.5px solid #d1d5db;border-radius:10px;background:#fff}'+
 '#labCard label.ck{font-size:12.5px;margin-right:12px;white-space:nowrap}'+
-'#labCard .steps{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}#labCard .stp{display:flex;align-items:center;gap:8px;flex:1 1 150px;min-width:140px;text-align:left;border:1.5px solid #c7d2fe;background:#fff;color:#312e81;border-radius:12px;padding:9px 12px;cursor:pointer;font:inherit;font-size:13px;font-weight:700;line-height:1.3}'+
+'#labCard .steps{scroll-margin-top:84px;display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}#labCard .stp{display:flex;align-items:center;gap:8px;flex:1 1 150px;min-width:140px;text-align:left;border:1.5px solid #c7d2fe;background:#fff;color:#312e81;border-radius:12px;padding:9px 12px;cursor:pointer;font:inherit;font-size:13px;font-weight:700;line-height:1.3}'+
 '#labCard .stp .n{flex:0 0 26px;height:26px;border-radius:50%;background:#e0e7ff;color:#312e81;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900}#labCard .stp small{display:block;font-size:11px;font-weight:600;color:#6b7280}'+
 '#labCard .stp.done{border-color:#86efac;background:#f0fdf4}#labCard .stp.done .n{background:#16a34a;color:#fff}#labCard .stp.cur{border-color:#312e81;box-shadow:0 0 0 3px rgba(49,46,129,.16)}#labCard .stp.cur .n{background:#312e81;color:#fff}#labCard .stp.off{opacity:.55}'+
 '#labCard .nextline{font-size:12.5px;color:#312e81;font-weight:700;margin:4px 0 2px}#labCard details.lsec>summary{cursor:pointer;font-size:14px;font-weight:800;color:#1e1b4b;list-style:none;display:flex;align-items:center;gap:6px}#labCard details.lsec>summary::-webkit-details-marker{display:none}#labCard details.lsec>summary::before{content:"▸";color:#6366f1}#labCard details.lsec[open]>summary::before{content:"▾"}'+
@@ -896,6 +901,7 @@ function drawSteps(){var h=document.getElementById('labSteps');if(!h)return;h.in
   {t:'글 만들기',sub:d[3]?'완료 · 다시 만들기':'눌러서 만들기',go:function(){scrollTo2('labS4');if(LAB.blogPanel)LAB.blogPanel.rebuild()}},
   {t:'블로그에 쓰기',sub:d[4]?'복사·열기 완료':(d[3]?'복사하고 블로그 열기':'글을 먼저 만드세요'),go:function(){scrollTo2('labS4');if(LAB.blogPanel)LAB.blogPanel.copyOpen()}}];
  var done=[d[0],ai>=1,d[2],d[3],d[4]],cur=-1;for(var i=0;i<done.length;i++){if(!done[i]){cur=i;break}}
+ var cnt=0;done.forEach(function(v){if(v)cnt++});var key=LAB.tk+'|';if(LAB._pk===key&&cnt>LAB._pc){setTimeout(function(){scrollTo2('labSteps')},650)}LAB._pk=key;LAB._pc=cnt;   /* 단계가 하나 끝나면 위쪽 작업 순서 줄로 자동 이동 */
  acts.forEach(function(a,i){var b=el('button','stp'+(done[i]?' done':'')+(i===cur?' cur':'')+((i===4&&!d[3])?' off':''));var n=el('span','n',done[i]?'✓':String(i+1));b.appendChild(n);var t=el('span');t.appendChild(document.createTextNode(a.t));var sm=el('small',null,a.sub);t.appendChild(sm);b.appendChild(t);b.onclick=a.go;h.appendChild(b)});
  var nl=document.getElementById('labNext');if(nl)nl.textContent=cur<0?'✅ 모든 단계를 마쳤어요. 올린 글은 아래에서 작성 기록을 남기세요.':'▶ 지금 할 일: '+(cur+1)+'. '+acts[cur].t}
 function draw(){var c=card();if(!c)return;var x=LAB.x;head(c,x);
