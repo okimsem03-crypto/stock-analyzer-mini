@@ -11,7 +11,7 @@
 그대로 가리키므로 시험에서 본체 함수를 바꿔 끼워도 모듈에 반영된다.
 """
 
-MODULES = ["ui", "delist", "dataimport"]
+MODULES = ["ui", "delist", "manage", "dataimport"]
 
 _core = None
 

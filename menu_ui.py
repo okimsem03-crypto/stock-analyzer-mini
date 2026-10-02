@@ -72,6 +72,14 @@ body.mu{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 'Pretendar
 .mu-callout.ok{background:var(--greenbg);border-color:#bbf7d0;color:var(--green)}
 @media(prefers-color-scheme:dark){.mu-callout.info,.mu-callout.warn,.mu-callout.danger,.mu-callout.ok{border-color:var(--line)}}
 .mu-callout b{color:inherit}.mu-callout div{color:var(--ink)}
+.mu-alert{border:2px solid var(--red);background:linear-gradient(180deg,var(--redbg),var(--surface));border-radius:var(--r);padding:16px 20px 14px;margin:0 0 16px;box-shadow:0 10px 30px -14px rgba(220,38,38,.45)}
+.mu-alert-h{display:flex;align-items:center;gap:10px;color:var(--red);font-size:17px;letter-spacing:-.02em;margin-bottom:6px}.mu-alert-h span{font-size:22px}
+.mu-alert-l{margin:6px 0 0;padding-left:22px;color:var(--ink);font-size:14px;line-height:1.7}.mu-alert-l li{margin:3px 0}.mu-alert-l b{color:var(--red)}.mu-alert a{color:var(--red);font-weight:700}
+.mu-alert.slim{display:flex;gap:10px;padding:12px 16px;border-width:1.5px;font-size:13.5px;margin-top:16px}.mu-alert.slim b{color:var(--red)}
+.mu-search{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}.mu-search input{flex:1;min-width:200px;border:1.5px solid var(--line);border-radius:14px;padding:13px 16px;font:inherit;font-size:16px;background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.mu-search input:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 3px rgba(91,124,250,.2)}
+.mu-verdict{border-radius:14px;padding:13px 16px;margin:0 0 14px;border:1px solid;font-size:14px;line-height:1.7}.mu-verdict b{display:block;font-size:15.5px}
+.mu-verdict.hit{background:var(--redbg);border-color:#fecaca;color:var(--red)}.mu-verdict.miss{background:var(--amberbg);border-color:#fcd34d;color:var(--amber)}.mu-verdict div{color:var(--ink)}
 .mu-badge{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;background:var(--surface2);color:var(--ink2);border:1px solid var(--line)}
 .mu-badge.red{background:var(--redbg);color:var(--red);border-color:transparent}.mu-badge.blue{background:var(--bluebg);color:var(--blue);border-color:transparent}
 .mu-badge.green{background:var(--greenbg);color:var(--green);border-color:transparent}.mu-badge.amber{background:var(--amberbg);color:var(--amber);border-color:transparent}
@@ -272,7 +280,7 @@ def ui_config():
 @bp.route("/menus")
 def menus_page():
     cards = []
-    for m in C.MENUS:
+    for m in C.menus_ordered():
         if not C.menu_visible(m["id"]):
             continue
         cards.append(f'<a class="mu-menu" href="{esc(m["public_path"])}"><div class="t">{esc(m["icon"])}</div>'

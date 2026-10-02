@@ -211,6 +211,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
+✨ v138 — 메인 화면에 메뉴 바(숨김·공개 메뉴), 관리자 [메뉴 관리] 탭(메뉴 목록·보이기/숨김·순서), 회원 단계(최대 10개, 이름 자유) 별 메뉴 노출 설계, 거래정지·상폐 화면 투자 경고 강화+검색 버튼, 관리자 모드는 별도 창으로 열림.
 ✨ v137 — 모든 공개 메뉴가 같은 고급 화면 틀(menu_ui.py)을 쓰도록 정리(전체 메뉴 화면 /menus 추가, 거래정지 화면 새 디자인), 수동 AI 분석 자동화(설정한 AI 열기·프롬프트 자동 복사·답변 복사하면 자동 입력, 설정 [메뉴·설정]에서 AI 선택).
 ✨ v136 — 구조 개편(이용자 화면은 그대로): 메뉴마다 별도 파일(menu_*.py), 메뉴 접근 등급 칸(공개·회원·등급·관리자), 원본 DB 가져오기(관리자 화면 [데이터]), 관리자 로그인 유지 시간을 설정에서 선택(최대 1~24시간·무활동 10분~24시간).
 
@@ -319,7 +320,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v137"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v138"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -338,7 +339,7 @@ APP_VERSION_HARDCODED = "v137"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v137"
+HELP_CONTENT_ASOF = "v138"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -4241,7 +4242,7 @@ th{white-space:nowrap}.bar{display:flex;gap:8px;align-items:center;flex-wrap:wra
 textarea{border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-size:12.5px;font-family:inherit;line-height:1.5}
 </style></head><body>
 <header><b>🛠 종목분석 미니 관리자 <span id="ver" style="font-weight:400;opacity:.7"></span></b>
-<button id="lo">로그아웃</button><button id="loall" class="red">모든 세션 종료</button></header>
+<a href="/" target="mini_main" style="color:#93c5fd;font-size:13px;text-decoration:none;margin-right:6px">🏠 메인 화면</a><button id="lo">로그아웃</button><button id="loall" class="red">모든 세션 종료</button></header>
 <div class="w"><nav id="nav"></nav><div id="pane"></div></div><div id="toast"></div>
 <script nonce="{{ nonce }}">
 var CSRF="{{ csrf }}";var cur='sum';var EXT={};
@@ -4406,9 +4407,8 @@ function prHist(key,ta,c){api('/admin/api/prompt/'+key+'/history').then(function
 
 /* ── 메뉴·설정 ── */
 function mnLoad(p){api('/admin/api/settings').then(function(d){if(cur!=='mn')return;p.innerHTML='';
- var c=el('div','c');c.appendChild(el('b',null,'메뉴 공개 설정'));c.appendChild(el('p','note','🔒 관리자 전용 = 일반 이용자에게 보이지 않음 · 🌐 공개 = 메인 화면 상단에 메뉴가 생김. 관리자로 로그인하면 공개 여부와 상관없이 항상 보여요.'));
- d.menus.forEach(function(m){var r=el('div','bar');r.appendChild(el('span',null,m.icon+' '+m.label+' — '+m.desc));
-  r.appendChild(bt(m.public?'🌐 공개 중 (누르면 비공개)':'🔒 관리자 전용 (누르면 공개)',m.public?'bt':'bt2',function(){if(!confirm(m.public?'비공개로 바꿀까요?':'공개로 바꿀까요? 공개 화면에는 관리자가 확정한 종목만 나옵니다.'))return;apiJ('/admin/api/settings',{menu_delist_public:m.public?'0':'1'}).then(function(){toast('바꿨어요');mnLoad(p)})}));c.appendChild(r)});p.appendChild(c);
+ var c=el('div','c');c.appendChild(el('b',null,'🧭 메뉴 공개·숨김은 [메뉴 관리] 탭에서'));c.appendChild(el('p','note','메뉴 목록, 숨김/보이기, 회원 단계별 노출, 순서, 회원 단계(최대 10개) 구성은 위쪽 [🧭 메뉴 관리] 탭으로 옮겼어요. 이 설정 화면에는 AI·로그인 시간 같은 일반 설정만 남겨 두었습니다.'));
+ c.appendChild(bt('🧭 메뉴 관리 열기','bt',function(){cur='mm';nav();load()}));p.appendChild(c);
  var a=el('div','c');a.appendChild(el('b',null,'AI 설정'));
  var prov=['gemini','anthropic','openai'];var names={gemini:'Gemini',anthropic:'Claude',openai:'OpenAI'};
  a.appendChild(el('p','note','서버 API 키: '+prov.map(function(x){return names[x]+(d.providers[x]?' ✅':' ✖')}).join(' · ')+' — 키는 Render 환경변수(GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY)에만 넣어요. 화면과 DB에는 저장하지 않아요. 지금 자동 모드에 쓰는 것: '+(d.provider_now?names[d.provider_now]:'없음(수동 모드만 가능)')));
@@ -4475,6 +4475,8 @@ def register_menu(m):
     MENUS.append(m)
     SETTING_DEFAULTS.setdefault(f"menu_{mid}_public", "0")
     SETTING_DEFAULTS.setdefault(f"menu_{mid}_access", "")
+    SETTING_DEFAULTS.setdefault(f"menu_{mid}_on", "")
+    SETTING_DEFAULTS.setdefault(f"menu_{mid}_levels", "")
 
 
 def register_settings(defaults, validators=None):
@@ -4509,29 +4511,105 @@ def register_admin_tab(tab_id, label, js, loader):
                       + "]);EXT[" + json.dumps(tab_id) + "]=" + loader + ";")
 
 
-def viewer_tier():
-    """지금 보는 사람의 등급. 회원제가 없으므로 관리자가 아니면 항상 public."""
-    return "public"
+GUEST = "guest"                      # 비회원(로그인 안 한 방문자) — 회원 단계와 별개로 항상 있는 기본 단계
+MAX_MEMBER_LEVELS = 10               # 관리자가 만들 수 있는 회원 단계 최대 개수
+DEFAULT_MEMBER_LEVELS = [{"id": "1", "name": "일반회원", "desc": ""}, {"id": "2", "name": "정회원", "desc": ""},
+                         {"id": "3", "name": "우수회원", "desc": ""}]
+_LEVEL_ID_RE = re.compile(r"^(?:[1-9]|10)$")
+
+
+def clean_levels(d):
+    """회원 단계 목록 검사 — 올바르면 정리된 목록, 아니면 None. 순서가 곧 단계의 높낮이(앞이 낮음)."""
+    if not isinstance(d, list) or len(d) > MAX_MEMBER_LEVELS:
+        return None
+    out, seen = [], set()
+    for x in d:
+        if not isinstance(x, dict):
+            return None
+        i, n, ds = str(x.get("id", "")), str(x.get("name", "")).strip(), str(x.get("desc", "")).strip()
+        if not _LEVEL_ID_RE.match(i) or i in seen or not (1 <= len(n) <= 12) or len(ds) > 60 or re.search(r"[<>&\"'\\]", n + ds):
+            return None
+        seen.add(i)
+        out.append({"id": i, "name": n, "desc": ds})
+    return out
+
+
+def member_levels():
+    """관리자가 설정한 회원 단계(최대 10). 설정이 없으면 기본 3단계."""
+    raw = setting_get("member_levels", "")
+    if raw:
+        try:
+            out = clean_levels(json.loads(raw))
+            if out is not None:
+                return out
+        except Exception:
+            pass
+    return [dict(x) for x in DEFAULT_MEMBER_LEVELS]
+
+
+def viewer_level():
+    """지금 보는 사람의 회원 단계 표시(GUEST 또는 단계 id). 회원제를 붙이면 여기만 고친다. 관리자는 따로 항상 모두 본다."""
+    return GUEST
+
+
+def viewer_tier():                 # 예전 이름 호환
+    return "public" if viewer_level() == GUEST else "member"
+
+
+def menu_policy(menu_id):
+    """메뉴 한 개의 노출 규칙 → (켜짐 여부, 볼 수 있는 단계 집합). 단계 집합은 GUEST 와 회원 단계 id 로 이루어진다.
+    새 설정(menu_<id>_on / menu_<id>_levels)이 없으면 v135·v136 때 저장한 '공개/등급' 설정을 해석해 쓴다."""
+    ids = [x["id"] for x in member_levels()]
+    valid = set(ids) | {GUEST}
+    on = setting_get(f"menu_{menu_id}_on", "")
+    lv = setting_get(f"menu_{menu_id}_levels", "")
+    if on == "" or lv == "":
+        a = setting_get(f"menu_{menu_id}_access", "")
+        if a not in ACCESS_LEVELS:
+            a = "public" if setting_get(f"menu_{menu_id}_public", "0") == "1" else ""
+        if not a:
+            a = next((m.get("access", "admin") for m in MENUS if m["id"] == menu_id), "admin")
+        l_on = a != "admin"
+        l_tok = {"public": {GUEST}, "member": set(ids), "premium": set(ids[1:]) or set(ids), "admin": set()}[a]
+    on_b = (on == "1") if on != "" else l_on
+    tok = ({t for t in lv.split(",") if t in valid}) if lv != "" else (l_tok & valid)
+    return on_b, tok
+
+
+def menu_policy_set(menu_id, on, tokens):
+    ids = [x["id"] for x in member_levels()]
+    ordered = ([GUEST] if GUEST in tokens else []) + [i for i in ids if i in tokens]
+    setting_set(f"menu_{menu_id}_on", "1" if on else "0")
+    setting_set(f"menu_{menu_id}_levels", ",".join(ordered) if ordered else "-")
 
 
 def menu_access(menu_id):
-    a = setting_get(f"menu_{menu_id}_access", "")
-    if a in ACCESS_LEVELS:
-        return a
-    if setting_get(f"menu_{menu_id}_public", "0") == "1":      # v135 에서 저장한 값 호환
+    """예전 화면·시험과 맞추기 위한 요약 이름: public(비회원도) / member(모든 회원) / premium(일부 단계) / admin(숨김)."""
+    on, tok = menu_policy(menu_id)
+    if not on or not tok:
+        return "admin"
+    if GUEST in tok:
         return "public"
-    for m in MENUS:
-        if m["id"] == menu_id:
-            return m.get("access", "admin")
-    return "admin"
+    ids = {x["id"] for x in member_levels()}
+    return "member" if ids and ids <= tok else "premium"
 
 
 def menu_visible(menu_id, admin=False):
-    """이 메뉴를 (관리자가 아닌) 일반 방문자 또는 관리자가 볼 수 있는가."""
+    """이 메뉴를 지금 보는 사람(관리자가 아닌 일반 방문자 또는 관리자)이 볼 수 있는가. 비회원 보이기를 켜면 모두에게 보인다."""
     if admin:
         return True
-    a = menu_access(menu_id)
-    return a != "admin" and ACCESS_RANK[a] <= ACCESS_RANK.get(viewer_tier(), 0)
+    on, tok = menu_policy(menu_id)
+    return bool(on and (GUEST in tok or viewer_level() in tok))
+
+
+def menus_ordered():
+    """관리자가 정한 순서대로 메뉴 목록(정해두지 않은 메뉴는 등록 순서로 뒤에)."""
+    try:
+        order = [x for x in json.loads(setting_get("menu_order", "") or "[]") if isinstance(x, str)]
+    except Exception:
+        order = []
+    idx = {mid: i for i, mid in enumerate(order)}
+    return sorted(MENUS, key=lambda m: (idx.get(m["id"], 10 ** 6), MENUS.index(m)))
 
 
 def load_menu_modules():
@@ -4566,7 +4644,7 @@ _SETTING_CACHE = {}
 _AIJOBS = {}
 
 SETTING_DEFAULTS = {
-    "ai_provider": "auto", "ai_search": "1", "admin_session_hours": "8", "admin_idle_minutes": "30",
+    "ai_provider": "auto", "ai_search": "1", "member_levels": "", "menu_order": "", "admin_session_hours": "8", "admin_idle_minutes": "30",
     "ai_model_gemini": "", "ai_model_anthropic": "", "ai_model_openai": "",
 }
 AI_DEFAULT_MODELS = {"gemini": "gemini-2.5-flash", "anthropic": "claude-haiku-4-5-20251001", "openai": "gpt-4o-mini"}
@@ -4652,6 +4730,23 @@ def _setting_valid(k, v):
         return v if v in ("0", "1") else None
     if k.startswith("menu_") and k.endswith("_access"):
         return v if v in ACCESS_LEVELS else None
+    if k.startswith("menu_") and k.endswith("_on"):
+        return v if v in ("0", "1") else None
+    if k.startswith("menu_") and k.endswith("_levels"):
+        toks = [t for t in v.split(",") if t] if v != "-" else []
+        return v if (v == "-" or (toks and all(t == GUEST or _LEVEL_ID_RE.match(t) for t in toks))) else None
+    if k == "member_levels":
+        try:
+            out = clean_levels(json.loads(v))
+        except Exception:
+            return None
+        return json.dumps(out, ensure_ascii=False) if out is not None else None
+    if k == "menu_order":
+        try:
+            o = json.loads(v or "[]")
+        except Exception:
+            return None
+        return json.dumps(o) if isinstance(o, list) and all(isinstance(x, str) and re.match(r"^[a-z][a-z0-9_]{1,23}$", x) for x in o) else None
     if k == "ai_search":
         return v if v in ("0", "1") else None
     if k == "admin_session_hours":
@@ -4671,14 +4766,15 @@ def menu_public(menu_id):
 
 
 def _menus_public_list():
-    return [{"id": m["id"], "label": m["label"], "icon": m["icon"], "path": m["public_path"], "desc": m.get("desc", "")} for m in MENUS if menu_visible(m["id"])]
+    return [{"id": m["id"], "label": m["label"], "icon": m["icon"], "path": m["public_path"], "desc": m.get("desc", "")} for m in menus_ordered() if menu_visible(m["id"])]
 
 
 def _menus_admin_list():
     return [{"id": m["id"], "label": m["label"], "icon": m["icon"], "public": menu_public(m["id"]),
              "access": menu_access(m["id"]),
              "path": m["public_path"] if menu_public(m["id"]) else m["admin_path"], "admin_path": m["admin_path"],
-             "desc": m["desc"]} for m in MENUS]
+             "public_path": m["public_path"], "preview_path": m.get("preview_path") or m["public_path"], "on": menu_policy(m["id"])[0], "levels": sorted(menu_policy(m["id"])[1], key=lambda t: (t != GUEST, int(t) if t.isdigit() else 0)),
+             "desc": m["desc"]} for m in menus_ordered()]
 
 
 @app.route("/api/menus")
@@ -4971,10 +5067,19 @@ def admin_api_settings():
                 return _admin_json({"error": f"'{k}' 값이 올바르지 않아요."}, 400)
             setting_set(k, ok)
             changed.append(f"{k}={ok if not k.startswith('ai_model') else '…'}")
-            if k.startswith("menu_") and k.endswith("_public"):        # 공개 칸 ↔ 접근 등급 동기화
-                setting_set(k[:-7] + "_access", "public" if ok == "1" else "admin")
-            elif k.startswith("menu_") and k.endswith("_access"):
-                setting_set(k[:-7] + "_public", "1" if ok == "public" else "0")
+            if k.startswith("menu_") and k.endswith("_public") and any(m["id"] == k[5:-7] for m in MENUS):
+                mid = k[5:-7]                                    # 예전 '공개/비공개' 버튼 → 새 규칙으로 옮김
+                if ok == "1":
+                    menu_policy_set(mid, True, {GUEST})
+                else:
+                    setting_set(f"menu_{mid}_on", "0")
+            elif k.startswith("menu_") and k.endswith("_access") and any(m["id"] == k[5:-7] for m in MENUS):
+                mid = k[5:-7]
+                ids = [x["id"] for x in member_levels()]
+                if ok == "admin":
+                    setting_set(f"menu_{mid}_on", "0")
+                else:
+                    menu_policy_set(mid, True, {"public": {GUEST}, "member": set(ids), "premium": set(ids[1:]) or set(ids)}[ok])
         if changed:
             _alog("setting_change", ", ".join(changed))
     avail, _ = ai_providers()
@@ -5469,6 +5574,14 @@ HTML_TEMPLATE = r"""
   }
   .blogBtn:hover{background:#facc15;}
 
+  .mainMenuBar{background:#fff; border-bottom:1px solid #e2e8f0; box-shadow:0 4px 14px -10px rgba(15,23,42,.25);}
+  .mmIn{max-width:1180px; margin:0 auto; padding:9px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+  .mmTitle{font-size:12px; font-weight:800; color:#64748b; letter-spacing:.02em;}
+  .mmList{display:flex; gap:8px; flex-wrap:wrap;}
+  .mmItem{display:inline-flex; align-items:center; gap:6px; padding:8px 15px; border-radius:999px; border:1px solid #dbe3f0; background:#f8fafc;
+    color:#1e293b; font-size:13.5px; font-weight:700; text-decoration:none; font-family:inherit; cursor:pointer;}
+  .mmItem:hover{border-color:#5b7cfa; background:#eef2ff; color:#3151d3;}
+  .mmItem.hid{border:1px dashed #f59e0b; background:#fffbeb; color:#92400e;}
   .aiServiceBtn{
     border:none; border-radius:10px; padding:11px 16px; font-size:12.5px; font-weight:700;
     cursor:pointer; font-family:inherit; color:#fff; display:inline-flex; align-items:center; gap:6px;
@@ -5993,7 +6106,6 @@ HTML_TEMPLATE = r"""
   </div>
   <button class="refreshBtn" onclick="resetAll()" title="검색·결과·AI 칸을 모두 비우고 첫 화면으로 돌아갑니다">↺ 초기화</button>
   <button class="refreshBtn" onclick="refreshTickers()">🔄 종목목록 갱신</button>
-  <span id="menuLinks" style="display:contents"></span>
   <a class="refreshBtn" href="/help" target="_blank" rel="noopener" style="text-decoration:none;">❓ 도움말</a>
   {% if kakao_url %}
   <a class="refreshBtn" href="{{ kakao_url }}" target="_blank" rel="noopener"
@@ -6003,6 +6115,8 @@ HTML_TEMPLATE = r"""
   <a class="blogBtn" href="{{ blog_url }}" target="_blank" rel="noopener"
      title="이 프로그램을 만든 제작자의 투자 블로그입니다">✍️ 제작자 블로그 ↗</a>
 </div>
+<!-- 🧭 [v138] 메인 화면 메뉴 바 — 보이는 메뉴가 하나도 없으면(관리자가 아니거나 모두 숨김) 통째로 숨겨진다 -->
+<nav id="mainMenuBar" class="mainMenuBar" style="display:none" aria-label="메뉴"><div class="mmIn"><span class="mmTitle">🧭 메뉴</span><div id="menuLinks" class="mmList"></div></div></nav>
 
 <div class="wrap"><div class="pageGrid"><div class="mainCol">
   <!-- ⏳ [v119] 분석 중 표시 -->
@@ -7684,20 +7798,34 @@ aiPasteBoxEl.addEventListener('input', _scheduleAiRender);
 document.addEventListener('keydown', function(e){
   if((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.code === 'KeyA' || String(e.key).toLowerCase() === 'a')){
     e.preventDefault();
-    const w = window.open('/admin', '_blank', 'noopener');
-    if(!w){ location.href = '/admin'; }
+    openAdminWin('');
   }
 });
 
-// 🧭 [v135] 상단 메뉴 + 관리자 로그인 표시. 공개된 메뉴는 모두에게, 관리자 전용 메뉴(🔒)는 관리자로 로그인한 브라우저에만 보인다.
+// 🧭 [v138] 메인 화면 메뉴 바 + 관리자 로그인 표시. 공개된 메뉴는 보여줄 대상에게만, 숨김 메뉴(🔒)는 관리자 로그인 브라우저에만 보인다.
+//   관리자 콘솔은 항상 "별도 창"(이름 mini_admin)으로 열어서 지금 보는 메인 화면은 그대로 둔다.
+window.name = window.name || 'mini_main';
+function openAdminWin(hash){
+  var url = '/admin' + (hash || '');
+  var w = null;
+  try{
+    var W = Math.min(1320, screen.availWidth - 60), H = Math.min(920, screen.availHeight - 60);
+    w = window.open(url, 'mini_admin', 'popup=yes,width=' + W + ',height=' + H + ',left=40,top=30,resizable=yes,scrollbars=yes');
+  }catch(e){}
+  if(!w){ w = window.open(url, 'mini_admin'); }
+  if(w){ try{ w.focus(); }catch(e){} }
+  return false;
+}
 (function(){
   var PREVIEW = false;
   try { PREVIEW = sessionStorage.getItem('adm_preview') === '1'; } catch(e) {}
-  var wrap = document.getElementById('menuLinks'), bar = document.getElementById('admBar');
+  var wrap = document.getElementById('menuLinks'), bar = document.getElementById('admBar'), mbar = document.getElementById('mainMenuBar');
   if(!wrap || !bar) return;
-  function mk(href, txt, title){
-    var a = document.createElement('a'); a.className = 'refreshBtn'; a.href = href; a.textContent = txt;
-    a.style.textDecoration = 'none'; if(title) a.title = title; return a;
+  function mk(href, txt, title, adminHash){
+    var a = document.createElement('a'); a.className = 'mmItem'; a.href = href; a.textContent = txt;
+    if(title) a.title = title;
+    if(adminHash !== undefined){ a.onclick = function(e){ e.preventDefault(); return openAdminWin(adminHash); }; }
+    return a;
   }
   function setPreview(v){ try { sessionStorage.setItem('adm_preview', v ? '1' : '0'); } catch(e) {} location.reload(); }
   function draw(pub, adm){
@@ -7705,25 +7833,28 @@ document.addEventListener('keydown', function(e){
     var isAdm = !!(adm && adm.admin);
     var shown = {};
     pub.forEach(function(m){ shown[m.id] = 1; wrap.appendChild(mk(m.path, m.icon + ' ' + m.label)); });
-    if(pub.length){ wrap.appendChild(mk('/menus', '🧭 전체 메뉴')); }
     if(isAdm && !PREVIEW){
       (adm.menus || []).forEach(function(m){
         if(shown[m.id]) return;
-        var a = mk(m.admin_path, m.icon + ' ' + m.label + ' 🔒', '관리자에게만 보이는 메뉴입니다(일반 이용자에게는 보이지 않아요)');
-        a.style.border = '1px dashed #f59e0b'; a.style.background = '#fffbeb'; a.style.color = '#92400e';
+        var a = mk(m.path, m.icon + ' ' + m.label + ' 🔒', '관리자에게만 보이는 메뉴입니다(일반 이용자에게는 보이지 않아요)');
+        a.classList.add('hid');
+        a.href = m.preview_path || m.public_path || m.path; a.target = 'mini_admin_view';
         wrap.appendChild(a);
       });
     }
+    if(mbar) mbar.style.display = wrap.children.length ? '' : 'none';
     if(isAdm){
       bar.style.display = 'flex';
       var t = document.createElement('b');
       t.textContent = PREVIEW ? '👀 일반 이용자 화면 미리보기 중' : '👑 관리자로 로그인됨';
       bar.appendChild(t);
       var d = document.createElement('span'); d.style.opacity = '.75';
-      d.textContent = PREVIEW ? '— 관리자 전용 메뉴가 숨겨진, 일반 이용자가 보는 모습입니다.' : '— 🔒 표시 메뉴는 일반 이용자에게 보이지 않아요.';
+      d.textContent = PREVIEW ? '— 숨김 메뉴가 안 보이는, 일반 이용자가 보는 모습입니다.' : '— 🔒 표시 메뉴는 일반 이용자에게 보이지 않아요.';
       bar.appendChild(d);
-      var c = document.createElement('a'); c.href = '/admin'; c.target = '_blank'; c.rel = 'noopener'; c.textContent = '관리자 콘솔 열기';
-      c.style.cssText = 'color:#93c5fd;margin-left:auto;text-decoration:none'; bar.appendChild(c);
+      var c = document.createElement('a'); c.href = '/admin'; c.textContent = '관리자 모드 열기(별도 창)';
+      c.style.cssText = 'color:#93c5fd;margin-left:auto;text-decoration:none'; c.onclick = function(e){ e.preventDefault(); return openAdminWin(''); }; bar.appendChild(c);
+      var c2 = document.createElement('a'); c2.href = '/admin#mm'; c2.textContent = '🧭 메뉴 관리';
+      c2.style.cssText = 'color:#93c5fd;text-decoration:none'; c2.onclick = function(e){ e.preventDefault(); return openAdminWin('#mm'); }; bar.appendChild(c2);
       var b = document.createElement('button'); b.textContent = PREVIEW ? '관리자 화면으로 돌아가기' : '일반 이용자 화면으로 보기';
       b.style.cssText = 'background:#334155;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer';
       b.onclick = function(){ setPreview(!PREVIEW); }; bar.appendChild(b);
@@ -7731,7 +7862,7 @@ document.addEventListener('keydown', function(e){
   }
   var p1 = fetch('/api/menus', {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(j){ return j.menus || []; }).catch(function(){ return []; });
   var p2 = fetch('/admin/api/whoami', {credentials:'same-origin', cache:'no-store'}).then(function(r){ return r.ok ? r.json() : {admin:false}; }).catch(function(){ return {admin:false}; });
-  Promise.all([p1, p2]).then(function(v){ draw(v[0], v[1]); });
+  Promise.all([p1, p2]).then(function(v){ draw(PREVIEW ? v[0] : v[0], v[1]); });
 })();
 </script>
 </body>

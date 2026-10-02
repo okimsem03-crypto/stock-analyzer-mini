@@ -527,10 +527,7 @@ def admin_api_delist_ai_auto():
     return _admin_json({"job": jid, "n": len(rows)})
 
 
-@bp.route("/api/delist/public")
-def api_delist_public():
-    if not menu_visible("delist"):
-        return "not found", 404
+def _public_rows():
     rows = []
     if _ensure_v135_tables():
         rows = _dbrows("SELECT ticker, name, market, admin_label, admin_note, admin_at FROM delist_watch "
@@ -538,48 +535,105 @@ def api_delist_public():
                        ("ticker", "name", "market", "label", "note", "at"))
     for r in rows:
         r["at"] = datetime.fromtimestamp(int(r["at"]), _now_kst().tzinfo).strftime("%Y-%m-%d") if r["at"] else ""
-    resp = jsonify({"rows": rows})
+    return rows
+
+
+@bp.route("/api/delist/public")
+def api_delist_public():
+    if not menu_visible("delist"):
+        return "not found", 404
+    resp = jsonify({"rows": _public_rows()})
     resp.headers["Cache-Control"] = "public, max-age=60"
     return resp
 
 
+@bp.route("/admin/api/delist/public-preview")
+def api_delist_public_preview():
+    deny = _admin_deny()
+    if deny:
+        return deny
+    return _admin_json({"rows": _public_rows()})
+
+
 DELIST_BODY = r"""
-<div class="mu-callout warn"><span class="i">⚠️</span><div><b>투자 전 꼭 확인하세요.</b> 운영자가 거래소 공시 등을 확인해 직접 확정한 종목만 보여드립니다.
-실제 상태는 바뀔 수 있으므로 <b>한국거래소(KIND)·DART 공시</b>로 다시 확인하세요.</div></div>
+<div class="mu-alert" role="alert">
+ <div class="mu-alert-h"><span>🚨</span><b>투자 경고 — 반드시 직접 확인하고, 투자 책임은 본인에게 있습니다</b></div>
+ <ol class="mu-alert-l">
+  <li>이 목록은 <b>참고용 정보</b>이며 매수·매도 권유나 추천이 아닙니다.</li>
+  <li>거래정지·상장폐지 상태는 <b>수시로 바뀝니다</b>(거래 재개, 상장폐지 결정, 정리매매 등). 목록에 <b>없다고 안전하다는 뜻이 아니며</b>, 있다고 최신 상태라는 보장도 없습니다.</li>
+  <li><b>투자 전에 반드시</b> 한국거래소 <a href="https://kind.krx.co.kr" target="_blank" rel="noopener">KIND</a>·금융감독원 <a href="https://dart.fss.or.kr" target="_blank" rel="noopener">DART</a> 공시 원문과 증권사 앱의 거래 상태를 <b>직접</b> 확인하세요.</li>
+  <li>투자 판단과 그 결과(손실 포함)의 <b>모든 책임은 투자자 본인</b>에게 있으며, 운영자는 이 정보로 인한 손해에 책임지지 않습니다.</li>
+ </ol>
+</div>
+<form class="mu-search" id="sf" onsubmit="return false">
+ <input id="q" type="search" placeholder="종목명 또는 6자리 종목코드를 입력하세요 (예: 삼성전자, 005930)" autocomplete="off" aria-label="종목 검색">
+ <button class="mu-btn primary" id="sb" type="submit">🔍 검색</button>
+ <button class="mu-btn" id="sr" type="button" style="display:none">전체 보기</button>
+</form>
+<div id="verdict"></div>
 <div class="mu-stats" id="stats"></div>
 <div class="mu-card"><div class="mu-card-h">🚫 확정 종목 목록<small id="cnt"></small></div>
-<div class="mu-card-b" style="padding-bottom:6px"><input id="q" type="search" placeholder="종목명 또는 코드로 찾기" autocomplete="off"
- style="width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 14px;font:inherit;background:var(--surface2);color:var(--ink)"></div>
 <div id="box"><div class="mu-empty">불러오는 중…</div></div></div>
+<div class="mu-alert slim"><span>⚠️</span><div><b>다시 한 번 — 투자 전 KIND·DART에서 직접 확인하세요.</b> 이 화면은 운영자가 확인한 종목만 보여 드리며 모든 종목의 상태를 보장하지 않습니다. 투자 책임은 본인에게 있습니다.</div></div>
 """
 
 DELIST_SCRIPT = r"""
 function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
-var ROWS=[];
+var ROWS=[],QRY='';
 function tone(l){return /상장폐지|폐지/.test(l)?'red':(/정지|관리/.test(l)?'amber':(/정리/.test(l)?'blue':''))}
 function stats(){var s=document.getElementById('stats');s.innerHTML='';var by={};ROWS.forEach(function(r){by[r.label]=(by[r.label]||0)+1});
  function box(l,v,c,sub){var d=el('div','mu-stat '+(c||''));d.appendChild(el('div','l',l));d.appendChild(el('div','v',String(v)));if(sub)d.appendChild(el('div','s',sub));s.appendChild(d)}
  box('확정 종목',ROWS.length,'gold','운영자가 확인한 종목');Object.keys(by).sort(function(a,b){return by[b]-by[a]}).slice(0,3).forEach(function(k){box(k,by[k],tone(k)==='red'?'red':'')});
  if(ROWS.length){var last=ROWS.reduce(function(m,r){return r.at>m?r.at:m},'');box('최근 확정일',last||'-','green')}}
-function draw(){var b=document.getElementById('box');b.innerHTML='';var q=(document.getElementById('q').value||'').trim().toLowerCase();
- var rows=ROWS.filter(function(r){return !q||(r.name+' '+r.ticker).toLowerCase().indexOf(q)>=0});document.getElementById('cnt').textContent=rows.length+'건';
- if(!rows.length){var e=el('div','mu-empty');e.appendChild(el('b',null,q?'🔍':'🗂️'));e.appendChild(document.createTextNode(q?'찾는 종목이 없어요.':'현재 확정된 종목이 없습니다.'));b.appendChild(e);return}
+function match(r,q){var t=(r.name+' '+r.ticker).toLowerCase();return t.indexOf(q)>=0}
+function verdict(rows,q){var v=document.getElementById('verdict');v.innerHTML='';if(!q)return;
+ var box=el('div','mu-verdict '+(rows.length?'hit':'miss'));
+ if(rows.length){box.appendChild(el('b',null,'⚠️ "'+q+'" — 확정 목록에 '+rows.length+'건 있습니다.'));box.appendChild(el('div',null,'아래 상태를 확인하고, 투자 전 반드시 KIND·DART 공시 원문으로 직접 다시 확인하세요.'))}
+ else{box.appendChild(el('b',null,'"'+q+'" — 확정 목록에는 없습니다.'));
+  var d=el('div',null,'이것이 "안전한 종목"이라는 뜻은 아닙니다. 운영자가 아직 확인하지 못했거나 최근에 바뀐 상태일 수 있으니 반드시 ');var a=el('a',null,'KIND');a.href='https://kind.krx.co.kr';a.target='_blank';a.rel='noopener';d.appendChild(a);d.appendChild(document.createTextNode('·'));
+  var b=el('a',null,'DART');b.href='https://dart.fss.or.kr';b.target='_blank';b.rel='noopener';d.appendChild(b);d.appendChild(document.createTextNode(' 에서 직접 확인하세요. '));
+  if(/^\d{6}$/.test(q)){var c=el('a',null,'이 종목 분석 보기 →');c.href='/?t='+q;d.appendChild(c)}box.appendChild(d)}
+ v.appendChild(box)}
+function draw(){var b=document.getElementById('box');b.innerHTML='';var q=QRY.toLowerCase();
+ var rows=ROWS.filter(function(r){return !q||match(r,q)});document.getElementById('cnt').textContent=(q?'검색 결과 ':'전체 ')+rows.length+'건';
+ document.getElementById('sr').style.display=q?'':'none';verdict(rows,QRY);
+ if(!rows.length){var e=el('div','mu-empty');e.appendChild(el('b',null,q?'🔍':'🗂️'));e.appendChild(document.createTextNode(q?'검색한 종목이 확정 목록에 없어요.':'현재 확정된 종목이 없습니다.'));b.appendChild(e);return}
  var w=el('div','mu-tw'),t=el('table','mu-tbl'),th=el('thead'),h=el('tr');['종목','상태','메모','확정일'].forEach(function(x){h.appendChild(el('th',null,x))});th.appendChild(h);t.appendChild(th);var tb=el('tbody');
  rows.forEach(function(r){var tr=el('tr'),td=el('td');var a=el('a',null,r.name+' ('+r.ticker+')');a.style.fontWeight='700';a.href='/?t='+encodeURIComponent(r.ticker);td.appendChild(a);td.appendChild(el('div','mu-sub',r.market||''));tr.appendChild(td);
   var s=el('td');s.appendChild(el('span','mu-badge '+tone(r.label),r.label));tr.appendChild(s);tr.appendChild(el('td','mu-sub',r.note||''));var d=el('td','mu-sub',r.at||'');d.style.whiteSpace='nowrap';tr.appendChild(d);tb.appendChild(tr)});
  t.appendChild(tb);w.appendChild(t);b.appendChild(w)}
-fetch('/api/delist/public').then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(d){ROWS=d.rows||[];stats();draw();document.getElementById('q').addEventListener('input',draw)})
+function go(){QRY=(document.getElementById('q').value||'').trim();draw()}
+document.getElementById('sf').addEventListener('submit',go);document.getElementById('sb').addEventListener('click',go);
+document.getElementById('q').addEventListener('input',function(){if(!this.value.trim()){QRY='';draw()}});
+document.getElementById('sr').addEventListener('click',function(){document.getElementById('q').value='';QRY='';draw()});
+fetch('/api/delist/public').then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(d){ROWS=d.rows||[];stats();draw()})
  .catch(function(){var b=document.getElementById('box');b.innerHTML='';b.appendChild(el('div','mu-empty','지금은 볼 수 없는 화면입니다.'))});
 """
+
+
+def _page_html(api):
+    return U.page("거래정지·상장폐지 종목", DELIST_BODY, icon="🚫", subtitle="투자 전에 피해야 할 종목, 확정된 것만 모았습니다.",
+                  script=DELIST_SCRIPT.replace("'/api/delist/public'", "'" + api + "'"), active="delist")
 
 
 @bp.route("/delist")
 def delist_public_page():
     if not menu_visible("delist"):
         return "not found", 404
-    resp = app.make_response(U.page("거래정지·상장폐지 종목", DELIST_BODY, icon="🚫",
-                                    subtitle="투자 전에 피해야 할 종목, 확정된 것만 모았습니다.", script=DELIST_SCRIPT, active="delist"))
+    resp = app.make_response(_page_html("/api/delist/public"))
     resp.headers["X-Robots-Tag"] = "noindex"
+    return resp
+
+
+@bp.route("/admin/preview/delist")
+def delist_admin_preview():
+    """숨김 상태여도 관리자는 일반 이용자가 보게 될 화면을 미리 볼 수 있다(관리자 로그인 쿠키는 /admin 아래로만 오므로 이 주소를 쓴다)."""
+    deny = _admin_deny()
+    if deny:
+        return deny
+    resp = app.make_response(_page_html("/admin/api/delist/public-preview"))
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    resp.headers["Cache-Control"] = "no-store"
     return resp
 
 
@@ -608,7 +662,7 @@ def register():
     global _AIJOBS
     _AIJOBS = C._AIJOBS
     C.register_menu({"id": "delist", "label": "거래정지·상폐", "icon": "🚫", "public_path": "/delist",
-                     "admin_path": "/admin#dl", "desc": "거래정지·상장폐지(확정·정리매매) 종목 목록",
+                     "admin_path": "/admin#dl", "preview_path": "/admin/preview/delist", "desc": "거래정지·상장폐지(확정·정리매매) 종목 목록",
                      "access": "admin"})
     C.register_settings({"delist_stale_days": "10", "delist_include_caution": "0"},
                         {"delist_stale_days": _valid_days, "delist_include_caution": _valid_bool})
