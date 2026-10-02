@@ -211,6 +211,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
+✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v139 — 관리자 전용 [🧪 분석실]: 종목분석 화면에서 5축 종합점수·수급(외국인/기관/개인)·재무 심층분석·공시 분류·AI 종합 리포트(수동 AI 자동화)와, 원본 방식 블로그 HTML(서식 그대로 복사) 만들기·작성 이력(중복 경고) 추가. 관리자 화면에 [📝 블로그 이력] 탭, 프롬프트 탭에 분석실 프롬프트.
 ✨ v138 — 메인 화면에 메뉴 바(숨김·공개 메뉴), 관리자 [메뉴 관리] 탭(메뉴 목록·보이기/숨김·순서), 회원 단계(최대 10개, 이름 자유) 별 메뉴 노출 설계, 거래정지·상폐 화면 투자 경고 강화+검색 버튼, 관리자 모드는 별도 창으로 열림.
 ✨ v137 — 모든 공개 메뉴가 같은 고급 화면 틀(menu_ui.py)을 쓰도록 정리(전체 메뉴 화면 /menus 추가, 거래정지 화면 새 디자인), 수동 AI 분석 자동화(설정한 AI 열기·프롬프트 자동 복사·답변 복사하면 자동 입력, 설정 [메뉴·설정]에서 AI 선택).
@@ -321,7 +322,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v139"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v140"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -3892,7 +3893,7 @@ def _admin_headers(resp, nonce=None):
     if nonce:
         resp.headers["Content-Security-Policy"] = (
             f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; connect-src 'self'; "
-            "img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+            "img-src 'self' data:; frame-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
     return resp
 
 
@@ -4195,14 +4196,14 @@ ADMIN_LOGIN_HTML = r"""<!doctype html><html lang="ko"><head><meta charset="utf-8
 h1{font-size:18px;margin:0 0 6px}p{font-size:13.5px;line-height:1.6;color:#94a3b8;margin:6px 0}
 button{width:100%;margin-top:14px;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;background:#fbbf24;color:#1f2937;cursor:pointer}
 button:disabled{opacity:.5;cursor:default}input{width:100%;margin-top:12px;padding:14px;font-size:22px;letter-spacing:6px;text-align:center;border-radius:12px;border:2px solid #334155;background:#0f172a;color:#fff}
-input:focus{outline:none;border-color:#fbbf24}.msg{min-height:20px;font-size:13px;margin-top:10px;color:#fca5a5}.ok{color:#86efac}.hide{display:none}
+input:focus{outline:none;border-color:#fbbf24}.again{font-size:12px}.again a{color:#94a3b8}.msg{min-height:20px;font-size:13px;margin-top:10px;color:#fca5a5}.ok{color:#86efac}.hide{display:none}
 </style></head><body><div class="box">
 <h1>🔐 관리자 로그인</h1>
 <div id="s1"><p>등록된 관리자 이메일로 일회용 인증 코드를 보냅니다. 코드는 10분 동안, 이 브라우저에서 한 번만 쓸 수 있어요.</p>
 <button id="req">인증 코드 메일 받기</button></div>
 <div id="s2" class="hide"><p id="sent"></p>
 <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="00000000">
-<button id="go">로그인</button><p style="font-size:12px"><a href="#" id="again" style="color:#94a3b8">코드 다시 받기</a></p></div>
+<button id="go">로그인</button><p class="again"><a href="#" id="again">코드 다시 받기</a></p></div>
 <div id="msg" class="msg"></div></div>
 <script nonce="{{ nonce }}">
 var $=function(i){return document.getElementById(i)};
@@ -4226,7 +4227,7 @@ ADMIN_APP_HTML = r"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <style nonce="{{ nonce }}">
 *{box-sizing:border-box}body{margin:0;background:#f1f5f9;font-family:system-ui,'Malgun Gothic',sans-serif;color:#1f2937}
 header{background:#0f172a;color:#fff;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:5}
-header b{font-size:15px;flex:1}header button{background:#334155;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12.5px;cursor:pointer}
+header b{font-size:15px;flex:1}header #ver{font-weight:400;opacity:.7}header a.home{color:#93c5fd;font-size:13px;text-decoration:none;margin-right:6px}header button{background:#334155;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12.5px;cursor:pointer}
 header button.red{background:#b91c1c}.w{max-width:960px;margin:0 auto;padding:14px}
 nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}nav button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer}
 nav button.on{background:#0f172a;color:#fff;border-color:#0f172a}
@@ -4242,8 +4243,8 @@ td,th{padding:7px 9px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-a
 th{white-space:nowrap}.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}.bar input,.bar select{border:1px solid #cbd5e1;border-radius:8px;padding:7px 9px;font-size:13px;background:#fff}
 textarea{border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-size:12.5px;font-family:inherit;line-height:1.5}
 </style></head><body>
-<header><b>🛠 종목분석 미니 관리자 <span id="ver" style="font-weight:400;opacity:.7"></span></b>
-<a href="/" target="mini_main" style="color:#93c5fd;font-size:13px;text-decoration:none;margin-right:6px">🏠 메인 화면</a><button id="lo">로그아웃</button><button id="loall" class="red">모든 세션 종료</button></header>
+<header><b>🛠 종목분석 미니 관리자 <span id="ver"></span></b>
+<a href="/" target="mini_main" class="home">🏠 메인 화면</a><button id="lo">로그아웃</button><button id="loall" class="red">모든 세션 종료</button></header>
 <div class="w"><nav id="nav"></nav><div id="pane"></div></div><div id="toast"></div>
 <script nonce="{{ nonce }}">
 var CSRF="{{ csrf }}";var cur='sum';var EXT={};
@@ -4560,6 +4561,8 @@ def viewer_tier():                 # 예전 이름 호환
 def menu_policy(menu_id):
     """메뉴 한 개의 노출 규칙 → (켜짐 여부, 볼 수 있는 단계 집합). 단계 집합은 GUEST 와 회원 단계 id 로 이루어진다.
     새 설정(menu_<id>_on / menu_<id>_levels)이 없으면 v135·v136 때 저장한 '공개/등급' 설정을 해석해 쓴다."""
+    if any(m["id"] == menu_id and m.get("admin_only") for m in MENUS):
+        return False, set()                    # [v140] 관리자 전용 메뉴 — 공개 화면이 아직 없어 일반 방문자에게는 켤 수 없다
     ids = [x["id"] for x in member_levels()]
     valid = set(ids) | {GUEST}
     on = setting_get(f"menu_{menu_id}_on", "")
@@ -4578,6 +4581,8 @@ def menu_policy(menu_id):
 
 
 def menu_policy_set(menu_id, on, tokens):
+    if any(m["id"] == menu_id and m.get("admin_only") for m in MENUS):
+        return                                 # [v140] 관리자 전용 메뉴는 규칙을 바꿀 수 없다
     ids = [x["id"] for x in member_levels()]
     ordered = ([GUEST] if GUEST in tokens else []) + [i for i in ids if i in tokens]
     setting_set(f"menu_{menu_id}_on", "1" if on else "0")
@@ -4774,7 +4779,7 @@ def _menus_admin_list():
     return [{"id": m["id"], "label": m["label"], "icon": m["icon"], "public": menu_public(m["id"]),
              "access": menu_access(m["id"]),
              "path": m["public_path"] if menu_public(m["id"]) else m["admin_path"], "admin_path": m["admin_path"],
-             "public_path": m["public_path"], "preview_path": m.get("preview_path") or m["public_path"], "on": menu_policy(m["id"])[0], "levels": sorted(menu_policy(m["id"])[1], key=lambda t: (t != GUEST, int(t) if t.isdigit() else 0)),
+             "public_path": m["public_path"], "preview_path": m.get("preview_path") or m["public_path"], "admin_only": bool(m.get("admin_only")), "on": menu_policy(m["id"])[0], "levels": sorted(menu_policy(m["id"])[1], key=lambda t: (t != GUEST, int(t) if t.isdigit() else 0)),
              "desc": m["desc"]} for m in menus_ordered()]
 
 
@@ -7843,6 +7848,10 @@ function openAdminWin(hash){
         var a = mk(m.path, m.icon + ' ' + m.label + ' 🔒', '관리자에게만 보이는 메뉴입니다(일반 이용자에게는 보이지 않아요)');
         a.classList.add('hid');
         a.href = m.preview_path || m.public_path || m.path; a.target = 'mini_admin_view';
+        if(m.admin_only){   // [v140] 공개 화면이 없는 관리자 전용 메뉴 — 관리자 모드(별도 창)의 해당 탭으로 연다
+          var ap = m.admin_path || '/admin', hi = ap.indexOf('#'); a.href = ap; a.removeAttribute('target');
+          a.onclick = function(e){ e.preventDefault(); return openAdminWin(hi >= 0 ? ap.slice(hi) : ''); };
+        }
         wrap.appendChild(a);
       });
     }

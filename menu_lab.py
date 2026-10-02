@@ -19,8 +19,9 @@ import time
 import zipfile
 import os
 import xml.etree.ElementTree as ET
-from flask import Blueprint, request, Response
+from flask import Blueprint, Response
 from menu_ctx import C
+import menu_blog as B
 
 bp = Blueprint("lab", __name__)
 
@@ -31,18 +32,6 @@ for _n in _CORE_FUNCS:
 
 E = lambda s: _html.escape("" if s is None else str(s), quote=True)
 TICKER_RE = re.compile(r"^[0-9A-Za-z]{6}$")
-DEFAULT_BLOG_URL = "https://blog.naver.com/GoBlogWrite.naver"
-
-
-# ══════════════════════════════════════════════════════════════
-# 표(블로그 작성 이력)
-# ══════════════════════════════════════════════════════════════
-def _ensure_table(c, use_pg):
-    pk = "SERIAL PRIMARY KEY" if use_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
-    c.execute(f"CREATE TABLE IF NOT EXISTS lab_blog_log(id {pk}, ticker TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', "
-              "title TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT 'stock', url TEXT NOT NULL DEFAULT '', "
-              "memo TEXT NOT NULL DEFAULT '', at BIGINT NOT NULL)")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_lab_blog_ticker ON lab_blog_log(ticker, at)")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -571,115 +560,14 @@ LAB_REPORT_DEFAULT = """당신은 한국 주식 시장을 설명하는 데이터
 # ══════════════════════════════════════════════════════════════
 # ⑤ 블로그 HTML (원본 방식: 표 + 인라인 서식 → 네이버 블로그 붙여넣기)
 # ══════════════════════════════════════════════════════════════
-NAVY, GOLD, BROWN, LINE, TXT = "#1a2744", "#fbbf24", "#92400e", "#e5e7eb", "#1f2937"
-FONT = "font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;"
+NAVY, GOLD, BROWN, LINE, TXT, FONT = B.NAVY, B.GOLD, B.BROWN, B.LINE, B.TXT, B.FONT
 SECTIONS = [("summary", "핵심 지표"), ("score", "5축 종합점수"), ("supply", "수급"), ("fin", "재무·심층분석"), ("disc", "공시"), ("news", "뉴스"), ("ai", "AI 분석")]
-
-
-def _up(v):
-    return "#c62828" if (v or 0) > 0 else ("#1565c0" if (v or 0) < 0 else "#374151")
-
-
-def _h(title, color=NAVY):
-    return (f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 8px;{FONT}"><tr>'
-            f'<td bgcolor="{color}" style="background-color:{color};padding:11px 16px;border-radius:8px;">'
-            f'<span style="font-size:16px;font-weight:900;color:#ffffff;">{title}</span></td></tr></table>')
-
-
-def _bar(score, color):
-    w = int(_clamp(score))
-    return (f'<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>'
-            f'<td width="{w}%" bgcolor="{color}" style="background-color:{color};height:12px;font-size:1px;line-height:12px;">&nbsp;</td>'
-            f'<td width="{100 - w}%" bgcolor="#e5e7eb" style="background-color:#e5e7eb;height:12px;font-size:1px;line-height:12px;">&nbsp;</td></tr></table>')
-
-
-def _tc(color):
-    return "#16a34a" if color >= 70 else ("#d97706" if color >= 50 else "#dc2626")
-
-
-def ai_to_html(text):
-    """AI 답변(마크다운 비슷한 글) → 서식 있는 HTML 조각. 모든 글자는 이스케이프한다."""
-    if not text or not text.strip():
-        return ""
-    parts, buf = [], []
-
-    def flush():
-        if buf:
-            parts.append('<p style="font-size:15px;color:#1e293b;line-height:2.0;margin:0 0 12px;word-break:keep-all;">' + "<br>".join(buf) + "</p>")
-            buf.clear()
-
-    def inline(s):
-        s = E(s)
-        return re.sub(r"\*\*(.+?)\*\*", r'<b style="color:#111827;">\1</b>', s)
-    for raw in text.replace("\r", "").split("\n"):
-        t = raw.strip()
-        if not t:
-            flush()
-            continue
-        if re.match(r"^#{1,4}\s+", t) or re.match(r"^\[\d+[.)]", t):
-            flush()
-            title = re.sub(r"^#{1,4}\s*", "", t).strip("[] ")
-            parts.append(f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 8px;"><tr>'
-                         f'<td style="border-left:6px solid {GOLD};padding:6px 12px;font-size:17px;font-weight:900;color:{NAVY};{FONT}">{inline(title)}</td></tr></table>')
-        elif re.match(r"^[-•·*]\s+", t):
-            flush()
-            item = inline(re.sub(r"^[-•·*]\s+", "", t))
-            parts.append('<p style="font-size:15px;color:#1e293b;line-height:1.9;margin:0 0 6px;padding-left:12px;">• ' + item + "</p>")
-        else:
-            buf.append(inline(t))
-    flush()
-    return "".join(parts)
-
-
-def extract_titles(ai_text):
-    out, on = [], False
-    for ln in (ai_text or "").splitlines():
-        s = ln.strip()
-        if re.match(r"^#{1,4}\s*\d+[.)]?\s*블로그 제목", s) or ("블로그 제목" in s and s.startswith("[")):
-            on = True
-            continue
-        if on:
-            if s.startswith("#") or s.startswith("["):
-                break
-            m = re.match(r"^[-•·*\d.)\s]+(.+)$", s)
-            if m and len(m.group(1).strip()) >= 6:
-                out.append(re.sub(r"[\"“”]", "", m.group(1)).strip("* ").strip())
-    return out[:5]
-
-
-def engage_box():
-    def cell(emoji, head, sub, bg, bd, hc, sc):
-        return (f'<td width="32%" bgcolor="{bg}" align="center" valign="top" style="background-color:{bg};padding:16px 8px;border:3px solid {bd};">'
-                f'<div style="font-size:30px;line-height:1;margin-bottom:6px;">{emoji}</div><div style="font-size:14px;font-weight:900;color:{hc};margin-bottom:4px;">{head}</div>'
-                f'<div style="font-size:11px;color:{sc};line-height:1.7;">{sub}</div></td>')
-    return ('<table width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border-collapse:collapse;' + FONT + '"><tr>'
-            f'<td colspan="5" bgcolor="{NAVY}" align="center" style="background-color:{NAVY};padding:12px 16px;">'
-            f'<div style="font-size:16px;font-weight:900;color:{GOLD};">&#10024; 이 포스팅이 도움이 되셨나요? &#10024;</div>'
-            '<div style="font-size:11px;color:#d1d5db;margin-top:4px;">여러분의 응원이 더 좋은 분석 콘텐츠를 만드는 힘이 됩니다 &#128591;</div></td></tr><tr>'
-            + cell("&#10084;&#65039;", "공감 클릭", "하단 &#9829; 버튼을<br>눌러 응원해 주세요!", "#fff0f3", "#f87171", "#c62828", "#7f1d1d")
-            + '<td width="2%" bgcolor="#e5e7eb" style="background-color:#e5e7eb;"></td>'
-            + cell("&#128172;", "댓글 환영", "궁금한 종목이나<br>의견을 남겨주세요!", "#eff6ff", "#60a5fa", "#1d4ed8", "#1e3a5f")
-            + '<td width="2%" bgcolor="#e5e7eb" style="background-color:#e5e7eb;"></td>'
-            + cell("&#129309;", "서로이웃 신청", "매일 분석을<br>이웃과 함께 보세요!", "#f0fdf4", "#34d399", "#065f46", "#064e3b")
-            + "</tr></table>")
-
-
-def risk_box():
-    lines = ["본 글은 공개 데이터와 AI 도구로 정리한 <b style=\"color:#991b1b;\">참고 자료</b>이며 <b style=\"color:#991b1b;\">투자 권유가 아닙니다.</b>",
-             "제시된 수치는 <b style=\"color:#991b1b;\">과거·현재 시점의 데이터</b>이며 <b style=\"color:#991b1b;\">미래 수익을 보장하지 않습니다.</b>",
-             "공시·뉴스는 제목 기준으로 정리했으므로 <b style=\"color:#991b1b;\">원문을 직접 확인</b>하시기 바랍니다.",
-             "<b style=\"color:#991b1b;\">모든 투자 결정과 손익은 투자자 본인에게 귀속</b>됩니다."]
-    body = "".join(f'<span style="color:#7f1d1d;">&#128308; {t}</span><br>' for t in lines)
-    return ('<table width="100%" cellpadding="0" cellspacing="0" style="border:3px solid #f87171;margin:18px 0 10px;border-collapse:collapse;' + FONT + '"><tr>'
-            '<td bgcolor="#fef2f2" style="background-color:#fef2f2;padding:14px 18px;"><div style="font-size:14px;font-weight:900;color:#991b1b;text-align:center;margin-bottom:8px;">&#9888;&#65039; 투자 위험 고지</div>'
-            f'<table width="100%" cellpadding="0" cellspacing="0"><tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:11px 14px;"><p style="font-size:12px;line-height:1.9;margin:0;">{body}</p></td></tr></table></td></tr></table>')
+_up, _h, _bar, _tc = B.updown, B.title_bar, B.bar, B.tone
+ai_to_html, extract_titles, engage_box, risk_box = B.ai_to_html, B.extract_titles, B.engage_box, B.risk_box
 
 
 def hashtags(x, date_str):
-    base = ["주식투자", "재테크", "주식분석", "기술적분석", "수급분석", "국내주식"]
-    ex = [re.sub(r"\s", "", x["name"] or ""), re.sub(r"\s", "", (x["name"] or "") + "주가"), re.sub(r"[년월일\s.\-]", "", date_str)]
-    tags = [t for t in dict.fromkeys(ex + base) if t]
-    return tags, '<div style="margin-top:14px;padding:10px 0;border-top:1px solid #e5e7eb;font-size:11px;color:#6b7280;line-height:2.2;">' + " ".join("#" + t for t in tags) + "</div>"
+    return B.hashtags([x["name"], (x["name"] or "") + "주가"], date_str)
 
 
 def build_blog(x, ai_text="", inc=None, title=""):
@@ -823,28 +711,12 @@ def build_blog(x, ai_text="", inc=None, title=""):
 
 
 # ══════════════════════════════════════════════════════════════
-# 이력
+# API (모두 관리자 전용)
 # ══════════════════════════════════════════════════════════════
-def recent_logs(ticker, n=5):
-    return _dbrows("SELECT id,ticker,name,title,kind,url,memo,at FROM lab_blog_log WHERE ticker=? ORDER BY at DESC, id DESC LIMIT ?",
-                   ("id", "ticker", "name", "title", "kind", "url", "memo", "at"), (ticker, n))
-
-
-def dup_warning(logs):
-    if not logs:
-        return ""
-    last = logs[0]
-    days = max(0, int((time.time() - last["at"]) // 86400))
-    return f"이 종목은 {'오늘' if days == 0 else str(days) + '일 전에'} 이미 글을 쓴 기록이 있어요(‘{last['title'][:40]}’). 총 {len(logs)}건 이상 — 같은 내용이 겹치지 않게 확인하세요."
-
-
 def _bad_ticker():
     return _admin_json({"error": "종목코드가 올바르지 않아요."}, 400)
 
 
-# ══════════════════════════════════════════════════════════════
-# API (모두 관리자 전용)
-# ══════════════════════════════════════════════════════════════
 @bp.route("/admin/api/lab/ext", methods=["POST"])
 def api_ext():
     deny = _admin_deny()
@@ -856,8 +728,7 @@ def api_ext():
     x, err = build_ext(t)
     if err:
         return _admin_json({"error": err}, 502)
-    x["dups"] = recent_logs(t)
-    x["dup_warn"] = dup_warning(x["dups"])
+    x["dups"], x["dup_warn"] = B.dup_info(t, "stock")
     return _admin_json(x)
 
 
@@ -893,70 +764,9 @@ def api_blog():
     if err:
         return _admin_json({"error": err}, 502)
     b = build_blog(x, ai, inc, str(d.get("title") or "").strip()[:150])
-    logs = recent_logs(t)
-    b.update({"name": x["name"], "ticker": t, "dups": logs, "dup_warn": dup_warning(logs),
-              "blog_url": C.setting_get("lab_blog_url", DEFAULT_BLOG_URL) or DEFAULT_BLOG_URL})
+    logs, warn = B.dup_info(t, "stock")
+    b.update({"name": x["name"], "ticker": t, "dups": logs, "dup_warn": warn})
     return _admin_json(b)
-
-
-@bp.route("/admin/api/lab/bloglog", methods=["GET"])
-def api_log_list():
-    deny = _admin_deny()
-    if deny:
-        return deny
-    q = str(request.args.get("q", "")).strip()[:30]
-    cols = ("id", "ticker", "name", "title", "kind", "url", "memo", "at")
-    if q:
-        rows = _dbrows("SELECT id,ticker,name,title,kind,url,memo,at FROM lab_blog_log WHERE ticker=? OR name LIKE ? OR title LIKE ? ORDER BY at DESC, id DESC LIMIT 300",
-                       cols, (q.upper(), f"%{q}%", f"%{q}%"))
-    else:
-        rows = _dbrows("SELECT id,ticker,name,title,kind,url,memo,at FROM lab_blog_log ORDER BY at DESC, id DESC LIMIT 300", cols)
-    cnt = {}
-    for r in rows:
-        cnt[r["ticker"]] = cnt.get(r["ticker"], 0) + 1
-    return _admin_json({"rows": rows, "multi": sorted([k for k, v in cnt.items() if v >= 2]),
-                        "blog_url": C.setting_get("lab_blog_url", DEFAULT_BLOG_URL) or DEFAULT_BLOG_URL})
-
-
-@bp.route("/admin/api/lab/bloglog", methods=["POST"])
-def api_log_add():
-    deny = _admin_deny(write=True)
-    if deny:
-        return deny
-    d = _json_body() or {}
-    t = str(d.get("ticker", "")).strip().upper()
-    if not TICKER_RE.match(t):
-        return _bad_ticker()
-    title = str(d.get("title") or "").strip()[:150]
-    if not title:
-        return _admin_json({"error": "글 제목이 비어 있어요."}, 400)
-    url = str(d.get("url") or "").strip()[:400]
-    if url and not re.match(r"^https?://", url):
-        return _admin_json({"error": "글 주소는 http(s):// 로 시작해야 해요."}, 400)
-    name = str(d.get("name") or "").strip()[:40] or (get_ticker_info(t)[0] or "")
-    kind = str(d.get("kind") or "stock").strip()[:12]
-    _dbx("INSERT INTO lab_blog_log(ticker,name,title,kind,url,memo,at) VALUES(?,?,?,?,?,?,?)",
-         (t, name, title, kind, url, str(d.get("memo") or "").strip()[:200], int(time.time())))
-    _alog("lab_blog_log", f"{t} {title[:30]}")
-    logs = recent_logs(t)
-    return _admin_json({"ok": True, "dups": logs, "dup_warn": dup_warning(logs)})
-
-
-@bp.route("/admin/api/lab/bloglog/<int:lid>", methods=["POST", "DELETE"])
-def api_log_edit(lid):
-    deny = _admin_deny(write=True)
-    if deny:
-        return deny
-    if request.method == "DELETE":
-        _dbx("DELETE FROM lab_blog_log WHERE id=?", (lid,))
-        _alog("lab_blog_log_del", str(lid))
-        return _admin_json({"ok": True})
-    d = _json_body() or {}
-    url = str(d.get("url") or "").strip()[:400]
-    if url and not re.match(r"^https?://", url):
-        return _admin_json({"error": "글 주소는 http(s):// 로 시작해야 해요."}, 400)
-    _dbx("UPDATE lab_blog_log SET url=?, memo=? WHERE id=?", (url, str(d.get("memo") or "").strip()[:200], lid))
-    return _admin_json({"ok": True})
 
 
 @bp.route("/admin/assets/lab.js")
@@ -964,14 +774,9 @@ def asset_js():
     deny = _admin_deny()
     if deny:
         return deny
-    resp = Response(MAIN_JS, mimetype="application/javascript")
+    resp = Response(B.BLOGKIT_JS + MAIN_JS, mimetype="application/javascript")
     resp.headers["Cache-Control"] = "no-store"
     return resp
-
-
-def _valid_url(k, v):
-    v = str(v or "").strip()
-    return v if re.match(r"^https?://[^\s<>\"']{4,300}$", v) else None
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1005,7 +810,8 @@ function slot(){return document.getElementById('labSlot')}
 function card(){ensureCss();var s=slot();if(!s)return null;var c=document.getElementById('labCard');if(!c){c=el('div');c.id='labCard';s.appendChild(c)}return c}
 function head(c,x){c.innerHTML='';var h=el('div','lh');h.appendChild(el('b',null,'🧪 관리자 분석실'));h.appendChild(el('span','lt','관리자 전용'));c.appendChild(h);
  c.appendChild(el('div','ld','일반 이용자에게는 보이지 않는 확장 분석이에요. 종합점수·수급 → 재무·공시 → AI 리포트 → 블로그 글(HTML 복사) 순서로 쓰시면 됩니다.'))}
-function draw0(){var c=card();if(!c)return;head(c);var r=el('div','lrow');var b=el('button','p','🧪 분석실 열기 — '+(LAB.name||LAB.tk));b.onclick=load;r.appendChild(b);c.appendChild(r)}
+function draw0(){var c=card();if(!c)return;head(c);var r=el('div','lrow');var b=el('button','p','🧪 분석실 열기 — '+(LAB.name||LAB.tk));b.onclick=load;r.appendChild(b);r.appendChild(deepBtn());c.appendChild(r)}
+function deepBtn(){var d=el('button',null,'🏛 심층분석 열기');d.onclick=function(){try{localStorage.setItem('mini_deep_ticker',LAB.tk)}catch(e){}if(typeof openAdminWin==='function')openAdminWin('#dp');else window.open('/admin#dp','mini_admin')};return d}
 function load(){var c=card();head(c);c.appendChild(el('div','note','⏳ 수급·공시·재무를 모으는 중… (처음 한 번 3~6초)'));
  api(BASE+'ext',{ticker:LAB.tk}).then(function(x){if(x.error){head(c);c.appendChild(el('div','warn','⚠ '+x.error));var r=el('div','lrow'),b=el('button',null,'다시 시도');b.onclick=load;r.appendChild(b);c.appendChild(r);return}
   LAB.x=x;LAB.open=true;draw()})}
@@ -1044,29 +850,10 @@ function runAI(){if(!window.MiniAI){toast('AI 도우미를 불러오는 중이�
    preview:function(t){var ok=/##\s*1\./.test(t)||t.length>600;var d=el('div');d.textContent=t.slice(0,500)+(t.length>500?' …':'');return {node:d,canApply:ok,text:ok?null:'형식(## 1. 한줄 결론 …)이 보이지 않아요. 다른 답변이 복사된 건 아닌지 확인하세요.'}},
    apply:function(t){LAB.ai[LAB.tk]=t;var ta=document.getElementById('labAiTa');if(ta)ta.value=t;var z=document.getElementById('labAiState');if(z)z.textContent='✅ AI 리포트 저장됨 ('+t.length.toLocaleString()+'자) — 아래 블로그 글에 포함돼요.';return Promise.resolve({message:'AI 리포트를 읽어 왔어요. 아래 [블로그 글 만들기]를 누르세요.'})}})})}
 var SEC=[['summary','핵심지표'],['score','5축점수'],['supply','수급'],['fin','재무'],['disc','공시'],['news','뉴스'],['ai','AI분석']];
-function secBlog(c,x){var s=el('div','lsec');s.appendChild(el('h4',null,'📝 블로그 글 만들기 (네이버 블로그용 HTML)'));
- var dw=el('div','warn');dw.id='labDup';dw.textContent=x.dup_warn?('⚠ '+x.dup_warn):'';dw.style.display=x.dup_warn?'':'none';s.appendChild(dw);
- var ck=el('div');ck.style.margin='4px 0';SEC.forEach(function(a){var l=el('label','ck'),i=el('input');i.type='checkbox';i.checked=true;i.dataset.k=a[0];l.appendChild(i);l.appendChild(document.createTextNode(' '+a[1]));ck.appendChild(l)});s.appendChild(ck);
- var ti=el('input');ti.type='text';ti.id='labTitle';ti.placeholder='글 제목 (비우면 자동 · AI가 제목 후보를 주면 첫 번째 사용)';ti.maxLength=150;s.appendChild(ti);
- var r=el('div','lrow'),b=el('button','p','🧱 글 만들기');b.onclick=function(){buildBlog(s)};r.appendChild(b);s.appendChild(r);var out=el('div');out.id='labBlogOut';s.appendChild(out);c.appendChild(s)}
-function buildBlog(s){var inc={};s.querySelectorAll('input[type=checkbox]').forEach(function(i){inc[i.dataset.k]=i.checked});var out=document.getElementById('labBlogOut');out.innerHTML='';out.appendChild(el('div','note','⏳ 만드는 중…'));
- api(BASE+'blog',{ticker:LAB.tk,ai:(LAB.ai[LAB.tk]||''),inc:inc,title:document.getElementById('labTitle').value}).then(function(j){out.innerHTML='';if(j.error){out.appendChild(el('div','warn','⚠ '+j.error));return}LAB.blog=j;
-  var ti=document.getElementById('labTitle');if(!ti.value)ti.value=j.title;
-  if(j.titles&&j.titles.length){var tl=el('div','note');tl.appendChild(document.createTextNode('AI 제목 후보: '));j.titles.forEach(function(t){var a=el('button',null,t.length>34?t.slice(0,34)+'…':t);a.style.cssText='margin:2px;padding:3px 9px;font-size:12px';a.onclick=function(){ti.value=t};tl.appendChild(a)});out.appendChild(tl)}
-  var r=el('div','lrow');var cp=el('button','p','📋 서식 그대로 복사');cp.onclick=function(){copyBlog(j,out)};r.appendChild(cp);
-  var op=el('button',null,'✍ 블로그 글쓰기 열기');op.onclick=function(){window.open(j.blog_url,'_blank','noopener')};r.appendChild(op);
-  var dl=el('button',null,'💾 HTML 파일로 저장');dl.onclick=function(){var b=new Blob(['<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>'+j.title.replace(/</g,'')+'</title></head><body style="max-width:860px;margin:0 auto;padding:20px">'+j.html+'</body></html>'],{type:'text/html'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=j.ticker+'_blog.html';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500)};r.appendChild(dl);out.appendChild(r);
-  out.appendChild(el('div','note','글 크기 '+Math.round(j.size/1000)+'KB · 태그 '+j.tags.map(function(t){return '#'+t}).join(' ')+(j.ok_size?'':' — ⚠ 너무 커서 일부 섹션을 빼고 다시 만드세요')));
-  var fr=document.createElement('iframe');fr.setAttribute('sandbox','');fr.srcdoc='<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:14px;background:#fff">'+j.html+'</body></html>';out.appendChild(fr);
-  var lg=el('div','lsec');lg.appendChild(el('h4',null,'✅ 블로그에 올렸다면 기록 남기기 (중복 방지)'));var u=el('input');u.type='text';u.placeholder='올린 글 주소(선택) https://blog.naver.com/…';lg.appendChild(u);var m=el('input');m.type='text';m.placeholder='메모(선택)';m.style.marginTop='6px';lg.appendChild(m);
-  var rr=el('div','lrow'),sv=el('button','p','작성 기록 남기기');sv.onclick=function(){api(BASE+'bloglog',{ticker:LAB.tk,name:j.name,title:document.getElementById('labTitle').value||j.title,url:u.value,memo:m.value,kind:'stock'}).then(function(z){if(z.error){toast(z.error);return}toast('작성 기록을 남겼어요 (관리자 화면 📝 블로그 이력)');LAB.x.dup_warn=z.dup_warn;var dd=document.getElementById('labDup');if(dd){dd.textContent='⚠ '+z.dup_warn;dd.style.display=''}sv.disabled=true;sv.textContent='기록 완료'})};rr.appendChild(sv);lg.appendChild(rr);out.appendChild(lg)})}
-function copyBlog(j,out){var html=j.html;var plain=html.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();var ok=false;
- try{var ta=document.createElement('textarea');ta.value=' ';ta.setAttribute('readonly','');ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.focus();ta.select();var done=false;
-  var h=function(e){try{e.clipboardData.setData('text/html',html);e.clipboardData.setData('text/plain',plain);e.preventDefault();done=true}catch(x){}};document.addEventListener('copy',h,true);var r=false;try{r=document.execCommand('copy')}catch(x){}document.removeEventListener('copy',h,true);document.body.removeChild(ta);ok=!!(r&&done)}catch(e){}
- function fin(good){toast(good?'📋 블로그용 HTML을 복사했어요 — 네이버 블로그 글쓰기 화면에서 Ctrl+V 하세요.':'복사가 막혔어요. [HTML 파일로 저장]을 쓰거나 미리보기를 드래그해 복사하세요.')}
- if(ok){fin(true);return}
- try{if(navigator.clipboard&&window.ClipboardItem){navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})})]).then(function(){fin(true)},function(){fin(false)});return}}catch(e){}
- fin(false)}
+function secBlog(c,x){var s=el('div','lsec');s.appendChild(el('h4',null,'📝 블로그 글 만들기 (네이버 블로그용 HTML)'));var box=el('div');s.appendChild(box);c.appendChild(s);
+ window.BlogKit.panel(box,{idp:'lab',key:'stock',kind:'stock',ticker:LAB.tk,name:LAB.x.name,sections:SEC,dup_warn:x.dup_warn,
+  build:function(inc,title){return api(BASE+'blog',{ticker:LAB.tk,ai:(LAB.ai[LAB.tk]||''),inc:inc,title:title})},
+  onLogged:function(z){LAB.x.dup_warn=z.dup_warn}})}
 function draw(){var c=card();if(!c)return;var x=LAB.x;head(c,x);
  var r=el('div','lrow'),b=el('button',null,'🔄 새로 불러오기');b.onclick=load;r.appendChild(b);var b2=el('button',null,'접기');b2.onclick=function(){LAB.open=false;draw0()};r.appendChild(b2);c.appendChild(r);
  if(x.delisting&&x.delisting.level&&x.delisting.level!=='none'){c.appendChild(el('div','warn','⚠ 상장폐지·거래정지 위험 신호가 있어요 — 위쪽 경고 상자를 먼저 확인하세요.'))}
@@ -1079,35 +866,11 @@ if(window.__LAB_PENDING__){window.__onAnalysis(window.__LAB_PENDING__);window.__
 })();
 """
 
-TAB_JS = r"""
-var BL={rows:[],q:'',url:''};
-function blLoad(p){api('/admin/api/lab/bloglog?q='+encodeURIComponent(BL.q||'')).then(function(j){if(cur!=='bl')return;BL.rows=j.rows||[];BL.multi=j.multi||[];BL.url=j.blog_url||'';blDraw(p)})}
-function blDraw(p){p.innerHTML='';var top=el('div','c');top.appendChild(el('b',null,'📝 블로그 작성 이력'));
- top.appendChild(el('p','note','종목분석 화면의 [🧪 관리자 분석실]에서 블로그 글을 만든 뒤 남긴 기록이에요. 같은 종목을 자주 쓰면 ⚠ 표시가 붙어 중복 작성을 막아 줍니다. 총 '+BL.rows.length+'건'+(BL.multi.length?' · 2건 이상 쓴 종목 '+BL.multi.length+'개':'')+'.'));
- var q=el('input');q.placeholder='종목명·코드·제목 검색';q.value=BL.q;q.style.width='220px';q.onkeydown=function(e){if(e.key==='Enter'){BL.q=q.value;blLoad(p)}};top.appendChild(q);
- top.appendChild(bt('검색','bt2',function(){BL.q=q.value;blLoad(p)}));p.appendChild(top);
- var uc=el('div','c');uc.appendChild(el('b',null,'✍ 블로그 글쓰기 주소'));uc.appendChild(el('p','note','분석실의 [블로그 글쓰기 열기] 버튼이 여는 주소예요. 내 블로그 글쓰기 주소(예: https://blog.naver.com/내아이디?Redirect=Write)로 바꿔 두면 편해요.'));
- var ui=el('input');ui.value=BL.url;ui.style.width='min(520px,90%)';uc.appendChild(ui);uc.appendChild(bt('저장','bt',function(){apiJ('/admin/api/settings',{lab_blog_url:ui.value}).then(function(j){toast(j.error?j.error:'저장했어요')})}));p.appendChild(uc);
- var lc=el('div','c');var tw=el('div');tw.style.overflowX='auto';var t=el('table'),h=el('tr');['날짜','종목','제목','글 주소','메모',''].forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
- BL.rows.forEach(function(r){var tr=el('tr');var d=new Date(r.at*1000);tr.appendChild(el('td',null,(d.getMonth()+1)+'/'+d.getDate()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)));
-  tr.appendChild(el('td',BL.multi.indexOf(r.ticker)>=0?'bad':'',(BL.multi.indexOf(r.ticker)>=0?'⚠ ':'')+(r.name||'')+' '+r.ticker));tr.appendChild(el('td',null,r.title));
-  var u=el('td');var ui=el('input');ui.value=r.url||'';ui.placeholder='https://…';ui.style.width='170px';u.appendChild(ui);tr.appendChild(u);
-  var m=el('td');var mi=el('input');mi.value=r.memo||'';mi.style.width='120px';m.appendChild(mi);tr.appendChild(m);
-  var a=el('td');a.appendChild(bt('저장','bt3',function(){apiJ('/admin/api/lab/bloglog/'+r.id,{url:ui.value,memo:mi.value}).then(function(j){toast(j.error?j.error:'저장했어요')})}));
-  if(r.url){var lk=el('a',null,' 열기');lk.href=r.url;lk.target='_blank';lk.rel='noopener';a.appendChild(lk)}
-  a.appendChild(bt('삭제','bt3',function(){if(!confirm('이 기록을 지울까요?'))return;fetch('/admin/api/lab/bloglog/'+r.id,{method:'DELETE',credentials:'same-origin',headers:{'X-CSRF-Token':CSRF}}).then(function(){blLoad(p)})}));tr.appendChild(a);t.appendChild(tr)});
- if(!BL.rows.length){var tr=el('tr'),td=el('td',null,'아직 기록이 없어요.');td.colSpan=6;tr.appendChild(td);t.appendChild(tr)}
- tw.appendChild(t);lc.appendChild(tw);p.appendChild(lc)}
-"""
-
 
 # ══════════════════════════════════════════════════════════════
 def register():
-    C.register_table_hook(_ensure_table)
-    C.register_settings({"lab_blog_url": DEFAULT_BLOG_URL}, {"lab_blog_url": _valid_url})
     C.register_prompt("lab_report", {
         "title": "AI 종합 리포트(분석실) 프롬프트", "default": LAB_REPORT_DEFAULT, "required": ["{data}"], "must_have": ["## 1."],
         "vars": "{data}=종목 데이터 요약(필수) · {name} · {ticker} · {today}",
         "desc": "관리자 분석실에서 AI에게 보내는 종합 리포트 요청문. '## 1.' 형식 제목을 유지해야 블로그 글에 예쁘게 들어가요."})
-    C.register_admin_tab("bl", "📝 블로그 이력", TAB_JS, "blLoad")
     return bp

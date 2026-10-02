@@ -25,7 +25,7 @@ def _state():
         on, tok = menu_policy(m["id"])
         menus.append({"id": m["id"], "icon": m["icon"], "label": m["label"], "desc": m.get("desc", ""), "on": bool(on),
                       "levels": ([C.GUEST] if C.GUEST in tok else []) + [x["id"] for x in levels if x["id"] in tok], "public_path": m["public_path"], "admin_path": m["admin_path"],
-                      "preview_path": m.get("preview_path") or m["public_path"]})
+                      "preview_path": m.get("preview_path") or m["public_path"], "admin_only": bool(m.get("admin_only"))})
     return {"levels": levels, "max": C.MAX_MEMBER_LEVELS, "menus": menus, "guest": C.GUEST}
 
 
@@ -101,8 +101,8 @@ function mmDraw(p){p.innerHTML='';var D=MM.draft;
   D.menus.forEach(function(m,i){if(q&&(m.label+' '+m.desc+' '+m.id).toLowerCase().indexOf(q)<0)return;var tr=el('tr');
    var o=el('td');var u=bt('▲','bt3',function(){if(i>0){var x=D.menus[i-1];D.menus[i-1]=m;D.menus[i]=x;mmDirty(p);mmDraw(p)}});u.disabled=i===0;var w=bt('▼','bt3',function(){if(i<D.menus.length-1){var x=D.menus[i+1];D.menus[i+1]=m;D.menus[i]=x;mmDirty(p);mmDraw(p)}});w.disabled=i===D.menus.length-1;o.appendChild(u);o.appendChild(w);tr.appendChild(o);
    var nm=el('td');nm.appendChild(el('b',null,m.icon+' '+m.label));nm.appendChild(el('div','m',m.desc||''));tr.appendChild(nm);
-   var st=el('td');var tg=bt(m.on?'✅ 켜짐':'🙈 숨김',m.on?'bt':'bt3',function(){m.on=!m.on;mmDirty(p);mmDraw(p)});st.appendChild(tg);tr.appendChild(st);
-   function cb(tok){var td=el('td');var c=el('input');c.type='checkbox';c.checked=m.levels.indexOf(tok)>=0;c.disabled=!m.on;c.onchange=function(){var s=m.levels.filter(function(x){return x!==tok});if(c.checked)s.push(tok);m.levels=s;mmDirty(p);mmDraw(p)};td.appendChild(c);return td}
+   var st=el('td');if(m.admin_only){st.appendChild(el('span','m','🔒 관리자 전용'))}else{var tg=bt(m.on?'✅ 켜짐':'🙈 숨김',m.on?'bt':'bt3',function(){m.on=!m.on;mmDirty(p);mmDraw(p)});st.appendChild(tg)}tr.appendChild(st);
+   function cb(tok){var td=el('td');var c=el('input');c.type='checkbox';c.checked=m.levels.indexOf(tok)>=0;c.disabled=!m.on||!!m.admin_only;c.onchange=function(){var s=m.levels.filter(function(x){return x!==tok});if(c.checked)s.push(tok);m.levels=s;mmDirty(p);mmDraw(p)};td.appendChild(c);return td}
    tr.appendChild(cb(D.guest));D.levels.forEach(function(l){tr.appendChild(cb(l.id))});
    var lk=el('td');var a=el('a',null,'열기');a.href=m.preview_path||m.public_path;a.target='mini_admin_view';a.rel='noopener';lk.appendChild(a);tr.appendChild(lk);
    t.appendChild(tr)});
