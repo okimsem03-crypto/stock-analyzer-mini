@@ -211,6 +211,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
+✨ v137 — 모든 공개 메뉴가 같은 고급 화면 틀(menu_ui.py)을 쓰도록 정리(전체 메뉴 화면 /menus 추가, 거래정지 화면 새 디자인), 수동 AI 분석 자동화(설정한 AI 열기·프롬프트 자동 복사·답변 복사하면 자동 입력, 설정 [메뉴·설정]에서 AI 선택).
 ✨ v136 — 구조 개편(이용자 화면은 그대로): 메뉴마다 별도 파일(menu_*.py), 메뉴 접근 등급 칸(공개·회원·등급·관리자), 원본 DB 가져오기(관리자 화면 [데이터]), 관리자 로그인 유지 시간을 설정에서 선택(최대 1~24시간·무활동 10분~24시간).
 
 ✨ v135 — 관리자 전용 메뉴 '거래정지·상폐'(후보 스캔·AI 수동/자동 검증·관리자 확정), 프롬프트 편집·AI 강화, 메뉴 공개/관리자 전용 설정, 관리자 로그인 표시.
@@ -318,7 +319,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v136"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v137"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -337,7 +338,7 @@ APP_VERSION_HARDCODED = "v136"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v136"
+HELP_CONTENT_ASOF = "v137"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -3033,6 +3034,7 @@ def index():
         kakao_url=KAKAO_OPENCHAT_URL or None,
         demo_ticker=DEMO_TICKER, demo_name=DEMO_TICKER_NAME,
         site_url=_public_site_url(),
+        ai_site=(lambda v: v if v in ("gemini", "chatgpt", "claude", "perplexity") else "gemini")(setting_get("manual_ai_site", "gemini")),
         site_label=(PUBLIC_SITE_URL or _public_site_url() or "").replace("https://", "").replace("http://", "").rstrip("/"),
         brand_url=(PUBLIC_SITE_URL or _public_site_url() or "").rstrip("/"),
         blog_url=CREATOR_BLOG_URL,
@@ -3919,7 +3921,7 @@ def admin_home():
     import secrets
     s = _admin_session()
     nonce = secrets.token_urlsafe(16)
-    page = ADMIN_APP_HTML.replace("/*__MODULE_JS__*/", "\n".join(ADMIN_TABS)) if s else ADMIN_LOGIN_HTML
+    page = ADMIN_APP_HTML.replace("/*__MODULE_JS__*/", "\n".join(ADMIN_LIB_JS + ADMIN_TABS)) if s else ADMIN_LOGIN_HTML
     html = render_template_string(page, nonce=nonce,
                                   csrf=(s or {}).get("csrf", ""), version=APP_VERSION)
     return _admin_headers(app.make_response(html), nonce)
@@ -4352,14 +4354,14 @@ function dlMark(state){var tk=dlSelList();if(!tk.length){toast('먼저 종목을
  apiJ('/admin/api/delist/mark',{tickers:tk,state:state,label:label,note:note}).then(function(j){if(j.error)toast(j.error);else{DL.sel={};toast(j.n+'개 처리했어요');load()}})}
 function dlManual(){var tk=dlSelList();var pn=$('dlpanel');pn.innerHTML='만드는 중…';
  apiJ('/admin/api/delist/ai-prompt',{tickers:tk}).then(function(j){pn.innerHTML='';if(j.error){pn.appendChild(el('p','note bad',j.error));return}
-  var c=el('div','c');c.appendChild(el('b',null,'수동 AI 검증 — '+j.total+'개 종목, 프롬프트 '+j.chunks.length+'개'));
-  c.appendChild(el('p','note','① 아래 프롬프트를 하나씩 복사해 웹검색이 되는 AI(ChatGPT·Gemini·Claude 등)에 붙여넣으세요. ② 답변 전체를 맨 아래 칸에 붙여넣고 [미리보기] → [저장]을 누르세요. 프롬프트가 여러 개면 한 번에 하나씩 반복합니다.'));
-  j.chunks.forEach(function(ch){var r=el('div','bar');r.appendChild(el('span',null,ch.n+'번 · '+ch.count+'종목'));r.appendChild(bt('복사','bt',function(){copyTxt(ch.prompt)}));var v=bt('보기','bt3',function(){var x=this.nextSibling;x.style.display=x.style.display==='none'?'block':'none'});r.appendChild(v);var ta=el('textarea');ta.readOnly=true;ta.value=ch.prompt;ta.style.display='none';ta.rows=10;r.appendChild(ta);c.appendChild(r)});
-  var pa=el('textarea');pa.placeholder='AI의 답변을 여기에 붙여넣기';pa.rows=8;c.appendChild(pa);
-  var out=el('div');var r2=el('div','bar');
-  r2.appendChild(bt('미리보기','bt2',function(){apiJ('/admin/api/delist/ai-paste',{text:pa.value,dry:true}).then(function(x){dlPreview(out,x,false)})}));
-  r2.appendChild(bt('저장','bt',function(){apiJ('/admin/api/delist/ai-paste',{text:pa.value}).then(function(x){dlPreview(out,x,true);toast((x.applied||0)+'건 저장');DL.sel={};setTimeout(load,1200)})}));
-  c.appendChild(r2);c.appendChild(out);pn.appendChild(c);pn.scrollIntoView()})}
+  if(!window.MiniAI){pn.appendChild(el('p','note bad','AI 도우미 파일(menu_ui.py)이 올라가지 않았어요. 업로드 목록을 확인해 주세요.'));return}
+  var steps=j.chunks.map(function(ch){return {label:ch.n+'번 · '+ch.count+'종목',prompt:ch.prompt}});
+  pn.appendChild(el('p','note','수동 AI 검증 창을 열었어요 — 프롬프트 '+j.chunks.length+'개, 종목 '+j.total+'개. 창을 닫았다면 [수동 AI] 버튼을 다시 누르세요.'));
+  window.MiniAI.run({title:'거래정지·상폐 AI 검증',key:'delist',steps:steps,minLen:20,
+   hint:'AI가 표(종목코드|판정|근거|기준일|출처)로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
+   preview:function(text){return apiJ('/admin/api/delist/ai-paste',{text:text,dry:true}).then(function(x){var d=el('div');dlPreview(d,x,false);return {node:d,canApply:(x.rows||[]).length>0}})},
+   apply:function(text){return apiJ('/admin/api/delist/ai-paste',{text:text}).then(function(x){DL.sel={};setTimeout(load,1200);return {message:(x.applied||0)+'건을 저장했어요.'}})},
+   onClose:function(){pn.innerHTML=''}})})}
 function dlPreview(out,x,saved){out.innerHTML='';out.appendChild(el('p','note',(saved?'저장 결과: ':'읽은 결과: ')+x.rows.length+'줄 · 목록에 있는 종목 '+x.known+'개'+(x.bad?' · 판정을 못 읽은 줄 '+x.bad:'')+(x.rows.length?'':' — "종목코드|판정|근거|기준일|출처" 형식의 줄이 없어요.')));
  if(!x.rows.length)return;var t=el('table'),h=el('tr');['종목','판정','근거','기준일','출처'].forEach(function(y){h.appendChild(el('th',null,y))});t.appendChild(h);
  x.rows.forEach(function(r){var tr=el('tr');[(r.name||'(목록에 없음)')+' '+r.ticker,r.verdict,r.basis,r.date,r.source].forEach(function(y,i){tr.appendChild(el('td',i===0&&!r.known?'bad':'',y))});t.appendChild(tr)});out.appendChild(t)}
@@ -4423,10 +4425,15 @@ function mnLoad(p){api('/admin/api/settings').then(function(d){if(cur!=='mn')ret
  var q1=el('div','bar');q1.appendChild(el('span',null,'로그인 최대 유지: '));q1.appendChild(hs);ss.appendChild(q1);
  var q2=el('div','bar');q2.appendChild(el('span',null,'아무것도 안 하면 로그아웃: '));q2.appendChild(ids);ss.appendChild(q2);
  ss.appendChild(bt('로그인 시간 저장','bt',function(){apiJ('/admin/api/settings',{admin_session_hours:hs.value,admin_idle_minutes:ids.value}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));
+ var ms=el('div','c');ms.appendChild(el('b',null,'수동 AI 분석 — 열어줄 AI'));
+ ms.appendChild(el('p','note','이용자가 [AI로 분석] 버튼을 누르면 여기서 고른 AI 사이트가 열려요. 프롬프트는 자동으로 복사되고, AI 답변을 복사한 뒤 돌아오면 자동으로 읽어 들입니다. 이용자는 창 안에서 다른 AI로 바꿔 쓸 수도 있어요(그 브라우저에 기억됨).'));
+ var msel=mkSel([['gemini','🔷 제미나이'],['chatgpt','🟢 챗GPT'],['claude','🟠 클로드'],['perplexity','🟣 퍼플렉시티']],d.manual_ai_site||'gemini');
+ var q3=el('div','bar');q3.appendChild(el('span',null,'기본으로 열 AI: '));q3.appendChild(msel);ms.appendChild(q3);
+ ms.appendChild(bt('저장','bt',function(){apiJ('/admin/api/settings',{manual_ai_site:msel.value}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));
  var s=el('div','c');s.appendChild(el('b',null,'스캔 설정'));
  var days=el('input');days.type='number';days.min=3;days.max=60;days.value=d.delist_stale_days;days.style.width='80px';var r3=el('div','bar');r3.appendChild(el('span',null,'마지막 거래일이 며칠 이상 지나면 거래정지 의심으로 볼까요?'));r3.appendChild(days);s.appendChild(r3);
  var cs=el('input');cs.type='checkbox';cs.checked=d.delist_include_caution==='1';var r4=el('div','bar');r4.appendChild(cs);r4.appendChild(el('span',null,'동전주(1,000원 미만)도 후보에 넣기 — 목록이 많이 길어져요'));s.appendChild(r4);
- s.appendChild(bt('스캔 설정 저장','bt',function(){apiJ('/admin/api/settings',{delist_stale_days:String(days.value),delist_include_caution:cs.checked?'1':'0'}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));p.appendChild(ss);p.appendChild(s)})}
+ s.appendChild(bt('스캔 설정 저장','bt',function(){apiJ('/admin/api/settings',{delist_stale_days:String(days.value),delist_include_caution:cs.checked?'1':'0'}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));p.appendChild(ss);p.appendChild(ms);p.appendChild(s)})}
 
 /*__MODULE_JS__*/
 var HH=(location.hash||'').slice(1);if(TABS.some(function(t){return t[0]===HH}))cur=HH;
@@ -4455,6 +4462,7 @@ MENU_LOAD_ERRORS = []       # 불러오지 못한 모듈(있어도 본체는 정
 TABLE_HOOKS = []            # 메뉴 모듈이 필요한 표를 만드는 함수들
 SETTING_VALIDATORS = {}     # 메뉴 모듈이 추가한 설정 값 검사 함수
 ADMIN_TABS = []             # 메뉴 모듈이 추가한 관리자 화면 탭(JS)
+ADMIN_LIB_JS = []           # 관리자 화면 전체가 같이 쓰는 공용 JS(수동 AI 도우미 등)
 
 
 def register_menu(m):
@@ -4482,6 +4490,13 @@ def register_table_hook(fn):
     global _v135_ready
     TABLE_HOOKS.append(fn)
     _v135_ready = False        # 다음 사용 때 표를 다시 확인한다(CREATE IF NOT EXISTS 라 안전)
+
+
+def register_admin_lib(js):
+    """관리자 화면 모든 탭이 같이 쓰는 공용 JS 를 넣는다(탭 코드보다 먼저 실행됨)."""
+    if any(t in js for t in ("{{", "{%", "{#")):
+        raise ValueError("관리자 공용 JS에 {{ {% {# 를 쓸 수 없어요.")
+    ADMIN_LIB_JS.append(js)
 
 
 def register_admin_tab(tab_id, label, js, loader):
@@ -4656,7 +4671,7 @@ def menu_public(menu_id):
 
 
 def _menus_public_list():
-    return [{"id": m["id"], "label": m["label"], "icon": m["icon"], "path": m["public_path"]} for m in MENUS if menu_visible(m["id"])]
+    return [{"id": m["id"], "label": m["label"], "icon": m["icon"], "path": m["public_path"], "desc": m.get("desc", "")} for m in MENUS if menu_visible(m["id"])]
 
 
 def _menus_admin_list():
@@ -5383,7 +5398,7 @@ HTML_TEMPLATE = r"""
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>종목분석 미니 {{ app_version }}</title>
-<script>window.__APP_VER__ = "{{ app_version }}"; window.__SITE_URL__ = "{{ site_url }}";
+<script>window.__APP_VER__ = "{{ app_version }}"; window.__SITE_URL__ = "{{ site_url }}"; window.__AI_SITE__ = "{{ ai_site }}";
   window.__BRAND_URL__ = "{{ brand_url }}"; window.__BRAND_LABEL__ = "{{ site_label }}"; window.__BLOG_URL__ = "{{ blog_url }}";
   window.__ADS__ = {{ 'true' if ad_client else 'false' }};</script>
 {% if ad_client %}<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ ad_client }}" crossorigin="anonymous"></script>{% endif %}
@@ -5459,6 +5474,13 @@ HTML_TEMPLATE = r"""
     cursor:pointer; font-family:inherit; color:#fff; display:inline-flex; align-items:center; gap:6px;
   }
   .aiServiceBtn:hover{filter:brightness(1.08);}
+  .aiPrimary{width:100%; border:none; border-radius:14px; padding:16px 20px; font-size:17px; font-weight:800; cursor:pointer;
+    font-family:inherit; color:#fff; background:linear-gradient(135deg,#3151d3,#5b7cfa); box-shadow:0 10px 24px -10px rgba(49,81,211,.7);
+    display:flex; align-items:center; justify-content:center; gap:10px; letter-spacing:-.02em;}
+  .aiPrimary:hover{filter:brightness(1.07);} .aiPrimary small{font-weight:600; font-size:12.5px; opacity:.85;}
+  .aiOther{margin-top:10px; font-size:12.5px; color:var(--muted,#64748b); display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+  .aiOther button{border:1px solid #e2e8f0; background:#fff; border-radius:999px; padding:5px 12px; font-size:12.5px; cursor:pointer; font-family:inherit; color:#334155;}
+  .aiOther button:hover{border-color:#5b7cfa;}
   .as-gemini{background:linear-gradient(135deg,#4285f4,#9b72cb);}
   .as-chatgpt{background:#10a37f;}
   .as-claude{background:#c96442;}
@@ -6205,10 +6227,14 @@ HTML_TEMPLATE = r"""
       <div class="aiHint">이 앱은 AI를 직접 호출하지 않습니다. 아래 버튼을 누르는 순간 분석 프롬프트가
         <b>이미 복사</b>되어 있으니, 열리는 AI 화면에 <b>Ctrl+V(붙여넣기)</b>만 하시면 됩니다.
         AI 답변의 <b>복사</b> 버튼을 누르고 이 화면으로 돌아오면 답변이 아래 칸에 <b>자동으로</b> 들어가 정리됩니다.</div>
-      <div class="aiBtnRow" style="margin-top:12px;">
-        <button class="aiServiceBtn as-gemini" onclick="copyAndOpenAI('gemini')">🔷 제미나이로 분석</button>
-        <button class="aiServiceBtn as-chatgpt" onclick="copyAndOpenAI('chatgpt')">🟢 챗GPT로 분석</button>
-        <button class="aiServiceBtn as-claude" onclick="copyAndOpenAI('claude')">🟠 클로드로 분석</button>
+      <div style="margin-top:12px;">
+        <button class="aiPrimary" id="aiPrimaryBtn" onclick="aiPrimary()">🤖 AI로 분석하기</button>
+        <div class="aiOther">다른 AI로 열기:
+          <button onclick="aiPick('gemini')">🔷 제미나이</button>
+          <button onclick="aiPick('chatgpt')">🟢 챗GPT</button>
+          <button onclick="aiPick('claude')">🟠 클로드</button>
+          <button onclick="aiPick('perplexity')">🟣 퍼플렉시티</button>
+        </div>
       </div>
       <div class="aiBtnRow" style="margin-top:8px;">
         <button class="btn btn-ghost" onclick="copyAiPrompt()">📋 프롬프트만 복사</button>
@@ -7089,8 +7115,34 @@ const AI_SERVICE_URLS = {
   gemini:  'https://gemini.google.com/app',
   chatgpt: 'https://chatgpt.com/',
   claude:  'https://claude.ai/new',
+  perplexity: 'https://www.perplexity.ai/',
 };
-const AI_SERVICE_NAMES = { gemini:'제미나이', chatgpt:'챗GPT', claude:'클로드' };
+const AI_SERVICE_NAMES = { gemini:'제미나이', chatgpt:'챗GPT', claude:'클로드', perplexity:'퍼플렉시티' };
+const AI_ICONS = { gemini:'🔷', chatgpt:'🟢', claude:'🟠', perplexity:'🟣' };
+// 🤖 [v137] 운영자가 설정한 AI를 기본으로 열고(window.__AI_SITE__), 이용자가 고른 AI는 브라우저에 기억한다.
+function _aiSite(){
+  try{ const v = localStorage.getItem('mini_ai_site'); if(v && AI_SERVICE_URLS[v]) return v; }catch(e){}
+  return AI_SERVICE_URLS[window.__AI_SITE__] ? window.__AI_SITE__ : 'gemini';
+}
+function _aiRelabel(){
+  const w = _aiSite(), b = document.getElementById('aiPrimaryBtn');
+  if(b) b.innerHTML = AI_ICONS[w] + ' ' + AI_SERVICE_NAMES[w] + '로 분석하기 <small>(프롬프트 자동 복사 · 답변은 자동 입력)</small>';
+}
+function aiPick(which){
+  try{ localStorage.setItem('mini_ai_site', which); }catch(e){}
+  _aiRelabel(); aiPrimary();
+}
+// 큰 버튼: 안내창 없이 곧바로 복사 + 열기. 답변을 복사하고 이 탭으로 돌아오면 아래 칸에 자동으로 들어간다.
+function aiPrimary(){
+  if(!CUR){ showToast('먼저 종목을 분석해 주세요.'); return; }
+  const which = _aiSite();
+  if(!CUR_PROMPT){ copyAndOpenAI(which); return; }
+  const ok = _copyText(CUR_PROMPT);
+  _openExternal(AI_SERVICE_URLS[which]);
+  _markAiPending();
+  showToast(ok ? '📋 복사 완료 — ' + AI_SERVICE_NAMES[which] + ' 입력칸에 Ctrl+V 하세요. 답변을 복사하고 돌아오면 자동 입력됩니다.' : '⚠ 복사가 막혔어요. [프롬프트만 복사]를 눌러 주세요.');
+}
+document.addEventListener('DOMContentLoaded', _aiRelabel);
 
 // 🐛 [v119] 예전엔 clipboard.writeText가 "나중에 실패"해도 즉시 true를 돌려줘서, 복사가 안 됐는데
 // "복사되었습니다"라고 안내하는 경우가 있었다. 이제 클릭 순간 바로 끝나는 방식(execCommand)을
@@ -7653,6 +7705,7 @@ document.addEventListener('keydown', function(e){
     var isAdm = !!(adm && adm.admin);
     var shown = {};
     pub.forEach(function(m){ shown[m.id] = 1; wrap.appendChild(mk(m.path, m.icon + ' ' + m.label)); });
+    if(pub.length){ wrap.appendChild(mk('/menus', '🧭 전체 메뉴')); }
     if(isAdm && !PREVIEW){
       (adm.menus || []).forEach(function(m){
         if(shown[m.id]) return;

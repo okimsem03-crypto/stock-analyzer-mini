@@ -10,6 +10,7 @@ import re, time, json, sqlite3, threading
 from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request, current_app as app
 from menu_ctx import C
+import menu_ui as U
 
 bp = Blueprint("delist", __name__)
 
@@ -542,35 +543,42 @@ def api_delist_public():
     return resp
 
 
-DELIST_PUBLIC_HTML = r"""<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>거래정지·상장폐지 종목 · 종목분석 미니</title>
-<style>
-*{box-sizing:border-box}body{margin:0;background:#f1f5f9;font-family:system-ui,'Malgun Gothic',sans-serif;color:#1f2937}
-header{background:#0f172a;color:#fff;padding:12px 16px;display:flex;gap:10px;align-items:center}header a{color:#93c5fd;text-decoration:none;font-size:13px}header b{flex:1}
-.w{max-width:860px;margin:0 auto;padding:14px 16px 40px}.note{background:#fff7ed;border:1px solid #fdba74;border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.6;margin-bottom:12px}
-table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;font-size:14px}td,th{padding:9px 10px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top}th{background:#f8fafc;font-size:12.5px}
-.tag{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700;background:#fee2e2;color:#b91c1c}.sub{color:#64748b;font-size:12px}a.s{color:#2563eb;text-decoration:none}
-.empty{background:#fff;border-radius:12px;padding:22px;text-align:center;color:#64748b}
-</style></head><body><header><b>🚫 거래정지·상장폐지 종목</b><a href="/">← 종목분석으로</a></header>
-<div class="w"><div class="note">운영자가 거래소 공시 등을 확인해 직접 확정한 종목만 보여드립니다. <b>실제 상태는 바뀔 수 있으므로 투자 전에 반드시 한국거래소(KIND)·DART 공시로 다시 확인하세요.</b> 투자 권유가 아니며, 투자 판단과 책임은 본인에게 있습니다.</div>
-<div id="box"><div class="empty">불러오는 중…</div></div></div>
-<script>
+DELIST_BODY = r"""
+<div class="mu-callout warn"><span class="i">⚠️</span><div><b>투자 전 꼭 확인하세요.</b> 운영자가 거래소 공시 등을 확인해 직접 확정한 종목만 보여드립니다.
+실제 상태는 바뀔 수 있으므로 <b>한국거래소(KIND)·DART 공시</b>로 다시 확인하세요.</div></div>
+<div class="mu-stats" id="stats"></div>
+<div class="mu-card"><div class="mu-card-h">🚫 확정 종목 목록<small id="cnt"></small></div>
+<div class="mu-card-b" style="padding-bottom:6px"><input id="q" type="search" placeholder="종목명 또는 코드로 찾기" autocomplete="off"
+ style="width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 14px;font:inherit;background:var(--surface2);color:var(--ink)"></div>
+<div id="box"><div class="mu-empty">불러오는 중…</div></div></div>
+"""
+
+DELIST_SCRIPT = r"""
 function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
-fetch('/api/delist/public').then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(d){
- var b=document.getElementById('box');b.innerHTML='';
- if(!d.rows.length){b.appendChild(el('div','empty','현재 확정된 종목이 없습니다.'));return}
- var t=el('table'),h=el('tr');['종목','상태','메모','확정일'].forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
- d.rows.forEach(function(r){var tr=el('tr'),td=el('td');var a=el('a','s',r.name+' ('+r.ticker+')');a.href='/?t='+encodeURIComponent(r.ticker);td.appendChild(a);td.appendChild(el('div','sub',r.market||''));tr.appendChild(td);
-  var s=el('td');s.appendChild(el('span','tag',r.label));tr.appendChild(s);tr.appendChild(el('td','sub',r.note||''));tr.appendChild(el('td','sub',r.at||''));t.appendChild(tr)});
- b.appendChild(t)}).catch(function(){var b=document.getElementById('box');b.innerHTML='';b.appendChild(el('div','empty','지금은 볼 수 없는 화면입니다.'))});
-</script></body></html>"""
+var ROWS=[];
+function tone(l){return /상장폐지|폐지/.test(l)?'red':(/정지|관리/.test(l)?'amber':(/정리/.test(l)?'blue':''))}
+function stats(){var s=document.getElementById('stats');s.innerHTML='';var by={};ROWS.forEach(function(r){by[r.label]=(by[r.label]||0)+1});
+ function box(l,v,c,sub){var d=el('div','mu-stat '+(c||''));d.appendChild(el('div','l',l));d.appendChild(el('div','v',String(v)));if(sub)d.appendChild(el('div','s',sub));s.appendChild(d)}
+ box('확정 종목',ROWS.length,'gold','운영자가 확인한 종목');Object.keys(by).sort(function(a,b){return by[b]-by[a]}).slice(0,3).forEach(function(k){box(k,by[k],tone(k)==='red'?'red':'')});
+ if(ROWS.length){var last=ROWS.reduce(function(m,r){return r.at>m?r.at:m},'');box('최근 확정일',last||'-','green')}}
+function draw(){var b=document.getElementById('box');b.innerHTML='';var q=(document.getElementById('q').value||'').trim().toLowerCase();
+ var rows=ROWS.filter(function(r){return !q||(r.name+' '+r.ticker).toLowerCase().indexOf(q)>=0});document.getElementById('cnt').textContent=rows.length+'건';
+ if(!rows.length){var e=el('div','mu-empty');e.appendChild(el('b',null,q?'🔍':'🗂️'));e.appendChild(document.createTextNode(q?'찾는 종목이 없어요.':'현재 확정된 종목이 없습니다.'));b.appendChild(e);return}
+ var w=el('div','mu-tw'),t=el('table','mu-tbl'),th=el('thead'),h=el('tr');['종목','상태','메모','확정일'].forEach(function(x){h.appendChild(el('th',null,x))});th.appendChild(h);t.appendChild(th);var tb=el('tbody');
+ rows.forEach(function(r){var tr=el('tr'),td=el('td');var a=el('a',null,r.name+' ('+r.ticker+')');a.style.fontWeight='700';a.href='/?t='+encodeURIComponent(r.ticker);td.appendChild(a);td.appendChild(el('div','mu-sub',r.market||''));tr.appendChild(td);
+  var s=el('td');s.appendChild(el('span','mu-badge '+tone(r.label),r.label));tr.appendChild(s);tr.appendChild(el('td','mu-sub',r.note||''));var d=el('td','mu-sub',r.at||'');d.style.whiteSpace='nowrap';tr.appendChild(d);tb.appendChild(tr)});
+ t.appendChild(tb);w.appendChild(t);b.appendChild(w)}
+fetch('/api/delist/public').then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(d){ROWS=d.rows||[];stats();draw();document.getElementById('q').addEventListener('input',draw)})
+ .catch(function(){var b=document.getElementById('box');b.innerHTML='';b.appendChild(el('div','mu-empty','지금은 볼 수 없는 화면입니다.'))});
+"""
 
 
 @bp.route("/delist")
 def delist_public_page():
     if not menu_visible("delist"):
         return "not found", 404
-    resp = app.make_response(DELIST_PUBLIC_HTML)
+    resp = app.make_response(U.page("거래정지·상장폐지 종목", DELIST_BODY, icon="🚫",
+                                    subtitle="투자 전에 피해야 할 종목, 확정된 것만 모았습니다.", script=DELIST_SCRIPT, active="delist"))
     resp.headers["X-Robots-Tag"] = "noindex"
     return resp
 
