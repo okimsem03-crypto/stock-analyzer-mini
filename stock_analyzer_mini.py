@@ -211,6 +211,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
+✨ v139 — 관리자 전용 [🧪 분석실]: 종목분석 화면에서 5축 종합점수·수급(외국인/기관/개인)·재무 심층분석·공시 분류·AI 종합 리포트(수동 AI 자동화)와, 원본 방식 블로그 HTML(서식 그대로 복사) 만들기·작성 이력(중복 경고) 추가. 관리자 화면에 [📝 블로그 이력] 탭, 프롬프트 탭에 분석실 프롬프트.
 ✨ v138 — 메인 화면에 메뉴 바(숨김·공개 메뉴), 관리자 [메뉴 관리] 탭(메뉴 목록·보이기/숨김·순서), 회원 단계(최대 10개, 이름 자유) 별 메뉴 노출 설계, 거래정지·상폐 화면 투자 경고 강화+검색 버튼, 관리자 모드는 별도 창으로 열림.
 ✨ v137 — 모든 공개 메뉴가 같은 고급 화면 틀(menu_ui.py)을 쓰도록 정리(전체 메뉴 화면 /menus 추가, 거래정지 화면 새 디자인), 수동 AI 분석 자동화(설정한 AI 열기·프롬프트 자동 복사·답변 복사하면 자동 입력, 설정 [메뉴·설정]에서 AI 선택).
 ✨ v136 — 구조 개편(이용자 화면은 그대로): 메뉴마다 별도 파일(menu_*.py), 메뉴 접근 등급 칸(공개·회원·등급·관리자), 원본 DB 가져오기(관리자 화면 [데이터]), 관리자 로그인 유지 시간을 설정에서 선택(최대 1~24시간·무활동 10분~24시간).
@@ -320,7 +321,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v138"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v139"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4789,7 +4790,7 @@ def admin_api_whoami():
     """메인 화면이 '지금 관리자로 로그인한 상태인지' 묻는 곳. 아니어도 오류 없이 admin:false 만 돌려준다."""
     if not ADMIN_EMAILS or not _admin_ip_allowed() or not _admin_session():
         return _admin_json({"admin": False})
-    return _admin_json({"admin": True, "menus": _menus_admin_list(), "console": "/admin"})
+    return _admin_json({"admin": True, "menus": _menus_admin_list(), "console": "/admin", "csrf": _admin_session()["csrf"]})
 
 
 # ── AI 프롬프트(관리자가 수정) ──
@@ -6225,6 +6226,7 @@ HTML_TEMPLATE = r"""
       <a id="shareLinkOpen" href="#" target="_blank" rel="noopener">열어보기 ↗</a>
     </div>
     <textarea id="blogDraftBox" class="promptBox" style="display:none;" readonly></textarea>
+    <div id="labSlot"></div>
 
     <!-- 💡 [v121] 매력도 체크 — 이용자들의 매수 의도를 모은다(한 브라우저 한 표, 다시 누르면 취소) -->
     <div class="voteCard" id="voteCard">
@@ -6704,6 +6706,7 @@ function _applyAnalysis(data){
     document.getElementById('pasteHint').classList.remove('show');
     AI_PENDING = null;
     _prefetchPrompt();                 // 🤖 [v119] AI 버튼을 누르기 전에 프롬프트를 미리 준비
+    try{ if(window.__onAnalysis) window.__onAnalysis(data); }catch(e){ console.warn('[lab]', e); }   // [v139]
     setTimeout(()=>pushAds(document.getElementById('result')), 50);
 }
 
@@ -7095,6 +7098,7 @@ function reportComment(id, li){
 // ── ↺ [v121] 초기화 — 첫 화면으로 돌아가고 검색·결과·AI 칸을 모두 비운다 ──
 function resetAll(){
   CUR = null; CUR_PROMPT = null; AI_PENDING = null; _lastTried = null;
+  try{ if(window.__onReset) window.__onReset(); }catch(e){}
   searchInput.value = ''; searchDrop.classList.remove('show');
   hideError(); _showLoading(false);
   ['aiPromptBox','blogDraftBox','aiPasteBox'].forEach(id=>{ const el = document.getElementById(id); el.value = ''; });
@@ -7579,7 +7583,7 @@ function _buildReportDom(){
   const clone = src.cloneNode(true);
   clone.style.display = 'block';
   clone.classList.remove('dim');
-  clone.querySelectorAll('button, textarea, .aiBtnRow, .aiHint, .shareLinkBox, .adSlot, .pasteHint, .termsLink, .voteCard, .cmtCard, .finTabs, script')
+  clone.querySelectorAll('button, textarea, .aiBtnRow, .aiHint, .shareLinkBox, .adSlot, .pasteHint, .termsLink, .voteCard, .cmtCard, #labSlot, .finTabs, script')
     .forEach(el=>el.remove());
   // AI 답변이 없으면 빈 AI 카드는 빼고, 있으면 제목을 리포트용으로 바꾼다.
   clone.querySelectorAll('.card').forEach(card=>{
@@ -7862,7 +7866,15 @@ function openAdminWin(hash){
   }
   var p1 = fetch('/api/menus', {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(j){ return j.menus || []; }).catch(function(){ return []; });
   var p2 = fetch('/admin/api/whoami', {credentials:'same-origin', cache:'no-store'}).then(function(r){ return r.ok ? r.json() : {admin:false}; }).catch(function(){ return {admin:false}; });
-  Promise.all([p1, p2]).then(function(v){ draw(PREVIEW ? v[0] : v[0], v[1]); });
+  Promise.all([p1, p2]).then(function(v){
+    draw(PREVIEW ? v[0] : v[0], v[1]);
+    // [v139] 관리자 로그인 + 일반 이용자 화면 미리보기가 아닐 때만 관리자 전용 JS 를 불러온다
+    if(v[1] && v[1].admin && !PREVIEW){
+      window.__ADM__ = { csrf: v[1].csrf || '' };
+      try{ if(typeof CUR !== 'undefined' && CUR) window.__LAB_PENDING__ = CUR; }catch(e){}
+      var sc = document.createElement('script'); sc.src = '/admin/assets/lab.js'; document.head.appendChild(sc);
+    }
+  });
 })();
 </script>
 </body>
