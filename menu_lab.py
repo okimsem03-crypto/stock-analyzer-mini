@@ -22,6 +22,7 @@ import xml.etree.ElementTree as ET
 from flask import Blueprint, Response
 from menu_ctx import C
 import menu_blog as B
+import menu_img as IMG
 
 bp = Blueprint("lab", __name__)
 
@@ -561,7 +562,7 @@ LAB_REPORT_DEFAULT = """당신은 한국 주식 시장을 설명하는 데이터
 # ⑤ 블로그 HTML (원본 방식: 표 + 인라인 서식 → 네이버 블로그 붙여넣기)
 # ══════════════════════════════════════════════════════════════
 NAVY, GOLD, BROWN, LINE, TXT, FONT = B.NAVY, B.GOLD, B.BROWN, B.LINE, B.TXT, B.FONT
-SECTIONS = [("summary", "핵심 지표"), ("score", "5축 종합점수"), ("supply", "수급"), ("fin", "재무·심층분석"), ("disc", "공시"), ("news", "뉴스"), ("ai", "AI 분석")]
+SECTIONS = [("summary", "핵심 지표"), ("score", "5축 종합점수"), ("supply", "수급"), ("fin", "재무·심층분석"), ("disc", "공시"), ("news", "뉴스"), ("pubai", "AI 분석(하단)"), ("ai", "AI 종합 리포트")]
 _up, _h, _bar, _tc = B.updown, B.title_bar, B.bar, B.tone
 ai_to_html, extract_titles, engage_box, risk_box = B.ai_to_html, B.extract_titles, B.engage_box, B.risk_box
 
@@ -570,14 +571,14 @@ def hashtags(x, date_str):
     return B.hashtags([x["name"], (x["name"] or "") + "주가"], date_str)
 
 
-def build_blog(x, ai_text="", inc=None, title=""):
+def build_blog(x, ai_text="", inc=None, title="", pub_ai=""):
     inc = {k: True for k, _ in SECTIONS} if inc is None else inc
     now = _now_kst()
     date_k = f"{now.year}년 {now.month}월 {now.day}일"
     p, f = x.get("price") or {}, x.get("fundamentals") or {}
     s = x["score"]
     name, ticker = x["name"], x["ticker"]
-    titles = extract_titles(ai_text)
+    titles = extract_titles(ai_text) or extract_titles(pub_ai)
     if not title:
         title = titles[0] if titles else f"{name}({ticker}) 주가 분석 — 수급·재무·공시 한눈에 ({date_k})"
     sup = x.get("supply")
@@ -698,7 +699,10 @@ def build_blog(x, ai_text="", inc=None, title=""):
     if inc.get("news") and x.get("news"):
         h.append(_h("&#128240; 최근 뉴스", "#1e3a8a"))
         h.append("".join(f'<p style="font-size:13.5px;color:{TXT};line-height:1.8;margin:0 0 4px;">&#9642; {E(n.get("title"))} <span style="color:#9ca3af;font-size:11.5px;">{E(n.get("press"))} · {E(n.get("date"))}</span></p>' for n in x["news"][:6]))
-    # AI
+    # AI — 화면 하단 'AI 분석'(기업 소개·밸류에이션·실적…)을 먼저, 그다음 분석실 'AI 종합 리포트'
+    if inc.get("pubai") and pub_ai.strip():
+        h.append(_h("&#129302; AI 분석 (기업·밸류에이션·실적)", "#312e81"))
+        h.append(ai_to_html(pub_ai))
     if inc.get("ai") and ai_text.strip():
         h.append(_h("&#129302; AI 종합 분석", "#312e81"))
         h.append(ai_to_html(ai_text))
@@ -758,12 +762,13 @@ def api_blog():
     if not TICKER_RE.match(t):
         return _bad_ticker()
     ai = str(d.get("ai") or "")[:30000]
+    pub_ai = str(d.get("pub_ai") or "")[:30000]
     inc = d.get("inc")
     inc = {k: bool((inc or {}).get(k, True)) for k, _ in SECTIONS} if isinstance(inc, dict) else None
     x, err = build_ext(t)
     if err:
         return _admin_json({"error": err}, 502)
-    b = build_blog(x, ai, inc, str(d.get("title") or "").strip()[:150])
+    b = build_blog(x, ai, inc, str(d.get("title") or "").strip()[:150], pub_ai)
     logs, warn = B.dup_info(t, "stock")
     b.update({"name": x["name"], "ticker": t, "dups": logs, "dup_warn": warn})
     return _admin_json(b)
@@ -774,7 +779,7 @@ def asset_js():
     deny = _admin_deny()
     if deny:
         return deny
-    resp = Response(B.BLOGKIT_JS + MAIN_JS, mimetype="application/javascript")
+    resp = Response(B.BLOGKIT_JS + IMG.IMGKIT_JS + IMG.STOCK_JS + MAIN_JS, mimetype="application/javascript")
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -809,11 +814,11 @@ function cls(v){return v>0?'up':(v<0?'dn':'')}
 function slot(){return document.getElementById('labSlot')}
 function card(){ensureCss();var s=slot();if(!s)return null;var c=document.getElementById('labCard');if(!c){c=el('div');c.id='labCard';s.appendChild(c)}return c}
 function head(c,x){c.innerHTML='';var h=el('div','lh');h.appendChild(el('b',null,'🧪 관리자 분석실'));h.appendChild(el('span','lt','관리자 전용'));c.appendChild(h);
- c.appendChild(el('div','ld','일반 이용자에게는 보이지 않는 확장 분석이에요. 종합점수·수급 → 재무·공시 → AI 리포트 → 블로그 글(HTML 복사) 순서로 쓰시면 됩니다.'))}
+ c.appendChild(el('div','ld','일반 이용자에게는 보이지 않는 확장 분석이에요. 종합점수·수급 → 재무·공시 → AI 분석+리포트 → 이미지 저장 → 블로그 글(HTML 복사) 순서로 쓰시면 됩니다.'))}
 function draw0(){var c=card();if(!c)return;head(c);var r=el('div','lrow');var b=el('button','p','🧪 분석실 열기 — '+(LAB.name||LAB.tk));b.onclick=load;r.appendChild(b);r.appendChild(deepBtn());c.appendChild(r)}
 function deepBtn(){var d=el('button',null,'🏛 심층분석 열기');d.onclick=function(){try{localStorage.setItem('mini_deep_ticker',LAB.tk)}catch(e){}if(typeof openAdminWin==='function')openAdminWin('#dp');else window.open('/admin#dp','mini_admin')};return d}
 function load(){var c=card();head(c);c.appendChild(el('div','note','⏳ 수급·공시·재무를 모으는 중… (처음 한 번 3~6초)'));
- api(BASE+'ext',{ticker:LAB.tk}).then(function(x){if(x.error){head(c);c.appendChild(el('div','warn','⚠ '+x.error));var r=el('div','lrow'),b=el('button',null,'다시 시도');b.onclick=load;r.appendChild(b);c.appendChild(r);return}
+ api(BASE+'ext',{ticker:LAB.tk}).then(function(x){if(x.error){LAB.autoImg=false;head(c);c.appendChild(el('div','warn','⚠ '+x.error));var r=el('div','lrow'),b=el('button',null,'다시 시도');b.onclick=load;r.appendChild(b);c.appendChild(r);return}
   LAB.x=x;LAB.open=true;draw()})}
 function secScore(c,x){var s=el('div','lsec');s.appendChild(el('h4',null,'🎯 5축 종합점수'));var g=el('div');g.style.cssText='display:flex;align-items:center;gap:14px;margin-bottom:8px';
  var big=el('div','big',x.score.total+'점');big.style.color=col(x.score.total);g.appendChild(big);var gt=el('div');gt.appendChild(el('b',null,x.score.grade));gt.appendChild(el('div','note','기술·모멘텀·수급·재무·밸류를 가중 평균한 참고 지표예요(투자 판단 근거 아님).'));g.appendChild(gt);s.appendChild(g);
@@ -839,28 +844,51 @@ function secDisc(c,x){var s=el('div','lsec');s.appendChild(el('h4',null,'📄 �
  var t=el('table');x.disc.slice(0,10).forEach(function(d){var tr=el('tr');tr.appendChild(el('td',null,d.date.slice(5)));var tg=el('td'),sp=el('span','tag t-'+d.level,d.tag);tg.appendChild(sp);tr.appendChild(tg);tr.appendChild(el('td','l',d.title));t.appendChild(tr)});s.appendChild(t);
  if(x.news&&x.news.length){var n=el('div');n.style.marginTop='8px';x.news.slice(0,5).forEach(function(z){var p=el('div','note');p.textContent='▪ '+z.title+' ('+z.press+' '+z.date+')';n.appendChild(p)});s.appendChild(n)}
  s.appendChild(el('div','note','※ 공시는 제목 키워드로 분류한 것으로 호재·악재 판단이 아니에요. 원문은 KRX·DART에서 확인하세요.'));c.appendChild(s)}
-function secAI(c,x){var s=el('div','lsec');s.appendChild(el('h4',null,'🤖 AI 종합 리포트'));
- s.appendChild(el('div','note','위 데이터를 정리한 프롬프트를 만들어 설정된 AI(제미나이·챗GPT 등)를 열어요. 답변을 복사하고 이 탭으로 돌아오면 자동으로 읽어 와서 블로그 글에 넣습니다.'));
- var r=el('div','lrow'),b=el('button','p','🤖 AI 리포트 만들기');b.onclick=runAI;r.appendChild(b);s.appendChild(r);
- var has=LAB.ai[LAB.tk];var st=el('div','note');st.id='labAiState';st.textContent=has?('✅ AI 리포트 저장됨 ('+has.length.toLocaleString()+'자) — 아래 블로그 글에 포함돼요.'):'아직 AI 리포트가 없어요(없어도 블로그 글은 만들 수 있어요).';s.appendChild(st);
- var ta=el('textarea');ta.id='labAiTa';ta.placeholder='AI 답변을 직접 붙여넣어도 됩니다.';ta.value=has||'';ta.oninput=function(){LAB.ai[LAB.tk]=ta.value;var z=document.getElementById('labAiState');if(z)z.textContent=ta.value.trim()?('✍ 직접 입력/붙여넣기 ('+ta.value.length.toLocaleString()+'자)'):'아직 AI 리포트가 없어요(없어도 블로그 글은 만들 수 있어요).'};s.appendChild(ta);c.appendChild(s)}
+function pubText(){var b=document.getElementById('aiPasteBox');return b?String(b.value||'').trim():''}
+function pubState(){var t=pubText();return t?('✅ 하단 AI 분석 있음 ('+t.length.toLocaleString()+'자) — 블로그 글에 포함돼요.'):'하단 AI 분석이 아직 없어요. [AI 한 번에 진행]을 쓰면 같이 만들어져요.'}
+function secAI(c,x){var s=el('div','lsec');s.appendChild(el('h4',null,'🤖 AI 분석 + AI 종합 리포트'));
+ s.appendChild(el('div','note','화면 하단의 [AI 분석](기업 소개·밸류에이션·실적)과 이 분석실의 [AI 종합 리포트]를 이어서 한 번에 진행해요. 첫 답변을 복사하고 돌아오면 하단 카드에 자동으로 채우고, 이어서 두 번째 질문으로 넘어갑니다. 두 결과 모두 블로그 글에 들어가요.'));
+ var r=el('div','lrow'),b0=el('button','p','🤖 AI 한 번에 진행 (분석 + 리포트)');b0.onclick=runBoth;r.appendChild(b0);var b=el('button',null,'AI 리포트만');b.onclick=runAI;r.appendChild(b);s.appendChild(r);
+ var ps=el('div','note');ps.id='labPubState';ps.textContent=pubState();s.appendChild(ps);
+ var has=LAB.ai[LAB.tk];var st=el('div','note');st.id='labAiState';st.textContent=has?('✅ AI 종합 리포트 저장됨 ('+has.length.toLocaleString()+'자) — 아래 블로그 글에 포함돼요.'):'아직 AI 종합 리포트가 없어요(없어도 블로그 글은 만들 수 있어요).';s.appendChild(st);
+ var ta=el('textarea');ta.id='labAiTa';ta.placeholder='AI 종합 리포트 답변을 직접 붙여넣어도 됩니다.';ta.value=has||'';ta.oninput=function(){LAB.ai[LAB.tk]=ta.value;var z=document.getElementById('labAiState');if(z)z.textContent=ta.value.trim()?('✍ 직접 입력/붙여넣기 ('+ta.value.length.toLocaleString()+'자)'):'아직 AI 종합 리포트가 없어요(없어도 블로그 글은 만들 수 있어요).'};s.appendChild(ta);c.appendChild(s)}
+function applyLab(t){LAB.ai[LAB.tk]=t;var ta=document.getElementById('labAiTa');if(ta)ta.value=t;var z=document.getElementById('labAiState');if(z)z.textContent='✅ AI 종합 리포트 저장됨 ('+t.length.toLocaleString()+'자) — 아래 블로그 글에 포함돼요.'}
+function applyPub(t){var b=document.getElementById('aiPasteBox');if(b){b.value=t;try{renderAiResult()}catch(e){}}var z=document.getElementById('labPubState');if(z)z.textContent=pubState()}
+function prevLab(t){var ok=/##\s*1\./.test(t)||t.length>600;var d=el('div');d.textContent=t.slice(0,500)+(t.length>500?' …':'');return {node:d,canApply:ok,text:ok?null:'형식(## 1. 한줄 결론 …)이 보이지 않아요. 다른 답변이 복사된 건 아닌지 확인하세요.'}}
+function prevPub(t){var ok=/\[\s*\d+\s*\./.test(t)||/^#{1,3}\s*\d+\./m.test(t)||t.length>500;var d=el('div');d.textContent=t.slice(0,500)+(t.length>500?' …':'');return {node:d,canApply:ok,text:ok?null:'형식([1. 기업 소개 …])이 보이지 않아요. 다른 답변이 복사된 건 아닌지 확인하세요.'}}
+function pubPrompt(){var p=null;try{p=(typeof CUR_PROMPT!=='undefined')?CUR_PROMPT:null}catch(e){}if(p)return Promise.resolve(p);
+ try{return _fetchAiPrompt().then(function(d){return (d&&d.prompt)||''}).catch(function(){return ''})}catch(e){return Promise.resolve('')}}
+function runBoth(){if(!window.MiniAI){toast('AI 도우미를 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요.');return}
+ Promise.all([pubPrompt(),api(BASE+'prompt',{ticker:LAB.tk})]).then(function(a){var pp=a[0],j=a[1];if(j.error){toast(j.error);return}if(!pp){toast('하단 AI 분석 질문을 만들지 못했어요. [AI 리포트만]으로 진행해 주세요.');return}
+  window.MiniAI.run({title:'AI 분석 + 종합 리포트 — '+j.name,key:'labboth',autoApply:true,minLen:300,
+   steps:[{label:'① AI 분석(하단)',prompt:pp,kind:'pub'},{label:'② AI 종합 리포트',prompt:j.prompt,kind:'lab'}],
+   hint:'답변이 끝나면 답변 전체를 복사하고 이 탭으로 돌아오세요. 자동으로 읽어와 저장하고 다음 질문으로 넘어갑니다.',
+   preview:function(t,st){return st&&st.kind==='lab'?prevLab(t):prevPub(t)},
+   apply:function(t,st){if(st&&st.kind==='lab'){applyLab(t);return Promise.resolve({message:'AI 분석과 종합 리포트를 모두 저장했어요. 아래 [블로그 글 만들기]를 누르세요.'})}applyPub(t);return Promise.resolve({message:'하단 AI 분석을 채웠어요.'})}})})}
 function runAI(){if(!window.MiniAI){toast('AI 도우미를 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요.');return}
  api(BASE+'prompt',{ticker:LAB.tk}).then(function(j){if(j.error){toast(j.error);return}
-  window.MiniAI.run({title:'AI 종합 리포트 — '+j.name,key:'lab',steps:[{label:j.name,prompt:j.prompt}],minLen:300,hint:'AI가 "## 1. 한줄 결론 …" 형식으로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
-   preview:function(t){var ok=/##\s*1\./.test(t)||t.length>600;var d=el('div');d.textContent=t.slice(0,500)+(t.length>500?' …':'');return {node:d,canApply:ok,text:ok?null:'형식(## 1. 한줄 결론 …)이 보이지 않아요. 다른 답변이 복사된 건 아닌지 확인하세요.'}},
-   apply:function(t){LAB.ai[LAB.tk]=t;var ta=document.getElementById('labAiTa');if(ta)ta.value=t;var z=document.getElementById('labAiState');if(z)z.textContent='✅ AI 리포트 저장됨 ('+t.length.toLocaleString()+'자) — 아래 블로그 글에 포함돼요.';return Promise.resolve({message:'AI 리포트를 읽어 왔어요. 아래 [블로그 글 만들기]를 누르세요.'})}})})}
-var SEC=[['summary','핵심지표'],['score','5축점수'],['supply','수급'],['fin','재무'],['disc','공시'],['news','뉴스'],['ai','AI분석']];
+  window.MiniAI.run({title:'AI 종합 리포트 — '+j.name,key:'lab',steps:[{label:j.name,prompt:j.prompt,kind:'lab'}],minLen:300,hint:'AI가 "## 1. 한줄 결론 …" 형식으로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
+   preview:function(t){return prevLab(t)},
+   apply:function(t){applyLab(t);return Promise.resolve({message:'AI 종합 리포트를 읽어 왔어요. 아래 [블로그 글 만들기]를 누르세요.'})}})})}
+function secImg(c,x){var s=el('div','lsec');s.appendChild(el('h4',null,'🖼 블로그용 이미지 (① 메인 · ② 통합)'));
+ s.appendChild(el('div','note','① 종합점수 게이지가 가운데 오는 메인 이미지, ② 주가 차트·재무 차트·동일업종 비교·기술적 지표를 한 장으로 묶은 통합 이미지예요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
+ var box=el('div');s.appendChild(box);c.appendChild(s);
+ LAB.imgPanel=window.ImgKit.panel(box,{menu:'stock',name:LAB.x.name,ticker:LAB.tk,gen:function(scale){if(!LAB.cur)return Promise.reject(new Error('분석 결과를 찾지 못했어요. 종목을 다시 분석해 주세요.'));return Promise.resolve(window.ImgKit.stock.build(LAB.cur,LAB.x,scale))}})}
+var SEC=[['summary','핵심지표'],['score','5축점수'],['supply','수급'],['fin','재무'],['disc','공시'],['news','뉴스'],['pubai','AI분석(하단)'],['ai','AI종합리포트']];
 function secBlog(c,x){var s=el('div','lsec');s.appendChild(el('h4',null,'📝 블로그 글 만들기 (네이버 블로그용 HTML)'));var box=el('div');s.appendChild(box);c.appendChild(s);
  window.BlogKit.panel(box,{idp:'lab',key:'stock',kind:'stock',ticker:LAB.tk,name:LAB.x.name,sections:SEC,dup_warn:x.dup_warn,
-  build:function(inc,title){return api(BASE+'blog',{ticker:LAB.tk,ai:(LAB.ai[LAB.tk]||''),inc:inc,title:title})},
+  build:function(inc,title){var pt=pubText();if(!pt)inc.pubai=false;return api(BASE+'blog',{ticker:LAB.tk,ai:(LAB.ai[LAB.tk]||''),pub_ai:pt,inc:inc,title:title})},
   onLogged:function(z){LAB.x.dup_warn=z.dup_warn}})}
 function draw(){var c=card();if(!c)return;var x=LAB.x;head(c,x);
  var r=el('div','lrow'),b=el('button',null,'🔄 새로 불러오기');b.onclick=load;r.appendChild(b);var b2=el('button',null,'접기');b2.onclick=function(){LAB.open=false;draw0()};r.appendChild(b2);c.appendChild(r);
  if(x.delisting&&x.delisting.level&&x.delisting.level!=='none'){c.appendChild(el('div','warn','⚠ 상장폐지·거래정지 위험 신호가 있어요 — 위쪽 경고 상자를 먼저 확인하세요.'))}
- secScore(c,x);secSupply(c,x);secFin(c,x);secDisc(c,x);secAI(c,x);secBlog(c,x)}
-window.__onAnalysis=function(d){if(!d||!d.ticker)return;var changed=LAB.tk!==d.ticker;LAB.tk=d.ticker;LAB.name=d.name;if(changed){LAB.x=null;LAB.blog=null;LAB.open=false}
+ secScore(c,x);secSupply(c,x);secFin(c,x);secDisc(c,x);secAI(c,x);secImg(c,x);secBlog(c,x);
+ if(LAB.autoImg){LAB.autoImg=false;if(LAB.imgPanel)LAB.imgPanel.gen(true)}}
+window.__onAnalysis=function(d){if(!d||!d.ticker)return;var changed=LAB.tk!==d.ticker;LAB.tk=d.ticker;LAB.name=d.name;LAB.cur=d;if(changed){LAB.x=null;LAB.blog=null;LAB.open=false}
  if(!window.MiniAI&&!LAB._ldm){LAB._ldm=1;var s=document.createElement('script');s.src='/assets/mini-ui.js';document.head.appendChild(s)}
- var c=document.getElementById('labCard');if(c)c.remove();if(LAB.x&&LAB.x.ticker===d.ticker&&LAB.open)draw();else draw0()};
+ var c=document.getElementById('labCard');if(c)c.remove();
+ if(window.ImgKit&&window.ImgKit.mode()==='auto'){LAB.autoImg=true;load();return}
+ if(LAB.x&&LAB.x.ticker===d.ticker&&LAB.open)draw();else draw0()};
 window.__onReset=function(){var c=document.getElementById('labCard');if(c)c.remove();LAB.tk=null;LAB.x=null;LAB.open=false};
 if(window.__LAB_PENDING__){window.__onAnalysis(window.__LAB_PENDING__);window.__LAB_PENDING__=null}
 })();
