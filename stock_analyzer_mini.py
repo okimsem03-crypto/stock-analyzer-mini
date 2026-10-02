@@ -211,7 +211,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
-✨ v136 — 구조 개편(이용자 화면은 그대로): 메뉴마다 별도 파일(menus 폴더), 메뉴 접근 등급 칸(공개·회원·등급·관리자), 원본 DB 가져오기(관리자 화면 [데이터]).
+✨ v136 — 구조 개편(이용자 화면은 그대로): 메뉴마다 별도 파일(menu_*.py), 메뉴 접근 등급 칸(공개·회원·등급·관리자), 원본 DB 가져오기(관리자 화면 [데이터]).
 
 ✨ v135 — 관리자 전용 메뉴 '거래정지·상폐'(후보 스캔·AI 수동/자동 검증·관리자 확정), 프롬프트 편집·AI 강화, 메뉴 공개/관리자 전용 설정, 관리자 로그인 표시.
 ✨ v134 — 관리자 콘솔(Ctrl+Shift+A 또는 /admin): 관리자 이메일로 받은 일회용 코드로만 로그인(요청 제한·잠금·세션·CSRF·보안 기록·로그인 알림 메일).
@@ -4496,7 +4496,7 @@ def menu_visible(menu_id, admin=False):
 
 
 def load_menu_modules():
-    """menus/ 폴더의 메뉴 모듈을 불러와 등록한다. 한 모듈이 실패해도 나머지와 본체는 그대로 동작한다."""
+    """menu_ctx.py 가 가리키는 메뉴 모듈(menu_*.py)을 불러와 등록한다. 한 모듈이 실패해도 나머지와 본체는 그대로 동작한다."""
     if MENU_MODULES or MENU_LOAD_ERRORS:
         return
     import importlib
@@ -4504,16 +4504,16 @@ def load_menu_modules():
     if here not in sys.path:
         sys.path.insert(0, here)
     try:
-        pkg = importlib.import_module("menus")
+        pkg = importlib.import_module("menu_ctx")
     except Exception as e:
-        MENU_LOAD_ERRORS.append(f"menus 폴더: {type(e).__name__}: {str(e)[:120]}")
-        print(f"[메뉴모듈] menus 폴더를 불러오지 못했어요(메뉴 기능만 빠진 채 시작): {e}")
+        MENU_LOAD_ERRORS.append(f"menu_ctx.py: {type(e).__name__}: {str(e)[:120]}")
+        print(f"[메뉴모듈] menu_ctx.py 를 불러오지 못했어요(메뉴 기능만 빠진 채 시작): {e}")
         return
     pkg.bind(sys.modules[__name__])
     for name in pkg.MODULES:
         n_menus = len(MENUS)
         try:
-            mod = importlib.import_module(f"menus.{name}")
+            mod = importlib.import_module(f"menu_{name}")
             bp = mod.register()
             if bp is not None:
                 app.register_blueprint(bp)
