@@ -211,7 +211,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
   ② 45초를 넘기면 "처리 시간 초과" 사유를 표시하고, 뒤에서 끝난 결과를 5분 보관해 다음 클릭은 즉시.
   ③ 지표 계산 오류도 사유 표시 + 전체 오류 내용을 Render 로그에 기록.
 
-✨ v136 — 구조 개편(이용자 화면은 그대로): 메뉴마다 별도 파일(menu_*.py), 메뉴 접근 등급 칸(공개·회원·등급·관리자), 원본 DB 가져오기(관리자 화면 [데이터]).
+✨ v136 — 구조 개편(이용자 화면은 그대로): 메뉴마다 별도 파일(menu_*.py), 메뉴 접근 등급 칸(공개·회원·등급·관리자), 원본 DB 가져오기(관리자 화면 [데이터]), 관리자 로그인 유지 시간을 설정에서 선택(최대 1~24시간·무활동 10분~24시간).
 
 ✨ v135 — 관리자 전용 메뉴 '거래정지·상폐'(후보 스캔·AI 수동/자동 검증·관리자 확정), 프롬프트 편집·AI 강화, 메뉴 공개/관리자 전용 설정, 관리자 로그인 표시.
 ✨ v134 — 관리자 콘솔(Ctrl+Shift+A 또는 /admin): 관리자 이메일로 받은 일회용 코드로만 로그인(요청 제한·잠금·세션·CSRF·보안 기록·로그인 알림 메일).
@@ -3810,6 +3810,22 @@ def _admin_locked(ip):
         return False
 
 
+def _adm_abs():
+    """로그인 최대 유지 시간(초) — 관리자 화면 [메뉴·설정]에서 1·4·8·12·24시간 중 선택(기본 8). 새로 로그인할 때부터 적용."""
+    try:
+        return int(setting_get("admin_session_hours", "8")) * 3600
+    except Exception:
+        return ADMIN_SESSION_ABS
+
+
+def _adm_idle():
+    """아무것도 안 하면 로그아웃되는 시간(초) — 10분~24시간 중 선택(기본 30분). 바로 적용."""
+    try:
+        return int(setting_get("admin_idle_minutes", "30")) * 60
+    except Exception:
+        return ADMIN_SESSION_IDLE
+
+
 def _admin_session():
     """유효한 관리자 세션이면 {'csrf':…, 'sid_hash':…, 'expires_at':…}, 아니면 None(요청당 한 번만 확인)."""
     if g.get("_adm_done"):
@@ -3832,7 +3848,7 @@ def _admin_session():
             if not row:
                 return None
             csrf, ua_h, last_seen, exp = row[0], row[1], int(row[2]), int(row[3])
-            if now > exp or now - last_seen > ADMIN_SESSION_IDLE or not hmac.compare_digest(ua_h, _ua_hash()):
+            if now > exp or now - last_seen > _adm_idle() or not hmac.compare_digest(ua_h, _ua_hash()):
                 c.execute(f"DELETE FROM admin_sessions WHERE sid_hash={ph}", (sh,))
                 conn.commit()
                 return None
@@ -4014,7 +4030,7 @@ def admin_auth_verify():
             sid, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(24)
             c.execute(f"DELETE FROM admin_sessions WHERE expires_at<{ph}", (now,))
             c.execute(f"INSERT INTO admin_sessions(sid_hash,csrf,ua_hash,ip,created_at,last_seen,expires_at) VALUES({ph},{ph},{ph},{ph},{ph},{ph},{ph})",
-                      (_sha(sid), csrf, _ua_hash(), ip, now, now, now + ADMIN_SESSION_ABS))
+                      (_sha(sid), csrf, _ua_hash(), ip, now, now, now + _adm_abs()))
             conn.commit()
         finally:
             conn.close()
@@ -4026,7 +4042,7 @@ def admin_auth_verify():
                         f"관리자 콘솔에 로그인했습니다.\n시각: {_now_kst().strftime('%Y-%m-%d %H:%M:%S')} (KST)\nIP: {ip}\n브라우저: {ua[:100]}\n\n"
                         "본인이 아니라면 즉시 Render 환경변수의 ADMIN_EMAIL·RESEND_API_KEY를 점검하고, 콘솔의 [모든 세션 종료]를 누르세요.")
     resp = _admin_json({"ok": True})
-    resp.set_cookie("adm_s", sid, max_age=ADMIN_SESSION_ABS, httponly=True, secure=request.is_secure, samesite="Strict", path="/admin")
+    resp.set_cookie("adm_s", sid, max_age=_adm_abs(), httponly=True, secure=request.is_secure, samesite="Strict", path="/admin")
     resp.delete_cookie("adm_ch", path="/admin")
     return resp
 
@@ -4087,7 +4103,7 @@ def admin_api_summary():
     out = {"version": APP_VERSION, "db": "postgres" if _USE_PG else "sqlite", "uptime_sec": int(time.time() - _BOOT_TS),
            "counter": counter_stats(), "email": ", ".join(_mask_email(e) for e in ADMIN_EMAILS),
            "mail": "resend" if RESEND_API_KEY else ("smtp" if SMTP_HOST else "none"),
-           "ip_limit": bool(ADMIN_ALLOWED_IPS), "session_expires": _kst_str(_admin_session()["expires_at"]),
+           "ip_limit": bool(ADMIN_ALLOWED_IPS), "idle_minutes": _adm_idle() // 60, "session_expires": _kst_str(_admin_session()["expires_at"]),
            "comments": 0, "comments_hidden": 0, "overviews": 0, "searches": 0}
     try:
         _ensure_comments_table(); _ensure_overview_table(); _ensure_history_table()
@@ -4239,7 +4255,7 @@ function load(){var p=$('pane');p.textContent='불러오는 중…';
  if(EXT[cur]){EXT[cur](p);return}
  if(cur==='sum')api('/admin/api/summary').then(function(d){p.innerHTML='';$('ver').textContent=d.version;
   var g=el('div','grid');[['누적 이용자',d.counter.total],['오늘 방문',d.counter.today],['댓글',d.comments+(d.comments_hidden?' (숨김 '+d.comments_hidden+')':'')],['기업개요 저장',d.overviews],['검색 기록',d.searches],['저장소',d.db],['가동 시간',Math.floor(d.uptime_sec/60)+'분'],['메일 방식',d.mail]].forEach(function(x){var k=el('div','k');k.appendChild(el('small',null,x[0]));k.appendChild(el('b',null,String(x[1])));g.appendChild(k)});p.appendChild(g);
-  p.appendChild(el('p','note','관리자 이메일: '+d.email+' · 이 로그인은 '+d.session_expires+' 까지(무활동 30분이면 자동 로그아웃) · 접속 IP 제한: '+(d.ip_limit?'사용 중':'안 함')));
+  p.appendChild(el('p','note','관리자 이메일: '+d.email+' · 이 로그인은 '+d.session_expires+' 까지(무활동 '+(d.idle_minutes>=60?(d.idle_minutes/60)+'시간':d.idle_minutes+'분')+'이면 자동 로그아웃 · [메뉴·설정]에서 변경) · 접속 IP 제한: '+(d.ip_limit?'사용 중':'안 함')));
   if(d.db!=='postgres')p.appendChild(el('p','note bad','⚠ 저장소가 sqlite입니다 — 서버가 잠들면 기록이 사라집니다(DATABASE_URL 확인).'))});
  else if(cur==='cmt')api('/admin/api/comments').then(function(d){p.innerHTML='';p.appendChild(el('p','note','최근 댓글 '+d.rows.length+'개 · 주황색은 신고 '+d.hide_n+'회 이상으로 자동 숨김된 댓글 · 삭제하면 복구할 수 없습니다.'));
   d.rows.forEach(function(r){var c=el('div','c'+(r.hidden?' h':''));c.appendChild(el('div','m','#'+r.id+' · '+r.name+'('+r.ticker+') · '+r.nick+' · '+r.created_at+' · 신고 '+r.reports+(r.hidden?' · 숨김':'')));c.appendChild(el('div','b',r.body));
@@ -4399,10 +4415,18 @@ function mnLoad(p){api('/admin/api/settings').then(function(d){if(cur!=='mn')ret
  var sc=el('input');sc.type='checkbox';sc.checked=d.ai_search==='1';var r2=el('div','bar');r2.appendChild(sc);r2.appendChild(el('span',null,'웹검색 사용(Gemini·Claude) — 공시를 실제로 검색해 확인하려면 켜 두세요'));a.appendChild(r2);
  var md={};prov.forEach(function(x){var i=el('input');i.placeholder='기본: '+d.default_models[x];i.value=d['ai_model_'+x];i.style.width='260px';md[x]=i;var r=el('div','bar');r.appendChild(el('span',null,names[x]+' 모델'));r.appendChild(i);a.appendChild(r)});
  a.appendChild(bt('AI 설정 저장','bt',function(){var o={ai_provider:sel.value,ai_search:sc.checked?'1':'0'};prov.forEach(function(x){o['ai_model_'+x]=md[x].value.trim()});apiJ('/admin/api/settings',o).then(function(j){if(j.error)toast(j.error);else{toast('저장했어요');mnLoad(p)}})}));p.appendChild(a);
+ var ss=el('div','c');ss.appendChild(el('b',null,'관리자 로그인 유지 시간'));
+ ss.appendChild(el('p','note','길게 잡을수록 편하지만, 이 브라우저를 다른 사람이 쓰게 될 때 위험도 길어져요. 공용 PC에서는 짧게 두거나 쓰고 나서 [로그아웃]을 누르세요. 최대 유지 시간은 다음에 로그인할 때부터, 무활동 시간은 바로 적용돼요.'));
+ function mkSel(opts,val){var x=el('select');opts.forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];x.appendChild(op)});x.value=val;return x}
+ var hs=mkSel([['1','1시간'],['4','4시간'],['8','8시간 (기본)'],['12','12시간'],['24','24시간']],d.admin_session_hours);
+ var ids=mkSel([['10','10분'],['30','30분 (기본)'],['60','1시간'],['120','2시간'],['240','4시간'],['480','8시간'],['1440','24시간']],d.admin_idle_minutes);
+ var q1=el('div','bar');q1.appendChild(el('span',null,'로그인 최대 유지: '));q1.appendChild(hs);ss.appendChild(q1);
+ var q2=el('div','bar');q2.appendChild(el('span',null,'아무것도 안 하면 로그아웃: '));q2.appendChild(ids);ss.appendChild(q2);
+ ss.appendChild(bt('로그인 시간 저장','bt',function(){apiJ('/admin/api/settings',{admin_session_hours:hs.value,admin_idle_minutes:ids.value}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));
  var s=el('div','c');s.appendChild(el('b',null,'스캔 설정'));
  var days=el('input');days.type='number';days.min=3;days.max=60;days.value=d.delist_stale_days;days.style.width='80px';var r3=el('div','bar');r3.appendChild(el('span',null,'마지막 거래일이 며칠 이상 지나면 거래정지 의심으로 볼까요?'));r3.appendChild(days);s.appendChild(r3);
  var cs=el('input');cs.type='checkbox';cs.checked=d.delist_include_caution==='1';var r4=el('div','bar');r4.appendChild(cs);r4.appendChild(el('span',null,'동전주(1,000원 미만)도 후보에 넣기 — 목록이 많이 길어져요'));s.appendChild(r4);
- s.appendChild(bt('스캔 설정 저장','bt',function(){apiJ('/admin/api/settings',{delist_stale_days:String(days.value),delist_include_caution:cs.checked?'1':'0'}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));p.appendChild(s)})}
+ s.appendChild(bt('스캔 설정 저장','bt',function(){apiJ('/admin/api/settings',{delist_stale_days:String(days.value),delist_include_caution:cs.checked?'1':'0'}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));p.appendChild(ss);p.appendChild(s)})}
 
 /*__MODULE_JS__*/
 var HH=(location.hash||'').slice(1);if(TABS.some(function(t){return t[0]===HH}))cur=HH;
@@ -4527,7 +4551,7 @@ _SETTING_CACHE = {}
 _AIJOBS = {}
 
 SETTING_DEFAULTS = {
-    "ai_provider": "auto", "ai_search": "1",
+    "ai_provider": "auto", "ai_search": "1", "admin_session_hours": "8", "admin_idle_minutes": "30",
     "ai_model_gemini": "", "ai_model_anthropic": "", "ai_model_openai": "",
 }
 AI_DEFAULT_MODELS = {"gemini": "gemini-2.5-flash", "anthropic": "claude-haiku-4-5-20251001", "openai": "gpt-4o-mini"}
@@ -4615,6 +4639,10 @@ def _setting_valid(k, v):
         return v if v in ACCESS_LEVELS else None
     if k == "ai_search":
         return v if v in ("0", "1") else None
+    if k == "admin_session_hours":
+        return v if v in ("1", "4", "8", "12", "24") else None
+    if k == "admin_idle_minutes":
+        return v if v in ("10", "30", "60", "120", "240", "480", "1440") else None
     if k == "ai_provider":
         return v if v in ("auto", "gemini", "anthropic", "openai") else None
     if k.startswith("ai_model_"):
