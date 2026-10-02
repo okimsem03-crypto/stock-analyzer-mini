@@ -213,6 +213,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
+✨ v142 — 관리자 분석실을 작업 순서(① 분석 자동 → ② AI 분석+종합 리포트 → ③ 이미지 만들기(자동 저장 선택) → ④ 글 만들기 → ⑤ 블로그에 쓰기) 버튼으로 재구성, 이미지 저장 폴더 지정 오류 안내·점검 보강, '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 왼쪽 아래 떠 있는 버튼으로 이동(스마트폰은 아래에서 올라오는 창).
 ✨ v139 — 관리자 전용 [🧪 분석실]: 종목분석 화면에서 5축 종합점수·수급(외국인/기관/개인)·재무 심층분석·공시 분류·AI 종합 리포트(수동 AI 자동화)와, 원본 방식 블로그 HTML(서식 그대로 복사) 만들기·작성 이력(중복 경고) 추가. 관리자 화면에 [📝 블로그 이력] 탭, 프롬프트 탭에 분석실 프롬프트.
 ✨ v138 — 메인 화면에 메뉴 바(숨김·공개 메뉴), 관리자 [메뉴 관리] 탭(메뉴 목록·보이기/숨김·순서), 회원 단계(최대 10개, 이름 자유) 별 메뉴 노출 설계, 거래정지·상폐 화면 투자 경고 강화+검색 버튼, 관리자 모드는 별도 창으로 열림.
 ✨ v137 — 모든 공개 메뉴가 같은 고급 화면 틀(menu_ui.py)을 쓰도록 정리(전체 메뉴 화면 /menus 추가, 거래정지 화면 새 디자인), 수동 AI 분석 자동화(설정한 AI 열기·프롬프트 자동 복사·답변 복사하면 자동 입력, 설정 [메뉴·설정]에서 AI 선택).
@@ -323,7 +324,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v141"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v142"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -5752,6 +5753,25 @@ HTML_TEMPLATE = r"""
     .rsList{max-height:480px;}
   }
   .cmtCard{background:#fff; border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; margin:0 0 20px;}
+  /* 🎈 [v142] 왼쪽 아래에 떠 있는 버튼 + 눌렀을 때 열리는 창(투표·종목 이야기). 오른쪽 아래 '최근 종목' 버튼과 겹치지 않게 작게. */
+  .flDock{position:fixed; left:10px; bottom:calc(14px + env(safe-area-inset-bottom)); z-index:60; display:flex; flex-direction:column; gap:8px; align-items:flex-start;}
+  .flBtn{display:inline-flex; align-items:center; gap:6px; border:1.5px solid #c7d2fe; cursor:pointer; font-family:inherit; background:#fff; color:var(--navy);
+    border-radius:999px; padding:8px 13px 8px 10px; font-size:12.5px; font-weight:800; min-height:42px; box-shadow:0 6px 18px rgba(16,32,58,.28); white-space:nowrap;}
+  .flBtn .ic{font-size:17px; line-height:1;} .flBtn small{font-size:11px; font-weight:700; color:#6366f1;}
+  .flBtn .sh{display:none;}
+  .flBackdrop{display:none; position:fixed; inset:0; background:rgba(16,32,58,.42); z-index:82;}
+  .flBackdrop.show{display:block;}
+  .voteCard,.cmtCard{display:none;}
+  .voteCard.flOpen,.cmtCard.flOpen{display:block; position:fixed; z-index:90; left:12px; bottom:calc(12px + env(safe-area-inset-bottom)); margin:0;
+    width:min(430px, calc(100vw - 24px)); max-height:80vh; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; box-sizing:border-box;
+    box-shadow:0 14px 44px rgba(16,32,58,.38); padding-top:44px;}
+  .flClose{display:none; position:absolute; top:8px; right:10px; border:none; background:#eef1f6; border-radius:999px; width:32px; height:32px; font-size:14px; cursor:pointer; color:#334155;}
+  .flOpen > .flClose{display:block;}
+  @media (max-width:720px){
+    .flBtn{padding:7px 11px 7px 9px; font-size:12px; min-height:40px;}
+    .flBtn .lg{display:none;} .flBtn .sh{display:inline;}
+    .voteCard.flOpen,.cmtCard.flOpen{left:0; right:0; bottom:0; width:auto; max-height:84vh; border-radius:18px 18px 0 0; padding-bottom:calc(18px + env(safe-area-inset-bottom));}
+  }
   .cmtHead{font-size:14.5px; font-weight:800; color:var(--navy); display:flex; align-items:baseline; gap:8px;}
   .cmtHead small{font-size:12px; color:var(--muted); font-weight:600;}
   .cmtNotice{font-size:11.5px; color:#64748b; background:#f8fafc; border-radius:10px; padding:8px 10px; margin:10px 0; line-height:1.55;}
@@ -6234,8 +6254,16 @@ HTML_TEMPLATE = r"""
     <textarea id="blogDraftBox" class="promptBox" style="display:none;" readonly></textarea>
     <div id="labSlot"></div>
 
+    <!-- 🎈 [v142] 투표·댓글은 화면 왼쪽 아래에 떠 있는 버튼으로 열린다(스마트폰: 아래에서 올라오는 창) -->
+    <div class="flDock" id="flDock">
+      <button type="button" class="flBtn" id="flVote" onclick="flToggle('vote')"><span class="ic">💡</span><span class="tx"><span class="lg">이 종목, 지금 사고 싶으세요?</span><span class="sh">지금 사고 싶으세요?</span></span></button>
+      <button type="button" class="flBtn" id="flCmt" onclick="flToggle('cmt')"><span class="ic">💬</span><span class="tx"><span class="lg">이 종목 이야기</span><span class="sh">종목 이야기</span> <small id="flCmtN"></small></span></button>
+    </div>
+    <div class="flBackdrop" id="flBackdrop" onclick="flToggle(null)"></div>
+
     <!-- 💡 [v121] 매력도 체크 — 이용자들의 매수 의도를 모은다(한 브라우저 한 표, 다시 누르면 취소) -->
     <div class="voteCard" id="voteCard">
+      <button type="button" class="flClose" onclick="flToggle(null)" aria-label="닫기">✕</button>
       <div class="voteQ">💡 이 종목, 지금 사고 싶으세요?</div>
       <div class="voteBtns">
         <button class="voteBtn v-buy" data-vote="buy" onclick="castVote('buy')">👍 사고 싶어요<small id="vc-buy">0명</small></button>
@@ -6249,6 +6277,7 @@ HTML_TEMPLATE = r"""
 
     <!-- 💬 [v129] 종목 댓글 — 익명, 링크·홍보 차단, 신고 3번이면 자동 숨김 -->
     <div class="cmtCard" id="cmtCard">
+      <button type="button" class="flClose" onclick="flToggle(null)" aria-label="닫기">✕</button>
       <div class="cmtHead">💬 이 종목 이야기 <small id="cmtCount"></small></div>
       <div class="cmtNotice">개인 의견을 나누는 곳이에요. 특정 종목 매수·매도 권유, 수익 인증, 링크·단톡방 홍보는 삭제될 수 있고, 투자 판단과 책임은 본인에게 있어요.</div>
       <input id="cmtNick" class="cmtNick" maxlength="12" placeholder="닉네임 (비워 두면 자동으로 정해져요)" autocomplete="off">
@@ -6968,6 +6997,14 @@ function _ago(sec){
   if(sec < 86400) return Math.floor(sec / 3600) + '시간 전';
   return Math.floor(sec / 86400) + '일 전';
 }
+// 🎈 [v142] 왼쪽 아래 떠 있는 버튼 → 투표/종목 이야기 창 열기·닫기
+function flToggle(which){
+  const map = {vote:'voteCard', cmt:'cmtCard'};
+  Object.keys(map).forEach(k=>{ document.getElementById(map[k]).classList.toggle('flOpen', k === which); });
+  document.getElementById('flBackdrop').classList.toggle('show', !!which);
+  document.getElementById('flDock').style.visibility = which ? 'hidden' : 'visible';
+}
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape') flToggle(null); });
 function toggleRecentSheet(open){
   document.getElementById('recentSide').classList.toggle('open', !!open);
   document.getElementById('rsBackdrop').classList.toggle('show', !!open);
@@ -7039,6 +7076,7 @@ function _cmtRow(it){
 }
 function _cmtCount(total){
   document.getElementById('cmtCount').textContent = total ? ('· ' + total + '개') : '';
+  const fn = document.getElementById('flCmtN'); if(fn) fn.textContent = total ? (total + '개') : '';   // 🎈 [v142] 떠 있는 버튼에도 표시
   const list = document.getElementById('cmtList');
   if(!list.children.length) list.innerHTML = '<li class="cmtEmpty">아직 댓글이 없어요. 첫 이야기를 남겨 보세요!</li>';
 }
@@ -7589,7 +7627,7 @@ function _buildReportDom(){
   const clone = src.cloneNode(true);
   clone.style.display = 'block';
   clone.classList.remove('dim');
-  clone.querySelectorAll('button, textarea, .aiBtnRow, .aiHint, .shareLinkBox, .adSlot, .pasteHint, .termsLink, .voteCard, .cmtCard, #labSlot, .finTabs, script')
+  clone.querySelectorAll('button, textarea, .aiBtnRow, .aiHint, .shareLinkBox, .adSlot, .pasteHint, .termsLink, .voteCard, .cmtCard, .flDock, .flBackdrop, #labSlot, .finTabs, script')
     .forEach(el=>el.remove());
   // AI 답변이 없으면 빈 AI 카드는 빼고, 있으면 제목을 리포트용으로 바꾼다.
   clone.querySelectorAll('.card').forEach(card=>{

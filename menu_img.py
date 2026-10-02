@@ -75,13 +75,22 @@ K.menuFolder=function(menu){var c=K._cfg||DEF;return (c.folders&&c.folders[menu]
 /* ── 이 기기 설정: 자동/수동 ── */
 K.mode=function(){return lsGet('mini_img_mode','manual')==='auto'?'auto':'manual'};
 K.setMode=function(m){lsSet('mini_img_mode',m==='auto'?'auto':'manual')};
+/* 자동 저장 시점: 'ai' = AI 분석·리포트가 끝난 뒤(기본), 'analysis' = 종목 분석 직후 */
+K.when=function(){return lsGet('mini_img_when','ai')==='analysis'?'analysis':'ai'};
+K.setWhen=function(w){lsSet('mini_img_when',w==='analysis'?'analysis':'ai')};
 /* ── 폴더 핸들(IndexedDB) ── */
 function idb(){return new Promise(function(res,rej){try{var r=indexedDB.open('mini_img',1);r.onupgradeneeded=function(){r.result.createObjectStore('kv')};r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)}}catch(e){rej(e)}})}
 function idbGet(k){return idb().then(function(db){return new Promise(function(res,rej){var q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=function(){res(q.result||null)};q.onerror=function(){rej(q.error)}})}).catch(function(){return null})}
 function idbSet(k,v){return idb().then(function(db){return new Promise(function(res,rej){var tx=db.transaction('kv','readwrite');if(v==null)tx.objectStore('kv').delete(k);else tx.objectStore('kv').put(v,k);tx.oncomplete=function(){res(true)};tx.onerror=function(){rej(tx.error)}})}).catch(function(){return false})}
 K.handle=function(){return K.supported?idbGet('dir'):Promise.resolve(null)};
 K.pick=function(){if(!K.supported)return Promise.reject(new Error('이 브라우저는 폴더 지정을 지원하지 않아요(데스크톱 크롬·엣지에서 가능).'));
- return window.showDirectoryPicker({id:'mini_img',mode:'readwrite',startIn:'downloads'}).then(function(h){return idbSet('dir',h).then(function(){return h})})};
+ var go;try{go=window.showDirectoryPicker({id:'mini_img',mode:'readwrite',startIn:'documents'})}catch(e){return Promise.reject(K.explain(e))}
+ return go.then(function(h){return idbSet('dir',h).then(function(){return idbGet('dir')}).then(function(back){if(!back)throw new Error('폴더를 골랐지만 브라우저가 기억하지 못했어요. 시크릿 창이거나 사이트 데이터 저장이 막혀 있으면 폴더를 기억할 수 없어요.');return h})}).catch(function(e){throw K.explain(e)})};
+K.explain=function(e){var n=(e&&e.name)||'',m=(e&&e.message)||String(e||'');
+ if(n==='AbortError')return Object.assign(new Error('폴더 선택을 취소했어요.'),{name:'AbortError'});
+ if(n==='SecurityError'||/system files|blocked|시스템/i.test(m))return Object.assign(new Error('이 폴더는 브라우저가 보안상 선택하지 못하게 막아 둔 폴더예요. 다운로드·문서·바탕 화면 폴더 자체는 고를 수 없어요 → 그 안에 새 폴더(예: 블로그이미지)를 만든 뒤 그 폴더를 선택해 주세요.'),{name:'SecurityError'});
+ if(n==='NotAllowedError')return Object.assign(new Error('폴더 선택 창을 열 수 없었어요(클릭 직후가 아니거나 팝업이 막힌 상태). 버튼을 다시 눌러 주세요.'),{name:n});
+ return e instanceof Error?e:new Error(m)};
 K.forget=function(){return idbSet('dir',null)};
 K.perm=function(h,ask){if(!h||!h.queryPermission)return Promise.resolve(false);
  return h.queryPermission({mode:'readwrite'}).then(function(p){if(p==='granted')return true;if(!ask)return false;return h.requestPermission({mode:'readwrite'}).then(function(q){return q==='granted'})}).catch(function(){return false})};
@@ -146,7 +155,7 @@ K.panel=function(box,o){ensureCss();box.innerHTML='';var P=el('div','ikp');box.a
   var pw=Math.min(720,it.canvas.width),sm=document.createElement('canvas');sm.width=pw;sm.height=Math.round(it.canvas.height*pw/it.canvas.width);sm.getContext('2d').drawImage(it.canvas,0,0,sm.width,sm.height);im.src=sm.toDataURL('image/png');c.appendChild(im);var r=el('div','ikr');var sv=el('button','ikb','💾 저장');sv.onclick=function(){one(it,false).then(function(x){report([x])})};r.appendChild(sv);
   c.appendChild(r);c.appendChild(el('div','ikn',K.fileName(it.idx,o.name,o.ticker)+' · '+it.canvas.width+'×'+it.canvas.height));view.appendChild(c)});bAll.style.display=''}
  function gen(auto){if(S.busy)return Promise.resolve();S.busy=true;bGen.disabled=true;bGen.textContent='⏳ 그리는 중…';
-  return K.loadCfg().then(K.fonts).then(function(){return o.gen(K._cfg.scale)}).then(function(items){S.items=items;draw();bGen.textContent='🔄 다시 만들기';
+  return K.loadCfg().then(K.fonts).then(function(){return o.gen(K._cfg.scale)}).then(function(items){S.items=items;draw();bGen.textContent='🔄 다시 만들기';if(o.onDone){try{o.onDone()}catch(e){}}
    return refresh().then(function(){if(auto&&K.mode()==='auto')return saveAll(true)})})
    .catch(function(e){toast('이미지를 만들지 못했어요: '+(e&&e.message||e));bGen.textContent='🖼 이미지 만들기'})
    .then(function(){S.busy=false;bGen.disabled=false})}
@@ -375,20 +384,22 @@ function ikLoad(p){p.innerHTML='';var top=el('div','c');top.appendChild(el('b',n
  window.ImgKit.loadCfg(true).then(function(c){IK.cfg=JSON.parse(JSON.stringify(c));ikDraw()})}
 function ikDraw(){ikFolder();ikMode();ikNames()}
 function ikFolder(){var b=$('ikFolder');if(!b)return;b.innerHTML='';b.appendChild(el('b',null,'📁 다운로드 폴더'));
+ var dg=el('p','note','브라우저 점검: 폴더 선택 기능 '+(window.ImgKit.supported?'✅ 사용 가능':'❌ 지원 안 함')+' · 보안 연결(https) '+(window.isSecureContext?'✅':'❌')+' · 이 창 '+(window.top===window?'✅ 단독 창':'⚠ 다른 화면 안에 들어 있음'));b.appendChild(dg);
  if(!window.ImgKit.supported){b.appendChild(el('p','note bad','이 브라우저는 폴더 지정을 지원하지 않아요. 데스크톱 크롬·엣지를 쓰시면 폴더를 지정할 수 있고, 지금은 일반 다운로드 폴더에 저장됩니다(파일 이름은 ① 종목명_코드.png 로 같아요).'));return}
  window.ImgKit.info().then(function(i){var s=el('p','m');
   if(!i.name)s.textContent='아직 폴더를 지정하지 않았어요 → 브라우저 기본 다운로드 폴더에 저장됩니다.';
   else s.textContent='지정된 폴더: '+i.name+(i.perm==='granted'?' · ✅ 접근 허용됨':' · 🔒 이 세션에서 접근 허용이 필요해요(저장할 때 한 번 물어봐요)');
   b.appendChild(s);var r=el('div','bar');
-  r.appendChild(bt('📁 폴더 지정하기','bt',function(){window.ImgKit.pick().then(function(h){toast('폴더를 지정했어요: '+h.name);ikFolder()}).catch(function(e){if(e&&e.name!=='AbortError')toast(e.message||'폴더를 지정하지 못했어요')})}));
+  r.appendChild(bt('📁 폴더 지정하기','bt',function(){var ee=$('ikErr');if(ee)ee.remove();window.ImgKit.pick().then(function(h){toast('폴더를 지정했어요: '+(h.name||'선택한 폴더'));ikFolder()}).catch(function(e){var m=(e&&e.message)||'폴더를 지정하지 못했어요';toast(m);if(e&&e.name==='AbortError')return;var x=el('div','note bad','⚠ '+m);x.id='ikErr';b.appendChild(x)})}));
   if(i.name&&i.perm!=='granted')r.appendChild(bt('🔓 접근 허용','bt2',function(){window.ImgKit.perm(i.h,true).then(function(ok){toast(ok?'허용했어요':'허용되지 않았어요');ikFolder()})}));
   if(i.name)r.appendChild(bt('폴더 지정 해제','bt3',function(){window.ImgKit.forget().then(function(){toast('해제했어요');ikFolder()})}));
   r.appendChild(bt('🧪 시험 저장','bt2',function(){var cv=document.createElement('canvas');cv.width=480;cv.height=160;var c=cv.getContext('2d');c.fillStyle='#16275a';c.fillRect(0,0,480,160);c.fillStyle='#f6e7b4';c.font='700 26px sans-serif';c.fillText('저장 시험 이미지',40,70);c.font='16px sans-serif';c.fillText(new Date().toLocaleString('ko-KR'),40,110);
    window.ImgKit.toBlob(cv).then(function(bl){return window.ImgKit.save(bl,{menu:'stock',idx:1,name:'시험',ticker:'000000'})}).then(function(x){toast(x.where==='folder'?('저장했어요: '+x.path):((x.note||'다운로드 폴더에 저장했어요')))})}));
-  b.appendChild(r);b.appendChild(el('p','note','※ 보안상 브라우저는 폴더 접근 권한을 브라우저를 다시 열면 한 번씩 다시 물어봐요. 자동 저장 모드에서는 분석 화면에 [권한 허용] 버튼이 나타나고, 한 번 누르면 그 뒤로는 묻지 않습니다.'))})}
+  b.appendChild(r);b.appendChild(el('p','note','💡 폴더를 고를 때 주의: 크롬은 "다운로드", "문서", "바탕 화면" 폴더 자체를 고르게 해 주지 않아요. 문서나 다운로드 폴더 안에 새 폴더(예: 블로그이미지)를 만들어서 그 폴더를 선택하세요.'));b.appendChild(el('p','note','※ 보안상 브라우저는 폴더 접근 권한을 브라우저를 다시 열면 한 번씩 다시 물어봐요. 자동 저장 모드에서는 분석 화면에 [권한 허용] 버튼이 나타나고, 한 번 누르면 그 뒤로는 묻지 않습니다.'))})}
 function ikMode(){var b=$('ikMode');if(!b)return;b.innerHTML='';b.appendChild(el('b',null,'⚙ 저장 방식 (이 기기)'));
  var cur=window.ImgKit.mode();[['manual','수동 저장 — 이미지를 확인한 뒤 [저장] 버튼을 눌러 저장'],['auto','자동 저장 — 관리자 분석실에서 이미지가 만들어지면 곧바로 폴더에 저장']].forEach(function(o){var l=el('label','bar');var i=el('input');i.type='radio';i.name='immode';i.checked=cur===o[0];i.onchange=function(){window.ImgKit.setMode(o[0]);toast('저장 방식: '+(o[0]==='auto'?'자동':'수동'))};l.appendChild(i);l.appendChild(el('span',null,' '+o[1]));b.appendChild(l)});
- b.appendChild(el('p','note','자동 저장 모드에서는 종목을 분석하면 관리자 분석실이 자동으로 열리고, 이미지 2장이 만들어져 바로 저장돼요(종목을 바꿀 때마다). 같은 날 같은 종목을 다시 저장하면 같은 이름의 파일을 덮어씁니다.'))}
+ var wh=window.ImgKit.when();b.appendChild(el('div','m','자동 저장 시점 (자동 저장일 때만 적용)'));[['ai','AI 분석·종합 리포트가 끝난 뒤 (권장 — 작업 순서대로)'],['analysis','종목을 분석한 직후 (AI 없이 바로)']].forEach(function(o){var l=el('label','bar');var i=el('input');i.type='radio';i.name='imwhen';i.checked=wh===o[0];i.onchange=function(){window.ImgKit.setWhen(o[0]);toast('자동 저장 시점을 바꿨어요')};l.appendChild(i);l.appendChild(el('span',null,' '+o[1]));b.appendChild(l)});
+ b.appendChild(el('p','note','같은 날 같은 종목을 다시 저장하면 같은 이름의 파일을 덮어씁니다. 자동 저장이 아니어도 분석실의 [이미지 만들기] 단계에서 언제든 직접 저장할 수 있어요.'))}
 function ikNames(){var b=$('ikNames');if(!b)return;b.innerHTML='';b.appendChild(el('b',null,'🗂 메뉴 폴더 이름 · 이미지 선명도 (모든 기기 공통)'));
  var C=IK.cfg,names={stock:'종목분석 (메인 분석 화면)',deep:'심층분석',daily:'오늘추천'};var tw=el('div');var t=el('table');
  Object.keys(C.folders).forEach(function(k){var tr=el('tr');tr.appendChild(el('td',null,names[k]||k));var td=el('td');var i=el('input');i.value=C.folders[k];i.maxLength=20;i.style.width='180px';i.oninput=function(){C.folders[k]=i.value};td.appendChild(i);tr.appendChild(td);t.appendChild(tr)});tw.appendChild(t);b.appendChild(tw);

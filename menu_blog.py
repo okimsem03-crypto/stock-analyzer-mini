@@ -548,17 +548,19 @@ K.panel=function(box,opt){var idp=opt.idp||'bk';box.innerHTML='';
  var dw=el('div');dw.id=idp+'Dup';sty(dw,'background:#fff7ed;border:1.5px solid #fdba74;color:#9a3412;border-radius:10px;padding:9px 12px;font-size:12.5px;line-height:1.6;margin:6px 0;display:'+(opt.dup_warn?'':'none'));dw.textContent=opt.dup_warn?('⚠ '+opt.dup_warn):'';box.appendChild(dw);
  var inc={};if(opt.sections&&opt.sections.length){var ck=el('div');sty(ck,'margin:6px 0');opt.sections.forEach(function(a){var l=el('label');sty(l,'font-size:12.5px;margin-right:12px;white-space:nowrap');var i=el('input');i.type='checkbox';i.checked=true;i.dataset.k=a[0];inc[a[0]]=true;i.onchange=function(){inc[a[0]]=i.checked};l.appendChild(i);l.appendChild(document.createTextNode(' '+a[1]));ck.appendChild(l)});box.appendChild(ck)}
  var ti=el('input');ti.type='text';ti.id=idp+'Title';ti.maxLength=150;ti.placeholder='글 제목 (비우면 자동 · AI가 제목 후보를 주면 첫 번째 사용)';sty(ti,'width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1.5px solid #d1d5db;border-radius:9px;padding:8px;margin:4px 0');box.appendChild(ti);
- var r=el('div');var out=el('div');var go=bt('🧱 글 만들기',true,function(){make()});r.appendChild(go);box.appendChild(r);box.appendChild(out);
+ var last=null,mainFn=null;var r=el('div');var out=el('div');var go=bt('🧱 글 만들기',true,function(){make()});r.appendChild(go);box.appendChild(r);box.appendChild(out);
  K.load();
  function make(){out.innerHTML='';out.appendChild(sty(el('div',null,'⏳ 만드는 중…'),'font-size:12.5px;color:#6b7280'));go.disabled=true;
   Promise.resolve(opt.build(inc,ti.value)).then(function(j){go.disabled=false;out.innerHTML='';if(!j||j.error){out.appendChild(sty(el('div',null,'⚠ '+((j&&j.error)||'만들지 못했어요')),'color:#b91c1c;font-size:13px'));return}
    if(!ti.value)ti.value=j.title||'';
+    last=j;if(opt.onBuilt){try{opt.onBuilt(j)}catch(x){}}
    if(j.dup_warn!=null){dw.textContent=j.dup_warn?('⚠ '+j.dup_warn):'';dw.style.display=j.dup_warn?'':'none'}
    if(j.titles&&j.titles.length){var tl=sty(el('div',null,'AI 제목 후보: '),'font-size:12px;color:#6b7280;margin:6px 0');j.titles.forEach(function(t){var a=bt(t.length>34?t.slice(0,34)+'…':t,false,function(){ti.value=t});sty(a,'margin:2px;padding:3px 9px;font-size:12px');tl.appendChild(a)});out.appendChild(tl)}
    K.load().then(function(){
     var lab=K.labelOf(opt.key),ao=K.autoOpen();var rr=el('div');
-    var main=bt(ao?'📋 복사하고 블로그 열기':'📋 서식 그대로 복사',true,function(){var ok=K.copyHtml(j.html);if(!ok){toast('복사가 막혔어요. 아래 [HTML 파일로 저장]을 쓰거나 미리보기를 드래그해 복사하세요.');return}
-     if(ao){window.open(K.urlOf(opt.key),'_blank','noopener');toast('📋 복사했어요 — 열린 블로그 글쓰기 화면에서 Ctrl+V 하세요 ('+lab+')')}else toast('📋 블로그용 HTML을 복사했어요 — 블로그 글쓰기 화면에서 Ctrl+V 하세요.')});
+    mainFn=function(){var ok=K.copyHtml(j.html);if(!ok){toast('복사가 막혔어요. 아래 [HTML 파일로 저장]을 쓰거나 미리보기를 드래그해 복사하세요.');return}if(opt.onCopied){try{opt.onCopied()}catch(x){}}
+     if(ao){window.open(K.urlOf(opt.key),'_blank','noopener');toast('📋 복사했어요 — 열린 블로그 글쓰기 화면에서 Ctrl+V 하세요 ('+lab+')')}else toast('📋 블로그용 HTML을 복사했어요 — 블로그 글쓰기 화면에서 Ctrl+V 하세요.')};
+    var main=bt(ao?'📋 복사하고 블로그 열기':'📋 서식 그대로 복사',true,mainFn);
     rr.appendChild(main);
     if(ao)rr.appendChild(bt('복사만',false,function(){toast(K.copyHtml(j.html)?'📋 복사했어요.':'복사가 막혔어요.')}));
     rr.appendChild(bt('✍ 블로그만 열기',false,function(){window.open(K.urlOf(opt.key),'_blank','noopener')}));
@@ -571,7 +573,7 @@ K.panel=function(box,opt){var idp=opt.idp||'bk';box.innerHTML='';
     var u=el('input');u.type='text';u.placeholder='올린 글 주소(선택) https://blog.naver.com/…';sty(u,'width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1.5px solid #d1d5db;border-radius:9px;padding:8px;margin:6px 0 4px');lg.appendChild(u);
     var m=el('input');m.type='text';m.placeholder='메모(선택)';sty(m,'width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1.5px solid #d1d5db;border-radius:9px;padding:8px;margin:0 0 6px');lg.appendChild(m);
     var sv=bt('작성 기록 남기기',true,function(){call('/admin/api/blog/log',{ticker:opt.ticker,name:opt.name,title:ti.value||j.title,url:u.value,memo:m.value,kind:opt.kind||'stock'}).then(function(z){if(z.error){toast(z.error);return}toast('작성 기록을 남겼어요 (관리자 화면 📝 블로그 이력)');dw.textContent='⚠ '+z.dup_warn;dw.style.display='';sv.disabled=true;sv.textContent='기록 완료';if(opt.onLogged)opt.onLogged(z)})});lg.appendChild(sv);out.appendChild(lg)})})}
- return {rebuild:make}};
+ return {rebuild:make,built:function(){return !!last},copyOpen:function(){if(mainFn)mainFn();else toast('먼저 [글 만들기]를 눌러 글을 만드세요.')}}};
 window.BlogKit=K;
 })();
 """
