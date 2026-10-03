@@ -34,6 +34,18 @@ services:
         sync: false
       - key: OPENAI_API_KEY            # (선택) 위와 같음
         sync: false
+      - key: NAVER_CLIENT_ID           # (선택) 네이버 로그인 — developers.naver.com. Redirect URI는 관리자 [👤 회원]에 표시돼요
+        sync: false
+      - key: NAVER_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID          # (선택) 구글 로그인 — console.cloud.google.com
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: KAKAO_REST_API_KEY        # (선택) 카카오 로그인 — developers.kakao.com (REST API 키)
+        sync: false
+      - key: KAKAO_CLIENT_SECRET       # (선택) 카카오 보안 > Client Secret 을 켠 경우만
+        sync: false
 
 databases:
   - name: stock-analyzer-db

@@ -1197,6 +1197,7 @@ function dlTable(){var box=$('dlTb');if(!box)return;box.innerHTML='';var rows=dl
 function dlRaw(tk){var pn=$('dlpanel');if(!pn)return;api('/admin/api/delist/diag/'+tk).then(function(j){pn.innerHTML='';var c=el('div','c');c.appendChild(el('div','m',tk+' — 네이버가 보내 준 기본정보 원본(자동 신호가 맞는지 확인용)'));var pre=el('pre',null,j.raw||j.error||'');pre.style.cssText='white-space:pre-wrap;font-size:11.5px;max-height:260px;overflow:auto';c.appendChild(pre);c.appendChild(bt('닫기','bt3',function(){pn.innerHTML=''}));pn.appendChild(c);pn.scrollIntoView()})}
 function dlSelList(){return Object.keys(DL.sel)}
 function dlMark(state){if(DL.view){toast('저장 이력을 보는 중에는 바꿀 수 없어요');return}var tk=dlSelList();if(!tk.length){toast('먼저 종목을 체크하세요');return}
+ if(state==='confirmed'&&!confirm('선택한 '+tk.length+'종목을 ‘확정(공개)’으로 표시할까요?\n공개 화면(거래정지·상폐 메뉴)에 이름이 올라가요. 확정은 KIND·DART 공시로 직접 확인한 뒤에만 해 주세요.'))return;
  var label='',note='';
  if(state==='confirmed'){var opts=DL.meta.public_labels;label=prompt('확정할 상태를 입력하세요: '+opts.join(' / '),'');if(!label)return;label=label.trim();if(opts.indexOf(label)<0){toast('목록 중 하나를 정확히 입력하세요');return}
   note=prompt('공개 화면에 보일 메모(선택, 120자까지)','')||''}

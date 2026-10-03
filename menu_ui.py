@@ -186,7 +186,7 @@ function run(opt){
   ta.addEventListener('paste',function(){setTimeout(function(){onText(ta.value,true)},30)});var ptm=null;ta.addEventListener('input',function(){lastText=ta.value;if(applyBtn&&!busy&&!doneSet[cur])applyBtn.disabled=!(ta.value.trim().length>=Math.min(minLen,40));clearTimeout(ptm);ptm=setTimeout(function(){if(ta.value.trim())preview(ta.value,true)},400)});s3.appendChild(ta);
   pvBox=el('div');s3.appendChild(pvBox);var r3=el('div','ma-row');
   var pv=el('button','ma-btn','미리보기');pv.onclick=function(){preview(ta.value)};r3.appendChild(pv);
-  applyBtn=el('button','ma-btn p','저장');applyBtn.disabled=true;applyBtn.onclick=function(){doApply()};r3.appendChild(applyBtn);s3.appendChild(r3);
+  applyBtn=el('button','ma-btn p','저장');applyBtn.setAttribute('data-noconfirm','1');applyBtn.disabled=true;applyBtn.onclick=function(){doApply()};r3.appendChild(applyBtn);s3.appendChild(r3);
   if(opt.apply){var sw=el('label','ma-sw');autoCb=el('input');autoCb.type='checkbox';var _av=lsGet('mini_ai_auto_'+(opt.key||'x'));autoCb.checked=(_av===null)?true:(_av==='1')||!!opt.autoApply;autoCb.onchange=function(){lsSet('mini_ai_auto_'+(opt.key||'x'),autoCb.checked?'1':'0')};sw.appendChild(autoCb);sw.appendChild(el('span',null,'답변을 읽으면 확인 없이 바로 저장 (저장되면 "✅ 저장 완료"로 바뀌어요)'));s3.appendChild(sw)}
   body.appendChild(s3);if(lastText)preview(lastText,true)}
  function openAI(s){var ok=copyText(s.prompt);var S=SITES[site],u=S.u;

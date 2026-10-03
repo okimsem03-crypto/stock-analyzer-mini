@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v146 — ① 회원가입·로그인(이메일이 아이디, 인증번호 메일) + 네이버·구글·카카오 SNS 로그인(키는 환경변수로만) ② 설정·저장·적용 버튼은 반드시 '확인 창'(바뀐 칸 이전→새 값)을 거쳐 진행 ③ 관리자 [👤 회원] 탭(회원 목록·단계·차단·SNS 상태)
 ✨ v145 — ① 메인 화면 메뉴 바가 '탭 줄'로: 메뉴를 누르면 이 화면 안의 탭으로 열리고 다른 탭으로 옮겨도 내용이 그대로 남음(×로 닫기) ② 숨김(🔒) 메뉴·관리자 화면도 팝업 없이 메인 화면 안에서 실행 ③ 오늘추천·심층분석·거래정지 등에서 종목을 누르면 종목분석 탭 + 심층분석 탭이 함께 열림 ④ 심층분석 밸류에이션 밴드의 '현재가' 글자 잘림 수정 ⑤ AI 복사·적용 점검(질문까지 같이 복사해도 답변만 인식, 저장 버튼 조건 완화, 기본 자동 저장) ⑥ 거래정지·상폐 메뉴를 원본 '투자주의' 화면 방식으로 개편(전종목 시세 목록 한 번으로 스크리닝·기준 설정·위험/경계·신규진입/졸업·이미지 대시보드·AI 조언·블로그) + AI 일괄 분석(보이는 전 종목을 묶음으로 이어서).
 ✨ v143 — 관리자 [🖼 이미지 저장] 설정 화면이 비어 보이던 문제 보강: 설정을 기다리지 않고 폴더·저장 방식 칸을 먼저 표시, 응답이 늦거나 실패하면 이유를 화면에 안내.
 ✨ v142 — 관리자 분석실을 작업 순서(① 분석 자동 → ② AI 분석+종합 리포트 → ③ 이미지 만들기(자동 저장 선택) → ④ 글 만들기 → ⑤ 블로그에 쓰기) 버튼으로 재구성, 이미지 저장 폴더 지정 오류 안내·점검 보강, '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 왼쪽 아래 떠 있는 버튼으로 이동(스마트폰은 아래에서 올라오는 창).
@@ -327,7 +328,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v145"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v146"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4246,6 +4247,12 @@ td,th{padding:7px 9px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-a
 .note{font-size:12.5px;color:#64748b;margin:6px 0}#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0f172a;color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;display:none}#toast.ok{top:18px;bottom:auto;background:#15803d;font-size:15px;font-weight:800;padding:13px 24px;border-radius:999px;box-shadow:0 10px 30px rgba(21,128,61,.45);z-index:9999}#toast.bad{background:#b91c1c}.savedAt{color:#15803d;font-size:12.5px;font-weight:700;margin-left:10px}#saveStat{margin-left:auto;font-size:12px;color:#86efac;font-weight:700}
 .bt{border:none;background:#0f172a;color:#fff;border-radius:8px;padding:8px 13px;font-size:13px;cursor:pointer}.bt2{border:1px solid #94a3b8;background:#fff;color:#0f172a;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
 .bt3{border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer}.bt:disabled{opacity:.45}
+.cfOv{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:10000;padding:16px}
+.cfBox{background:#fff;border-radius:16px;max-width:520px;width:100%;box-shadow:0 24px 60px rgba(15,23,42,.45);overflow:hidden;max-height:90vh;display:flex;flex-direction:column}
+.cfH{padding:15px 18px;font-weight:800;font-size:16px;background:#0f172a;color:#fff}.cfB{padding:14px 18px;overflow:auto;font-size:13.5px;line-height:1.55;color:#334155}
+.cfB b{color:#0f172a}.cfList{margin:8px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}.cfList li{background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:6px 9px;word-break:break-all}
+.cfList .o{color:#94a3b8;text-decoration:line-through}.cfList .n{color:#15803d;font-weight:700}.cfNo{color:#64748b;font-size:12.5px;margin-top:8px}
+.cfF{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid #e2e8f0;background:#f8fafc}.cfF button{border-radius:10px;padding:9px 16px;font-size:14px;font-weight:700;cursor:pointer;border:1px solid #cbd5e1;background:#fff;color:#334155}.cfF button.go{background:#2563eb;border-color:#2563eb;color:#fff}
 th{white-space:nowrap}.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}.bar input,.bar select{border:1px solid #cbd5e1;border-radius:8px;padding:7px 9px;font-size:13px;background:#fff}
 textarea{border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-size:12.5px;font-family:inherit;line-height:1.5}
 </style></head><body>
@@ -4293,6 +4300,36 @@ $('loall').onclick=function(){if(!confirm('이 브라우저를 포함해 모든 
 function apiJ(u,obj){return fetch(u,{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':CSRF,'Content-Type':'application/json'},body:JSON.stringify(obj||{})}).then(function(r){
   if(r.status===401){location.replace('/admin');throw 0}return r.json()}).then(function(j){if(u==='/admin/api/settings'&&j&&!j.error)toast('저장이 완료되었어요');return j})}
 function bt(txt,cls,fn){var b=el('button',cls||'bt',txt);b.onclick=fn;return b}
+/* ── 💾 [v146] 저장·적용 버튼은 반드시 '확인 창'을 거친다 — 무엇을 저장하는지(바뀐 칸 이전→새 값)를 보여주고 [확인하고 저장]을 눌러야 진행돼요 ── */
+var CF={bypass:null,orig:new WeakMap(),open:false};
+var CF_RE=/(저장|적용|반영)/,CF_SKIP=/(파일로|둘 다|이미지 저장|채우기|시험|불러오기|저장 이력|저장 위치|저장 설정|저장 방식|저장 중|저장일|열기|보기|복사|자동 저장)/;
+function cfVal(f){return f.type==='checkbox'||f.type==='radio'?(f.checked?'켜짐':'꺼짐'):(f.tagName==='SELECT'&&f.selectedIndex>=0?f.options[f.selectedIndex].text:f.value)}
+function cfLabel(f){var t=f.getAttribute('aria-label')||'';if(!t){var l=f.closest('label');if(l)t=l.textContent;}
+ if(!t){var p=f.previousElementSibling;if(p&&p.textContent&&p.textContent.length<30&&!/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(p.tagName))t=p.textContent}
+ return String(t||f.placeholder||f.title||f.name||f.id||'입력 칸').replace(/\s+/g,' ').replace(/[:：]\s*$/,'').trim().slice(0,28)}
+function cfScope(b){var n=b.parentElement,best=null;for(var i=0;i<6&&n&&n!==document.body;i++,n=n.parentElement){if(n.querySelector('input,select,textarea')){best=n;if(n.classList.contains('c'))break}}return best}
+function cfFields(sc){return sc?[].slice.call(sc.querySelectorAll('input,select,textarea')).filter(function(f){return f.type!=='button'&&f.type!=='file'&&f.type!=='hidden'&&f.type!=='password'}):[]}
+function cfTitle(b){var c=b.closest('.c');var t=c&&c.querySelector('b');var tab=(typeof TABS!=='undefined'&&cur)?(TABS.filter(function(x){return x[0]===cur})[0]||[])[1]:'';return ((tab||'')+(t&&t.textContent?' › '+t.textContent.trim().slice(0,40):'')).trim()}
+function cfRemember(e){var f=e.target;if(f&&/^(INPUT|SELECT|TEXTAREA)$/.test(f.tagName)&&!CF.orig.has(f))CF.orig.set(f,cfVal(f))}
+function cfScan(n){if(!n||n.nodeType!==1)return;var l=/^(INPUT|SELECT|TEXTAREA)$/.test(n.tagName)?[n]:[].slice.call(n.querySelectorAll('input,select,textarea'));l.forEach(function(f){if(!CF.orig.has(f))CF.orig.set(f,cfVal(f))})}
+try{new MutationObserver(function(ms){ms.forEach(function(m){[].forEach.call(m.addedNodes,cfScan)})}).observe(document.documentElement,{childList:true,subtree:true})}catch(e){}
+document.addEventListener('focusin',cfRemember,true);document.addEventListener('pointerdown',cfRemember,true);document.addEventListener('keydown',cfRemember,true);
+function cfAsk(b){if(CF.open)return;CF.open=true;var label=b.textContent.replace(/\s+/g,' ').trim(),sc=cfScope(b),fs=cfFields(sc);
+ var ov=el('div','cfOv'),bx=el('div','cfBox');ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');bx.appendChild(el('div','cfH','💾 저장 전에 확인해 주세요'));
+ var body=el('div','cfB'),ti=cfTitle(b);var p1=el('div');p1.appendChild(document.createTextNode('‘'));p1.appendChild(el('b',null,label));p1.appendChild(document.createTextNode('’ 을(를) 진행할까요?'+(ti?'  (대상: '+ti+')':'')));body.appendChild(p1);
+ var ch=[];fs.forEach(function(f){if(CF.orig.has(f)&&CF.orig.get(f)!==cfVal(f))ch.push([cfLabel(f),CF.orig.get(f),cfVal(f)])});
+ function cut(x){x=String(x==null?'':x).replace(/\s+/g,' ');return x.length>70?x.slice(0,70)+'…':(x||'(비어 있음)')}
+ if(ch.length){body.appendChild(el('div','cfNo','바뀐 항목 '+ch.length+'개:'));var ul=el('ul','cfList');ch.slice(0,12).forEach(function(c){var li=el('li');li.appendChild(el('b',null,c[0]+': '));li.appendChild(el('span','o',cut(c[1])));li.appendChild(document.createTextNode(' → '));li.appendChild(el('span','n',cut(c[2])));ul.appendChild(li)});body.appendChild(ul);if(ch.length>12)body.appendChild(el('div','cfNo','…외 '+(ch.length-12)+'개'))}
+ else if(fs.length){var cur2=fs.filter(function(f){return cfVal(f)!==''&&cfVal(f)!=='꺼짐'}).slice(0,6);body.appendChild(el('div','cfNo','바뀐 칸을 따로 찾지 못했어요. 지금 화면의 값 그대로 저장돼요:'));var u2=el('ul','cfList');cur2.forEach(function(f){var li=el('li');li.appendChild(el('b',null,cfLabel(f)+': '));li.appendChild(el('span','n',cut(cfVal(f))));u2.appendChild(li)});if(cur2.length)body.appendChild(u2)}
+ else body.appendChild(el('div','cfNo','저장할 내용은 화면에 나온 현재 상태 그대로예요.'));
+ bx.appendChild(body);var ft=el('div','cfF'),no=el('button',null,'취소'),go=el('button','go','확인하고 저장');no.type=go.type='button';ft.appendChild(no);ft.appendChild(go);bx.appendChild(ft);ov.appendChild(bx);
+ var prev=document.activeElement;function close(){CF.open=false;document.removeEventListener('keydown',kd,true);ov.remove();try{if(prev&&prev.focus)prev.focus()}catch(e){}}
+ function kd(e){if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();toast('저장을 취소했어요')}}
+ no.onclick=function(){close();toast('저장을 취소했어요')};ov.onclick=function(e){if(e.target===ov){close();toast('저장을 취소했어요')}};
+ go.onclick=function(){close();fs.forEach(function(f){CF.orig.set(f,cfVal(f))});CF.bypass=b;try{b.click()}finally{CF.bypass=null}};
+ document.addEventListener('keydown',kd,true);document.body.appendChild(ov);go.focus()}
+document.addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('button'):null;if(!b||b.disabled||CF.bypass===b||b.hasAttribute('data-noconfirm')||b.closest('.cfOv'))return;
+ var t=b.textContent.replace(/\s+/g,' ').trim();if(!t||t.length>40||!CF_RE.test(t)||CF_SKIP.test(t))return;e.preventDefault();e.stopImmediatePropagation();cfAsk(b)},true);
 function copyTxt(t){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast('복사했어요')},function(){fbCopy(t)})}else fbCopy(t)}
 function fbCopy(t){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');toast('복사했어요')}catch(e){toast('복사하지 못했어요 — 직접 선택해 복사하세요')}a.remove()}
 function poll(job,onTick,onEnd){var t=setInterval(function(){api('/admin/api/job/'+job).then(function(j){onTick(j);if(j.status!=='running'){clearInterval(t);onEnd(j)}}).catch(function(){clearInterval(t)})},2500)}
@@ -4376,7 +4413,7 @@ nav();load();
 import json
 # 접근 등급: 메뉴를 누가 볼 수 있는지는 메뉴마다 이 한 칸으로만 정한다(관리자 화면 [메뉴·설정]에서 바꿈).
 #   public=누구나 · member=회원 · premium=유료/상위 등급 · admin=관리자만. 관리자로 로그인하면 모두 보인다.
-#   회원제는 아직 없으므로 지금 일반 이용자의 등급은 항상 public 이다(viewer_tier 하나만 고치면 된다).
+#   [v146] 회원가입·로그인은 menu_member.py 가 맡는다. 로그인한 회원만 member 이상으로 보인다(viewer_level 이 알려줌) (옛 설명: viewer_tier 하나만 고치면 된다).
 ACCESS_LEVELS = ("public", "member", "premium", "admin")
 ACCESS_RANK = {"public": 0, "member": 1, "premium": 2, "admin": 9}
 MENUS = []                  # 메뉴 모듈이 register_menu() 로 채운다
@@ -4470,8 +4507,24 @@ def member_levels():
     return [dict(x) for x in DEFAULT_MEMBER_LEVELS]
 
 
+_VIEWER_LEVEL_HOOK = None
+
+
+def set_viewer_level_hook(fn):
+    """회원 모듈(menu_member.py)이 '지금 요청의 로그인 회원 단계'를 알려주는 함수를 연결한다. 로그인 안 했으면 None 을 돌려주면 된다."""
+    global _VIEWER_LEVEL_HOOK
+    _VIEWER_LEVEL_HOOK = fn
+
+
 def viewer_level():
-    """지금 보는 사람의 회원 단계 표시(GUEST 또는 단계 id). 회원제를 붙이면 여기만 고친다. 관리자는 따로 항상 모두 본다."""
+    """지금 보는 사람의 회원 단계 표시(GUEST 또는 단계 id). 로그인한 회원이면 그 단계, 아니면 비회원. 관리자는 따로 항상 모두 본다."""
+    if _VIEWER_LEVEL_HOOK is not None:
+        try:
+            lv = _VIEWER_LEVEL_HOOK()
+            if lv and lv in {x["id"] for x in member_levels()}:
+                return lv
+        except Exception as e:
+            print(f"[회원] 단계 확인 실패(비회원으로 처리): {e}")
     return GUEST
 
 
@@ -6071,6 +6124,7 @@ HTML_TEMPLATE = r"""
   <button class="refreshBtn" onclick="resetAll()" title="검색·결과·AI 칸을 모두 비우고 첫 화면으로 돌아갑니다">↺ 초기화</button>
   <button class="refreshBtn" onclick="refreshTickers()">🔄 종목목록 갱신</button>
   <a class="refreshBtn" href="/help" target="_blank" rel="noopener" style="text-decoration:none;">❓ 도움말</a>
+  <a class="refreshBtn" id="memBtn" href="/member" style="text-decoration:none;display:none;" title="이메일로 회원가입·로그인">👤 로그인·가입</a>
   {% if kakao_url %}
   <a class="refreshBtn" href="{{ kakao_url }}" target="_blank" rel="noopener"
      style="text-decoration:none;background:#fee500;color:#3c1e1e;border-color:#fee500;"
@@ -7804,6 +7858,17 @@ document.addEventListener('keydown', function(e){
   }
 });
 
+// 👤 [v146] 상단 [로그인·가입] 버튼 — 회원 기능이 켜져 있을 때만 보이고, 로그인하면 내 이메일(일부)로 바뀐다
+(function(){
+  var b = document.getElementById('memBtn'); if(!b) return;
+  fetch('/member/api/me', { cache: 'no-store', credentials: 'same-origin' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
+    if(!j || !j.on) return;
+    if(j.logged){ b.textContent = '👤 ' + (j.short || '내 정보'); b.title = '내 정보 · 로그아웃'; b.style.display = ''; }
+    else if(j.signup){ b.style.display = ''; }
+    else { b.textContent = '👤 로그인'; b.style.display = ''; }
+  }).catch(function(){});
+})();
+
 // 🧭 [v138→v145] 메인 화면 메뉴 바 = 탭 줄. 메뉴를 누르면 이 화면 안의 탭으로 열리고, 다른 탭으로 옮겨도 내용이 그대로 남는다.
 //   숨김 메뉴(🔒)·관리자 화면도 별도 창이 아니라 이 화면 안에서 실행된다. 종목을 누르면 종목분석 탭 + 심층분석 탭이 함께 열린다.
 window.name = window.name || 'mini_main';
@@ -8295,7 +8360,8 @@ PRIVACY_HTML = r"""
     <li><b>최근 종목 목록</b> — "모두가 본" 목록에는 종목명·시장·몇 분 전인지만 표시되며, 누가 봤는지는 표시하지 않습니다.</li>
     <li><b>매력도 투표</b> — 종목별로 누른 선택(사고 싶어요/지켜볼래요/아직은)과 시각을 익명 식별값과 함께 저장하며, 다른 이용자에게는 합계만 보여줍니다.</li>
     <li><b>브라우저 저장소</b> — 이용 안내 동의 여부, 안내창 다시 보지 않기 설정을 이용자의 브라우저에만 저장합니다(서버로 전송하지 않음).</li>
-  </ul><p>회원가입이 없으며, 이름·이메일·연락처 등은 수집하지 않습니다.</p></div>
+      <li><b>회원가입(선택)</b> — 가입하지 않아도 모든 기본 기능을 쓸 수 있습니다. 가입하면 이메일(아이디)과 비밀번호(되돌릴 수 없게 암호화해서 저장, 운영자도 볼 수 없음), 가입·마지막 로그인 시각, 로그인 상태 유지용 쿠키를 저장합니다. 가입 인증·비밀번호 재설정 때 입력한 이메일로 인증번호 메일을 보냅니다. 네이버·구글·카카오 계정으로 가입·로그인하면 해당 서비스가 알려주는 이메일(제공되는 경우)과 서비스별 회원 번호만 저장하며, 그 서비스의 비밀번호·친구 목록 등 다른 정보는 받지 않습니다(SNS 로그인 중에만 임시로 쓰는 인증 값은 저장하지 않습니다). [내 정보]에서 언제든 탈퇴할 수 있고, 탈퇴하면 위 정보(SNS 연결 포함)가 즉시 삭제됩니다.</li>
+  </ul><p>가입하지 않은 이용자의 이름·이메일·연락처는 수집하지 않습니다.</p></div>
   <div class="card"><h2>2. 이용 목적</h2><ul>
     <li>종목별 매력도 투표 합계와 "이번 주 매수 관심 TOP" 표시</li>
     <li>"최근 본 종목" 목록 표시(같은 브라우저로 다시 방문했을 때)</li>

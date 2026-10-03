@@ -4,7 +4,7 @@
   · 메뉴마다 [켜짐/숨김] 스위치 + 볼 수 있는 단계 체크(비회원, 그리고 관리자가 만든 회원 단계들).
   · '비회원' 체크 = 모든 사람에게 공개. 숨김이면 체크와 상관없이 관리자만 본다. 관리자는 항상 모두 본다.
   · 회원 단계는 관리자가 최대 10개까지 이름·설명·순서를 자유롭게 구성한다(위쪽이 낮은 단계).
-  · 회원가입 기능은 아직 없다. 지금은 모든 방문자가 '비회원'으로 취급되며, 회원제를 붙일 때 본체의 viewer_level() 만 고치면 된다.
+  · 회원가입·로그인은 menu_member.py 가 맡는다(v146). 로그인한 회원은 본체 viewer_level() 로 자기 단계가 되고, 로그인 안 한 방문자는 '비회원'이다.
 """
 import json
 from flask import Blueprint, request
@@ -81,7 +81,7 @@ function mmDraw(p){p.innerHTML='';var D=MM.draft;
  var sv=bt('저장','bt',function(){mmSave(p)});sv.id='mmsave';sv.textContent='💾 저장';sv.disabled=!MM.dirty;top.appendChild(sv);p.appendChild(top);
  // ── 회원 단계
  var lc=el('div','c');lc.appendChild(el('b',null,'👥 회원 단계 (최대 '+D.max+'단계)'));
- lc.appendChild(el('p','note','회원이 몇 단계로 나뉠지 자유롭게 정해요. 위쪽이 낮은 단계예요. 비회원은 항상 따로 있습니다. ※ 회원가입 기능은 아직 없어서, 지금은 모든 방문자가 "비회원"으로 취급되고 이 단계들은 회원제를 붙일 때 바로 쓰이도록 미리 만들어 두는 설계예요.'));
+ lc.appendChild(el('p','note','회원이 몇 단계로 나뉠지 자유롭게 정해요. 위쪽이 낮은 단계예요. 비회원은 항상 따로 있습니다. 가입한 회원은 [👤 회원] 탭에서 단계를 바꿀 수 있고, 새로 가입하면 [👤 회원]에서 정한 기본 단계가 돼요.'));
  D.levels.forEach(function(l,i){var r=el('div','bar');r.appendChild(el('span','m',(i+1)+'단계'));
   var n=el('input');n.value=l.name;n.maxLength=12;n.placeholder='단계 이름';n.style.width='150px';n.oninput=function(){l.name=n.value;mmDirty(p)};r.appendChild(n);
   var d=el('input');d.value=l.desc||'';d.maxLength=60;d.placeholder='설명(선택)';d.style.width='260px';d.oninput=function(){l.desc=d.value;mmDirty(p)};r.appendChild(d);
