@@ -193,7 +193,7 @@ def load_rows(date):
 def risk_set():
     """상장폐지·거래정지 위험으로 걸러진(또는 관리자가 확정한) 종목 — 추천에서 뺀다."""
     try:
-        rs = _dbx("SELECT ticker FROM delist_watch WHERE (active=1 AND admin_state<>'excluded') OR admin_state='confirmed'", fetch=True) or []
+        rs = _dbx("SELECT ticker FROM delist_watch WHERE (active=1 AND risk<>'warn' AND admin_state<>'excluded') OR admin_state='confirmed'", fetch=True) or []
         return {r[0] for r in rs}
     except Exception:
         return set()
@@ -1140,27 +1140,28 @@ function dyList(b){var rows=DY.rows;
  var seg=el('span','seg');[['table','📋 표'],['card','🃏 카드']].forEach(function(v){var x=el('button',DY.view===v[0]?'on':'',v[1]);x.onclick=function(){DY.view=v[0];Array.prototype.forEach.call(seg.children,function(y){y.className=''});x.className='on';body()};seg.appendChild(x)});tb.appendChild(seg);
  if(DY.src==='web')tb.appendChild(bt('🗑','bt3',function(){if(!confirm(DY.date+' 스캔 기록을 지울까요? (AI 결과·성과 기록은 그대로)'))return;apiJ('/admin/api/daily/delete',{date:DY.date}).then(function(){DY.rows=[];DY.dates=DY.dates.filter(function(d){return d.date!==DY.date});DY.date=(DY.dates[0]&&DY.dates[0].date)||'';if(DY.date)dyOpen(DY.date);else{dyHeadDraw();dyMainDraw()}})}));
  b.appendChild(tb);var lbx=el('div');lbx.style.overflowX='auto';b.appendChild(lbx);function body(){dyListBody(lbx)}body()}
+function dyTk(e,t){e.setAttribute('data-tk',t);e.className=(e.className?e.className+' ':'')+'tkl';e.title='눌러서 종목분석·심층분석 열기';return e}
 function dyChips(flags){var o=document.createDocumentFragment();(flags||[]).slice(0,3).forEach(function(x){o.appendChild(el('span','dyChip',x))});return o}
 function dyListBody(lb){lb.innerHTML='';var a=dyFiltered();var shown=a.slice(0,150);
  if(!a.length){lb.appendChild(el('p','note','조건에 맞는 종목이 없어요.'));return}
  var hasSince=DY.rows.some(function(r){return r.since!=null});
- if(DY.view==='card'){var g=el('div','dyCards');shown.forEach(function(r,i){var c=el('div','dyCard');c.appendChild(el('span','rank','#'+(i+1)));c.appendChild(el('div','nm',r.name));c.appendChild(el('div','cd',r.ticker+(r.market?' · '+r.market:'')+(r.new?' · 🆕':'')));
+ if(DY.view==='card'){var g=el('div','dyCards');shown.forEach(function(r,i){var c=el('div','dyCard');c.appendChild(el('span','rank','#'+(i+1)));c.appendChild(dyTk(el('div','nm',r.name),r.ticker));c.appendChild(el('div','cd',r.ticker+(r.market?' · '+r.market:'')+(r.new?' · 🆕':'')));
   var sc=el('div','sc',r.score+'점');sc.style.color=dyCol(r.score);c.appendChild(sc);var pc=r.now_pct!=null?r.now_pct:r.day_pct;
   function rw(l,v,cl){var x=el('div','rw');x.appendChild(el('span',null,l));var y=el('b',null,v);if(cl)y.style.color=cl;x.appendChild(y);c.appendChild(x)}
   rw('등락',pc==null?'-':(pc>0?'+':'')+pc.toFixed(2)+'%',pc>0?'#e11d48':(pc<0?'#2563eb':''));if(hasSince)rw('스캔 후',r.since==null?'-':(r.since>0?'+':'')+r.since.toFixed(2)+'%',r.since>0?'#e11d48':(r.since<0?'#2563eb':''));rw('RSI',dyN(r.rsi));rw('이평',r.align||'-');rw('음봉강세',r.dip&&r.day_pct<0?r.dip:'-');
-  var fl=el('div');fl.style.marginTop='6px';fl.appendChild(dyChips(r.flags));c.appendChild(fl);var ac=el('div');ac.style.marginTop='8px';ac.appendChild(bt('🏛 심층분석','bt3',function(){try{localStorage.setItem('mini_deep_ticker',r.ticker)}catch(e){}cur='dp';nav();load()}));c.appendChild(ac);g.appendChild(c)});lb.appendChild(g)}
+  var fl=el('div');fl.style.marginTop='6px';fl.appendChild(dyChips(r.flags));c.appendChild(fl);var ac=el('div');ac.style.marginTop='8px';ac.appendChild(bt('📈 종목분석·🏛 심층분석','bt3',function(){window.GoStock(r.ticker)}));c.appendChild(ac);g.appendChild(c)});lb.appendChild(g)}
  else{var t=el('table','dyt'),h=el('tr');['#','종목','점수','등락'].concat(hasSince?['스캔 후']:[]).concat(['RSI','이평','52주(%)','수급 5일 외/기(억)','신호','']).forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
-  shown.forEach(function(r,i){var tr=el('tr');var c0=el('td');c0.appendChild(el('span','rk'+(i<3?' t':''),String(i+1)));tr.appendChild(c0);var nm=el('td');nm.appendChild(el('b',null,r.name));nm.appendChild(el('div','m',r.ticker+(r.market?' · '+r.market:'')+(r.new?' 🆕':'')+(r.streak>1?' · '+r.streak+'일 연속':'')));tr.appendChild(nm);
+  shown.forEach(function(r,i){var tr=el('tr');var c0=el('td');c0.appendChild(el('span','rk'+(i<3?' t':''),String(i+1)));tr.appendChild(c0);var nm=el('td');nm.appendChild(dyTk(el('b',null,r.name),r.ticker));nm.appendChild(el('div','m',r.ticker+(r.market?' · '+r.market:'')+(r.new?' 🆕':'')+(r.streak>1?' · '+r.streak+'일 연속':'')));tr.appendChild(nm);
    var sc=el('td');var w=el('div','dySc');var b1=el('b',null,r.score);b1.style.color=dyCol(r.score);w.appendChild(b1);var trk=el('div','tr');var fi=el('i');fi.style.width=r.score+'%';fi.style.background=dyCol(r.score);trk.appendChild(fi);w.appendChild(trk);sc.appendChild(w);tr.appendChild(sc);
    var pc=r.now_pct!=null?r.now_pct:r.day_pct;tr.appendChild(el('td',pc>0?'up':(pc<0?'dn':''),pc==null?'-':(pc>0?'+':'')+pc.toFixed(2)+'%'));
    if(hasSince)tr.appendChild(el('td',r.since>0?'up':(r.since<0?'dn':''),r.since==null?'-':(r.since>0?'+':'')+r.since.toFixed(2)+'%'));
    tr.appendChild(el('td',null,dyN(r.rsi)));tr.appendChild(el('td',null,r.align||'-'));tr.appendChild(el('td',null,r.pos52==null?'-':dyN(r.pos52,0)));tr.appendChild(el('td','m',r.f5==null?'-':dyN(r.f5,0)+' / '+dyN(r.i5,0)));
    var fl=el('td','fl');fl.appendChild(dyChips(r.flags));if(r.dip>=60&&r.day_pct<0){var dc=el('span','dyChip n','음봉강세 '+r.dip);fl.appendChild(dc)}tr.appendChild(fl);
-   var ac=el('td');ac.appendChild(bt('🏛','bt3',function(){try{localStorage.setItem('mini_deep_ticker',r.ticker)}catch(e){}cur='dp';nav();load()}));var lk=el('a',null,' 증권');lk.href='https://finance.naver.com/item/main.naver?code='+r.ticker;lk.target='_blank';lk.rel='noopener';ac.appendChild(lk);tr.appendChild(ac);t.appendChild(tr)});
+   var ac=el('td');ac.appendChild(bt('📈🏛','bt3',function(){window.GoStock(r.ticker)}));var lk=el('a',null,' 증권');lk.href='https://finance.naver.com/item/main.naver?code='+r.ticker;lk.target='_blank';lk.rel='noopener';ac.appendChild(lk);tr.appendChild(ac);t.appendChild(tr)});
   lb.appendChild(t)}
  if(a.length>150)lb.appendChild(el('p','note','상위 150개만 보여줘요.'));
- lb.appendChild(el('p','note','🏛 = 심층분석으로 열기. 점수는 20일선 이격·거래량·52주 위치·RSI 기반 기술 지표(0~100)이고, 음봉강세는 오늘 하락했지만 정배열·소량 음봉·MA20 지지 등 구조가 건강한 정도예요. 참고용이며 투자 권유가 아니에요.'))}
-function dyPicksDraw(box,ps){box.innerHTML='';if(!ps||!ps.length)return;var g=el('div','dyPicks');ps.forEach(function(x){var c=el('div','dyPick');var cl={'단기':'s','중기':'m','장기':'l'}[x.horizon]||'x';c.appendChild(el('span','hz '+cl,x.horizon||'미분류'));c.appendChild(el('b',null,x.name+' ('+x.ticker+')'));if(x.reason)c.appendChild(el('p',null,x.reason));g.appendChild(c)});box.appendChild(g)}
+ lb.appendChild(el('p','note','📈🏛 또는 종목 이름 = 종목분석·심층분석 탭으로 열기. 점수는 20일선 이격·거래량·52주 위치·RSI 기반 기술 지표(0~100)이고, 음봉강세는 오늘 하락했지만 정배열·소량 음봉·MA20 지지 등 구조가 건강한 정도예요. 참고용이며 투자 권유가 아니에요.'))}
+function dyPicksDraw(box,ps){box.innerHTML='';if(!ps||!ps.length)return;var g=el('div','dyPicks');ps.forEach(function(x){var c=el('div','dyPick');var cl={'단기':'s','중기':'m','장기':'l'}[x.horizon]||'x';c.appendChild(el('span','hz '+cl,x.horizon||'미분류'));c.appendChild(dyTk(el('b',null,x.name+' ('+x.ticker+')'),x.ticker));if(x.reason)c.appendChild(el('p',null,x.reason));g.appendChild(c)});box.appendChild(g)}
 function dyAI(b){var t0=DY.ai[DY.date]||'';
  b.appendChild(el('p','note','후보 25개(+음봉강세 10개)와 거시 환경·수급·최근 뉴스·과거 성과(오답노트)를 담은 요청문을 만들어 설정된 AI를 열어요. AI 답변을 복사하고 이 탭으로 돌아오면 자동으로 읽어 와서 저장하고 성과 추적을 시작해요.'));
  var rr=el('div','bar');rr.appendChild(bt(t0.trim()?'🔁 AI 추천 다시 받기':'🤖 AI 추천주 만들기','bt',function(){dyAIRun()}));b.appendChild(rr);var st=el('div','m');st.id='dyAiSt';b.appendChild(st);dyAiState();
@@ -1171,7 +1172,7 @@ function dyAiState(msg){var z=$('dyAiSt');if(!z)return;var t=DY.ai[DY.date]||'';
 function dyAIRun(){if(!window.MiniAI){toast('AI 도우미 파일(menu_ui.py)이 올라가지 않았어요.');return}
  apiJ('/admin/api/daily/prompt',{date:DY.date}).then(function(j){if(j.error){toast(j.error);return}DY.mc=j.market_context;
   window.MiniAI.run({title:'오늘추천 AI — '+DY.date,key:'daily',steps:[{label:DY.date+' 후보 '+j.count+'종목',prompt:j.prompt}],minLen:300,hint:'AI가 [추천종목] [종합의견] 형식으로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
-   preview:function(t){var ok=/\[추천종목\]/.test(t)||/PICKS_JSON/.test(t)||/\[(단기|중기|장기)/.test(t);var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString()+'자 — '+t.slice(0,260)+(t.length>260?' …':'');return {node:x,canApply:ok||t.length>600}},
+   preview:function(t){var ok=/\[추천종목\]/.test(t)||/PICKS_JSON/.test(t)||/\[(단기|중기|장기)/.test(t);var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString()+'자 — '+t.slice(0,260)+(t.length>260?' …':'');return {node:x,canApply:t.trim().length>=200,strict:ok||t.length>600}},
    apply:function(t){DY.ai[DY.date]=t;return apiJ('/admin/api/daily/ai',{date:DY.date,result:t,market_context:DY.mc||''}).then(function(z){if(z.error)return {message:'읽었지만 저장하지 못했어요: '+z.error};DY.picks[DY.date]=z.picks;setTimeout(dyMainDraw,50);return {message:'AI 추천 '+z.picks.length+'종목을 저장하고 성과 추적에 넣었어요.'}})}})})}
 function dyOut(b){var rows=DY.rows;
  b.appendChild(el('p','note','① 추천 TOP 10 표 이미지 · ② AI 추천주 카드 이미지(AI 답변이 있을 때). 저장 폴더·자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));var ib=el('div');b.appendChild(ib);
@@ -1185,7 +1186,7 @@ function dyTrack(b){var c=el('div');c.appendChild(el('p','note','AI가 추천한
  api('/admin/api/daily/track').then(function(j){body.innerHTML='';var s=j.stat;var t0=el('table','dyt'),h=el('tr');['구분','건수','평균 수익률','수익 비율','확정 평가','승률'].forEach(function(x){h.appendChild(el('th',null,x))});t0.appendChild(h);
   ['전체','단기','중기','장기'].forEach(function(k){var v=s[k];var tr=el('tr');tr.appendChild(el('td',null,k));tr.appendChild(el('td',null,v.n));tr.appendChild(el('td',v.avg>0?'up':(v.avg<0?'dn':''),v.avg==null?'-':(v.avg>0?'+':'')+v.avg+'%'));tr.appendChild(el('td',null,v.up==null?'-':v.up+'%'));tr.appendChild(el('td',null,v.ev));tr.appendChild(el('td',null,v.win==null?'-':v.win+'%'));t0.appendChild(tr)});body.appendChild(t0);
   var tw=el('div');tw.style.overflowX='auto';tw.style.marginTop='8px';var t=el('table','dyt'),hh=el('tr');['추천일','종목','호흡','점수','추천가','현재가','수익률','경과','결과','출처'].forEach(function(x){hh.appendChild(el('th',null,x))});t.appendChild(hh);
-  j.rows.forEach(function(r){var tr=el('tr');tr.appendChild(el('td',null,r.date.slice(5)));tr.appendChild(el('td',null,r.name+' '+r.ticker));tr.appendChild(el('td',null,r.horizon));tr.appendChild(el('td',null,r.score||'-'));tr.appendChild(el('td',null,dyN(r.pick_price,0)));tr.appendChild(el('td',null,dyN(r.now||r.eval_price,0)));
+  j.rows.forEach(function(r){var tr=el('tr');tr.appendChild(el('td',null,r.date.slice(5)));tr.appendChild(dyTk(el('td',null,r.name+' '+r.ticker),r.ticker));tr.appendChild(el('td',null,r.horizon));tr.appendChild(el('td',null,r.score||'-'));tr.appendChild(el('td',null,dyN(r.pick_price,0)));tr.appendChild(el('td',null,dyN(r.now||r.eval_price,0)));
    tr.appendChild(el('td',r.ret>0?'up':(r.ret<0?'dn':''),r.ret==null?'-':(r.ret>0?'+':'')+r.ret+'%'));tr.appendChild(el('td',null,r.age+'일'+(r.due?' ✔':'')));tr.appendChild(el('td',null,r.outcome==='win'?'✅ 승':(r.outcome==='lose'?'❌ 패':(r.outcome==='flat'?'➖ 보합':'진행중'))));tr.appendChild(el('td','m',r.src==='orig'?'원본':'웹'));t.appendChild(tr)});
   tw.appendChild(t);body.appendChild(tw);if(!j.rows.length)body.appendChild(el('p','note','아직 추적 중인 추천이 없어요. [② AI 추천주]에서 AI 답변을 저장하면 시작돼요.'));if(j.settled)body.appendChild(el('p','note','이번에 만기 평가 '+j.settled+'건을 확정했어요.'))})}
 (function(){

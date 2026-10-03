@@ -826,7 +826,7 @@ function card(){ensureCss();var s=slot();if(!s)return null;var c=document.getEle
 function head(c,x){c.innerHTML='';var h=el('div','lh');h.appendChild(el('b',null,'🧪 관리자 분석실'));h.appendChild(el('span','lt','관리자 전용'));c.appendChild(h);
  c.appendChild(el('div','ld','일반 이용자에게는 보이지 않는 관리자 전용 작업대예요. 종목을 분석하면 ① 분석이 자동으로 열리고, 아래 번호 순서대로 ② AI → ③ 이미지 → ④ 글 만들기 → ⑤ 블로그에 쓰기를 진행하세요.'))}
 function draw0(){var c=card();if(!c)return;head(c);var r=el('div','lrow');var b=el('button','p','🧪 분석실 펼치기 — '+(LAB.name||LAB.tk));b.onclick=load;r.appendChild(b);r.appendChild(deepBtn());c.appendChild(r)}
-function deepBtn(){var d=el('button',null,'🏛 심층분석 열기');d.onclick=function(){try{localStorage.setItem('mini_deep_ticker',LAB.tk)}catch(e){}if(typeof openAdminWin==='function')openAdminWin('#dp');else window.open('/admin#dp','mini_admin')};return d}
+function deepBtn(){var d=el('button',null,'🏛 심층분석 열기');d.onclick=function(){try{if(window.MiniTabs&&MiniTabs.openDeep(LAB.tk))return}catch(e){}try{localStorage.setItem('mini_deep_ticker',LAB.tk)}catch(e){}if(typeof openAdminWin==='function')openAdminWin('#dp');else window.open('/admin#dp','mini_admin')};return d}
 function load(){var c=card();head(c);c.appendChild(el('div','note','⏳ 수급·공시·재무를 모으는 중… (처음 한 번 3~6초)'));
  api(BASE+'ext',{ticker:LAB.tk}).then(function(x){if(x.error){LAB.autoImg=false;head(c);c.appendChild(el('div','warn','⚠ '+x.error));var r=el('div','lrow'),b=el('button',null,'다시 시도');b.onclick=load;r.appendChild(b);c.appendChild(r);return}
   LAB.x=x;LAB.open=true;draw()})}
@@ -865,8 +865,8 @@ function secAI(c,x){var s=el('div','lsec');s.id='labS2';s.appendChild(el('h4',nu
 function afterAI(){drawSteps();if(window.ImgKit&&window.ImgKit.mode()==='auto'&&window.ImgKit.when()==='ai'&&LAB.imgPanel&&!LAB.st.img)LAB.imgPanel.gen(true)}
 function applyLab(t){LAB.ai[LAB.tk]=t;setTimeout(afterAI,50);var ta=document.getElementById('labAiTa');if(ta)ta.value=t;var z=document.getElementById('labAiState');if(z)z.textContent='✅ AI 종합 리포트 저장됨 ('+t.length.toLocaleString()+'자) — 아래 블로그 글에 포함돼요.'}
 function applyPub(t){setTimeout(drawSteps,50);var b=document.getElementById('aiPasteBox');if(b){b.value=t;try{renderAiResult()}catch(e){}}var z=document.getElementById('labPubState');if(z)z.textContent=pubState()}
-function prevLab(t){var ok=/##\s*1\./.test(t)||t.length>600;var d=el('div');d.textContent=t.slice(0,500)+(t.length>500?' …':'');return {node:d,canApply:ok,text:ok?null:'형식(## 1. 한줄 결론 …)이 보이지 않아요. 다른 답변이 복사된 건 아닌지 확인하세요.'}}
-function prevPub(t){var ok=/\[\s*\d+\s*\./.test(t)||/^#{1,3}\s*\d+\./m.test(t)||t.length>500;var d=el('div');d.textContent=t.slice(0,500)+(t.length>500?' …':'');return {node:d,canApply:ok,text:ok?null:'형식([1. 기업 소개 …])이 보이지 않아요. 다른 답변이 복사된 건 아닌지 확인하세요.'}}
+function prevLab(t){var ok=/##\s*1\./.test(t)||t.length>600;var d=el('div');d.textContent=t.slice(0,500)+(t.length>500?' …':'');var can=t.trim().length>=200;return {node:d,canApply:can,strict:ok,text:ok?null:'형식(## 1. 한줄 결론 …)이 보이지 않아요. 다른 답변이면 저장하지 마세요. 맞는 답변이면 [저장]을 눌러도 돼요.'}}
+function prevPub(t){var ok=/\[\s*\d+\s*\./.test(t)||/^#{1,3}\s*\d+\./m.test(t)||t.length>500;var d=el('div');d.textContent=t.slice(0,500)+(t.length>500?' …':'');var can=t.trim().length>=200;return {node:d,canApply:can,strict:ok,text:ok?null:'형식([1. 기업 소개 …])이 보이지 않아요. 다른 답변이면 저장하지 마세요. 맞는 답변이면 [저장]을 눌러도 돼요.'}}
 function pubPrompt(){var p=null;try{p=(typeof CUR_PROMPT!=='undefined')?CUR_PROMPT:null}catch(e){}if(p)return Promise.resolve(p);
  try{return _fetchAiPrompt().then(function(d){return (d&&d.prompt)||''}).catch(function(){return ''})}catch(e){return Promise.resolve('')}}
 function runBoth(){if(!window.MiniAI){toast('AI 도우미를 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요.');return}

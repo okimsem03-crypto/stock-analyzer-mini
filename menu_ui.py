@@ -118,6 +118,11 @@ body.mu{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 'Pretendar
 .ma-btn{appearance:none;border:1px solid var(--line,#e5e9f2);background:var(--surface,#fff);color:var(--ink,#0f172a);border-radius:12px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer}
 .ma-btn.p{background:linear-gradient(135deg,#3151d3,#5b7cfa);color:#fff;border-color:transparent;box-shadow:0 6px 16px -6px rgba(49,81,211,.6)}.ma-btn.big{padding:13px 22px;font-size:16px;border-radius:14px}.ma-btn[disabled]{opacity:.5;cursor:default}.ma-btn.okd[disabled]{opacity:1;background:#16a34a;color:#fff;box-shadow:none}
 .ma-pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,Consolas,monospace;max-height:200px;overflow:auto;background:var(--surface,#fff);border:1px solid var(--line,#e5e9f2);border-radius:10px;padding:8px 10px;margin-top:10px}
+
+html.emb .mu-top,html.emb .mu-hero,html.emb .mu-foot{display:none}
+html.emb .mu-wrap{padding-top:14px}
+[data-tk]{cursor:pointer}
+a[data-tk],.tkl{color:#2563eb;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
 """
 
 # ───────────────────────── 공통 JS (MiniAI) ─────────────────────────
@@ -167,7 +172,7 @@ function run(opt){
   var chips=el('div','ma-chips');Object.keys(SITES).forEach(function(k){var c=el('button','ma-chip'+(k===site?' on':''),SITES[k].i+' '+SITES[k].n);c.onclick=function(){site=k;lsSet('mini_ai_site',k);draw()};chips.appendChild(c)});s1.appendChild(chips);
   var row=el('div','ma-row');var go=el('button','ma-btn p big',SITES[site].i+' 복사하고 '+SITES[site].n+' 열기');go.onclick=function(){openAI(s)};row.appendChild(go);
   var sh=el('button','ma-btn','프롬프트 보기');sh.onclick=function(){var p=s1.querySelector('.ma-pre');if(p){p.remove();return}var pre=el('pre','ma-pre');pre.textContent=s.prompt;s1.appendChild(pre)};row.appendChild(sh);
-  var rc=el('button','ma-btn','📋 다시 복사');rc.onclick=function(){var k=copyText(s.prompt);setLive(k?'프롬프트를 다시 복사했어요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',k?'ok':'bad')};row.appendChild(rc);s1.appendChild(row);
+  var rc=el('button','ma-btn','📋 다시 복사');rc.onclick=function(){armed=true;seen[norm(s.prompt)]=1;var k=copyText(s.prompt);setLive(k?'프롬프트를 다시 복사했어요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',k?'ok':'bad')};row.appendChild(rc);s1.appendChild(row);
   s1.appendChild(el('div','ma-d',(SITES[site].q&&encodeURIComponent(s.prompt).length<=PREFILL_MAX*3?SITES[site].n+'가 열리면 질문이 자동으로 입력됩니다. 입력이 비어 있으면 입력칸에 Ctrl+V 하세요.':SITES[site].n+'가 열리면 입력칸에 Ctrl+V(붙여넣기) 한 번만 하세요. 프롬프트는 이미 복사되어 있습니다.')));
   body.appendChild(s1);
   // 2) 답변 복사
@@ -178,30 +183,34 @@ function run(opt){
   // 3) 확인·적용
   var s3=el('div','ma-step');var t3=el('div');t3.appendChild(el('span','ma-sn','3'));t3.appendChild(el('span','ma-st','내용 확인하고 저장'));s3.appendChild(t3);
   ta=el('textarea','ma-ta');ta.placeholder='여기에 AI 답변이 자동으로 들어옵니다. 안 들어오면 이 칸을 누르고 Ctrl+V 하세요.';ta.value=lastText;
-  ta.addEventListener('paste',function(){setTimeout(function(){onText(ta.value,true)},30)});ta.addEventListener('input',function(){lastText=ta.value});s3.appendChild(ta);
+  ta.addEventListener('paste',function(){setTimeout(function(){onText(ta.value,true)},30)});var ptm=null;ta.addEventListener('input',function(){lastText=ta.value;if(applyBtn&&!busy&&!doneSet[cur])applyBtn.disabled=!(ta.value.trim().length>=Math.min(minLen,40));clearTimeout(ptm);ptm=setTimeout(function(){if(ta.value.trim())preview(ta.value,true)},400)});s3.appendChild(ta);
   pvBox=el('div');s3.appendChild(pvBox);var r3=el('div','ma-row');
   var pv=el('button','ma-btn','미리보기');pv.onclick=function(){preview(ta.value)};r3.appendChild(pv);
   applyBtn=el('button','ma-btn p','저장');applyBtn.disabled=true;applyBtn.onclick=function(){doApply()};r3.appendChild(applyBtn);s3.appendChild(r3);
-  if(opt.apply){var sw=el('label','ma-sw');autoCb=el('input');autoCb.type='checkbox';autoCb.checked=(lsGet('mini_ai_auto_'+(opt.key||'x'))==='1')||!!opt.autoApply;autoCb.onchange=function(){lsSet('mini_ai_auto_'+(opt.key||'x'),autoCb.checked?'1':'0')};sw.appendChild(autoCb);sw.appendChild(el('span',null,'답변을 읽으면 확인 없이 바로 저장 (저장되면 "✅ 저장 완료"로 바뀌어요)'));s3.appendChild(sw)}
+  if(opt.apply){var sw=el('label','ma-sw');autoCb=el('input');autoCb.type='checkbox';var _av=lsGet('mini_ai_auto_'+(opt.key||'x'));autoCb.checked=(_av===null)?true:(_av==='1')||!!opt.autoApply;autoCb.onchange=function(){lsSet('mini_ai_auto_'+(opt.key||'x'),autoCb.checked?'1':'0')};sw.appendChild(autoCb);sw.appendChild(el('span',null,'답변을 읽으면 확인 없이 바로 저장 (저장되면 "✅ 저장 완료"로 바뀌어요)'));s3.appendChild(sw)}
   body.appendChild(s3);if(lastText)preview(lastText,true)}
  function openAI(s){var ok=copyText(s.prompt);var S=SITES[site],u=S.u;
   if(S.q){var enc=encodeURIComponent(s.prompt);if(enc.length<=PREFILL_MAX*3)u=S.q+enc}
   openUrl(u);armed=true;seen[norm(s.prompt)]=1;draw();setLive(ok?'📋 프롬프트 복사 완료 — '+S.n+'에서 답변을 받은 뒤 복사하고 돌아오세요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',ok?'ok':'bad',ok)}
- function looksLikeAnswer(t){t=(t||'').trim();if(t.length<minLen)return false;var n=norm(t);if(seen[n])return false;
+ function stripPrompt(t){var raw=String(t||'').trim();for(var i=0;i<steps.length;i++){var p=String(steps[i].prompt||'').trim();if(p.length<80)continue;var tail=p.slice(-48).replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+');
+   try{var m=new RegExp(tail).exec(raw);if(m&&raw.slice(0,60).replace(/\s+/g,' ')===p.slice(0,60).replace(/\s+/g,' ')){var rest=raw.slice(m.index+m[0].length).trim();if(rest.length>=minLen)return rest}}catch(e){}}
+  return raw}
+ function looksLikeAnswer(t,manual){t=stripPrompt(t);if(t.length<minLen)return false;var n=norm(t);if(!manual&&seen[n])return false;
   for(var i=0;i<steps.length;i++){var p=norm(steps[i].prompt);if(n===p||(p&&n.slice(0,60)===p.slice(0,60)))return false}return true}
- function pullClip(manual){
+ function pullClip(manual,tries){tries=tries||0;
   if(!(navigator.clipboard&&navigator.clipboard.readText)){if(manual)setLive('이 브라우저는 자동 읽기를 지원하지 않아요. 아래 칸을 누르고 Ctrl+V 하세요.','bad');if(ta){ta.classList.add('glow');ta.focus()}return}
-  navigator.clipboard.readText().then(function(t){t=(t||'').trim();if(looksLikeAnswer(t))onText(t,false);else if(manual)setLive('클립보드에 AI 답변이 없어요. AI 화면에서 답변 아래 복사 버튼을 먼저 누르세요.','bad')})
-  .catch(function(){setLive('브라우저가 클립보드 읽기를 막았어요. 아래 칸을 누르고 Ctrl+V 하세요. (주소창 왼쪽 자물쇠에서 클립보드 허용을 켜면 다음부터 자동입니다)','bad');if(ta){ta.classList.add('glow');ta.focus()}})}
+  navigator.clipboard.readText().then(function(t){t=stripPrompt((t||'').trim());if(looksLikeAnswer(t,manual))onText(t,false);else if(manual){if(t&&seen[norm(t)])setLive('이미 읽어온 답변이에요. 아래 칸의 내용을 확인하고 저장하세요.','ok');else setLive('클립보드에 AI 답변이 없어요. AI 화면에서 답변 아래 복사 버튼을 먼저 누르세요.','bad')}})
+  .catch(function(){if(tries<2&&!closed){setTimeout(function(){pullClip(manual,tries+1)},700);return}
+   setLive('브라우저가 클립보드 읽기를 막았어요. 아래 칸을 누르고 Ctrl+V 하세요. (주소창 왼쪽 자물쇠에서 클립보드 허용을 켜면 다음부터 자동입니다)','bad');if(ta){ta.classList.add('glow');ta.focus()}})}
  var tm=null;function onBack(){if(!armed||closed)return;clearTimeout(tm);tm=setTimeout(function(){pullClip(false)},350)}
  function onVis(){if(document.visibilityState==='visible')onBack()}
  window.addEventListener('focus',onBack);document.addEventListener('visibilitychange',onVis);
- function onText(t,fromPaste){if(!t)return;lastText=t;if(ta){ta.value=t;ta.classList.remove('glow')}seen[norm(t)]=1;setLive('✅ 답변을 읽어왔어요. 아래 내용을 확인하세요.','ok');
-  preview(t,true).then(function(r){if(r&&r.canApply&&opt.apply&&autoCb&&autoCb.checked)doApply()})}
+ function onText(t,fromPaste){if(!t)return;t=stripPrompt(t);lastText=t;if(ta){ta.value=t;ta.classList.remove('glow')}seen[norm(t)]=1;setLive('✅ 답변을 읽어왔어요. 아래 내용을 확인하세요.','ok');
+  preview(t,true).then(function(r){if(r&&r.canApply&&r.strict!==false&&opt.apply&&autoCb&&autoCb.checked)doApply()})}
  function preview(t,quiet){if(!opt.preview){if(applyBtn)applyBtn.disabled=!t;return Promise.resolve({canApply:!!t})}
   if(!t||!t.trim()){if(!quiet)setLive('답변 내용이 비어 있어요.','bad');return Promise.resolve(null)}
   return Promise.resolve(opt.preview(t,steps[cur])).then(function(r){r=r||{};pvBox.innerHTML='';if(r.node){var w=el('div','ma-pv');w.appendChild(r.node);pvBox.appendChild(w)}else if(r.text){pvBox.appendChild(el('div','ma-live'+(r.canApply?' ok':' bad'),r.text))}
-   if(applyBtn)applyBtn.disabled=!r.canApply;return r}).catch(function(){setLive('미리보기 중 오류가 났어요.','bad');return null})}
+   if(applyBtn&&!doneSet[cur])applyBtn.disabled=!r.canApply;return r}).catch(function(){setLive('미리보기 중 오류가 났어요.','bad');return null})}
  function doApply(){if(busy||!opt.apply)return;busy=true;if(applyBtn){applyBtn.disabled=true;applyBtn.textContent='저장 중…'}
   Promise.resolve(opt.apply(ta.value,steps[cur])).then(function(r){r=r||{};doneSet[cur]=1;drawDots();
    var msg=r.message||'저장했어요.';
@@ -214,6 +223,11 @@ function run(opt){
  return {close:close};
 }
 window.MiniAI={run:run,copy:copyText,sites:SITES};
+// 종목 클릭 → 메인 화면의 종목분석·심층분석 탭을 연다. data-tk="종목코드" 가 붙은 요소를 누르면 동작(탭 안에서 열렸을 때).
+window.GoStock=function(t){t=String(t||'').trim().toUpperCase();if(!t)return false;try{var P=window.parent;if(P&&P!==window&&P.MiniTabs&&P.MiniTabs.openStock){P.MiniTabs.openStock(t);return true}}catch(e){}
+ try{window.open('/?t='+encodeURIComponent(t),'mini_main')}catch(e){}return true};
+document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('[data-tk]'):null;if(!a)return;var t=a.getAttribute('data-tk');if(!t)return;
+ if(e.ctrlKey||e.metaKey||e.shiftKey||e.button===1)return;e.preventDefault();e.stopPropagation();window.GoStock(t)},true);
 })();
 """
 
@@ -245,6 +259,7 @@ def page(title, body, icon="", subtitle="", script="", active="", disclaimer=Tru
               f"if(m.id==={_js_str(active)})a.className='on';n.appendChild(a)}});var on=n.querySelector('a.on');if(on&&n.scrollTo){{n.scrollTo({{left:Math.max(0,on.offsetLeft-(n.clientWidth-on.offsetWidth)/2),behavior:'smooth'}})}}}}).catch(function(){{}});")
     return (f'<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<meta name="theme-color" content="#0b1730"><title>{esc(title)} · 종목분석 미니</title>'
+            f'<script>try{{if(window.self!==window.top)document.documentElement.classList.add("emb")}}catch(e){{}}</script>'
             f'<link rel="stylesheet" href="/assets/mini-ui.css?v={ver}"></head><body class="mu">'
             f'<header class="mu-top"><div class="mu-top-in"><a class="mu-brand" href="/">종목분석 <i>미니</i></a>{nav}</div></header>'
             f'{hero}<main class="mu-wrap">{body}</main>{foot}'

@@ -787,6 +787,7 @@ function dpLoad(p){p.innerHTML='';var top=el('div','c');top.appendChild(el('b',n
  if(!DP.saved){api('/admin/api/deep/saved').then(function(j){DP.saved=j.rows||[];dpSavedDraw(p)})}else dpSavedDraw(p);
  var pre=null;try{pre=localStorage.getItem('mini_deep_ticker');if(pre)localStorage.removeItem('mini_deep_ticker')}catch(e){}
  if(pre&&/^[0-9A-Za-z]{6}$/.test(pre))dpOpen(pre,p);else if(DP.d)dpDraw(p)}
+window.__openTicker=function(t){try{localStorage.setItem('mini_deep_ticker',String(t||''))}catch(e){}cur='dp';nav();load()};
 function dpSavedDraw(p){var sv=$('dpSaved');if(!sv)return;sv.innerHTML='';if(!DP.saved||!DP.saved.length)return;sv.appendChild(el('span','m','원본 저장분 있는 종목(최근순): '));
  DP.saved.slice(0,24).forEach(function(x){var b=bt((x.name||x.ticker)+' '+x.at.slice(5),'bt3',function(){dpOpen(x.ticker,p)});b.style.margin='2px';sv.appendChild(b)})}
 function dpOpen(tk,p,peers){DP.tk=tk;var b=$('dpBody');b.innerHTML='';b.appendChild(el('div','c','⏳ 재무·수급·공시·PEER를 모으는 중… (처음 한 번 5~10초)'));
@@ -816,13 +817,13 @@ function dpCol2(sc){return sc>=70?'#22c55e':(sc>=50?'#f59e0b':'#ef4444')}
 function dpTile(par,l,v,sub,cls){var t=el('div','dpTile');t.appendChild(el('div','l',l));t.appendChild(el('div','v',v));if(sub){var s=el('div','s '+(cls||''),sub);s.style.color=cls==='up'?'#e11d48':(cls==='dn'?'#2563eb':'#64748b');t.appendChild(s)}par.appendChild(t)}
 function dpSec(b,id,title,sub,color){var s=el('div','dpS');s.id='dps_'+id;if(color)s.style.setProperty('--ac',color);var t=el('div','dpT');t.appendChild(document.createTextNode(title));if(sub)t.appendChild(el('small',null,sub));s.appendChild(t);b.appendChild(s);return s}
 function dpTable(parent,head,rows,opt){var tw=el('div');tw.style.overflowX='auto';var t=el('table','dpt'),h=el('tr');head.forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
- rows.forEach(function(r){var tr=el('tr');r.forEach(function(c,i){var td=el('td',(opt&&opt.cls&&opt.cls(r,i))||'',c==null?'-':String(c));tr.appendChild(td)});t.appendChild(tr)});tw.appendChild(t);parent.appendChild(tw)}
+ rows.forEach(function(r){var tr=el('tr');r.forEach(function(c,i){var td=el('td',(opt&&opt.cls&&opt.cls(r,i))||'',c==null?'-':String(c));if(opt&&opt.tk){var kk2=opt.tk(r,i);if(kk2){td.setAttribute('data-tk',kk2);td.className=(td.className?td.className+' ':'')+'tkl'}}tr.appendChild(td)});t.appendChild(tr)});tw.appendChild(t);parent.appendChild(tw)}
 function dpSign(v){return v>0?'up':(v<0?'dn':'')}
-function dpBandCv(v){var bands=v.bands.filter(function(x){return x.low!=null&&x.mid!=null&&x.high!=null}).slice(0,4);if(!bands.length)return document.createElement('div');var W=760,rh=64,H=bands.length*rh+14;return dpCv(W,H,function(c){bands.forEach(function(x,i){var y=i*rh+8,lo=Math.min(x.low,v.price||x.low)*0.9,hi=Math.max(x.high,v.price||x.high)*1.08,sx=function(z){return 150+(z-lo)/(hi-lo)*(W-170)};
+function dpBandCv(v){var bands=v.bands.filter(function(x){return x.low!=null&&x.mid!=null&&x.high!=null}).slice(0,4);if(!bands.length)return document.createElement('div');var W=760,rh=64,H=bands.length*rh+30;return dpCv(W,H,function(c){bands.forEach(function(x,i){var y=i*rh+24,lo=Math.min(x.low,v.price||x.low)*0.9,hi=Math.max(x.high,v.price||x.high)*1.08,sx=function(z){return 150+(z-lo)/(hi-lo)*(W-170)};
   ImgKit.text(c,x.name,0,y+22,{s:13,w:800,c:'#334155',max:140});
   ImgKit.rr(c,150,y+10,W-170,12,6);c.fillStyle='#eef2f7';c.fill();ImgKit.rr(c,sx(x.low),y+6,Math.max(6,sx(x.high)-sx(x.low)),20,8);c.fillStyle='rgba(13,148,136,.35)';c.fill();c.strokeStyle='#0d9488';c.lineWidth=1.6;c.stroke();
   c.fillStyle='#0f766e';c.fillRect(sx(x.mid)-1.5,y+3,3,26);
-  if(v.price){var px=sx(v.price);c.fillStyle='#e11d48';c.fillRect(px-1.5,y-2,3,36);ImgKit.text(c,'현재가 '+dpN(v.price,0),px,y-5,{s:11,w:800,c:'#e11d48',a:'center'})}
+  if(v.price){var px=sx(v.price);c.fillStyle='#e11d48';c.fillRect(px-1.5,y-2,3,36);ImgKit.text(c,'현재가 '+dpN(v.price,0),Math.min(W-50,Math.max(50,px)),y-6,{s:11.5,w:800,c:'#e11d48',a:'center'})}
   var xl=sx(x.low),xm=sx(x.mid),xh=sx(x.high);ImgKit.text(c,dpN(x.low,0),xl,y+46,{s:11.5,w:700,c:'#64748b',a:xl<190?'left':'center'});ImgKit.text(c,dpN(x.high,0),xh,y+46,{s:11.5,w:700,c:'#64748b',a:'right'});if(xm-xl>80&&xh-xm>80)ImgKit.text(c,dpN(x.mid,0),xm,y+46,{s:12,w:900,c:'#0f766e',a:'center'})})})}
 function dpFinCv(ys){var K=ImgKit,W=820,H=330;return dpCv(W,H,function(c){K.legend(c,6,16,[{name:'매출액',color:'#2563eb'},{name:'영업이익',color:'#f59e0b'},{name:'영업이익률(%)',color:'#e11d48',line:1}],13);
  K.bars(c,0,24,W,H-24,{labels:ys.map(function(y){return String(y.y).slice(2)+'년'}),est:ys.map(function(y){return !!y.estimate}),bars:[{name:'매출액',values:ys.map(function(y){return y.rev}),color:'#2563eb'},{name:'영업이익',values:ys.map(function(y){return y.op}),color:'#f59e0b'}],
@@ -862,7 +863,7 @@ function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML
  if(v.bands.length){c4.appendChild(dpBandCv(v));dpTable(c4,['방법','낮은 값','중간','높은 값','근거'],v.bands.map(function(x){return [x.name,dpN(x.low,0),dpN(x.mid,0),dpN(x.high,0),x.basis]}));c4.appendChild(el('p','note','🔴 현재가 '+dpN(v.price,0)+'원'+(v.upside!=null?' · 컨센서스 목표가 대비 '+(v.upside>0?'+':'')+v.upside+'%':'')+'. 초록 막대=낮은~높은 값, 짙은 선=중간. PEER·업종 배수를 단순 적용한 값이라 적정주가·목표가가 아니에요.'))}else c4.appendChild(el('p','note','PEER 배수나 EPS 자료가 부족해 밴드를 만들지 못했어요.'));
  /* ── PEER ── */
  var c5=dpSec(b,'peer','🤝 PEER 비교','동일 업종','#7c3aed');navAdd('peer','🤝 PEER');
- if(d.peers.length){var me=[d.name+' (본 종목)',dpN(fu.PER),dpN(fu.PBR,2),dpN(bs.roe),dpN(bs.opm),'-',dpN((d.price||{}).pct20)];dpTable(c5,['종목','PER','PBR','ROE(%)','영업이익률(%)','시총(억)','20일(%)'],[me].concat(d.peers.map(function(x){return [x.name+' '+x.ticker,dpN(x.per),dpN(x.pbr,2),dpN(x.roe),dpN(x.opm),dpN(x.cap_eok,0),dpN(x.pct20)]})))}else c5.appendChild(el('p','note','동일 업종 PEER를 찾지 못했어요. 아래에 종목코드를 직접 넣을 수 있어요.'));
+ if(d.peers.length){var me=[d.name+' (본 종목)',dpN(fu.PER),dpN(fu.PBR,2),dpN(bs.roe),dpN(bs.opm),'-',dpN((d.price||{}).pct20)];dpTable(c5,['종목','PER','PBR','ROE(%)','영업이익률(%)','시총(억)','20일(%)'],[me].concat(d.peers.map(function(x){var r=[x.name+' '+x.ticker,dpN(x.per),dpN(x.pbr,2),dpN(x.roe),dpN(x.opm),dpN(x.cap_eok,0),dpN(x.pct20)];r._t=x.ticker;return r})),{tk:function(r,i){return i===0?r._t:null}})}else c5.appendChild(el('p','note','동일 업종 PEER를 찾지 못했어요. 아래에 종목코드를 직접 넣을 수 있어요.'));
  var pr=el('div','bar');var pi=el('input');pi.placeholder='PEER 종목코드 (쉼표로 구분, 예: 000660,005380)';pi.style.width='300px';pi.value=(DP.peers[d.ticker]||[]).join(',');pr.appendChild(pi);pr.appendChild(bt('PEER 다시 계산','bt2',function(){var a=pi.value.split(/[ ,]+/).map(function(x){return x.trim().toUpperCase()}).filter(function(x){return /^[0-9A-Z]{6}$/.test(x)}).slice(0,6);DP.peers[d.ticker]=a;dpOpen(d.ticker,p,a)}));c5.appendChild(pr);
  /* ── 체크리스트 ── */
  var okn=d.checklist.filter(function(x){return x.state==='ok'}).length,tot=d.checklist.filter(function(x){return x.state!=='na'}).length;var c6=dpSec(b,'chk','📝 투자 전 체크리스트',okn+'/'+tot+' 충족','#ca8a04');navAdd('chk','📝 체크');
@@ -891,7 +892,7 @@ function dpAiState(){var d=DP.d,z=$('dpAiState');if(!z||!d)return;var t=DP.ai[d.
 function dpAI(d){if(!window.MiniAI){toast('AI 도우미 파일(menu_ui.py)이 올라가지 않았어요.');return}
  apiJ('/admin/api/deep/prompt',{ticker:d.ticker,peers:DP.peers[d.ticker]||[]}).then(function(j){if(j.error){toast(j.error);return}
   window.MiniAI.run({title:'기업 심층분석 AI — '+j.name,key:'deep',steps:[{label:j.name,prompt:j.prompt}],minLen:400,hint:'AI가 "## 1. 사업 현황 …" 형식으로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
-   preview:function(t){var ok=/##\s*1\./.test(t)||t.length>900;var n=(t.match(/^#{1,4}\s*\d+\./gm)||[]).length;var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString()+'자 · 섹션 '+n+'개 — '+t.slice(0,300)+(t.length>300?' …':'');return {node:x,canApply:ok,text:ok?null:'형식(## 1. 사업 현황 …)이 보이지 않아요. 다른 답변이 복사된 건 아닌지 확인하세요.'}},
+   preview:function(t){var ok=/##\s*1\./.test(t)||t.length>900;var n=(t.match(/^#{1,4}\s*\d+\./gm)||[]).length;var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString()+'자 · 섹션 '+n+'개 — '+t.slice(0,300)+(t.length>300?' …':'');var can=t.trim().length>=300;return {node:x,canApply:can,strict:ok,text:ok?null:'형식(## 1. 사업 현황 …)이 보이지 않아요. 다른 답변이면 저장하지 마세요. 맞는 답변이면 [저장]을 눌러도 돼요.'}},
    apply:function(t){DP.ai[d.ticker]=t;var ta=$('dpAiTa');if(ta)ta.value=t;dpAiState();return Promise.resolve({message:'AI 글을 읽어 왔어요. 아래 [글 만들기]를 누르세요.'})}})})}
 (function(){
 var K=window.ImgKit;if(!K||window.DpImg)return;
@@ -966,7 +967,7 @@ function sum(d,scale){var rk=risk(d),oy=rk?100:0,W=1080,vv0=((d.valuation||{}).b
  if(!bands.length)T(c,'PEER 배수·EPS 자료가 부족해 밴드를 만들지 못했어요.',84,y+110,{s:22,w:600,c:MUT});
  bands.forEach(function(b,i){var yy=y+120+i*78,lo=Math.min(b.low,v.price||b.low)*0.9,hi=Math.max(b.high,v.price||b.high)*1.08,sx=function(z){return 300+(z-lo)/(hi-lo)*(W-100-300-40)};T(c,b.name,84,yy+12,{s:22,w:800,c:'#334155',max:200});
   RR(c,300,yy-2,W-100-340,14,7);c.fillStyle='#eef2f7';c.fill();RR(c,sx(b.low),yy-8,Math.max(8,sx(b.high)-sx(b.low)),26,10);c.fillStyle='rgba(13,148,136,.35)';c.fill();c.strokeStyle='#0d9488';c.lineWidth=2;c.stroke();c.fillStyle='#0f766e';c.fillRect(sx(b.mid)-2,yy-12,4,34);
-  if(v.price){var px=sx(v.price);c.fillStyle=UP;c.fillRect(px-2,yy-18,4,46);if(i===0)T(c,'현재가 '+N(v.price,0),Math.max(px,330),yy-26,{s:19,w:900,c:UP,a:'center'})}
+  if(v.price){var px=sx(v.price);c.fillStyle=UP;c.fillRect(px-2,yy-18,4,46);if(i===0)T(c,'현재가 '+N(v.price,0),Math.min(W-170,Math.max(px,330)),yy-26,{s:19,w:900,c:UP,a:'center'})}
   var xl=sx(b.low),xm=sx(b.mid),xh=sx(b.high);T(c,N(b.low,0),xl,yy+44,{s:17,w:700,c:MUT,a:xl<340?'left':'center'});T(c,N(b.high,0),xh,yy+44,{s:17,w:700,c:MUT,a:'right'});if(xm-xl>110&&xh-xm>110)T(c,N(b.mid,0),xm,yy+44,{s:19,w:900,c:'#0f766e',a:'center'})});
  y+=bh+30;
  /* C. PEER */

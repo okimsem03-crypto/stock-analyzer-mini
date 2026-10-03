@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v145 — ① 메인 화면 메뉴 바가 '탭 줄'로: 메뉴를 누르면 이 화면 안의 탭으로 열리고 다른 탭으로 옮겨도 내용이 그대로 남음(×로 닫기) ② 숨김(🔒) 메뉴·관리자 화면도 팝업 없이 메인 화면 안에서 실행 ③ 오늘추천·심층분석·거래정지 등에서 종목을 누르면 종목분석 탭 + 심층분석 탭이 함께 열림 ④ 심층분석 밸류에이션 밴드의 '현재가' 글자 잘림 수정 ⑤ AI 복사·적용 점검(질문까지 같이 복사해도 답변만 인식, 저장 버튼 조건 완화, 기본 자동 저장) ⑥ 거래정지·상폐 메뉴를 원본 '투자주의' 화면 방식으로 개편(전종목 시세 목록 한 번으로 스크리닝·기준 설정·위험/경계·신규진입/졸업·이미지 대시보드·AI 조언·블로그) + AI 일괄 분석(보이는 전 종목을 묶음으로 이어서).
 ✨ v143 — 관리자 [🖼 이미지 저장] 설정 화면이 비어 보이던 문제 보강: 설정을 기다리지 않고 폴더·저장 방식 칸을 먼저 표시, 응답이 늦거나 실패하면 이유를 화면에 안내.
 ✨ v142 — 관리자 분석실을 작업 순서(① 분석 자동 → ② AI 분석+종합 리포트 → ③ 이미지 만들기(자동 저장 선택) → ④ 글 만들기 → ⑤ 블로그에 쓰기) 버튼으로 재구성, 이미지 저장 폴더 지정 오류 안내·점검 보강, '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 왼쪽 아래 떠 있는 버튼으로 이동(스마트폰은 아래에서 올라오는 창).
 ✨ v139 — 관리자 전용 [🧪 분석실]: 종목분석 화면에서 5축 종합점수·수급(외국인/기관/개인)·재무 심층분석·공시 분류·AI 종합 리포트(수동 AI 자동화)와, 원본 방식 블로그 HTML(서식 그대로 복사) 만들기·작성 이력(중복 경고) 추가. 관리자 화면에 [📝 블로그 이력] 탭, 프롬프트 탭에 분석실 프롬프트.
@@ -326,7 +327,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v144"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v145"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -3890,14 +3891,14 @@ def _admin_deny(write=False):
 
 def _admin_headers(resp, nonce=None):
     resp.headers["Cache-Control"] = "no-store"
-    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["X-Frame-Options"] = "SAMEORIGIN"
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "no-referrer"
     resp.headers["X-Robots-Tag"] = "noindex, nofollow"
     if nonce:
         resp.headers["Content-Security-Policy"] = (
             f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; connect-src 'self'; "
-            "img-src 'self' data:; frame-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+            "img-src 'self' data:; frame-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'")
     return resp
 
 
@@ -4230,6 +4231,7 @@ ADMIN_APP_HTML = r"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow"><title>관리자 · 종목분석 미니</title>
 <style nonce="{{ nonce }}">
 *{box-sizing:border-box}body{margin:0;background:#f1f5f9;font-family:system-ui,'Malgun Gothic',sans-serif;color:#1f2937}
+body.emb header{display:none}body.emb.one nav{display:none}body.emb .w{max-width:none;padding:10px 14px}body.emb .dpNav{top:0!important}.tkl{color:#2563eb;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 header{background:#0f172a;color:#fff;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:5}
 header b{font-size:15px;flex:1}header #ver{font-weight:400;opacity:.7}header a.home{color:#93c5fd;font-size:13px;text-decoration:none;margin-right:6px}header button{background:#334155;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12.5px;cursor:pointer}
 header button.red{background:#b91c1c}.w{max-width:960px;margin:0 auto;padding:14px}
@@ -4252,7 +4254,8 @@ textarea{border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-size:12.5px
 <div class="w"><nav id="nav"></nav><div id="pane"></div></div><div id="toast"></div>
 <script nonce="{{ nonce }}">
 var CSRF="{{ csrf }}";var cur='sum';var EXT={};
-var TABS=[['sum','요약'],['dl','🚫 거래정지·상폐'],['pr','✍ 프롬프트'],['mn','⚙ 메뉴·설정'],['cmt','댓글'],['ovw','기업개요'],['log','보안 기록']];
+try{if(window.self!==window.top){document.body.classList.add('emb');if(!/embed=full/.test(location.search))document.body.classList.add('one')}}catch(e){}
+var TABS=[['sum','요약'],['pr','✍ 프롬프트'],['mn','⚙ 메뉴·설정'],['cmt','댓글'],['ovw','기업개요'],['log','보안 기록']];
 function $(i){return document.getElementById(i)}
 function el(t,cls,txt){var e=document.createElement(t);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
 var LASTBTN=null,_tt=null;document.addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('button'):null;if(b)LASTBTN=b},true);
@@ -4280,7 +4283,7 @@ function load(){var p=$('pane');p.textContent='불러오는 중…';
   d.rows.forEach(function(r){var c=el('div','c');c.appendChild(el('div','m',r.name+'('+r.ticker+') · '+r.saved_at));c.appendChild(el('div','b',r.body));
    var b=el('button','del','삭제');b.onclick=function(){if(!confirm('저장된 개요를 삭제할까요?'))return;api('/admin/api/overview/'+r.ticker+'/delete',1).then(function(j){if(j.ok){c.remove();toast('삭제했어요')}else toast(j.error||'실패')})};c.appendChild(b);p.appendChild(c)});
   if(!d.rows.length)p.appendChild(el('p','note','아직 저장된 개요가 없어요.'))});
- else if(cur==='dl')dlLoad(p);else if(cur==='pr')prLoad(p);else if(cur==='mn')mnLoad(p);
+ else if(cur==='pr')prLoad(p);else if(cur==='mn')mnLoad(p);
  else api('/admin/api/log').then(function(d){p.innerHTML='';p.appendChild(el('p','note','최근 80건 · 모르는 IP의 login_ok 가 있으면 바로 [모든 세션 종료]를 누르고 환경변수를 점검하세요.'));
   var t=el('table');var h=el('tr');['시각(KST)','이벤트','IP','브라우저','내용'].forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
   d.rows.forEach(function(r){var tr=el('tr');[r.at,r.event,r.ip,(r.ua||'').slice(0,50),r.detail||''].forEach(function(x,i){var td=el('td',i===1&&/fail|blocked|lock/.test(x)?'bad':(i===1&&x==='login_ok'?'good':''),x);tr.appendChild(td)});t.appendChild(tr)});p.appendChild(t)})}
@@ -4293,98 +4296,6 @@ function bt(txt,cls,fn){var b=el('button',cls||'bt',txt);b.onclick=fn;return b}
 function copyTxt(t){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast('복사했어요')},function(){fbCopy(t)})}else fbCopy(t)}
 function fbCopy(t){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');toast('복사했어요')}catch(e){toast('복사하지 못했어요 — 직접 선택해 복사하세요')}a.remove()}
 function poll(job,onTick,onEnd){var t=setInterval(function(){api('/admin/api/job/'+job).then(function(j){onTick(j);if(j.status!=='running'){clearInterval(t);onEnd(j)}}).catch(function(){clearInterval(t)})},2500)}
-var KIND={halt:'거래정지 의심',delist:'상폐·정리매매 의심',manual:'직접 추가',caution:'동전주'};
-
-/* ── 거래정지·상폐 ── */
-var DL={rows:[],f:{kind:'',st:'',q:''},sel:{},meta:null,timer:null};
-function dlLoad(p){
- api('/admin/api/delist/list').then(function(d){
-  if(cur!=='dl')return;DL.rows=d.rows;DL.meta=d;p.innerHTML='';
-  var top=el('div','c');
-  var pub=el('div','note');pub.appendChild(el('b',null,'이 메뉴는 지금 '+(d.public?'🌐 공개 중':'🔒 관리자 전용')+'입니다. '));
-  pub.appendChild(document.createTextNode(d.public?'일반 이용자는 "확정"한 종목만 볼 수 있어요.':'일반 이용자에게는 보이지 않아요.'));
-  pub.appendChild(bt(d.public?'비공개로 전환':'공개로 전환','bt2',function(){if(!confirm(d.public?'일반 이용자에게서 이 메뉴를 숨길까요?':'이 메뉴를 공개할까요? 공개되면 \'확정\'한 종목만 일반 이용자에게 보입니다.'))return;apiJ('/admin/api/settings',{menu_delist_public:d.public?'0':'1'}).then(function(){toast('바꿨어요');load()})}));
-  top.appendChild(pub);
-  var ls=d.last_scan||{};var info=el('div','note','검사 대상 '+d.universe+'종목'+(ls.finished?' · 마지막 스캔 '+new Date(ls.finished*1000).toLocaleString('ko-KR')+' (응답 '+ls.ok+'/'+ls.total+', 후보 '+ls.flagged+')':' · 아직 스캔한 적 없어요'));
-  top.appendChild(info);
-  var st=el('div','note');st.id='dlst';top.appendChild(st);
-  var row=el('div','bar');
-  var sb=bt('🔎 후보 스캔 시작','bt',function(){if(!confirm('네이버에서 전 종목의 거래 상태를 확인합니다(수 분 걸려요). 계속할까요?'))return;apiJ('/admin/api/delist/scan',{}).then(function(j){if(j.error)toast(j.error);else{toast('스캔을 시작했어요');DL._wasRunning=true;dlWatch()}})});
-  row.appendChild(sb);row.appendChild(bt('중단','bt2',function(){apiJ('/admin/api/delist/scan-cancel',{}).then(function(){toast('중단 요청')})}));
-  var ai=el('input');ai.placeholder='종목코드 6자리 직접 추가';ai.maxLength=6;ai.style.width='170px';row.appendChild(ai);
-  row.appendChild(bt('추가','bt2',function(){apiJ('/admin/api/delist/add',{ticker:ai.value}).then(function(j){if(j.error)toast(j.error);else{toast(j.name+' 추가');load()}})}));
-  top.appendChild(row);p.appendChild(top);
-  /* 필터 */
-  var fb=el('div','bar');
-  var k=el('select');[['','종류: 전체'],['halt','거래정지 의심'],['delist','상폐·정리매매 의심'],['manual','직접 추가'],['caution','동전주']].forEach(function(o){var x=el('option',null,o[1]);x.value=o[0];k.appendChild(x)});k.value=DL.f.kind;k.onchange=function(){DL.f.kind=k.value;dlTable()};fb.appendChild(k);
-  var s=el('select');[['','상태: 전체'],['todo','미검증'],['ai','AI 검증됨'],['confirmed','확정'],['excluded','제외']].forEach(function(o){var x=el('option',null,o[1]);x.value=o[0];s.appendChild(x)});s.value=DL.f.st;s.onchange=function(){DL.f.st=s.value;dlTable()};fb.appendChild(s);
-  var q=el('input');q.placeholder='종목명·코드 검색';q.value=DL.f.q;q.oninput=function(){DL.f.q=q.value;dlTable()};fb.appendChild(q);p.appendChild(fb);
-  /* 일괄 작업 */
-  var ab=el('div','bar');
-  ab.appendChild(bt('📋 AI 검증 프롬프트 만들기(수동)','bt',function(){dlManual()}));
-  var auto=bt('🤖 AI 자동 검증(서버 키)','bt',function(){dlAuto()});ab.appendChild(auto);
-  ab.appendChild(bt('✔ 확정','bt2',function(){dlMark('confirmed')}));ab.appendChild(bt('✖ 제외','bt2',function(){dlMark('excluded')}));ab.appendChild(bt('↺ 상태 해제','bt2',function(){dlMark('')}));
-  ab.appendChild(el('span','note','선택한 종목이 없으면 "아직 AI 검증 안 한 후보" 전체(최대 150개)를 대상으로 합니다.'));
-  p.appendChild(ab);
-  var panel=el('div');panel.id='dlpanel';p.appendChild(panel);
-  var tb=el('div');tb.id='dltb';p.appendChild(tb);dlTable();dlWatch(true);
- })}
-function dlWatch(quiet){
- if(DL.timer)clearInterval(DL.timer);
- function tick(){if(cur!=='dl'||!$('dlst')){clearInterval(DL.timer);return}
-  api('/admin/api/delist/scan-status').then(function(s){var e=$('dlst');if(!e)return;
-   if(s.running){e.textContent='⏳ 스캔 중… '+s.done+' / '+s.total+' (후보 확인 중, 응답 '+s.ok+')';e.className='note'}
-   else{e.textContent=s.error?'⚠ '+s.error:(s.total?'✅ 스캔 끝 — '+s.total+'종목 중 응답 '+s.ok+', 후보 '+s.flagged:'');e.className='note'+(s.error?' bad':'');
-    if(DL.timer&&DL._wasRunning){DL._wasRunning=false;clearInterval(DL.timer);load();return}}
-   DL._wasRunning=s.running})}
- tick();DL.timer=setInterval(tick,2500)}
-function dlVisible(){var f=DL.f;return DL.rows.filter(function(r){
-  if(f.kind&&r.kind!==f.kind)return false;
-  if(f.st==='todo'&&(r.ai_verdict||r.admin_state))return false;
-  if(f.st==='ai'&&!r.ai_verdict)return false;
-  if(f.st==='confirmed'&&r.admin_state!=='confirmed')return false;
-  if(f.st==='excluded'&&r.admin_state!=='excluded')return false;
-  if(f.q&&(r.name+r.ticker).indexOf(f.q)<0)return false;return true})}
-function dlTable(){var box=$('dltb');if(!box)return;box.innerHTML='';var rows=dlVisible();
- box.appendChild(el('p','note',rows.length+'개 표시 (전체 '+DL.rows.length+'개) · 자동 신호는 틀릴 수 있어요. AI 검증과 공시 확인 뒤에 확정하세요.'));
- if(!rows.length){box.appendChild(el('p','note','표시할 종목이 없어요. [후보 스캔 시작]을 눌러 보세요.'));return}
- var t=el('table'),h=el('tr');var all=el('input');all.type='checkbox';all.onchange=function(){rows.forEach(function(r){if(all.checked)DL.sel[r.ticker]=1;else delete DL.sel[r.ticker]});dlTable()};var th0=el('th');th0.appendChild(all);h.appendChild(th0);
- ['종목','종류 · 자동 신호','AI 판정','내 결정',''].forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
- rows.forEach(function(r){var tr=el('tr');var c=el('td');var cb=el('input');cb.type='checkbox';cb.checked=!!DL.sel[r.ticker];cb.onchange=function(){if(cb.checked)DL.sel[r.ticker]=1;else delete DL.sel[r.ticker]};c.appendChild(cb);tr.appendChild(c);
-  var n=el('td');n.style.cssText='min-width:130px;word-break:keep-all';n.appendChild(el('b',null,r.name));n.appendChild(el('div','m',r.ticker+' · '+(r.market||'')+(r.price?' · '+r.price.toLocaleString()+'원':'')));tr.appendChild(n);
-  var s=el('td');s.appendChild(el('div',null,KIND[r.kind]||r.kind));(r.signals||[]).forEach(function(x){s.appendChild(el('div','m',x))});tr.appendChild(s);
-  var a=el('td');if(r.ai_verdict){a.appendChild(el('b',/정상|확인불가/.test(r.ai_verdict)?'':'bad',r.ai_verdict));a.appendChild(el('div','m',(r.ai_basis||'')+(r.ai_date?' ('+r.ai_date+')':'')));if(r.ai_source)a.appendChild(el('div','m','출처: '+r.ai_source));a.appendChild(el('div','m',(r.ai_mode==='auto'?'자동':'수동')+' · '+r.ai_at))}else a.appendChild(el('span','m','—'));tr.appendChild(a);
-  var m=el('td');if(r.admin_state==='confirmed')m.appendChild(el('b','good','확정: '+r.admin_label));else if(r.admin_state==='excluded')m.appendChild(el('span','m','제외'));else m.appendChild(el('span','m','—'));if(r.admin_note)m.appendChild(el('div','m',r.admin_note));tr.appendChild(m);
-  var g=el('td');g.appendChild(bt('원본','bt3',function(){dlRaw(r.ticker)}));tr.appendChild(g);t.appendChild(tr)});
- box.appendChild(t)}
-function dlRaw(tk){var pn=$('dlpanel');api('/admin/api/delist/diag/'+tk).then(function(j){pn.innerHTML='';var c=el('div','c');c.appendChild(el('div','m',tk+' — 네이버가 보내 준 기본정보 원본(자동 신호가 맞는지 확인용)'));var pre=el('pre',null,j.raw||j.error||'');pre.style.cssText='white-space:pre-wrap;font-size:11.5px;max-height:260px;overflow:auto';c.appendChild(pre);c.appendChild(bt('닫기','bt3',function(){pn.innerHTML=''}));pn.appendChild(c);pn.scrollIntoView()})}
-function dlSelList(){return Object.keys(DL.sel)}
-function dlMark(state){var tk=dlSelList();if(!tk.length){toast('먼저 종목을 체크하세요');return}
- var label='',note='';
- if(state==='confirmed'){var opts=DL.meta.public_labels;label=prompt('확정할 상태를 입력하세요: '+opts.join(' / '),'');if(!label)return;label=label.trim();if(opts.indexOf(label)<0){toast('목록 중 하나를 정확히 입력하세요');return}
-  note=prompt('공개 화면에 보일 메모(선택, 120자까지)','')||''}
- else if(!confirm(tk.length+'개 종목을 '+(state==='excluded'?'목록에서 제외':'상태 해제')+'할까요?'))return;
- apiJ('/admin/api/delist/mark',{tickers:tk,state:state,label:label,note:note}).then(function(j){if(j.error)toast(j.error);else{DL.sel={};toast(j.n+'개 처리했어요');load()}})}
-function dlManual(){var tk=dlSelList();var pn=$('dlpanel');pn.innerHTML='만드는 중…';
- apiJ('/admin/api/delist/ai-prompt',{tickers:tk}).then(function(j){pn.innerHTML='';if(j.error){pn.appendChild(el('p','note bad',j.error));return}
-  if(!window.MiniAI){pn.appendChild(el('p','note bad','AI 도우미 파일(menu_ui.py)이 올라가지 않았어요. 업로드 목록을 확인해 주세요.'));return}
-  var steps=j.chunks.map(function(ch){return {label:ch.n+'번 · '+ch.count+'종목',prompt:ch.prompt}});
-  pn.appendChild(el('p','note','수동 AI 검증 창을 열었어요 — 프롬프트 '+j.chunks.length+'개, 종목 '+j.total+'개. 창을 닫았다면 [수동 AI] 버튼을 다시 누르세요.'));
-  window.MiniAI.run({title:'거래정지·상폐 AI 검증',key:'delist',steps:steps,minLen:20,
-   hint:'AI가 표(종목코드|판정|근거|기준일|출처)로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
-   preview:function(text){return apiJ('/admin/api/delist/ai-paste',{text:text,dry:true}).then(function(x){var d=el('div');dlPreview(d,x,false);return {node:d,canApply:(x.rows||[]).length>0}})},
-   apply:function(text){return apiJ('/admin/api/delist/ai-paste',{text:text}).then(function(x){DL.sel={};setTimeout(load,1200);return {message:(x.applied||0)+'건을 저장했어요.'}})},
-   onClose:function(){pn.innerHTML=''}})})}
-function dlPreview(out,x,saved){out.innerHTML='';out.appendChild(el('p','note',(saved?'저장 결과: ':'읽은 결과: ')+x.rows.length+'줄 · 목록에 있는 종목 '+x.known+'개'+(x.bad?' · 판정을 못 읽은 줄 '+x.bad:'')+(x.rows.length?'':' — "종목코드|판정|근거|기준일|출처" 형식의 줄이 없어요.')));
- if(!x.rows.length)return;var t=el('table'),h=el('tr');['종목','판정','근거','기준일','출처'].forEach(function(y){h.appendChild(el('th',null,y))});t.appendChild(h);
- x.rows.forEach(function(r){var tr=el('tr');[(r.name||'(목록에 없음)')+' '+r.ticker,r.verdict,r.basis,r.date,r.source].forEach(function(y,i){tr.appendChild(el('td',i===0&&!r.known?'bad':'',y))});t.appendChild(tr)});out.appendChild(t)}
-function dlAuto(){var tk=dlSelList();if(!confirm('서버의 AI API 키로 '+(tk.length?tk.length+'개':'아직 검증 안 한 후보 전체(최대 150개)')+'를 검증합니다. 사용량(비용)이 발생할 수 있어요. 계속할까요?'))return;
- var pn=$('dlpanel');apiJ('/admin/api/delist/ai-auto',{tickers:tk}).then(function(j){if(j.error){toast(j.error);return}
-  pn.innerHTML='';var c=el('div','c');var msg=el('div','note','⏳ AI 검증 중… ('+j.n+'개)');c.appendChild(msg);pn.appendChild(c);
-  poll(j.job,function(s){msg.textContent='⏳ AI 검증 중… '+s.done+' / '+s.total+' 묶음'},function(s){
-   msg.textContent=(s.status==='done'?'✅ 끝 — '+s.result.applied+'건 저장':'⚠ 오류로 멈췄어요')+(s.msg?' · '+s.msg:'');
-   s.errors.forEach(function(e){c.appendChild(el('div','m bad',e))});c.appendChild(bt('목록 새로고침','bt2',function(){load()}))})})}
-
 /* ── 프롬프트 ── */
 function prLoad(p){api('/admin/api/prompts').then(function(d){if(cur!=='pr')return;p.innerHTML='';
  p.appendChild(el('p','note','AI에게 보내는 문구를 직접 고치거나, AI의 도움으로 더 좋게 만들 수 있어요. 고친 내용은 저장하기 전에는 적용되지 않고, 저장하면 이력이 남아 언제든 되돌릴 수 있어요.'));
@@ -5598,6 +5509,22 @@ HTML_TEMPLATE = r"""
     color:#1e293b; font-size:13.5px; font-weight:700; text-decoration:none; font-family:inherit; cursor:pointer;}
   .mmItem:hover{border-color:#5b7cfa; background:#eef2ff; color:#3151d3;}
   .mmItem.hid{border:1px dashed #f59e0b; background:#fffbeb; color:#92400e;}
+  /* 🗂 [v145] 메뉴 바 = 탭 줄. 열어 둔 메뉴는 숨겨도 내용이 그대로 남는다 */
+  .mmItem.on{background:#0f172a; border-color:#0f172a; color:#fff;}
+  .mmItem.on:hover{background:#0f172a; color:#fff;}
+  .mmItem.open:not(.on){border-color:#93c5fd; background:#eff6ff;}
+  .mmItem.nw:not(.on){border-color:#f59e0b; background:#fffbeb;}
+  .mmItem .dot{width:7px; height:7px; border-radius:50%; background:#22c55e; display:inline-block;}
+  .mmItem.nw .dot{background:#f59e0b;}
+  .mmItem .tx{margin-left:2px; padding:0 5px; border-radius:50%; opacity:.55; font-size:13px; line-height:1.3;}
+  .mmItem .tx:hover{opacity:1; background:rgba(148,163,184,.35);}
+  .tabHost{display:none; background:#f1f5f9; position:relative;}
+  body.tabOn .tabHost{display:block;}
+  body.tabOn .wrap{display:none;}
+  .tabHost iframe{display:none; width:100%; border:0; background:#f1f5f9;}
+  .tabHost iframe.on{display:block;}
+  .tabMsg{display:none; position:absolute; left:50%; top:90px; transform:translateX(-50%); background:#0f172a; color:#fff; border-radius:999px; padding:9px 18px; font-size:13px; font-weight:700; z-index:2;}
+  .tabMsg.on{display:block;}
   .aiServiceBtn{
     border:none; border-radius:10px; padding:11px 16px; font-size:12.5px; font-weight:700;
     cursor:pointer; font-family:inherit; color:#fff; display:inline-flex; align-items:center; gap:6px;
@@ -6154,6 +6081,7 @@ HTML_TEMPLATE = r"""
 </div>
 <!-- 🧭 [v138] 메인 화면 메뉴 바 — 보이는 메뉴가 하나도 없으면(관리자가 아니거나 모두 숨김) 통째로 숨겨진다 -->
 <nav id="mainMenuBar" class="mainMenuBar" style="display:none" aria-label="메뉴"><div class="mmIn"><span class="mmTitle">🧭 메뉴</span><div id="menuLinks" class="mmList"></div></div></nav>
+<div id="tabHost" class="tabHost"><div id="tabMsg" class="tabMsg">⏳ 불러오는 중…</div></div>
 
 <div class="wrap"><div class="pageGrid"><div class="mainCol">
   <!-- ⏳ [v119] 분석 중 표시 -->
@@ -7876,10 +7804,11 @@ document.addEventListener('keydown', function(e){
   }
 });
 
-// 🧭 [v138] 메인 화면 메뉴 바 + 관리자 로그인 표시. 공개된 메뉴는 보여줄 대상에게만, 숨김 메뉴(🔒)는 관리자 로그인 브라우저에만 보인다.
-//   관리자 콘솔은 항상 "별도 창"(이름 mini_admin)으로 열어서 지금 보는 메인 화면은 그대로 둔다.
+// 🧭 [v138→v145] 메인 화면 메뉴 바 = 탭 줄. 메뉴를 누르면 이 화면 안의 탭으로 열리고, 다른 탭으로 옮겨도 내용이 그대로 남는다.
+//   숨김 메뉴(🔒)·관리자 화면도 별도 창이 아니라 이 화면 안에서 실행된다. 종목을 누르면 종목분석 탭 + 심층분석 탭이 함께 열린다.
 window.name = window.name || 'mini_main';
 function openAdminWin(hash){
+  if(window.MiniTabs && MiniTabs.admin()){ return MiniTabs.openAdmin(hash || ''); }
   var url = '/admin' + (hash || '');
   var w = null;
   try{
@@ -7890,58 +7819,169 @@ function openAdminWin(hash){
   if(w){ try{ w.focus(); }catch(e){} }
   return false;
 }
+var MiniTabs = (function(){
+  var T = {}, M = {}, active = 'stock', mainY = 0, isAdm = false, bar = null, wrap = null, host = null, msg = null;
+  function $$(i){ return document.getElementById(i); }
+  function barH(){ var mb = $$('mainMenuBar'); return mb ? mb.offsetHeight : 0; }
+  function stickyH(){ var tb = document.querySelector('.topbar'); try{ return (tb && getComputedStyle(tb).position === 'sticky') ? tb.offsetHeight : 0; }catch(e){ return 0; } }
+  function fit(){ var h = Math.max(420, window.innerHeight - stickyH() - barH()) + 'px'; Object.keys(T).forEach(function(k){ T[k].f.style.height = h; }); }
+  function setMenus(list, admin){ M = {}; isAdm = !!admin; list.forEach(function(m){ M[m.id] = m; }); }
+  function item(id){ return wrap ? wrap.querySelector('.mmItem[data-mid="' + id + '"]') : null; }
+  function refresh(){
+    if(!wrap) return;
+    var all = wrap.querySelectorAll('.mmItem[data-mid]');
+    for(var i = 0; i < all.length; i++){
+      var a = all[i], id = a.getAttribute('data-mid'), t = T[id];
+      a.classList.toggle('on', id === active);
+      a.classList.toggle('open', !!t);
+      a.classList.toggle('nw', !!(t && t.nw));
+      var x = a.querySelector('.tx'), d = a.querySelector('.dot');
+      if(t && id !== 'stock'){
+        if(!d){ d = document.createElement('i'); d.className = 'dot'; a.insertBefore(d, a.firstChild); }
+        if(!x){ x = document.createElement('span'); x.className = 'tx'; x.textContent = '×'; x.title = '이 탭 닫기(내용이 사라져요)';
+          x.onclick = (function(k){ return function(e){ e.preventDefault(); e.stopPropagation(); close(k); }; })(id); a.appendChild(x); }
+      } else { if(x) x.remove(); if(d) d.remove(); }
+    }
+    if(msg) msg.classList.toggle('on', !!(T[active] && T[active].ld));
+  }
+  function create(id){
+    if(T[id]) return T[id];
+    var m = M[id]; if(!m || !host) return null;
+    var f = document.createElement('iframe'); f.title = m.label || id; f.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen');
+    var t = { id: id, f: f, nw: false, ld: true };
+    f.onload = function(){ t.ld = false; refresh(); };
+    f.src = m.url; host.appendChild(f); T[id] = t; fit(); return t;
+  }
+  function show(id){
+    if(id !== 'stock' && !T[id]) return false;
+    if(active === 'stock' && id !== 'stock') mainY = window.pageYOffset || 0;
+    active = id;
+    document.body.classList.toggle('tabOn', id !== 'stock');
+    Object.keys(T).forEach(function(k){ T[k].f.classList.toggle('on', k === id); });
+    if(T[id]) T[id].nw = false;
+    refresh(); fit();
+    if(id === 'stock'){ window.scrollTo(0, mainY); }
+    else{
+      var mb = $$('mainMenuBar'); if(mb){ window.scrollTo(0, Math.max(0, mb.getBoundingClientRect().top + window.pageYOffset - stickyH())); }
+      try{ T[id].f.contentWindow.focus(); }catch(e){}
+    }
+    return true;
+  }
+  function open(id, quiet){
+    if(id === 'stock') return show('stock');
+    var t = create(id); if(!t) return false;
+    if(quiet){ if(active !== id) t.nw = true; refresh(); return true; }
+    return show(id);
+  }
+  function close(id){
+    var t = T[id]; if(!t) return;
+    try{ t.f.remove(); }catch(e){} delete T[id];
+    var a = item(id); if(a && M[id] && M[id].extra){ a.remove(); delete M[id]; }
+    if(active === id) show('stock'); else refresh();
+  }
+  function addExtra(m){ M[m.id] = m; m.extra = true; if(wrap){ wrap.appendChild(makeItem(m, true)); } }
+  function adminUrl(hash){ return '/admin?embed=' + (hash ? '1' : 'full') + (hash || ''); }
+  function openAdmin(hash){
+    hash = hash || '';
+    var au = adminUrl(hash), k;
+    for(k in M){ if(M[k].url === au) return open(k); }
+    var id = 'adm' + (hash ? hash.replace('#', '_') : '_'), lbl = hash ? '⚙ 설정' : '🛠 관리자';
+    if(hash === '#mm') lbl = '🧭 메뉴 관리';
+    for(k in M){ if(M[k].admin_path === '/admin' + hash && hash){ lbl = (M[k].icon || '') + ' ' + M[k].label + ' 관리'; } }
+    if(!M[id]) addExtra({ id: id, label: lbl, icon: '', url: au });
+    return open(id);
+  }
+  function openStock(tk){
+    tk = String(tk || '').trim().toUpperCase(); if(!tk) return false;
+    if(M.deep){
+      try{ localStorage.setItem('mini_deep_ticker', tk); }catch(e){}
+      var had = !!T.deep; open('deep', true);
+      if(had){ try{ var w = T.deep.f.contentWindow; if(w && w.__openTicker) w.__openTicker(tk); }catch(e){} }
+    }
+    show('stock'); try{ analyze(tk); }catch(e){}
+    return true;
+  }
+  function openDeep(tk){
+    tk = String(tk || '').trim().toUpperCase(); if(!M.deep) return false;
+    try{ localStorage.setItem('mini_deep_ticker', tk); }catch(e){}
+    var had = !!T.deep; open('deep');
+    if(had){ try{ var w = T.deep.f.contentWindow; if(w && w.__openTicker) w.__openTicker(tk); }catch(e){} }
+    return true;
+  }
+  function makeItem(m, extra){
+    var a = document.createElement('a'); a.className = 'mmItem' + (m.hidden ? ' hid' : ''); a.setAttribute('data-mid', m.id);
+    a.href = m.href || m.url;
+    var sp = document.createElement('span'); sp.textContent = ((m.icon ? m.icon + ' ' : '') + m.label + (m.hidden ? ' 🔒' : '')); a.appendChild(sp);
+    if(m.title) a.title = m.title;
+    a.onclick = function(e){ if(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); open(m.id); };
+    return a;
+  }
+  function init(w, b){ wrap = w; bar = b; host = $$('tabHost'); msg = $$('tabMsg'); window.addEventListener('resize', fit); }
+  return { init: init, setMenus: setMenus, makeItem: makeItem, open: open, show: show, close: close, refresh: refresh, openAdmin: openAdmin, openStock: openStock, openDeep: openDeep,
+           admin: function(){ return isAdm; }, active: function(){ return active; } };
+})();
+// 어느 탭에 있든 검색·종목 클릭으로 analyze() 가 불리면 종목분석 탭으로 먼저 돌아온다
+(function(){ var _an = analyze; analyze = function(t){ try{ if(MiniTabs.active() !== 'stock') MiniTabs.show('stock'); }catch(e){} return _an(t); }; })();
 (function(){
   var PREVIEW = false;
   try { PREVIEW = sessionStorage.getItem('adm_preview') === '1'; } catch(e) {}
   var wrap = document.getElementById('menuLinks'), bar = document.getElementById('admBar'), mbar = document.getElementById('mainMenuBar');
   if(!wrap || !bar) return;
-  function mk(href, txt, title, adminHash){
-    var a = document.createElement('a'); a.className = 'mmItem'; a.href = href; a.textContent = txt;
-    if(title) a.title = title;
-    if(adminHash !== undefined){ a.onclick = function(e){ e.preventDefault(); return openAdminWin(adminHash); }; }
-    return a;
-  }
+  MiniTabs.init(wrap, bar);
+  function embedUrl(p){ return p + (p.indexOf('?') < 0 ? '?' : '&') + 'embed=1'; }
   function setPreview(v){ try { sessionStorage.setItem('adm_preview', v ? '1' : '0'); } catch(e) {} location.reload(); }
   function draw(pub, adm){
     wrap.innerHTML = ''; bar.innerHTML = ''; bar.style.display = 'none';
-    var isAdm = !!(adm && adm.admin);
-    var shown = {};
-    pub.forEach(function(m){ shown[m.id] = 1; wrap.appendChild(mk(m.path, m.icon + ' ' + m.label)); });
-    if(isAdm && !PREVIEW){
+    var isAdm = !!(adm && adm.admin) && !PREVIEW;
+    var shown = {}, list = [];
+    pub.forEach(function(m){ shown[m.id] = 1; list.push({ id: m.id, label: m.label, icon: m.icon, url: embedUrl(m.path), href: m.path }); });
+    if(isAdm){
       (adm.menus || []).forEach(function(m){
         if(shown[m.id]) return;
-        var a = mk(m.path, m.icon + ' ' + m.label + ' 🔒', '관리자에게만 보이는 메뉴입니다(일반 이용자에게는 보이지 않아요)');
-        a.classList.add('hid');
-        a.href = m.preview_path || m.public_path || m.path; a.target = 'mini_admin_view';
-        if(m.admin_only){   // [v140] 공개 화면이 없는 관리자 전용 메뉴 — 관리자 모드(별도 창)의 해당 탭으로 연다
-          var ap = m.admin_path || '/admin', hi = ap.indexOf('#'); a.href = ap; a.removeAttribute('target');
-          a.onclick = function(e){ e.preventDefault(); return openAdminWin(hi >= 0 ? ap.slice(hi) : ''); };
-        }
-        wrap.appendChild(a);
+        var ap = m.admin_path || '', url, href;
+        if(ap){ var hi = ap.indexOf('#'), base = hi >= 0 ? ap.slice(0, hi) : ap, hh = hi >= 0 ? ap.slice(hi) : ''; url = base + '?embed=1' + hh; href = ap; }
+        else { url = embedUrl(m.preview_path || m.public_path || m.path); href = m.preview_path || m.public_path || m.path; }
+        list.push({ id: m.id, label: m.label, icon: m.icon, url: url, href: href, hidden: true, admin_path: ap, title: '관리자에게만 보이는 메뉴입니다(일반 이용자에게는 보이지 않아요)' });
       });
     }
+    MiniTabs.setMenus(list, isAdm);
+    if(list.length || isAdm){
+      wrap.appendChild(MiniTabs.makeItem({ id: 'stock', label: '종목분석', icon: '📈', url: '/', href: '/' }));
+      list.forEach(function(m){ wrap.appendChild(MiniTabs.makeItem(m)); });
+      if(isAdm){
+        var adminItem = { id: 'adm_', label: '관리자', icon: '🛠', url: '/admin?embed=full', href: '/admin', title: '관리자 화면(모든 설정)을 이 화면 안에서 엽니다' };
+        MiniTabs.setMenus(list.concat([adminItem]), true);
+        wrap.appendChild(MiniTabs.makeItem(adminItem));
+      }
+    }
     if(mbar) mbar.style.display = wrap.children.length ? '' : 'none';
+    MiniTabs.refresh();
     if(isAdm){
       bar.style.display = 'flex';
       var t = document.createElement('b');
-      t.textContent = PREVIEW ? '👀 일반 이용자 화면 미리보기 중' : '👑 관리자로 로그인됨';
+      t.textContent = '👑 관리자로 로그인됨';
       bar.appendChild(t);
       var d = document.createElement('span'); d.style.opacity = '.75';
-      d.textContent = PREVIEW ? '— 숨김 메뉴가 안 보이는, 일반 이용자가 보는 모습입니다.' : '— 🔒 표시 메뉴는 일반 이용자에게 보이지 않아요.';
+      d.textContent = '— 🔒 표시 메뉴는 일반 이용자에게 보이지 않아요. 메뉴를 누르면 이 화면 안의 탭으로 열려요.';
       bar.appendChild(d);
-      var c = document.createElement('a'); c.href = '/admin'; c.textContent = '관리자 모드 열기(별도 창)';
-      c.style.cssText = 'color:#93c5fd;margin-left:auto;text-decoration:none'; c.onclick = function(e){ e.preventDefault(); return openAdminWin(''); }; bar.appendChild(c);
       var c2 = document.createElement('a'); c2.href = '/admin#mm'; c2.textContent = '🧭 메뉴 관리';
-      c2.style.cssText = 'color:#93c5fd;text-decoration:none'; c2.onclick = function(e){ e.preventDefault(); return openAdminWin('#mm'); }; bar.appendChild(c2);
-      var b = document.createElement('button'); b.textContent = PREVIEW ? '관리자 화면으로 돌아가기' : '일반 이용자 화면으로 보기';
+      c2.style.cssText = 'color:#93c5fd;margin-left:auto;text-decoration:none'; c2.onclick = function(e){ e.preventDefault(); return openAdminWin('#mm'); }; bar.appendChild(c2);
+      var b = document.createElement('button'); b.textContent = '일반 이용자 화면으로 보기';
       b.style.cssText = 'background:#334155;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer';
-      b.onclick = function(){ setPreview(!PREVIEW); }; bar.appendChild(b);
+      b.onclick = function(){ setPreview(true); }; bar.appendChild(b);
+    } else if(adm && adm.admin && PREVIEW){
+      bar.style.display = 'flex';
+      var t2 = document.createElement('b'); t2.textContent = '👀 일반 이용자 화면 미리보기 중'; bar.appendChild(t2);
+      var d2 = document.createElement('span'); d2.style.opacity = '.75'; d2.textContent = '— 숨김 메뉴가 안 보이는, 일반 이용자가 보는 모습입니다.'; bar.appendChild(d2);
+      var b3 = document.createElement('button'); b3.textContent = '관리자 화면으로 돌아가기';
+      b3.style.cssText = 'margin-left:auto;background:#334155;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer';
+      b3.onclick = function(){ setPreview(false); }; bar.appendChild(b3);
     }
   }
   var p1 = fetch('/api/menus', {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(j){ return j.menus || []; }).catch(function(){ return []; });
   var p2 = fetch('/admin/api/whoami', {credentials:'same-origin', cache:'no-store'}).then(function(r){ return r.ok ? r.json() : {admin:false}; }).catch(function(){ return {admin:false}; });
   Promise.all([p1, p2]).then(function(v){
-    draw(PREVIEW ? v[0] : v[0], v[1]);
+    draw(v[0], v[1]);
     // [v139] 관리자 로그인 + 일반 이용자 화면 미리보기가 아닐 때만 관리자 전용 JS 를 불러온다
     if(v[1] && v[1].admin && !PREVIEW){
       window.__ADM__ = { csrf: v[1].csrf || '' };
