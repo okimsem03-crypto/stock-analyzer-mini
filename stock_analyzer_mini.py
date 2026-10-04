@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v157 — 메뉴를 원본처럼 분류별로 정리(종목·심층 / 🏆 추천·AI / 🔬 시장분석 / 📒 기록·관리): 메인 메뉴 바·전체 메뉴·각 메뉴 상단·메뉴 관리·관리자 탭 모두 같은 묶음. AI 도우미 보강(메뉴 탭 안에서도 동작하도록 바깥 화면 중계, 연결 상태 표시, 20초 무응답 안내, 전송 버튼 찾기 강화, 도우미 v1.1.0 자동 업데이트 주소)
 ✨ v156 — 뉴스분석 차례 메뉴(뉴스 고르기→AI→이미지→블로그 글 만들기→복사하고 블로그 쓰기)와 블로그 글 생성(관리자), 심층분석 차례 메뉴에 “복사하고 블로그 쓰기” 단계 추가
 ✨ v155 — 수급분석 [📥 수급·테마 가져오기](관리자: 네이버에서 직접 받아 와 순위·신호에 바로 반영, 진행률·멈춤·네이버 테마 목록), 심층분석 단계 바를 맨 위로, 점수를 “체력지표(참고)”로 바꾸고 ⓘ 설명·이미지·블로그 안내 추가(기업 평가점수 아님)
 ✨ v154 — 뉴스분석 뉴스룸 개편: 위 대시보드(호재·악재·테마·종목 시세)·왼쪽 뉴스 목록·오른쪽 AI 분석 작업대, 뉴스 클릭 분석, [원문 ↗] 오른쪽 창, URL만 넣어 AI 분석, 전체 AI 총평, 대시보드·분석카드 이미지
@@ -338,7 +339,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v156"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v157"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4428,7 +4429,7 @@ function toast(t,kind){var x=$('toast');t=String(t==null?'':t);var bad=kind==='b
 function api(u,post){return fetch(u,{method:post?'POST':'GET',credentials:'same-origin',headers:post?{'X-CSRF-Token':CSRF}:{}}).then(function(r){
   if(r.status===401){location.replace('/admin');throw 0}return r.json()}).then(gwErr)}
 function gwErr(j){if(MEMBER_MODE&&j&&j.feature&&j.error){toast(j.error,'bad');if(FEATS&&FEATS[j.feature]&&j.login!==undefined)lockDlg(j.feature)}return j}
-var TAB_GROUPS=[['📊 운영',['sum','cmt','ovw','log']],['🧰 메뉴 도구',['dl','dp','dy','fl','ch','nw']],['🎚 공개·회원',['mm','fe','mem']],['✍ 콘텐츠',['bu','bl','ik','pr']],['⚙ 설정',['mn','im']]];
+var TAB_GROUPS=[['📊 운영',['sum','cmt','ovw','log']],['📈 종목·심층',['dp']],['🏆 추천·AI',['dy','ch']],['🔬 시장분석',['fl','nw','dl']],['🎚 공개·회원',['mm','fe','mem']],['✍ 콘텐츠',['bu','bl','ik','pr']],['⚙ 설정',['mn','im']]];
 function nav(){var n=$('nav');n.innerHTML='';var seen={};
  function pill(t,box){var b=el('button',t[0]===cur?'on':'',t[1]);b.onclick=function(){cur=t[0];nav();load()};box.appendChild(b);seen[t[0]]=1}
  if(MEMBER_MODE||TABS.length<6){TABS.forEach(function(t){pill(t,n)});return}
@@ -4820,6 +4821,31 @@ def menu_visible(menu_id, admin=False):
     return bool(on and (GUEST in tok or viewer_level() in tok))
 
 
+# [v157] 메뉴 분류 — 원본(데스크톱 프로그램)의 상단 메뉴처럼 '종목·심층 / 추천·AI / 시장분석 / 기록·관리' 로 묶어 보여 준다.
+#   · 메뉴 모듈이 register_menu({... "group": "reco"}) 처럼 정하거나, 정하지 않으면 아래 기본표(MENU_GROUP_DEFAULT)를 따른다.
+#   · 분류 안의 순서는 관리자가 정한 메뉴 순서(menu_order)를 그대로 따른다. 비어 있는 분류는 화면에 나오지 않는다.
+MENU_GROUPS = [
+    {"id": "main", "label": "종목·심층", "icon": "📈"},
+    {"id": "reco", "label": "추천·AI", "icon": "🏆"},
+    {"id": "market", "label": "시장분석", "icon": "🔬"},
+    {"id": "records", "label": "기록·관리", "icon": "📒"},
+    {"id": "etc", "label": "기타 도구", "icon": "🧰"},
+]
+MENU_ORDER_DEFAULT = ["deep", "daily", "challenge", "flow", "news", "delist"]
+MENU_GROUP_DEFAULT = {"deep": "main", "daily": "reco", "challenge": "reco", "flow": "market", "news": "market", "delist": "market"}
+
+
+def menu_group(m):
+    g = m.get("group") or MENU_GROUP_DEFAULT.get(m["id"], "etc")
+    return g if any(x["id"] == g for x in MENU_GROUPS) else "etc"
+
+
+def menus_grouped(menus):
+    """메뉴 목록(이미 순서가 정해진)을 분류 순서대로 다시 늘어놓는다. 분류 안에서는 원래 순서를 지킨다."""
+    rank = {x["id"]: i for i, x in enumerate(MENU_GROUPS)}
+    return sorted(menus, key=lambda m: rank[menu_group(m)])
+
+
 def menus_ordered():
     """관리자가 정한 순서대로 메뉴 목록(정해두지 않은 메뉴는 등록 순서로 뒤에)."""
     try:
@@ -4827,7 +4853,8 @@ def menus_ordered():
     except Exception:
         order = []
     idx = {mid: i for i, mid in enumerate(order)}
-    return sorted(MENUS, key=lambda m: (idx.get(m["id"], 10 ** 6), MENUS.index(m)))
+    pref = {mid: i for i, mid in enumerate(MENU_ORDER_DEFAULT)}      # 순서를 정해두지 않았다면 이 기본 순서(원본의 메뉴 차례와 비슷하게)
+    return sorted(MENUS, key=lambda m: (idx.get(m["id"], 10 ** 6), pref.get(m["id"], 500), MENUS.index(m)))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -5178,7 +5205,8 @@ def menu_public(menu_id):
 
 
 def _menus_public_list():
-    return [{"id": m["id"], "label": m["label"], "icon": m["icon"], "path": m["public_path"], "desc": m.get("desc", "")} for m in menus_ordered() if menu_visible(m["id"])]
+    return [{"id": m["id"], "label": m["label"], "icon": m["icon"], "path": m["public_path"], "desc": m.get("desc", ""), "group": menu_group(m)}
+            for m in menus_grouped(menus_ordered()) if menu_visible(m["id"])]
 
 
 def _menus_admin_list():
@@ -5186,12 +5214,12 @@ def _menus_admin_list():
              "access": menu_access(m["id"]),
              "path": m["public_path"] if menu_public(m["id"]) else m["admin_path"], "admin_path": m["admin_path"],
              "public_path": m["public_path"], "preview_path": m.get("preview_path") or m["public_path"], "admin_only": bool(m.get("admin_only")), "on": menu_policy(m["id"])[0], "levels": sorted(menu_policy(m["id"])[1], key=lambda t: (t != GUEST, int(t) if t.isdigit() else 0)),
-             "desc": m["desc"]} for m in menus_ordered()]
+             "desc": m["desc"], "group": menu_group(m)} for m in menus_ordered()]
 
 
 @app.route("/api/menus")
 def api_menus():
-    resp = jsonify({"menus": _menus_public_list()})
+    resp = jsonify({"menus": _menus_public_list(), "groups": MENU_GROUPS})
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -6011,7 +6039,14 @@ HTML_TEMPLATE = r"""
   .mainMenuBar{background:#fff; border-bottom:1px solid #e2e8f0; box-shadow:0 4px 14px -10px rgba(15,23,42,.25);}
   .mmIn{max-width:1180px; margin:0 auto; padding:9px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
   .mmTitle{font-size:12px; font-weight:800; color:#64748b; letter-spacing:.02em;}
-  .mmList{display:flex; gap:8px; flex-wrap:wrap;}
+  .mmList{display:flex; gap:8px 10px; flex-wrap:wrap; align-items:stretch;}
+  /* 🧭 [v157] 분류별 묶음 — 원본의 상단 메뉴 그룹처럼 라벨 + 알약 버튼을 한 상자에 */
+  .mmGrp{display:flex; align-items:center; gap:8px; padding:3px 8px 3px 10px; border:1px solid #e2e8f0; border-radius:16px; background:#f8fafc;}
+  .mmGrp[data-grp="main"]{border-color:transparent; background:transparent; padding-left:0;}
+  .mmGl{font-size:11.5px; font-weight:800; color:#475569; white-space:nowrap; letter-spacing:.01em;}
+  .mmGi{display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+  .mmGrp .mmItem{padding:6px 13px; font-size:13px;}
+  @media (max-width:560px){ .mmGrp{flex-direction:column; align-items:flex-start; gap:4px; width:100%;} .mmGrp[data-grp="main"]{width:auto;} }
   .mmItem{display:inline-flex; align-items:center; gap:6px; padding:8px 15px; border-radius:999px; border:1px solid #dbe3f0; background:#f8fafc;
     color:#1e293b; font-size:13.5px; font-weight:700; text-decoration:none; font-family:inherit; cursor:pointer;}
   .mmItem:hover{border-color:#5b7cfa; background:#eef2ff; color:#3151d3;}
@@ -8400,7 +8435,7 @@ var MiniTabs = (function(){
     var a = item(id); if(a && M[id] && M[id].extra){ a.remove(); delete M[id]; }
     if(active === id) show('stock'); else refresh();
   }
-  function addExtra(m){ M[m.id] = m; m.extra = true; if(wrap){ wrap.appendChild(makeItem(m, true)); } }
+  function addExtra(m){ M[m.id] = m; m.extra = true; if(wrap){ var ab = wrap.querySelector('.mmGrp[data-grp="admin"] .mmGi'); (ab || wrap).appendChild(makeItem(m, true)); } }
   function adminUrl(hash){ return '/admin?embed=' + (hash ? '1' : 'full') + (hash || ''); }
   function openAdmin(hash){
     hash = hash || '';
@@ -8441,6 +8476,21 @@ var MiniTabs = (function(){
   return { init: init, setMenus: setMenus, makeItem: makeItem, open: open, show: show, close: close, refresh: refresh, openAdmin: openAdmin, openStock: openStock, openDeep: openDeep,
            admin: function(){ return isAdm; }, active: function(){ return active; } };
 })();
+// [v157] AI 도우미 중계 — 메뉴 화면(iframe 탭)의 [AI 열기]가 맡긴 작업을 이 바깥 화면의 도우미에게 전달하고, 도우미의 진행·결과를 열려 있는 탭들에 되돌려 준다
+(function(){
+  window.addEventListener('message', function(e){
+    if(e.origin !== location.origin) return;
+    var d = e.data; if(!d || typeof d !== 'object') return;
+    if(d.miniRelay === 'job' && d.id && d.prompt && e.source !== window){
+      try{ window.postMessage({ miniHelper: 'job', id: String(d.id), prompt: String(d.prompt), host: String(d.host || '') }, location.origin); }catch(x){}
+      return;
+    }
+    if(e.source === window && d.miniHelper && d.miniHelper !== 'job'){
+      var fs = document.querySelectorAll('iframe');
+      for(var i = 0; i < fs.length; i++){ try{ fs[i].contentWindow.postMessage(d, location.origin); }catch(x){} }
+    }
+  });
+})();
 // 어느 탭에 있든 검색·종목 클릭으로 analyze() 가 불리면 종목분석 탭으로 먼저 돌아온다
 (function(){ var _an = analyze; analyze = function(t){ try{ if(MiniTabs.active() !== 'stock') MiniTabs.show('stock'); }catch(e){} return _an(t); }; })();
 (function(){
@@ -8451,28 +8501,46 @@ var MiniTabs = (function(){
   MiniTabs.init(wrap, bar);
   function embedUrl(p){ return p + (p.indexOf('?') < 0 ? '?' : '&') + 'embed=1'; }
   function setPreview(v){ try { sessionStorage.setItem('adm_preview', v ? '1' : '0'); } catch(e) {} location.reload(); }
+  var GROUPS = [];
   function draw(pub, adm){
     wrap.innerHTML = ''; bar.innerHTML = ''; bar.style.display = 'none';
     var isAdm = !!(adm && adm.admin) && !PREVIEW;
     var shown = {}, list = [];
-    pub.forEach(function(m){ shown[m.id] = 1; list.push({ id: m.id, label: m.label, icon: m.icon, url: embedUrl(m.path), href: m.path }); });
+    pub.forEach(function(m){ shown[m.id] = 1; list.push({ id: m.id, label: m.label, icon: m.icon, url: embedUrl(m.path), href: m.path, group: m.group || 'etc' }); });
     if(isAdm){
       (adm.menus || []).forEach(function(m){
         if(shown[m.id]) return;
         var ap = m.admin_path || '', url, href;
         if(ap){ var hi = ap.indexOf('#'), base = hi >= 0 ? ap.slice(0, hi) : ap, hh = hi >= 0 ? ap.slice(hi) : ''; url = base + '?embed=1' + hh; href = ap; }
         else { url = embedUrl(m.preview_path || m.public_path || m.path); href = m.preview_path || m.public_path || m.path; }
-        list.push({ id: m.id, label: m.label, icon: m.icon, url: url, href: href, hidden: true, admin_path: ap, title: '관리자에게만 보이는 메뉴입니다(일반 이용자에게는 보이지 않아요)' });
+        list.push({ id: m.id, label: m.label, icon: m.icon, url: url, href: href, hidden: true, admin_path: ap, group: m.group || 'etc', title: '관리자에게만 보이는 메뉴입니다(일반 이용자에게는 보이지 않아요)' });
       });
     }
     MiniTabs.setMenus(list, isAdm);
     if(list.length || isAdm){
-      wrap.appendChild(MiniTabs.makeItem({ id: 'stock', label: '종목분석', icon: '📈', url: '/', href: '/' }));
-      list.forEach(function(m){ wrap.appendChild(MiniTabs.makeItem(m)); });
+      // [v157] 원본처럼 분류별 묶음으로 가지런히 — 종목·심층 / 추천·AI / 시장분석 / 기록·관리 / 기타 도구 / 관리
+      var boxes = {};
+      function boxOf(gid, label){
+        if(boxes[gid]) return boxes[gid];
+        var bx = document.createElement('div'); bx.className = 'mmGrp'; bx.setAttribute('data-grp', gid);
+        if(label){ var lb = document.createElement('span'); lb.className = 'mmGl'; lb.textContent = label; bx.appendChild(lb); }
+        var inn = document.createElement('div'); inn.className = 'mmGi'; bx.appendChild(inn);
+        wrap.appendChild(bx); boxes[gid] = inn; return inn;
+      }
+      var gl = {}; (GROUPS || []).forEach(function(g){ gl[g.id] = g; });
+      var order = (GROUPS || []).map(function(g){ return g.id; }); if(order.indexOf('etc') < 0) order.push('etc');
+      boxOf('main', '').appendChild(MiniTabs.makeItem({ id: 'stock', label: '종목분석', icon: '📈', url: '/', href: '/' }));
+      order.forEach(function(gid){
+        var items = list.filter(function(m){ return (m.group || 'etc') === gid; });
+        if(!items.length) return;
+        var g = gl[gid] || { label: '기타 도구', icon: '🧰' };
+        var bx = boxOf(gid, gid === 'main' ? '' : ((g.icon ? g.icon + ' ' : '') + g.label));
+        items.forEach(function(m){ bx.appendChild(MiniTabs.makeItem(m)); });
+      });
       if(isAdm){
         var adminItem = { id: 'adm_', label: '관리자', icon: '🛠', url: '/admin?embed=full', href: '/admin', title: '관리자 화면(모든 설정)을 이 화면 안에서 엽니다' };
         MiniTabs.setMenus(list.concat([adminItem]), true);
-        wrap.appendChild(MiniTabs.makeItem(adminItem));
+        boxOf('admin', '🛠 관리').appendChild(MiniTabs.makeItem(adminItem));
       }
     }
     if(mbar) mbar.style.display = wrap.children.length ? '' : 'none';
@@ -8499,7 +8567,7 @@ var MiniTabs = (function(){
       b3.onclick = function(){ setPreview(false); }; bar.appendChild(b3);
     }
   }
-  var p1 = fetch('/api/menus', {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(j){ return j.menus || []; }).catch(function(){ return []; });
+  var p1 = fetch('/api/menus', {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(j){ GROUPS = j.groups || []; return j.menus || []; }).catch(function(){ return []; });
   var p2 = fetch('/admin/api/whoami', {credentials:'same-origin', cache:'no-store'}).then(function(r){ return r.ok ? r.json() : {admin:false}; }).catch(function(){ return {admin:false}; });
   Promise.all([p1, p2]).then(function(v){
     draw(v[0], v[1]);

@@ -26,9 +26,14 @@ import menu_ui as U
 bp = Blueprint("menuaccess", __name__)
 
 _CORE_FUNCS = ("_admin_json", "_admin_deny", "_alog", "_json_body", "setting_set", "setting_get", "member_levels", "menu_policy",
-               "menu_policy_set", "menus_ordered")
+               "menu_policy_set")
 for _n in _CORE_FUNCS:
     globals()[_n] = (lambda n: (lambda *a, **k: getattr(C, n)(*a, **k)))(_n)
+
+
+def menus_ordered():
+    """[v157] 분류 순서(종목·심층 → 추천·AI → 시장분석 → 기록·관리)로, 분류 안에서는 관리자가 정한 순서로."""
+    return C.menus_grouped(C.menus_ordered())
 
 
 def esc(s):
@@ -233,31 +238,44 @@ MENUS_CSS = """<style>
 .mcC:hover{border-color:#93c5fd;box-shadow:0 8px 24px rgba(37,99,235,.12);transform:translateY(-1px)}.mcT{display:flex;gap:10px;align-items:center}.mcT .ic{font-size:26px}.mcT b{font-size:16px}
 .mcD{color:#475569;font-size:13px;line-height:1.5}.mcF{display:flex;gap:5px;flex-wrap:wrap}.mcF span{font-size:11.5px;border-radius:999px;padding:3px 9px;border:1px solid #bbf7d0;background:#f0fdf4;color:#166534;font-weight:600}
 .mcF span.lk{border-color:#fcd34d;background:#fffbeb;color:#92400e}.mcG{font-size:12px;color:#2563eb;font-weight:700;margin-top:auto}
+.mcH{display:flex;align-items:baseline;gap:8px;margin:20px 0 10px;padding-bottom:7px;border-bottom:2px solid #e2e8f0}.mcH:first-child{margin-top:0}.mcH b{font-size:16px;color:#0f172a}.mcH small{color:#64748b;font-size:12.5px}
 </style>"""
+
+
+_GROUP_NOTE = {"main": "종목 하나를 깊이 보는 곳", "reco": "오늘 볼 만한 종목을 모아 보는 곳", "market": "시장 전체의 흐름과 위험을 보는 곳",
+               "records": "내가 남긴 기록을 정리하는 곳", "etc": ""}
+
+
+def _menu_card(m, tok):
+    fs = feats_of(m["id"])
+    chips = []
+    for f in fs[:8]:
+        ok = C.feature_ok(m["id"], f["id"], tok)
+        chips.append(f'<span class="{"" if ok else "lk"}">{"✅" if ok else "🔒"} {esc(f["label"])}</span>')
+    if len(fs) > 8:
+        chips.append(f'<span>+{len(fs) - 8}</span>')
+    return (f'<a class="mcC" href="{esc(m["public_path"])}"><div class="mcT"><span class="ic">{esc(m["icon"])}</span><b>{esc(m["label"])}</b></div>'
+            f'<div class="mcD">{esc(m.get("desc", ""))}</div>' + (f'<div class="mcF">{"".join(chips)}</div>' if chips else "") + '<div class="mcG">열기 ›</div></a>')
 
 
 @bp.route("/menus")
 def menus_page():
     tok = C.viewer_token()
-    cards = []
-    for m in menus_ordered():
-        if not C.menu_visible_token(m["id"], tok):
-            continue
-        fs = feats_of(m["id"])
-        chips = []
-        for f in fs[:8]:
-            ok = C.feature_ok(m["id"], f["id"], tok)
-            chips.append(f'<span class="{"" if ok else "lk"}">{"✅" if ok else "🔒"} {esc(f["label"])}</span>')
-        if len(fs) > 8:
-            chips.append(f'<span>+{len(fs) - 8}</span>')
-        href = m["public_path"]
-        cards.append(f'<a class="mcC" href="{esc(href)}"><div class="mcT"><span class="ic">{esc(m["icon"])}</span><b>{esc(m["label"])}</b></div>'
-                     f'<div class="mcD">{esc(m.get("desc", ""))}</div>' + (f'<div class="mcF">{"".join(chips)}</div>' if chips else "") + '<div class="mcG">열기 ›</div></a>')
     first = ('<a class="mcC" href="/"><div class="mcT"><span class="ic">📈</span><b>종목 분석</b></div><div class="mcD">종목명이나 코드를 입력하면 가격·재무·뉴스·AI 분석용 프롬프트까지 한 번에 정리합니다.</div>'
              '<div class="mcF"><span>✅ 누구나</span></div><div class="mcG">열기 ›</div></a>')
-    body = MENUS_CSS + '<div class="mu-card"><div class="mu-card-h">🧰 도구 모음<small>' + esc(viewer_label(tok)) + ' 기준</small></div><div class="mu-card-b"><div class="mc">' + first + "".join(cards) + "</div>"
+    vis = [m for m in menus_ordered() if C.menu_visible_token(m["id"], tok)]
+    parts = []
+    for g in C.MENU_GROUPS:
+        ms = [m for m in vis if C.menu_group(m) == g["id"]]
+        cards = ([first] if g["id"] == "main" else []) + [_menu_card(m, tok) for m in ms]
+        if not cards:
+            continue
+        note = _GROUP_NOTE.get(g["id"], "")
+        parts.append(f'<div class="mcH" data-grp="{esc(g["id"])}"><b>{esc(g["icon"])} {esc(g["label"])}</b>' + (f'<small>{esc(note)}</small>' if note else "") + '</div>'
+                     f'<div class="mc">{"".join(cards)}</div>')
+    body = MENUS_CSS + '<div class="mu-card"><div class="mu-card-h">🧰 도구 모음<small>' + esc(viewer_label(tok)) + ' 기준</small></div><div class="mu-card-b">' + "".join(parts)
     body += '<p style="margin:14px 0 0;font-size:13px;color:#64748b">🔒 표시는 더 높은 등급에서 열리는 기능이에요. <a href="/plans">등급별 이용 안내</a>에서 한눈에 볼 수 있어요.</p></div></div>'
-    resp = C.app.make_response(U.page("전체 메뉴", body, icon="🧭", subtitle="필요한 도구를 골라 쓰세요. 기능마다 열리는 등급이 달라요.", active="menus"))
+    resp = C.app.make_response(U.page("전체 메뉴", body, icon="🧭", subtitle="분류별로 필요한 도구를 골라 쓰세요. 기능마다 열리는 등급이 달라요.", active="menus"))
     resp.headers["Cache-Control"] = "no-cache"
     return resp
 

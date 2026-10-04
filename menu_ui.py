@@ -45,6 +45,8 @@ body.mu{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 'Pretendar
 .mu-nav{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .mu-nav a{color:#c7d2ee;text-decoration:none;font-size:13px;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.14);white-space:nowrap}
 .mu-nav a:hover,.mu-nav a.on{background:rgba(255,255,255,.14);color:#fff}
+.mu-g{display:inline-flex;align-items:center;gap:6px;padding-left:10px;margin-left:2px;border-left:1px solid rgba(255,255,255,.2)}
+.mu-g i{font-style:normal;font-size:11px;font-weight:700;color:#93a8d4;white-space:nowrap}
 .mu-hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 60%,#243a73 100%);color:#fff;position:relative;overflow:hidden}
 .mu-hero:after{content:"";position:absolute;right:-60px;top:-60px;width:240px;height:240px;border-radius:50%;background:radial-gradient(closest-side,rgba(201,162,39,.35),transparent)}
 .mu-hero-in{max-width:980px;margin:0 auto;padding:30px 16px 34px;position:relative;z-index:1}
@@ -139,8 +141,13 @@ function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 function copyText(text){var ok=false;try{var ta=document.createElement('textarea');ta.value=text;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.focus({preventScroll:true});ta.select();ta.setSelectionRange(0,text.length);ok=document.execCommand('copy');document.body.removeChild(ta)}catch(e){ok=false}
  try{if(navigator.clipboard&&navigator.clipboard.writeText&&window.isSecureContext){navigator.clipboard.writeText(text).catch(function(){});if(!ok)ok=true}}catch(e){}return ok}
-function helperHas(){try{return !!document.documentElement.getAttribute('data-mini-helper')}catch(e){return false}}
+function ownAttr(){try{return document.documentElement.getAttribute('data-mini-helper')||''}catch(e){return ''}}
+function topAttr(){try{if(window.top&&window.top!==window)return window.top.document.documentElement.getAttribute('data-mini-helper')||''}catch(e){}return ''}
+function helperVer(){return ownAttr()||topAttr()}
+function helperHas(){return !!helperVer()}
 function helperOn(){return helperHas()&&lsGet('mini_ai_helper')!=='0'}
+// 메뉴 화면은 메인 화면 안의 탭(iframe)으로 열리는데, 도우미는 맨 바깥 화면에만 붙어요 → 작업을 바깥 화면에 맡겼다가 결과를 다시 받아요(메인 화면의 중계)
+function helperPost(job){try{if(ownAttr())window.postMessage({miniHelper:'job',id:job.id,prompt:job.prompt,host:job.host},location.origin);else window.top.postMessage({miniRelay:'job',id:job.id,prompt:job.prompt,host:job.host},location.origin)}catch(e){}}
 function newJob(){var a='abcdefghijklmnopqrstuvwxyz0123456789',o='';for(var i=0;i<12;i++)o+=a.charAt(Math.floor(Math.random()*a.length));return o}
 function openUrl(u){var a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();document.body.removeChild(a)}
 function ensureStyle(){if(document.getElementById('ma-style-flag'))return;var f=el('span');f.id='ma-style-flag';f.style.display='none';document.body.appendChild(f);
@@ -155,14 +162,14 @@ fetch('/api/ui/config',{cache:'no-store'}).then(function(r){return r.json()}).th
 function run(opt){
  ensureStyle();
  var steps=(opt.steps||[]).filter(function(s){return s&&s.prompt});if(!steps.length)return;
- var cur=0,notice='',site=siteDefault(),armed=false,seen={},lastText='',busy=false,closed=false,doneSet={},curJob=null;
+ var cur=0,notice='',site=siteDefault(),armed=false,seen={},lastText='',busy=false,closed=false,doneSet={},curJob=null,gotMsg=false,hTm=null;
  var minLen=opt.minLen||60;
  var ov=el('div','ma-ov'),box=el('div','ma-box');ov.appendChild(box);
  var h=el('div','ma-h');h.appendChild(el('b',null,opt.title||'AI로 분석하기'));var x=el('button','ma-x','✕');x.onclick=close;h.appendChild(x);box.appendChild(h);
  var dots=el('div','ma-dots');box.appendChild(dots);var body=el('div','ma-b');box.appendChild(body);
  ov.addEventListener('mousedown',function(e){if(e.target===ov)ov._dn=1});ov.addEventListener('mouseup',function(e){if(e.target===ov&&ov._dn)close();ov._dn=0});
  document.body.appendChild(ov);document.body.style.overflow='hidden';
- function close(){if(closed)return;closed=true;armed=false;window.removeEventListener('message',onMsg);window.removeEventListener('focus',onBack);document.removeEventListener('visibilitychange',onVis);document.removeEventListener('keydown',onKey);document.body.removeChild(ov);document.body.style.overflow='';if(opt.onClose)opt.onClose()}
+ function close(){if(closed)return;closed=true;armed=false;clearTimeout(hTm);window.removeEventListener('message',onMsg);window.removeEventListener('focus',onBack);document.removeEventListener('visibilitychange',onVis);document.removeEventListener('keydown',onKey);document.body.removeChild(ov);document.body.style.overflow='';if(opt.onClose)opt.onClose()}
  function onKey(e){if(e.key==='Escape')close()}document.addEventListener('keydown',onKey);
  function drawDots(){dots.innerHTML='';if(steps.length<2)return;steps.forEach(function(s,i){var d=el('span','ma-dot'+(doneSet[i]?' done':(i===cur?' on':'')),(doneSet[i]?'✓ ':'')+(s.label||('프롬프트 '+(i+1))));dots.appendChild(d)})}
  var live,ta,pvBox,applyBtn,autoCb;
@@ -176,8 +183,11 @@ function run(opt){
   var row=el('div','ma-row');var go=el('button','ma-btn p big',SITES[site].i+' 복사하고 '+SITES[site].n+' 열기');go.onclick=function(){openAI(s)};row.appendChild(go);
   var sh=el('button','ma-btn','프롬프트 보기');sh.onclick=function(){var p=s1.querySelector('.ma-pre');if(p){p.remove();return}var pre=el('pre','ma-pre');pre.textContent=s.prompt;s1.appendChild(pre)};row.appendChild(sh);
   var rc=el('button','ma-btn','📋 다시 복사');rc.onclick=function(){armed=true;seen[norm(s.prompt)]=1;var k=copyText(s.prompt);setLive(k?'프롬프트를 다시 복사했어요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',k?'ok':'bad')};row.appendChild(rc);s1.appendChild(row);
-  if(helperHas()){var hl=el('label','ma-sw');var hc=el('input');hc.type='checkbox';hc.checked=helperOn();hc.onchange=function(){lsSet('mini_ai_helper',hc.checked?'1':'0');draw()};hl.appendChild(hc);hl.appendChild(el('span',null,'🤖 AI 도우미 사용 — 입력·전송·답변 복사를 자동으로 (끄면 직접 붙여넣기)'));s1.appendChild(hl)}
-  else{var hn=el('div','ma-d');hn.appendChild(document.createTextNode('⚡ 입력·전송·답변 복사까지 자동으로 하려면 '));var ha=el('a',null,'AI 도우미 설치(1분)');ha.href='/ai-helper';ha.target='_blank';ha.rel='noopener';hn.appendChild(ha);s1.appendChild(hn)}
+  if(helperHas()){var hl=el('label','ma-sw');var hc=el('input');hc.type='checkbox';hc.checked=helperOn();hc.onchange=function(){lsSet('mini_ai_helper',hc.checked?'1':'0');draw()};hl.appendChild(hc);hl.appendChild(el('span',null,'🤖 AI 도우미 사용 — 입력·전송·답변 복사를 자동으로 (끄면 직접 붙여넣기)'));s1.appendChild(hl);
+   s1.appendChild(el('div','ma-d','✅ 도우미 연결됨 (v'+helperVer()+')'))}
+  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode('❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
+   var hr=el('button','ma-btn','🔄 다시 확인');hr.onclick=function(){if(helperHas()){draw()}else{hr.textContent='아직 감지 안 됨 — 새로고침이 필요해요'}};hn.appendChild(hr);hn.appendChild(document.createTextNode(' '));
+   var ha=el('a',null,'설치·점검 방법');ha.href='/ai-helper';ha.target='_blank';ha.rel='noopener';hn.appendChild(ha);s1.appendChild(hn)}
   s1.appendChild(el('div','ma-d',helperOn()?SITES[site].n+' 새 탭이 열리면 도우미가 프롬프트 입력 → 전송 → 답변 복사까지 알아서 하고, 끝나면 탭을 닫으며 답변을 이 창으로 보내 줘요. 위쪽 🤖 띠에서 진행 상황을 볼 수 있어요.':(SITES[site].q&&encodeURIComponent(s.prompt).length<=PREFILL_MAX*3?SITES[site].n+'가 열리면 질문이 자동으로 입력됩니다. 입력이 비어 있으면 입력칸에 Ctrl+V 하세요.':SITES[site].n+'가 열리면 입력칸에 Ctrl+V(붙여넣기) 한 번만 하세요. 프롬프트는 이미 복사되어 있습니다.')));
   body.appendChild(s1);
   // 2) 답변 복사
@@ -195,14 +205,14 @@ function run(opt){
   if(opt.apply){var sw=el('label','ma-sw');autoCb=el('input');autoCb.type='checkbox';var _av=lsGet('mini_ai_auto_'+(opt.key||'x'));autoCb.checked=(_av===null)?true:(_av==='1')||!!opt.autoApply;autoCb.onchange=function(){lsSet('mini_ai_auto_'+(opt.key||'x'),autoCb.checked?'1':'0')};sw.appendChild(autoCb);sw.appendChild(el('span',null,'답변을 읽으면 확인 없이 바로 저장 (저장되면 "✅ 저장 완료"로 바뀌어요)'));s3.appendChild(sw)}
   body.appendChild(s3);if(lastText)preview(lastText,true)}
  function openAI(s){var ok=copyText(s.prompt);var S=SITES[site],u=S.u,viaHelper=false;
-  if(helperOn()){curJob=newJob();try{window.postMessage({miniHelper:'job',id:curJob,prompt:s.prompt},location.origin)}catch(e){}
+  if(helperOn()){curJob=newJob();var hostN='';try{hostN=new URL(S.u).hostname}catch(e){}helperPost({id:curJob,prompt:s.prompt,host:hostN});gotMsg=false;clearTimeout(hTm);
    var w=null;try{w=window.open(S.u+'#miniai='+curJob,'_blank')}catch(e){w=null}
-   if(w){viaHelper=true}else{curJob=null;openUrl(S.u)}}
+   if(w){viaHelper=true;var jb=curJob;hTm=setTimeout(function(){if(!gotMsg&&!closed&&curJob===jb)setLive('⚠ 20초가 지나도 도우미 응답이 없어요. 프롬프트는 복사돼 있으니 '+S.n+' 입력칸에 Ctrl+V 해서 이어가세요. 도우미가 동작하게 하려면: ① 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’ ② 같은 곳의 ‘사용자 스크립트 허용’ 켜기 ③ 열려 있는 AI 탭을 새로고침 ④ 이 화면도 새로고침 후 다시 시도.','bad')},20000)}else{curJob=null;openUrl(S.u)}}
   else{if(S.q){var enc=encodeURIComponent(s.prompt);if(enc.length<=PREFILL_MAX*3)u=S.q+enc}openUrl(u)}
   armed=true;seen[norm(s.prompt)]=1;draw();
   if(viaHelper)setLive('🤖 도우미가 '+S.n+' 탭에서 진행 중이에요 — 입력·전송·답변 복사가 끝나면 자동으로 돌아와요. (안 되면 직접 Ctrl+V)','ok',true);
   else setLive(ok?'📋 프롬프트 복사 완료 — '+S.n+'에서 답변을 받은 뒤 복사하고 돌아오세요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',ok?'ok':'bad',ok)}
- function onMsg(e){if(closed||e.source!==window||e.origin!==location.origin)return;var d=e.data;if(!d||!d.miniHelper||!curJob||d.id!==curJob)return;
+ function onMsg(e){if(closed||(e.source!==window&&e.source!==window.top)||e.origin!==location.origin)return;var d=e.data;if(!d||!d.miniHelper||!curJob||d.id!==curJob)return;gotMsg=true;clearTimeout(hTm);
   if(d.miniHelper==='status'){if(armed)setLive('🤖 '+d.msg,'ok',true);return}
   if(d.miniHelper==='result'){if(d.error){setLive('🤖 자동 진행이 멈췄어요('+d.error+'). 프롬프트는 복사돼 있어요 — AI 입력칸에 Ctrl+V 하고 직접 이어가세요.','bad');return}
    var t=stripPrompt(String(d.text||'').trim());if(t.length<minLen){setLive('🤖 답변이 너무 짧게 읽혔어요('+t.length+'자). AI 화면에서 직접 복사해 주세요.','bad');return}
@@ -287,8 +297,11 @@ def page(title, body, icon="", subtitle="", script="", active="", disclaimer=Tru
             f'<a href="/privacy">개인정보처리방침</a></div>')
     nav = ('<nav class="mu-nav" id="muNav"><a href="/">종목분석</a><a href="/menus"' + (' class="on"' if active == "menus" else "") + '>전체 메뉴</a></nav>')
     nav_js = ("fetch('/api/menus',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){var n=document.getElementById('muNav');"
+              "var gl={};(j.groups||[]).forEach(function(g){gl[g.id]=g});var cg=null,bx=null;"
               "(j.menus||[]).forEach(function(m){var a=document.createElement('a');a.href=m.path;a.textContent=m.icon+' '+m.label;"
-              f"if(m.id==={_js_str(active)})a.className='on';n.appendChild(a)}});var on=n.querySelector('a.on');if(on&&n.scrollTo){{n.scrollTo({{left:Math.max(0,on.offsetLeft-(n.clientWidth-on.offsetWidth)/2),behavior:'smooth'}})}}}}).catch(function(){{}});")
+              f"if(m.id==={_js_str(active)})a.className='on';"
+              "var gid=m.group||'etc';if(gid!==cg){cg=gid;bx=document.createElement('span');bx.className='mu-g';var g=gl[gid];if(g&&gid!=='main'){var lb=document.createElement('i');lb.textContent=g.icon+' '+g.label;bx.appendChild(lb)}n.appendChild(bx)}bx.appendChild(a)});"
+              f"var on=n.querySelector('a.on');if(on&&n.scrollTo){{n.scrollTo({{left:Math.max(0,on.offsetLeft-(n.clientWidth-on.offsetWidth)/2),behavior:'smooth'}})}}}}).catch(function(){{}});")
     return (f'<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<meta name="theme-color" content="#0b1730"><title>{esc(title)} · 종목분석 미니</title>'
             f'<script>try{{if(window.self!==window.top)document.documentElement.classList.add("emb")}}catch(e){{}}</script>'
@@ -308,7 +321,9 @@ def _js_str(s):
 HELPER_JS = r"""// ==UserScript==
 // @name         종목분석 미니 · AI 도우미
 // @namespace    __ORIGIN__
-// @version      1.0.0
+// @version      1.1.0
+// @updateURL    __ORIGIN__/assets/mini-ai-helper.user.js
+// @downloadURL  __ORIGIN__/assets/mini-ai-helper.user.js
 // @description  종목분석 미니에서 [AI 열기]를 누르면 AI 사이트에서 프롬프트 입력 → 전송 → 답변 복사 → 탭 닫기까지 자동으로 해 주고, 답변을 종목분석 미니로 바로 돌려줍니다.
 // @match        __ORIGIN__/*
 // @match        https://gemini.google.com/*
@@ -323,13 +338,13 @@ HELPER_JS = r"""// ==UserScript==
 // @run-at       document-start
 // @noframes
 // ==/UserScript==
-/* 종목분석 미니 AI 도우미 v1.0.0
+/* 종목분석 미니 AI 도우미 v1.1.0
  * · 종목분석 미니 화면에서 보낸 작업(프롬프트)만 처리합니다. 다른 경로로 열린 AI 화면은 건드리지 않아요.
  * · 이 스크립트는 사용자의 브라우저 안에서만 동작하며, 로그인 정보·대화 내용을 어디로도 보내지 않습니다.
  * · AI 사이트 화면이 개편되면 자동 진행이 멈출 수 있어요. 그때는 프롬프트가 복사돼 있으니 직접 붙여넣으면 됩니다. */
 (function () {
   'use strict';
-  var ORIGIN = '__ORIGIN__', VER = '1.0.0';
+  var ORIGIN = '__ORIGIN__', VER = '1.1.0';
   function gget(k) { try { return Promise.resolve(GM_getValue(k, null)); } catch (e) { return Promise.resolve(null); } }
   function gset(k, v) { try { return Promise.resolve(GM_setValue(k, v)); } catch (e) { return Promise.resolve(); } }
   function gdel(k) { try { return Promise.resolve(GM_deleteValue(k)); } catch (e) { return Promise.resolve(); } }
@@ -345,7 +360,7 @@ HELPER_JS = r"""// ==UserScript==
       var d = e.data;
       if (!d || d.miniHelper !== 'job' || !d.id || !d.prompt) return;
       gdel('result'); gdel('status');
-      gset('job', { id: String(d.id), prompt: String(d.prompt), ts: Date.now() });
+      gset('job', { id: String(d.id), prompt: String(d.prompt), host: String(d.host || ''), ts: Date.now() });
     });
     try {
       GM_addValueChangeListener('result', function (n, o, v, remote) {
@@ -361,10 +376,10 @@ HELPER_JS = r"""// ==UserScript==
   }
 
   /* ───────── 2) AI 사이트 쪽 ───────── */
+  if (window.top !== window) return;
   var m = /[#&]miniai=([A-Za-z0-9_-]{6,64})/.exec(location.hash);
-  if (!m) return;
-  var JOB = m[1];
-  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  var JOB = m ? m[1] : null;   /* 주소 끝(#miniai=…)이 사라진 경우에도 방금 보낸 작업을 찾아 이어가요(findJob) */
+  if (m) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
 
   /* 사이트별 화면 위치(선택자). 사이트가 바뀌면 여기만 고치면 됩니다. */
   var PROFILES = {
@@ -411,6 +426,19 @@ HELPER_JS = r"""// ==UserScript==
     return [];
   }
   function disabled(b) { return !b || b.disabled || b.getAttribute('aria-disabled') === 'true'; }
+  /* 전송 버튼 찾기(2차): 사이트 화면이 바뀌어 정해 둔 선택자가 안 맞아도, 입력창 근처의 '보내기' 모양 버튼을 글자·aria-label 로 찾는다 */
+  function genericSend(inp) {
+    var root = inp.closest('form') || inp.parentElement;
+    for (var up = 0; up < 7 && root; up++, root = root.parentElement) {
+      var bs = root.querySelectorAll('button,[role="button"]');
+      var c = Array.prototype.filter.call(bs, function (b) {
+        var t = ((b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '') + ' ' + (b.getAttribute('mattooltip') || '') + ' ' + (b.getAttribute('data-testid') || '') + ' ' + (b.textContent || '')).trim();
+        return /send|submit|보내|전송|제출/i.test(t) && !/stop|중지|취소|cancel|attach|첨부|upload|업로드|mic|음성/i.test(t) && !disabled(b) && b.offsetParent !== null;
+      });
+      if (c.length) return c[c.length - 1];
+    }
+    return null;
+  }
   function waitFor(fn, ms, what) {
     return new Promise(function (res, rej) {
       var t0 = Date.now();
@@ -532,6 +560,7 @@ HELPER_JS = r"""// ==UserScript==
       if (cancelled) throw new Error('사용자가 중지했어요');
       var stop = !!pick(P.stop); if (stop) sawStop = true;
       var a = lastAnswer(base), len = a ? (a.innerText || a.textContent || '').length : 0;
+      if (!sawStop && !len && Date.now() - t0 > 90000) throw new Error('답변이 시작되지 않았어요(전송이 안 된 것 같아요)');
       if (len !== lastLen) { lastLen = len; stableSince = Date.now(); }
       if (stop) noStopSince = 0; else if (!noStopSince) noStopSince = Date.now();
       var quiet = Date.now() - stableSince;
@@ -544,15 +573,17 @@ HELPER_JS = r"""// ==UserScript==
   async function findJob() {
     for (var i = 0; i < 20; i++) {
       var j = await gget('job');
-      if (j && j.id === JOB && Date.now() - j.ts < 180000) return j;
+      if (JOB) { if (j && j.id === JOB && Date.now() - j.ts < 180000) return j; }
+      else if (j && j.host === location.hostname && Date.now() - j.ts < 30000) { JOB = j.id; return j; }
       await sleep(400);
     }
     return null;
   }
 
   async function main() {
-    banner('🤖 종목분석 미니 도우미 · 작업을 확인하는 중…');
+    if (JOB) banner('🤖 종목분석 미니 도우미 · 작업을 확인하는 중…');
     var job = await findJob();
+    if (!job && !JOB) return;   /* 그냥 직접 연 AI 화면: 아무것도 하지 않아요 */
     if (!job) { banner('⚠ 종목분석 미니에서 보낸 작업을 찾지 못했어요(시간이 지났거나 다른 곳에서 열었어요). 자동 진행을 하지 않아요.', 'bad'); return; }
     await gdel('job');
     try {
@@ -569,9 +600,16 @@ HELPER_JS = r"""// ==UserScript==
       var base = answers().length;
       status('전송하는 중…');
       var btn = null;
-      try { btn = await waitFor(function () { var b = pick(P.send); return b && !disabled(b) ? b : null; }, 12000, '전송 버튼'); } catch (e) { btn = null; }
+      try { btn = await waitFor(function () { var b = pick(P.send); if (b && !disabled(b)) return b; return genericSend(inp); }, 12000, '전송 버튼'); } catch (e) { btn = null; }
       if (btn) btn.click(); else enter(inp);
       await sleep(1500);
+      var plen = job.prompt.replace(/\s+/g, '').length;
+      var sent = function () { return !!pick(P.stop) || answers().length > base || inputText(inp).replace(/\s+/g, '').length < plen * 0.3; };
+      if (!sent()) {
+        status('전송이 안 된 것 같아 한 번 더 시도해요…');
+        enter(inp); await sleep(1500);
+        if (!sent()) { var b2 = genericSend(inp) || pick(P.send); if (b2 && !disabled(b2)) b2.click(); await sleep(1500); }
+      }
       var a = await waitDone(base);
       var text = toMarkdown(a);
       if (text.length < 20) throw new Error('답변 글을 읽지 못했어요');
@@ -638,7 +676,15 @@ def helper_page():
         '<li>크롬(또는 엣지)에 <b>Tampermonkey(탬퍼몽키)</b> 확장을 설치해요. 크롬 웹 스토어에서 ‘Tampermonkey’ 검색.</li>'
         '<li>크롬 주소창에 <code>chrome://extensions</code> → Tampermonkey [세부정보] → <b>‘사용자 스크립트 허용’</b>을 켜요(최근 크롬에서 필요).</li>'
         '<li>아래 <b>[도우미 설치]</b> 버튼을 누르면 Tampermonkey 설치 화면이 떠요 → [설치].</li>'
-        '<li>이 사이트를 새로고침한 뒤, AI 창에서 [AI 열기]를 눌러 보세요. 위쪽에 🤖 안내 띠가 나오면 성공이에요.</li></ol>'
+        '<li>크롬 <code>chrome://extensions</code> → Tampermonkey [세부정보] → <b>‘사이트 액세스’를 ‘모든 사이트에서’</b>로 바꿔요(‘클릭 시’나 특정 사이트면 제미나이 등에서 동작하지 않아요).</li>'
+        '<li>이 사이트를 새로고침한 뒤, AI 창에서 [AI 열기]를 눌러 보세요. 새로 열린 AI 화면 위쪽에 🤖 안내 띠가 나오면 성공이에요.</li></ol>'
+        '<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:12px 14px;margin:6px 0 14px;font-size:13.5px;line-height:1.8">'
+        '<b>🔧 설치했는데 자동으로 안 될 때 (순서대로 확인)</b><br>'
+        '① 위 ‘설치 여부’가 ✅ 로 나오는지 — 안 나오면 이 화면을 새로고침(Ctrl+F5)<br>'
+        '② Tampermonkey [세부정보]에서 <b>사용자 스크립트 허용 ON</b>, <b>사이트 액세스 = 모든 사이트에서</b><br>'
+        '③ Tampermonkey 대시보드에서 ‘종목분석 미니 · AI 도우미’가 <b>켜짐</b>(파란 스위치)인지, 버전이 <b>1.1.0</b>인지 — 아니면 아래 [도우미 설치]를 다시 눌러 ‘업데이트/재설치’<br>'
+        '④ AI 사이트(제미나이 등)에 <b>로그인</b>된 상태인지, 이미 열려 있던 AI 탭은 새로고침<br>'
+        '⑤ 그래도 안 되면: [AI 열기] 때 프롬프트는 이미 복사돼 있으니 AI 입력칸에 Ctrl+V → 전송 → 답변 복사 후 이 창으로 돌아오면 기존 방식으로 가져와요.</div>'
         '<p><a class="mu-btn" href="/assets/mini-ai-helper.user.js" style="display:inline-block;padding:10px 18px;border-radius:12px;background:#3151d3;color:#fff;font-weight:700;text-decoration:none">⬇ 도우미 설치</a></p>'
         '<p style="color:#64748b;font-size:13px;line-height:1.7">· 이 스크립트는 내 브라우저 안에서만 동작하고, 로그인 정보나 대화 내용을 어디로도 보내지 않아요.<br>'
         '· 이 사이트에서 보낸 작업만 처리해요. 다른 경로로 연 AI 화면은 건드리지 않아요.<br>'
@@ -647,7 +693,7 @@ def helper_page():
         '</div></div>'
     )
     script = ("function ahChk(last){var s=document.documentElement.getAttribute('data-mini-helper');var e=document.getElementById('ahState');"
-              "if(s){e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')';e.style.color='#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
+              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<1);e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.1.0)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
               "ahChk(false);setTimeout(function(){ahChk(false)},300);setTimeout(function(){ahChk(true)},1200);")
     resp = C.app.make_response(page("AI 도우미", body, icon="🤖", subtitle="AI 입력·전송·답변 복사를 자동으로 해 주는 선택 도구", script=script))
     resp.headers["Cache-Control"] = "no-cache"

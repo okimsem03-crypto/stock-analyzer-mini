@@ -21,9 +21,10 @@ for _n in _CORE_FUNCS:
 def _state():
     levels = member_levels()
     menus = []
-    for m in menus_ordered():
+    gl = {g["id"]: g["icon"] + " " + g["label"] for g in C.MENU_GROUPS}
+    for m in C.menus_grouped(menus_ordered()):
         on, tok = menu_policy(m["id"])
-        menus.append({"id": m["id"], "icon": m["icon"], "label": m["label"], "desc": m.get("desc", ""), "on": bool(on),
+        menus.append({"group": C.menu_group(m), "group_label": gl.get(C.menu_group(m), ""), "id": m["id"], "icon": m["icon"], "label": m["label"], "desc": m.get("desc", ""), "on": bool(on),
                       "levels": ([C.GUEST] if C.GUEST in tok else []) + [x["id"] for x in levels if x["id"] in tok], "public_path": m["public_path"], "admin_path": m["admin_path"],
                       "preview_path": m.get("preview_path") or m["public_path"], "admin_only": bool(m.get("admin_only"))})
     return {"levels": levels, "max": C.MAX_MEMBER_LEVELS, "menus": menus, "guest": C.GUEST}
@@ -92,12 +93,13 @@ function mmDraw(p){p.innerHTML='';var D=MM.draft;
  lc.appendChild(el('span','m',' '+D.levels.length+' / '+D.max));p.appendChild(lc);
  // ── 메뉴 목록
  var mc=el('div','c');mc.appendChild(el('b',null,'📋 메뉴 목록 ('+D.menus.length+'개)'));
- var sb=el('input');sb.placeholder='메뉴 이름 검색';sb.value=MM.q;sb.style.width='160px';sb.oninput=function(){MM.q=sb.value;mmRows()};var mh=mc.firstChild;mh.title='✅ 켜짐 = 체크한 사람에게 보임 · 🙈 숨김 = 관리자만 보임 · "비회원"을 체크하면 모두에게 공개 · ▲▼로 메인 메뉴 바 순서 변경';mc.removeChild(mh);var mbar=el('div','bar');mbar.appendChild(mh);mbar.appendChild(el('span','m','✅ 켜짐=체크한 사람에게 보임 · 🙈 숨김=관리자만 · ▲▼ 순서'));mbar.appendChild(sb);mc.appendChild(mbar);
+ var sb=el('input');sb.placeholder='메뉴 이름 검색';sb.value=MM.q;sb.style.width='160px';sb.oninput=function(){MM.q=sb.value;mmRows()};var mh=mc.firstChild;mh.title='✅ 켜짐 = 체크한 사람에게 보임 · 🙈 숨김 = 관리자만 보임 · "비회원"을 체크하면 모두에게 공개 · ▲▼로 같은 분류 안에서 순서 변경';mc.removeChild(mh);var mbar=el('div','bar');mbar.appendChild(mh);mbar.appendChild(el('span','m','✅ 켜짐=체크한 사람에게 보임 · 🙈 숨김=관리자만 · ▲▼ 순서'));mbar.appendChild(sb);mc.appendChild(mbar);
  var tw=el('div');tw.style.cssText='overflow-x:auto;margin-top:8px';var tb=el('div');tw.appendChild(tb);mc.appendChild(tw);p.appendChild(mc);
- function mmRows(){tb.innerHTML='';var t=el('table');var h=el('tr');['순서','메뉴','상태','비회원'].concat(D.levels.map(function(l){return l.name})).concat(['열기']).forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
+ function mmRows(){tb.innerHTML='';var t=el('table');var h=el('tr');['순서','분류','메뉴','상태','비회원'].concat(D.levels.map(function(l){return l.name})).concat(['열기']).forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
   var q=(MM.q||'').trim().toLowerCase();
   D.menus.forEach(function(m,i){if(q&&(m.label+' '+m.desc+' '+m.id).toLowerCase().indexOf(q)<0)return;var tr=el('tr');
-   var o=el('td');var u=bt('▲','bt3',function(){if(i>0){var x=D.menus[i-1];D.menus[i-1]=m;D.menus[i]=x;mmDirty(p);mmDraw(p)}});u.disabled=i===0;var w=bt('▼','bt3',function(){if(i<D.menus.length-1){var x=D.menus[i+1];D.menus[i+1]=m;D.menus[i]=x;mmDirty(p);mmDraw(p)}});w.disabled=i===D.menus.length-1;o.appendChild(u);o.appendChild(w);tr.appendChild(o);
+   var o=el('td');var u=bt('▲','bt3',function(){if(i>0){var x=D.menus[i-1];D.menus[i-1]=m;D.menus[i]=x;mmDirty(p);mmDraw(p)}});u.disabled=i===0||D.menus[i-1].group!==m.group;var w=bt('▼','bt3',function(){if(i<D.menus.length-1){var x=D.menus[i+1];D.menus[i+1]=m;D.menus[i]=x;mmDirty(p);mmDraw(p)}});w.disabled=i===D.menus.length-1||D.menus[i+1].group!==m.group;o.appendChild(u);o.appendChild(w);tr.appendChild(o);
+   tr.appendChild(el('td','m',m.group_label||''));
    var nm=el('td');nm.appendChild(el('b',null,m.icon+' '+m.label));var nd=el('div','m',m.desc||'');nd.title=m.desc||'';nd.style.cssText='max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';nm.appendChild(nd);tr.appendChild(nm);
    var st=el('td');if(m.admin_only){st.appendChild(el('span','m','🔒 관리자 전용'))}else{var tg=bt(m.on?'✅ 켜짐':'🙈 숨김',m.on?'bt':'bt3',function(){m.on=!m.on;mmDirty(p);mmDraw(p)});st.appendChild(tg)}tr.appendChild(st);
    function cb(tok){var td=el('td');var c=el('input');c.type='checkbox';c.checked=m.levels.indexOf(tok)>=0;c.disabled=!m.on||!!m.admin_only;c.onchange=function(){var s=m.levels.filter(function(x){return x!==tok});if(c.checked)s.push(tok);m.levels=s;mmDirty(p);mmDraw(p)};td.appendChild(c);return td}
