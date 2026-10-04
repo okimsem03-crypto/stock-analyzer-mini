@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v166 — 🎨 전체 리디자인(공통 스킨 mini_skin.py): 얇은 흰색 상단 바(로고·검색·계정) + 왼쪽 사이드바 메뉴(분류별 접기, 좁은 화면은 ☰ 서랍), 컴팩트한 카드·표·버튼, 관리자 콘솔도 왼쪽 사이드바. 메뉴 분류를 종목·리서치(심층·뉴스·거래정지) / 시장·수급(시장수급·네이버테마·수급분석) / 추천·AI(오늘추천·도전주)로 재배치. 🐛 관리자 로그인이 오래 쉬어 풀렸을 때 AI가 ‘정회원 이상’이라고 거부하던 문구를 ‘관리자 로그인이 풀렸어요’로 바로잡고, 메인 화면을 열어 둔 동안 4분마다 로그인을 자동 연장.
 ✨ v165 — 새 메뉴 [📊 시장수급]·[🏷 네이버테마]: 수급분석 화면의 ‘수급·테마 가져오기’ 상자를 두 메뉴로 나눠 옮김. 시장수급은 개인·외국인·기관에 금융투자·보험·투신·사모·은행·연기금·기타법인 등 세부 주체(KRX 표 붙여넣기)까지 일별 흐름·연속 일수·종목 상위·AI 해설·이미지·블로그 글로, 네이버테마는 테마 순위·연속 강세·테마 안 종목·테마별 수급·일별 추이·AI·이미지·블로그 글로 제공.
 ✨ v164 — AI 도우미 1.3.0: 프롬프트를 AI 탭 주소(#miniai=…&p=…)에 함께 실어 보내 저장소 전달이 안 돼도 자동 진행되게 보완(Tampermonkey 스크립트 재설치 필요). [복사된 프롬프트로 진행]은 엉뚱한 클립보드 내용이 AI에 전송되지 않도록 클릭 확인용으로 유지.
 ✨ v163 — 블로그 글 보완: 표 안의 표(점수 막대)가 네이버 편집기에서 칸을 늘려 깨지던 문제를 글자 막대로 교체, 표 칸 너비 고정, 종목명에 네이버 증권 링크(표·근거·AI 글), 복사 설정이 꺼져 있어도 [📋 복사 → 블로그 열기] 버튼 표시.
@@ -347,7 +348,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v165"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v166"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4440,7 +4441,7 @@ function toast(t,kind){var x=$('toast');t=String(t==null?'':t);var bad=kind==='b
 function api(u,post){return fetch(u,{method:post?'POST':'GET',credentials:'same-origin',headers:post?{'X-CSRF-Token':CSRF}:{}}).then(function(r){
   if(r.status===401){location.replace('/admin');throw 0}return r.json()}).then(gwErr)}
 function gwErr(j){if(MEMBER_MODE&&j&&j.feature&&j.error){toast(j.error,'bad');if(FEATS&&FEATS[j.feature]&&j.login!==undefined)lockDlg(j.feature)}return j}
-var TAB_GROUPS=[['📊 운영',['sum','cmt','ovw','log']],['📈 종목·심층',['dp']],['🏆 추천·AI',['dy','ch']],['🔬 시장분석',['mk','th','fl','nw','dl']],['🎚 공개·회원',['mm','fe','mem']],['✍ 콘텐츠',['bu','bl','ik','pr']],['⚙ 설정',['mn','im']]];
+var TAB_GROUPS=[['📊 운영',['sum','cmt','ovw','log']],['📈 종목·리서치',['dp','nw','dl']],['🔬 시장·수급',['mk','th','fl']],['🏆 추천·AI',['dy','ch']],['🎚 공개·회원',['mm','fe','mem']],['✍ 콘텐츠',['bu','bl','ik','pr']],['⚙ 설정',['mn','im']]];
 function nav(){var n=$('nav');n.innerHTML='';var seen={};
  function pill(t,box){var b=el('button',t[0]===cur?'on':'',t[1]);b.onclick=function(){cur=t[0];nav();load()};box.appendChild(b);seen[t[0]]=1}
  if(MEMBER_MODE||TABS.length<6){TABS.forEach(function(t){pill(t,n)});return}
@@ -4448,7 +4449,7 @@ function nav(){var n=$('nav');n.innerHTML='';var seen={};
   ddGroup(g[0],items)});
  var rest=TABS.filter(function(t){return !seen[t[0]]});if(rest.length)ddGroup('🧰 기타',rest);
  function ddGroup(label,items){var box=el('div','ng dd');var act=items.filter(function(t){return t[0]===cur})[0];
-  var gb=el('button','ngb'+(act?' on':''));gb.type='button';gb.appendChild(el('span',null,label+(act?' · '+act[1]:'')));gb.appendChild(el('em',null,'▾'));
+  var gb=el('button','ngb'+(act?' on':''));gb.type='button';gb.appendChild(el('span',null,label));gb.appendChild(el('em',null,'▾'));
   var dd=el('div','ngd');items.forEach(function(t){pill(t,dd)});
   gb.onclick=function(e){e.stopPropagation();var was=box.classList.contains('open');navCloseAll();box.classList.toggle('open',!was)};
   box.appendChild(gb);box.appendChild(dd);n.appendChild(box)}}
@@ -4587,6 +4588,19 @@ function mnLoad(p){api('/admin/api/settings').then(function(d){if(cur!=='mn')ret
 var HH=(location.hash||'').slice(1);if(TABS.some(function(t){return t[0]===HH}))cur=HH;
 nav();load();
 </script></body></html>"""
+
+# 🎨 [v166] 공통 디자인 스킨(mini_skin.py) — 관리자·회원 메뉴 화면에 덧씌운다. 파일이 없거나 오류면 예전 모양 그대로 동작한다.
+try:
+    _here = os.path.dirname(os.path.abspath(__file__))
+    if _here not in sys.path:
+        sys.path.insert(0, _here)
+    import mini_skin as _skin
+except Exception as _e:
+    _skin = None
+    print(f"[스킨] mini_skin.py 를 불러오지 못했어요(예전 디자인으로 표시): {_e}")
+if _skin:
+    ADMIN_APP_HTML = ADMIN_APP_HTML.replace("</style></head><body>", _skin.ADMIN_CSS + "</style></head><body>", 1)
+
 
 
 # ══════════════════════════════════════════════════════════════
@@ -4843,14 +4857,14 @@ def menu_visible(menu_id, admin=False):
 #   · 메뉴 모듈이 register_menu({... "group": "reco"}) 처럼 정하거나, 정하지 않으면 아래 기본표(MENU_GROUP_DEFAULT)를 따른다.
 #   · 분류 안의 순서는 관리자가 정한 메뉴 순서(menu_order)를 그대로 따른다. 비어 있는 분류는 화면에 나오지 않는다.
 MENU_GROUPS = [
-    {"id": "main", "label": "종목·심층", "icon": "📈"},
+    {"id": "main", "label": "종목·리서치", "icon": "📈"},
+    {"id": "market", "label": "시장·수급", "icon": "🔬"},
     {"id": "reco", "label": "추천·AI", "icon": "🏆"},
-    {"id": "market", "label": "시장분석", "icon": "🔬"},
     {"id": "records", "label": "기록·관리", "icon": "📒"},
     {"id": "etc", "label": "기타 도구", "icon": "🧰"},
 ]
-MENU_ORDER_DEFAULT = ["deep", "daily", "challenge", "market", "theme", "flow", "news", "delist"]
-MENU_GROUP_DEFAULT = {"deep": "main", "daily": "reco", "challenge": "reco", "market": "market", "theme": "market", "flow": "market", "news": "market", "delist": "market"}
+MENU_ORDER_DEFAULT = ["deep", "news", "delist", "market", "theme", "flow", "daily", "challenge"]
+MENU_GROUP_DEFAULT = {"deep": "main", "news": "main", "delist": "main", "market": "market", "theme": "market", "flow": "market", "daily": "reco", "challenge": "reco"}
 
 
 def menu_group(m):
@@ -5036,6 +5050,25 @@ def _gateway_gate(write=False):
     spec = feature_spec(menu, fid) or {"label": fid}
     need = feature_need_text(menu, fid)
     return _admin_json({"error": f"🔒 ‘{spec['label']}’ 기능은 {need}부터 쓸 수 있어요.", "feature": fid, "login": tok == GUEST, "need": need}, 403)
+
+
+@app.after_request
+def _expired_admin_note(resp):
+    """[v166] 관리자 로그인이 시간 지나 풀렸는데 '정회원 이상부터 쓸 수 있어요'로 보이면 헷갈린다 → 관리자 쿠키가 남아 있는데
+       관리자로 인정되지 않는 요청의 '기능 잠김'(403) 응답은 '로그인 만료' 안내로 바꿔 준다."""
+    try:
+        if resp.status_code != 403 or not request.environ.get("mini.gateway") or not request.cookies.get("adm_s"):
+            return resp
+        j = resp.get_json(silent=True)
+        if not isinstance(j, dict) or "feature" not in j or admin_viewer():
+            return resp
+        j["error"] = "🔑 관리자 로그인이 풀렸어요(오래 쉬면 자동으로 로그아웃돼요). 관리자 화면에서 다시 로그인한 뒤 눌러 주세요."
+        j["admin_expired"] = True
+        resp.set_data(json.dumps(j, ensure_ascii=False))
+        resp.headers["Content-Length"] = str(len(resp.get_data()))
+    except Exception:
+        pass
+    return resp
 
 
 class _MapiRewrite:
@@ -6589,6 +6622,7 @@ HTML_TEMPLATE = r"""
   .riskNote{font-size:11px; color:#991b1b; line-height:1.6;}
   .riskBanner.level-caution .riskNote{color:#92400e;}
 </style>
+<!--MINI_SKIN-->
 </head>
 <body>
 
@@ -6635,8 +6669,10 @@ HTML_TEMPLATE = r"""
   </div>
 </div>
 
+<div id="chrome">
 <div id="admBar" style="display:none;background:#0f172a;color:#fff;font-size:12.5px;padding:7px 14px;align-items:center;gap:10px;flex-wrap:wrap"></div>
 <div class="topbar">
+  <button type="button" id="sbBtn" aria-label="메뉴 열기" title="메뉴">☰</button>
   <div class="brandBlock" id="brandHome" role="link" tabindex="0" title="첫 화면(홈)으로" style="cursor:pointer">
     <div class="brand">📈 종목분석<span> 미니</span> <span class="verTag">{{ app_version }}</span></div>
     <div class="sloganTag">{{ slogan }}</div>
@@ -6645,8 +6681,9 @@ HTML_TEMPLATE = r"""
     <input id="searchInput" class="searchInput" type="text" placeholder="종목명 또는 코드를 입력하세요 (예: 삼성전자, 005930)" autocomplete="off">
     <div id="searchDrop" class="searchDrop"></div>
   </div>
-  <button class="refreshBtn" onclick="resetAll()" title="검색·결과·AI 칸을 모두 비우고 첫 화면으로 돌아갑니다">↺ 초기화</button>
-  <button class="refreshBtn" onclick="refreshTickers()">🔄 종목목록 갱신</button>
+  <div class="tbActs">
+  <button class="refreshBtn opt" onclick="resetAll()" title="검색·결과·AI 칸을 모두 비우고 첫 화면으로 돌아갑니다">↺ 초기화</button>
+  <button class="refreshBtn opt" onclick="refreshTickers()" title="종목 목록을 새로 받아옵니다">🔄 종목목록</button>
   <a class="refreshBtn" href="/help" target="_blank" rel="noopener" style="text-decoration:none;">❓ 도움말</a>
   <a class="refreshBtn" id="memBtn" href="/member" style="text-decoration:none;display:none;" title="이메일로 회원가입·로그인">👤 로그인·가입</a>
   {% if kakao_url %}
@@ -6656,7 +6693,10 @@ HTML_TEMPLATE = r"""
   {% endif %}
   <a class="blogBtn" href="{{ blog_url }}" target="_blank" rel="noopener"
      title="이 프로그램을 만든 제작자의 투자 블로그입니다">✍️ 제작자 블로그 ↗</a>
+  </div>
 </div>
+</div>
+<div id="sbBack"></div>
 <!-- 🧭 [v138] 메인 화면 메뉴 바 — 보이는 메뉴가 하나도 없으면(관리자가 아니거나 모두 숨김) 통째로 숨겨진다 -->
 <nav id="mainMenuBar" class="mainMenuBar" style="display:none" aria-label="메뉴"><div class="mmIn"><span class="mmTitle">🧭 메뉴</span><div id="menuLinks" class="mmList"></div></div></nav>
 <div id="tabHost" class="tabHost"><div id="tabMsg" class="tabMsg">⏳ 불러오는 중…</div></div>
@@ -8413,9 +8453,14 @@ function openAdminWin(hash){
 var MiniTabs = (function(){
   var T = {}, M = {}, active = 'stock', mainY = 0, isAdm = false, bar = null, wrap = null, host = null, msg = null;
   function $$(i){ return document.getElementById(i); }
-  function barH(){ var mb = $$('mainMenuBar'); return mb ? mb.offsetHeight : 0; }
-  function stickyH(){ var tb = document.querySelector('.topbar'); try{ return (tb && getComputedStyle(tb).position === 'sticky') ? tb.offsetHeight : 0; }catch(e){ return 0; } }
-  function fit(){ var h = Math.max(420, window.innerHeight - stickyH() - barH()) + 'px'; Object.keys(T).forEach(function(k){ T[k].f.style.height = h; }); }
+  // [v166] 상단 바(#chrome)는 항상 위에 있고, 메뉴는 왼쪽 사이드바(좁은 화면에서는 ☰ 서랍)라서 탭 화면 높이 = 창 높이 - 상단 바
+  function barH(){ return 0; }
+  function stickyH(){ var c = $$('chrome'); return c ? c.offsetHeight : 0; }
+  function fit(){
+    var ch = stickyH(); try{ document.documentElement.style.setProperty('--chromeH', ch + 'px'); }catch(e){}
+    var h = Math.max(420, window.innerHeight - ch) + 'px'; Object.keys(T).forEach(function(k){ T[k].f.style.height = h; });
+  }
+  function sbMode(){ return document.body.classList.contains('hasSb'); }
   function setMenus(list, admin){ M = {}; isAdm = !!admin; list.forEach(function(m){ M[m.id] = m; }); }
   function item(id){ return wrap ? wrap.querySelector('.mmItem[data-mid="' + id + '"]') : null; }
   function refresh(){
@@ -8438,16 +8483,26 @@ var MiniTabs = (function(){
     for(var k = 0; k < gs.length; k++){
       var g = gs[k], on = g.querySelector('.mmItem.on'), op = g.querySelector('.mmItem.open'), gt = g.querySelector('.mmGt');
       g.classList.toggle('on', !!on); g.classList.toggle('hasopen', !!op);
-      if(gt) gt.textContent = g.getAttribute('data-label') + (on ? ' · ' + (on.getAttribute('data-lbl') || '') : '');
+      if(on) g.classList.add('open');                      // 지금 보는 메뉴가 든 분류는 항상 펼쳐 둔다
+      if(gt) gt.textContent = g.getAttribute('data-label');
     }
   }
+  function saveOpen(){
+    try{ var c = {}; var gs = wrap.querySelectorAll('.mmGrp[data-dd]'); for(var i = 0; i < gs.length; i++){ c[gs[i].getAttribute('data-grp')] = gs[i].classList.contains('open') ? 1 : 0; } localStorage.setItem('mini_sb_open', JSON.stringify(c)); }catch(e){}
+  }
+  function restoreOpen(){
+    var c = {}; try{ c = JSON.parse(localStorage.getItem('mini_sb_open') || '{}') || {}; }catch(e){}
+    var gs = wrap.querySelectorAll('.mmGrp[data-dd]');
+    for(var i = 0; i < gs.length; i++){ var id = gs[i].getAttribute('data-grp'); gs[i].classList.toggle('open', c[id] === undefined ? true : !!c[id]); }
+  }
   function ddClose(except){
-    if(!wrap) return;
+    if(!wrap || sbMode()) return;                          // 사이드바에서는 분류가 따로따로 접히고 펼쳐진다
     var o = wrap.querySelectorAll('.mmGrp.open');
     for(var i = 0; i < o.length; i++){ if(o[i] === except) continue; o[i].classList.remove('open'); var b = o[i].querySelector('.mmGb'); if(b) b.setAttribute('aria-expanded', 'false'); }
   }
   function toggleGroup(g){
     var was = g.classList.contains('open'); ddClose(g);
+    if(sbMode()){ g.classList.toggle('open', !was); var b0 = g.querySelector('.mmGb'); if(b0) b0.setAttribute('aria-expanded', was ? 'false' : 'true'); saveOpen(); return; }
     g.classList.toggle('open', !was);
     var b = g.querySelector('.mmGb'); if(b) b.setAttribute('aria-expanded', was ? 'false' : 'true');
     if(!was){ g.classList.remove('r'); var d = g.querySelector('.mmDd'); if(d){ var r = d.getBoundingClientRect(); if(r.right > window.innerWidth - 8) g.classList.add('r'); } }
@@ -8470,7 +8525,7 @@ var MiniTabs = (function(){
     refresh(); fit();
     if(id === 'stock'){ window.scrollTo(0, mainY); }
     else{
-      var mb = $$('mainMenuBar'); if(mb){ window.scrollTo(0, Math.max(0, mb.getBoundingClientRect().top + window.pageYOffset - stickyH())); }
+      window.scrollTo(0, 0);
       try{ T[id].f.contentWindow.focus(); }catch(e){}
     }
     return true;
@@ -8519,17 +8574,27 @@ var MiniTabs = (function(){
   function makeItem(m, extra){
     var a = document.createElement('a'); a.className = 'mmItem' + (m.hidden ? ' hid' : ''); a.setAttribute('data-mid', m.id);
     a.href = m.href || m.url;
-    var sp = document.createElement('span'); sp.textContent = ((m.icon ? m.icon + ' ' : '') + m.label + (m.hidden ? ' 🔒' : '')); a.appendChild(sp);
+    if(m.icon){ var ic = document.createElement('span'); ic.className = 'ic'; ic.textContent = m.icon; a.appendChild(ic); }
+    var sp = document.createElement('span'); sp.className = 'lb'; sp.textContent = m.label; a.appendChild(sp);
     if(m.title) a.title = m.title;
     a.setAttribute('data-lbl', m.label);
-    a.onclick = function(e){ if(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); ddClose(); open(m.id); };
+    a.onclick = function(e){ if(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); ddClose(); open(m.id); document.body.classList.remove('sbOpen'); };
     return a;
   }
-  function init(w, b){ wrap = w; bar = b; host = $$('tabHost'); msg = $$('tabMsg'); window.addEventListener('resize', fit); }
+  function init(w, b){
+    wrap = w; bar = b; host = $$('tabHost'); msg = $$('tabMsg'); window.addEventListener('resize', fit);
+    var sb = $$('sbBtn'), bk = $$('sbBack');
+    if(sb) sb.onclick = function(){ document.body.classList.toggle('sbOpen'); };
+    if(bk) bk.onclick = function(){ document.body.classList.remove('sbOpen'); };
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape') document.body.classList.remove('sbOpen'); });
+    try{ var c = $$('chrome'); if(c && window.ResizeObserver){ new ResizeObserver(function(){ fit(); }).observe(c); } }catch(e){}
+    fit();
+  }
   document.addEventListener('click', function(e){ if(!e.target.closest || !e.target.closest('.mmGrp')) ddClose(); });
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape') ddClose(); });
   window.addEventListener('blur', function(){ ddClose(); });   // 아래 탭 화면(iframe)을 누르면 내림 메뉴도 닫는다
   return { init: init, setMenus: setMenus, makeItem: makeItem, toggleGroup: toggleGroup, closeGroups: ddClose, open: open, show: show, close: close, refresh: refresh, openAdmin: openAdmin, openStock: openStock, openDeep: openDeep,
+           restoreOpen: function(){ if(wrap) restoreOpen(); }, fit: fit,
            admin: function(){ return isAdm; }, active: function(){ return active; } };
 })();
 // [v157] AI 도우미 중계 — 메뉴 화면(iframe 탭)의 [AI 열기]가 맡긴 작업을 이 바깥 화면의 도우미에게 전달하고, 도우미의 진행·결과를 열려 있는 탭들에 되돌려 준다
@@ -8600,7 +8665,7 @@ var MiniTabs = (function(){
         var items = list.filter(function(m){ return (m.group || 'etc') === gid; });
         if(!items.length) return;
         var g = gl[gid] || { label: '기타 도구', icon: '🧰' };
-        var bx = boxOf(gid, (g.icon ? g.icon + ' ' : '') + g.label);
+        var bx = boxOf(gid, g.label);
         items.forEach(function(m){ bx.appendChild(MiniTabs.makeItem(m)); });
       });
       if(isAdm){
@@ -8610,7 +8675,8 @@ var MiniTabs = (function(){
       }
     }
     if(mbar) mbar.style.display = wrap.children.length ? '' : 'none';
-    MiniTabs.refresh();
+    document.body.classList.toggle('hasSb', wrap.children.length > 0);   // [v166] 메뉴가 있으면 왼쪽 사이드바 레이아웃
+    MiniTabs.restoreOpen(); MiniTabs.refresh(); MiniTabs.fit();
     if(isAdm){
       bar.style.display = 'flex';
       var t = document.createElement('b');
@@ -8637,6 +8703,17 @@ var MiniTabs = (function(){
   var p2 = fetch('/admin/api/whoami', {credentials:'same-origin', cache:'no-store'}).then(function(r){ return r.ok ? r.json() : {admin:false}; }).catch(function(){ return {admin:false}; });
   Promise.all([p1, p2]).then(function(v){
     draw(v[0], v[1]);
+    // [v166] 관리자 로그인 유지 — 이 화면을 열어 둔 동안은 4분마다 '살아 있음'을 알려 자동 로그아웃(기본 30분)을 막는다. 풀렸으면 알림.
+    if(v[1] && v[1].admin){
+      setInterval(function(){
+        fetch('/admin/api/whoami', {credentials:'same-origin', cache:'no-store'}).then(function(r){ return r.json(); }).then(function(j){
+          if(j && j.admin === false){
+            bar.innerHTML = ''; bar.style.display = 'flex';
+            var w = document.createElement('b'); w.textContent = '🔑 관리자 로그인이 풀렸어요 — 관리자 화면에서 다시 로그인해 주세요.'; bar.appendChild(w);
+          }
+        }).catch(function(){});
+      }, 240000);
+    }
     // [v139] 관리자 로그인 + 일반 이용자 화면 미리보기가 아닐 때만 관리자 전용 JS 를 불러온다
     if(v[1] && v[1].admin && !PREVIEW){
       window.__ADM__ = { csrf: v[1].csrf || '' };
@@ -8654,6 +8731,10 @@ var MiniTabs = (function(){
 # ══════════════════════════════════════════════════════════════
 # 도움말(증권용어 해설) 페이지 — [v113] 신설
 # ══════════════════════════════════════════════════════════════
+# 🎨 [v166] 메인 화면 스킨 덧씌우기(없으면 예전 모양)
+HTML_TEMPLATE = HTML_TEMPLATE.replace("<!--MINI_SKIN-->", ("<style>" + _skin.MAIN_CSS + "</style>") if _skin else "", 1)
+
+
 HELP_HTML = r"""
 <!DOCTYPE html>
 <html lang="ko">
@@ -8964,6 +9045,11 @@ PRIVACY_HTML = r"""
   <div class="muted" style="text-align:center;"><a href="/">← 종목분석 미니로 돌아가기</a></div>
 </div></body></html>
 """
+
+# 🎨 [v166] 도움말 페이지 상단 바를 새 스킨으로
+if _skin:
+    HELP_HTML = HELP_HTML.replace("</style>\n</head>", "</style>\n<style>" + _skin.SUB_CSS + "</style>\n</head>", 1)
+
 
 
 # ══════════════════════════════════════════════════════════════

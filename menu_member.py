@@ -708,7 +708,7 @@ def oauth_callback(prov):
 # ───────────────────────── 화면 ─────────────────────────
 PAGE_CSS = """
 .mbBox{max-width:460px;margin:0 auto}.mbTabs{display:flex;gap:6px;margin:0 0 14px}.mbTabs button{flex:1;appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:12px;padding:10px;font:inherit;font-weight:700;cursor:pointer}
-.mbTabs button.on{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:transparent}
+.mbTabs button.on{background:var(--accent);color:#fff;border-color:transparent}
 .mbF{display:flex;flex-direction:column;gap:10px}.mbF label{font-weight:700;font-size:13.5px;display:flex;flex-direction:column;gap:5px}
 .mbF input[type=email],.mbF input[type=password],.mbF input[type=text],.mbF input[type=tel]{border:1px solid var(--line);border-radius:12px;padding:11px 13px;font:inherit;background:var(--surface);color:var(--ink);width:100%;box-sizing:border-box}
 .mbF input:focus{outline:2px solid var(--accent2);outline-offset:1px}
