@@ -11,7 +11,7 @@
 그대로 가리키므로 시험에서 본체 함수를 바꿔 끼워도 모듈에 반영된다.
 """
 
-MODULES = ["ui", "blog", "img", "delist", "manage", "access", "dataimport", "lab", "deep", "daily", "flow", "challenge", "news", "member"]
+MODULES = ["ui", "blog", "img", "delist", "manage", "access", "dataimport", "lab", "deep", "daily", "flow", "collect", "challenge", "news", "member"]
 
 _core = None
 

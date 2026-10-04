@@ -54,7 +54,7 @@ def _clamp(x, lo=0, hi=100):
 
 
 def _grade(sc):
-    return "긍정" if sc >= 70 else ("중립" if sc >= 50 else "주의")
+    return "높은 편" if sc >= 70 else ("보통" if sc >= 50 else "낮은 편")      # 지표 수준 표현(기업에 대한 긍정·주의 평가처럼 읽히지 않게)
 
 
 def _eok(v):
@@ -501,7 +501,7 @@ def data_text(x):
     if c:
         L.append(f"애널리스트 컨센서스: 목표주가 {c.get('target_price')}, 투자의견 평균 {c.get('recomm_mean')} ({c.get('date')})")
     s = x["score"]
-    L.append(f"통합점수 {s['total']}점({s['grade']}): " + ", ".join(f"{a['name']} {a['score']}" for a in s["axes"]))
+    L.append(f"체력지표 {s['total']}(공개 시세·재무를 규칙으로 계산한 참고 값 · 기업 평가점수 아님 · {s['grade']}): " + ", ".join(f"{a['name']} {a['score']}" for a in s["axes"]))
     sp = x.get("supply")
     if sp:
         L.append("수급: " + sp["summary"])
@@ -562,7 +562,7 @@ LAB_REPORT_DEFAULT = """당신은 한국 주식 시장을 설명하는 데이터
 # ⑤ 블로그 HTML (원본 방식: 표 + 인라인 서식 → 네이버 블로그 붙여넣기)
 # ══════════════════════════════════════════════════════════════
 NAVY, GOLD, BROWN, LINE, TXT, FONT = B.NAVY, B.GOLD, B.BROWN, B.LINE, B.TXT, B.FONT
-SECTIONS = [("summary", "핵심 지표"), ("score", "5축 종합점수"), ("supply", "수급"), ("fin", "재무·심층분석"), ("disc", "공시"), ("news", "뉴스"), ("pubai", "AI 분석(하단)"), ("ai", "AI 종합 리포트")]
+SECTIONS = [("summary", "핵심 지표"), ("score", "5축 체력지표"), ("supply", "수급"), ("fin", "재무·심층분석"), ("disc", "공시"), ("news", "뉴스"), ("pubai", "AI 분석(하단)"), ("ai", "AI 종합 리포트")]
 _up, _h, _bar, _tc = B.updown, B.title_bar, B.bar, B.tone
 ai_to_html, extract_titles, engage_box, risk_box = B.ai_to_html, B.extract_titles, B.engage_box, B.risk_box
 
@@ -598,7 +598,7 @@ def build_blog(x, ai_text="", inc=None, title="", pub_ai=""):
              f'<td bgcolor="{NAVY}" align="center" style="background-color:{NAVY};padding:24px 16px;border-top:6px solid {GOLD};">'
              f'<div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:{GOLD};margin-bottom:6px;">STOCK ANALYSIS REPORT</div>'
              f'<div style="font-size:24px;font-weight:900;color:#ffffff;">{E(name)} <span style="font-size:15px;color:#cbd5e1;">{E(ticker)}</span></div>'
-             f'<div style="font-size:13px;color:#d1d5db;margin-top:8px;">{date_k} · {E(x.get("market"))} · 통합점수 {s["total"]}점 ({s["grade"]})</div></td></tr>'
+             f'<div style="font-size:13px;color:#d1d5db;margin-top:8px;">{date_k} · {E(x.get("market"))} · 체력지표 {s["total"]} ({s["grade"]}) · 기업 평가점수 아님</div></td></tr>'
              f'<tr><td bgcolor="#fff3cd" style="background-color:#fff3cd;padding:12px 16px;border-left:5px solid #f59e0b;"><div style="font-size:12.5px;color:{BROWN};line-height:1.9;">'
              '&#9888;&#65039; <b>투자 경고문</b> | 본 자료는 공개 데이터를 정리한 참고 정보이며 <b>특정 종목의 매수·매도를 권유하지 않습니다.</b> 주식 투자는 원금 손실의 위험이 있고, 투자 결정과 손익의 책임은 <b>투자자 본인</b>에게 있습니다.</div></td></tr></table>')
     if dl_lead:
@@ -621,7 +621,7 @@ def build_blog(x, ai_text="", inc=None, title="", pub_ai=""):
                      + (f' · 네이버 컨센서스 목표주가 {x["consensus"]["target_price"]:,.0f}원' if (x.get("consensus") or {}).get("target_price") else "") + "</p>")
     # 5축
     if inc.get("score"):
-        h.append(_h("&#127919; 5축 종합점수", "#312e81"))
+        h.append(_h("&#127919; 5축 체력지표 (참고)", "#312e81"))
         rows = []
         for a in s["axes"]:
             col = _tc(a["score"])
@@ -630,8 +630,8 @@ def build_blog(x, ai_text="", inc=None, title="", pub_ai=""):
                         f'<td width="30%" style="padding:9px 6px;border-bottom:1px solid {LINE};">{_bar(a["score"], col)}</td>'
                         f'<td style="padding:9px 8px;border-bottom:1px solid {LINE};font-size:12px;color:#4b5563;">{E(a["note"])}</td></tr>')
         h.append('<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">' + "".join(rows) + "</table>"
-                 f'<p style="font-size:15px;margin:10px 0 0;{FONT}"><b>통합 {s["total"]}점</b> · <span style="color:{_tc(s["total"])};font-weight:800;">{s["grade"]}</span>'
-                 ' <span style="font-size:11px;color:#9ca3af;">(기술 22%·모멘텀 18%·수급 26%·재무 22%·밸류 12%, 없는 항목은 제외하고 환산 — 참고용 지표)</span></p>')
+                 f'<p style="font-size:15px;margin:10px 0 0;{FONT}"><b>체력지표 {s["total"]}</b> · <span style="color:{_tc(s["total"])};font-weight:800;">{s["grade"]}</span>'
+                 ' <span style="font-size:11px;color:#9ca3af;">(기술 22%·모멘텀 18%·수급 26%·재무 22%·밸류 12%, 없는 항목은 제외하고 환산 — 공개 시세·재무 자료를 규칙으로 계산한 참고 지표이며 기업 평가점수가 아니에요. 사업의 질·전망·적정 주가는 반영되지 않아요)</span></p>')
     # 수급
     if inc.get("supply") and sup:
         h.append(_h("&#128101; 수급 현황 (외국인·기관·개인)", "#0f766e"))
@@ -830,8 +830,8 @@ function deepBtn(){var d=el('button',null,'🏛 심층분석 열기');d.onclick=
 function load(){var c=card();head(c);c.appendChild(el('div','note','⏳ 수급·공시·재무를 모으는 중… (처음 한 번 3~6초)'));
  api(BASE+'ext',{ticker:LAB.tk}).then(function(x){if(x.error){LAB.autoImg=false;head(c);c.appendChild(el('div','warn','⚠ '+x.error));var r=el('div','lrow'),b=el('button',null,'다시 시도');b.onclick=load;r.appendChild(b);c.appendChild(r);return}
   LAB.x=x;LAB.open=true;draw()})}
-function secScore(c,x){var s=el('div','lsec');s.appendChild(el('h4',null,'🎯 5축 종합점수'));var g=el('div');g.style.cssText='display:flex;align-items:center;gap:14px;margin-bottom:8px';
- var big=el('div','big',x.score.total+'점');big.style.color=col(x.score.total);g.appendChild(big);var gt=el('div');gt.appendChild(el('b',null,x.score.grade));gt.appendChild(el('div','note','기술·모멘텀·수급·재무·밸류를 가중 평균한 참고 지표예요(투자 판단 근거 아님).'));g.appendChild(gt);s.appendChild(g);
+function secScore(c,x){var s=el('div','lsec');s.appendChild(el('h4',null,'🎯 5축 체력지표 (참고)'));var g=el('div');g.style.cssText='display:flex;align-items:center;gap:14px;margin-bottom:8px';
+ var big=el('div','big',String(x.score.total));big.style.color=col(x.score.total);g.appendChild(big);var gt=el('div');gt.appendChild(el('b',null,x.score.grade));gt.appendChild(el('div','note','기술·모멘텀·수급·재무·밸류를 가중 평균한 참고 지표예요. 기업 평가점수가 아니며 투자 판단 근거가 아니에요.'));if(window.ScoreInfo)gt.appendChild(ScoreInfo.note('lab'));g.appendChild(gt);s.appendChild(g);
  x.score.axes.forEach(function(a){var r=el('div','ax');r.appendChild(el('b',null,a.name));var n=el('b',null,a.score);n.style.color=col(a.score);r.appendChild(n);var b=el('div','bar'),i=el('i');i.style.width=a.score+'%';i.style.background=col(a.score);b.appendChild(i);r.appendChild(b);s.appendChild(r);s.appendChild(el('div','axn',a.note))});c.appendChild(s)}
 function secSupply(c,x){var sp=x.supply,s=el('div','lsec');s.appendChild(el('h4',null,'👥 수급 (외국인·기관·개인)'));if(!sp){s.appendChild(el('div','note','수급 자료를 가져오지 못했어요.'));c.appendChild(s);return}
  s.appendChild(el('div','note',sp.summary||''));var t=el('table'),h=el('tr');['기간','외국인(억)','기관(억)','개인(억)'].forEach(function(z){h.appendChild(el('th',null,z))});t.appendChild(h);
@@ -890,7 +890,7 @@ function runAI(){if(!window.MiniAI){toast('AI 도우미를 불러오는 중이�
    preview:function(t){return prevLab(t)},
    apply:function(t){applyLab(t);return Promise.resolve({message:'AI 종합 리포트를 읽어 왔어요. 아래 [블로그 글 만들기]를 누르세요.'})}})})}
 function secImg(c,x){var s=el('div','lsec');s.id='labS3';s.appendChild(el('h4',null,'③ 🖼 블로그용 이미지 (메인 · 통합)'));
- s.appendChild(el('div','note','① 종합점수 게이지가 가운데 오는 메인 이미지, ② 주가 차트·재무 차트·동일업종 비교·기술적 지표를 한 장으로 묶은 통합 이미지예요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
+ s.appendChild(el('div','note','① 체력지표 게이지가 가운데 오는 메인 이미지, ② 주가 차트·재무 차트·동일업종 비교·기술적 지표를 한 장으로 묶은 통합 이미지예요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
  var box=el('div');s.appendChild(box);c.appendChild(s);
  LAB.imgPanel=window.ImgKit.panel(box,{menu:'stock',name:LAB.x.name,ticker:LAB.tk,onDone:function(){LAB.st.img=true;drawSteps()},gen:function(scale){if(!LAB.cur)return Promise.reject(new Error('분석 결과를 찾지 못했어요. 종목을 다시 분석해 주세요.'));return Promise.resolve(window.ImgKit.stock.build(LAB.cur,LAB.x,scale))}})}
 var SEC=[['summary','핵심지표'],['score','5축점수'],['supply','수급'],['fin','재무'],['disc','공시'],['news','뉴스'],['pubai','AI분석(하단)'],['ai','AI종합리포트']];
@@ -916,7 +916,7 @@ function draw(){var c=card();if(!c)return;var x=LAB.x;head(c,x);
  var sp=el('div','steps');sp.id='labSteps';c.appendChild(sp);var nl=el('div','nextline');nl.id='labNext';c.appendChild(nl);
  var r=el('div','lrow'),b=el('button',null,'🔄 새로 불러오기');b.onclick=load;r.appendChild(b);var b2=el('button',null,'접기');b2.onclick=function(){LAB.open=false;draw0()};r.appendChild(b2);c.appendChild(r);
  if(x.delisting&&x.delisting.level&&x.delisting.level!=='none'){c.appendChild(el('div','warn','⚠ 상장폐지·거래정지 위험 신호가 있어요 — 위쪽 경고 상자를 먼저 확인하세요.'))}
- var d=el('details','lsec');d.id='labS1';d.open=true;d.appendChild(el('summary',null,'① 분석 결과 — 종합 '+x.score.total+'점 · '+x.score.grade+' (5축·수급·재무·공시)'));c.appendChild(d);
+ var d=el('details','lsec');d.id='labS1';d.open=true;d.appendChild(el('summary',null,'① 분석 결과 — 체력지표 '+x.score.total+' · '+x.score.grade+' (5축·수급·재무·공시)'));c.appendChild(d);
  secScore(d,x);secSupply(d,x);secFin(d,x);secDisc(d,x);
  secAI(c,x);secImg(c,x);secBlog(c,x);drawSteps();
  if(LAB.autoImg){LAB.autoImg=false;if(LAB.imgPanel)LAB.imgPanel.gen(true)}

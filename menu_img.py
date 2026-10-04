@@ -229,12 +229,12 @@ function headline(ext){var ax=(ext&&ext.score&&ext.score.axes||[]).filter(functi
  if(ax.length<2)return best.name+' '+best.score+'점';
  if(best.score-worst.score<12)return '5개 축이 고르게 '+(best.score>=60?'양호한':'중립적인')+' 모습';
  return best.name+' 강점 · '+worst.name+(worst.score<50?' 점검 필요':' 보완 여지')}
-function gradeText(g){return g==='긍정'?'긍정 신호 우세':(g==='주의'?'주의 · 점검 필요':'중립 · 혼조')}
+function gradeText(g){return g==='높은 편'?'지표 수준 · 높은 편':(g==='낮은 편'?'지표 수준 · 낮은 편':'지표 수준 · 보통')}
 
 /* ═════════ ① 메인 이미지 ═════════ */
 function drawMain(cur,ext,scale){
  var W=1080,H=1560,m=K.make(W,H,scale),c=m.c,p=cur.price||{},f=cur.fundamentals||{},d=cur.details||{};
- var sc=ext&&ext.score||{axes:[],total:0,grade:'중립'};
+ var sc=ext&&ext.score||{axes:[],total:0,grade:'보통'};
  /* 바탕: 위는 짙은 남색, 아래는 종이색 */
  c.fillStyle=PAPER;c.fillRect(0,0,W,H);
  var g=c.createLinearGradient(0,0,0,820);g.addColorStop(0,NAVY0);g.addColorStop(1,NAVY1);c.fillStyle=g;c.fillRect(0,0,W,820);
@@ -265,7 +265,7 @@ function drawMain(cur,ext,scale){
  /* 끝점 광택 */
  var ea=Math.PI+Math.min(total,100)/100*Math.PI,ex=cx+(R+11)*Math.cos(ea),ey=cy+(R+11)*Math.sin(ea),eg=c.createRadialGradient(ex,ey,1,ex,ey,22);eg.addColorStop(0,'#ffffff');eg.addColorStop(.35,col);eg.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=eg;c.beginPath();c.arc(ex,ey,22,0,7);c.fill();
  T(c,'0',cx-R+3,cy+36,{s:18,w:600,c:'rgba(203,213,225,.7)',a:'center'});T(c,'100',cx+R-3,cy+36,{s:18,w:600,c:'rgba(203,213,225,.7)',a:'center'});
- T(c,'종합 점수',cx,cy-150,{s:22,w:700,c:GOLD,a:'center',ls:3});
+ T(c,'체력지표 (참고)',cx,cy-150,{s:22,w:700,c:GOLD,a:'center',ls:3});
  /* 점수 숫자: 금빛 그라데이션 */
  c.save();c.font='900 150px '+FONT;c.textAlign='center';var ng=c.createLinearGradient(0,cy-150,0,cy-10);ng.addColorStop(0,'#ffffff');ng.addColorStop(1,GOLD2);c.fillStyle=ng;c.shadowColor='rgba(214,178,94,.55)';c.shadowBlur=26;c.fillText(String(total),cx,cy-18);c.restore();
  /* 등급 알약 + 한 줄 진단 */
@@ -298,7 +298,7 @@ function drawMain(cur,ext,scale){
  ax.forEach(function(a,i){var y=by+i*step,cl=AXC[a.key]||'#2563eb',s=a.score==null?0:a.score;
   T(c,a.name,bx,y+18,{s:23,w:800,c:INK});T(c,a.score==null?'-':String(a.score),bx+bw,y+19,{s:26,w:900,c:scCol(s),a:'right'});
   K.rr(c,bx,y+28,bw,12,6);c.fillStyle='#e8ebf1';c.fill();var bg=c.createLinearGradient(bx,0,bx+bw,0);bg.addColorStop(0,cl);bg.addColorStop(1,scCol(s));K.rr(c,bx,y+28,Math.max(12,bw*s/100),12,6);c.fillStyle=bg;c.fill()});
- T(c,'기술 22% · 모멘텀 18% · 수급 26% · 재무 22% · 밸류 12% 가중 평균(없는 항목 제외) · 참고용 지표',540,1216,{s:15,w:500,c:'#94a3b8',a:'center'});
+ T(c,'기술 22% · 모멘텀 18% · 수급 26% · 재무 22% · 밸류 12% 가중 평균(없는 항목 제외) · 공개 자료를 규칙으로 계산한 참고 지표 · 기업 평가점수가 아님',540,1216,{s:15,w:500,c:'#94a3b8',a:'center',max:980});
  /* 하단 3카드 */
  var vp=p.vp||{},sp=ext&&ext.supply&&ext.supply.per&&ext.supply.per['5'],fa=lastActual(d.financials);
  var cards=[['매물대 (지지·저항)',[['VAH 저항',vp.vah!=null?N(vp.vah)+'원':'-',UP],['POC 핵심',vp.poc!=null?N(vp.poc)+'원':'-',INK],['VAL 지지',vp.val!=null?N(vp.val)+'원':'-',DN]],vp.va_pos?('현재가: '+vp.va_pos):''],

@@ -29,6 +29,7 @@ for _n in _CORE_FUNCS:
 E = B.E
 TICKER_RE = B.TICKER_RE
 grade = lambda s: "S" if s >= 80 else "A" if s >= 65 else "B" if s >= 50 else "C"
+_BAND = {"S": "매우 높은 편", "A": "높은 편", "B": "보통", "C": "낮은 편"}      # 화면·글에는 S/A/B/C 등급 대신 이 표현을 쓴다(신용등급처럼 읽히지 않게)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -532,7 +533,7 @@ def data_text(d):
     if d.get("divs"):
         L_.append("배당: " + ", ".join(f"{k}년 DPS {v.get('dps')}원(수익률 {v.get('yld')}%, 성향 {v.get('payout')}%)" for k, v in sorted(d["divs"].items())))
     s = d["score"]
-    L_.append(f"체력 진단(0~100): 수익성 {s['prof']}({s['grades']['prof']}) 안정성 {s['stab']}({s['grades']['stab']}) 성장성 {s['grow']}({s['grades']['grow']}) 주주환원·거버넌스 {s['gov']}({s['grades']['gov']}) 밸류에이션 {s['valu']}({s['grades']['valu']}) → 종합 {s['total']}점 {s['grade']}등급 (원본 4축식 {s['orig_total']}점)")
+    L_.append(f"체력 진단(0~100): 수익성 {s['prof']}({s['grades']['prof']}) 안정성 {s['stab']}({s['grades']['stab']}) 성장성 {s['grow']}({s['grades']['grow']}) 주주환원·거버넌스 {s['gov']}({s['grades']['gov']}) 밸류에이션 {s['valu']}({s['grades']['valu']}) → 체력지표 {s['total']}(공개 재무·시세를 규칙으로 계산한 참고 값 · 기업 평가점수 아님) {_BAND.get(s['grade'], '')} (원본 4축식 {s['orig_total']})")
     b = s["basis"]
     if b.get("financial"):
         L_.append("  (금융업: 매출액·부채비율이 업종 특성상 비교 어려워 ROE·순이익·영업이익 흐름 중심으로 점수 산정)")
@@ -591,7 +592,7 @@ def build_deep_blog(d, ai_text="", inc=None, title=""):
     dl_lead, dl_bottom, dl_tags = B.delist_blocks(d.get("delisting"), name, ticker)   # 상폐·거래정지 위험 신호가 있으면 글 위·아래에 경고
     tags, tag_html = B.hashtags([name, name + "심층분석"], date_k, extra=dl_tags + ["기업분석", "재무분석", "기업심층분석"])
     h = [B.seo_box(title, f"{name}의 5개년 재무와 체력 진단, 밸류에이션, 수급·공시를 데이터로 정리한 기업 심층분석입니다. (기준 {d.get('as_of')})", kw)]
-    badge = f'<span style="font-size:12px;font-weight:800;color:{B.NAVY};background-color:{B.GOLD};padding:2px 10px;border-radius:10px;">종합 {s["total"]}점 · {s["grade"]}등급</span>'
+    badge = f'<span style="font-size:12px;font-weight:800;color:{B.NAVY};background-color:{B.GOLD};padding:2px 10px;border-radius:10px;">체력지표 {s["total"]} · {_BAND.get(s["grade"], "")}</span>'
     h.append(B.head_box("COMPANY DEEP DIVE", f'🏛 {E(name)} <span style="font-size:15px;color:#cbd5e1;">{E(ticker)}</span>',
                         f'{E(d.get("market"))} · {E(d.get("sector") or "-")} · 시총 {E(d.get("cap") or "-")} · {date_k}<br>{badge}', B.delist_box(d.get("delisting")) and ""))
     h.append(B.delist_box(d.get("delisting")))
@@ -640,7 +641,7 @@ def build_deep_blog(d, ai_text="", inc=None, title=""):
         h.append(B.side_title("🎯 5축 체력 진단", "#059669"))
         h.append('<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">' + rows + "</table>")
         b = s["basis"]
-        h.append(f'<p style="font-size:15px;margin:10px 0 0;{B.FONT}"><b>종합 {s["total"]}점 · {s["grade"]}등급</b> <span style="font-size:11px;color:#9ca3af;">(수익성 25%·안정성 20%·성장성 20%·거버넌스 15%·밸류에이션 20% — 원본 4축 방식으로는 {s["orig_total"]}점 {s["orig_grade"]}등급, 참고용 지표)</span></p>'
+        h.append(f'<p style="font-size:15px;margin:10px 0 0;{B.FONT}"><b>체력지표 {s["total"]} · {_BAND.get(s["grade"], "")}</b> <span style="font-size:11px;color:#9ca3af;">(수익성 25%·안정성 20%·성장성 20%·거버넌스 15%·밸류에이션 20%를 공개 재무·시세 자료로 규칙 계산한 참고 지표예요. 기업 평가점수가 아니며 사업의 질·전망·적정 주가는 반영되지 않고, 업종·상장 시기·자료 유무에 따라 달라져요. 원본 4축 방식으로는 {s["orig_total"]} · {_BAND.get(s["orig_grade"], "")})</span></p>'
                  f'<p style="font-size:12px;color:#6b7280;margin:4px 0 0;">근거: 영업이익률 {_n(b["opm"])}% · ROE {_n(b["roe"])}% · 부채비율 {_n(b["debt_ratio"], 0)}% · 유동(당좌)비율 {_n(b["cur_ratio"], 0)}% · 흑자 {b["black_years"]}년 · 매출 CAGR {_n(b["rev_cagr"])}% · 영업이익 CAGR {_n(b["op_cagr"])}%</p>')
     if inc.get("valu") and (d["valuation"]["bands"]):
         v = d["valuation"]
@@ -846,7 +847,7 @@ function dpSavedDraw(p){var sv=$('dpSaved');if(!sv)return;sv.innerHTML='';if(!DP
  DP.saved.slice(0,24).forEach(function(x){var b=bt((x.name||x.ticker)+' '+x.at.slice(5),'bt3',function(){dpOpen(x.ticker,p)});b.style.margin='2px';sv.appendChild(b)})}
 function dpOpen(tk,p,peers){DP.tk=tk;DP.st={};var b=$('dpBody');b.innerHTML='';b.appendChild(el('div','c','⏳ 재무·수급·공시·PEER를 모으는 중… (처음 한 번 5~10초)'));
  apiJ('/admin/api/deep/data',{ticker:tk,peers:peers||DP.peers[tk]||[]}).then(function(j){if(j.error){b.innerHTML='';b.appendChild(el('div','c bad','⚠ '+j.error));return}DP.d=j;DP._chain=1;dpDraw(p)})}
-var DPCSS='.dpStp{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}.dpStp button{flex:1 1 170px;display:flex;align-items:center;gap:10px;text-align:left;border:1.5px solid #c7d2fe;background:#fff;color:#312e81;border-radius:14px;padding:10px 14px;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;line-height:1.35}.dpStp button small{display:block;font-weight:600;font-size:11.5px;color:#64748b}.dpStp .n{width:26px;height:26px;border-radius:50%;background:#c7d2fe;color:#312e81;display:flex;align-items:center;justify-content:center;font-weight:900;flex:0 0 auto}.dpStp .done{border-color:#86efac;background:#f0fdf4}.dpStp .done .n{background:#16a34a;color:#fff}.dpStp .cur{border-color:#4f46e5;box-shadow:0 0 0 3px rgba(79,70,229,.18)}.dpStp button:disabled{opacity:.55;cursor:default}'+
+var DPCSS='.dpStp{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}.dpSc{text-align:center;font-weight:800;font-size:12px;color:#facc15;margin-top:2px}.dpStp button{flex:1 1 170px;display:flex;align-items:center;gap:10px;text-align:left;border:1.5px solid #c7d2fe;background:#fff;color:#312e81;border-radius:14px;padding:10px 14px;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;line-height:1.35}.dpStp button small{display:block;font-weight:600;font-size:11.5px;color:#64748b}.dpStp .n{width:26px;height:26px;border-radius:50%;background:#c7d2fe;color:#312e81;display:flex;align-items:center;justify-content:center;font-weight:900;flex:0 0 auto}.dpStp .done{border-color:#86efac;background:#f0fdf4}.dpStp .done .n{background:#16a34a;color:#fff}.dpStp .cur{border-color:#4f46e5;box-shadow:0 0 0 3px rgba(79,70,229,.18)}.dpStp button:disabled{opacity:.55;cursor:default}'+
 '.dpH{background:linear-gradient(135deg,#0a1228 0%,#16275a 62%,#243a73 100%);color:#fff;border-radius:18px;padding:20px 22px;display:grid;grid-template-columns:200px 1fr 340px;gap:14px;align-items:center;position:relative;overflow:hidden;margin-bottom:12px;box-shadow:0 14px 36px -16px rgba(10,18,40,.7)}'+
 '.dpH:after{content:"";position:absolute;right:-70px;top:-70px;width:260px;height:260px;border-radius:50%;background:radial-gradient(closest-side,rgba(214,178,94,.38),transparent)}'+
 '.dpH>*{position:relative;z-index:1}.dpHm h2{margin:0;font-size:26px;font-weight:900;letter-spacing:-.02em}.dpHm .kk{font-size:11px;letter-spacing:.2em;color:#d6b25e;font-weight:800}.dpHm .mt{color:#cbd5e1;font-size:13px;margin-top:6px;line-height:1.7}'+
@@ -873,6 +874,7 @@ function dpTile(par,l,v,sub,cls){var t=el('div','dpTile');t.appendChild(el('div'
 function dpSec(b,id,title,sub,color){var s=el('div','dpS');s.id='dps_'+id;if(color)s.style.setProperty('--ac',color);var t=el('div','dpT');t.appendChild(document.createTextNode(title));if(sub)t.appendChild(el('small',null,sub));s.appendChild(t);b.appendChild(s);return s}
 function dpTable(parent,head,rows,opt){var tw=el('div');tw.style.overflowX='auto';var t=el('table','dpt'),h=el('tr');head.forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
  rows.forEach(function(r){var tr=el('tr');r.forEach(function(c,i){var td=el('td',(opt&&opt.cls&&opt.cls(r,i))||'',c==null?'-':String(c));if(opt&&opt.tk){var kk2=opt.tk(r,i);if(kk2){td.setAttribute('data-tk',kk2);td.className=(td.className?td.className+' ':'')+'tkl'}}tr.appendChild(td)});t.appendChild(tr)});tw.appendChild(t);parent.appendChild(tw)}
+function dpBand(g){return {S:'매우 높은 편',A:'높은 편',B:'보통',C:'낮은 편'}[g]||''}
 function dpSign(v){return v>0?'up':(v<0?'dn':'')}
 function dpBandCv(v){var bands=v.bands.filter(function(x){return x.low!=null&&x.mid!=null&&x.high!=null}).slice(0,4);if(!bands.length)return document.createElement('div');var W=760,rh=64,H=bands.length*rh+30;return dpCv(W,H,function(c){bands.forEach(function(x,i){var y=i*rh+24,lo=Math.min(x.low,v.price||x.low)*0.9,hi=Math.max(x.high,v.price||x.high)*1.08,sx=function(z){return 150+(z-lo)/(hi-lo)*(W-170)};
   ImgKit.text(c,x.name,0,y+22,{s:13,w:800,c:'#334155',max:140});
@@ -884,9 +886,9 @@ function dpFinCv(ys){var K=ImgKit,W=820,H=330;return dpCv(W,H,function(c){K.lege
  K.bars(c,0,24,W,H-24,{labels:ys.map(function(y){return String(y.y).slice(2)+'년'}),est:ys.map(function(y){return !!y.estimate}),bars:[{name:'매출액',values:ys.map(function(y){return y.rev}),color:'#2563eb'},{name:'영업이익',values:ys.map(function(y){return y.op}),color:'#f59e0b'}],
   line:{name:'영업이익률',values:ys.map(function(y){return y.opm}),color:'#e11d48',unit:'%'},fmt:dpEok,fs:13})})}
 function dpEok(v){if(v==null||isNaN(v))return '-';var a=Math.abs(v);if(a>=10000)return (v/10000).toLocaleString('ko-KR',{maximumFractionDigits:1})+'조';return Math.round(v).toLocaleString('ko-KR')}
-function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML='';var s=d.score,bs=s.basis,AX=dpAxes(d),pr0=d.price||{},fu=d.fundamentals||{},LK=d.locked||[];function dpLk(f){return LK.indexOf(f)>=0||!ftOk(f)}
+function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML='';var stp=el('div','dpStp');stp.id='dpSteps';b.appendChild(stp);dpSteps();var s=d.score,bs=s.basis,AX=dpAxes(d),pr0=d.price||{},fu=d.fundamentals||{},LK=d.locked||[];function dpLk(f){return LK.indexOf(f)>=0||!ftOk(f)}
  /* ── 위쪽 큰 카드 ── */
- var H=el('div','dpH');var hl=el('div');hl.appendChild(dpCv(190,190,function(c){ImgKit.ring(c,95,95,74,s.total,{th:17,col:dpCol2(s.total),sub:s.grade+'등급',glow:10,ss:15})}));H.appendChild(hl);
+ var H=el('div','dpH');var hl=el('div');hl.appendChild(dpCv(190,190,function(c){ImgKit.ring(c,95,95,74,s.total,{th:17,col:dpCol2(s.total),sub:dpBand(s.grade),glow:10,ss:15})}));hl.appendChild(el('div','dpSc','체력지표(참고)'));if(window.ScoreInfo)hl.appendChild(ScoreInfo.note('deep',true));H.appendChild(hl);
  var hm=el('div','dpHm');hm.appendChild(el('div','kk','COMPANY DEEP DIVE'));hm.appendChild(el('h2',null,d.name));hm.appendChild(el('div','mt',d.ticker+' · '+(d.market||'')+(dpSector(d)?' · '+dpSector(d):'')+' · 시총 '+dpCap(d.cap)+' · 기준 '+(d.as_of||'')));
  var hs=dpHead(d);if(hs)hm.appendChild(el('div','hl','💡 '+hs));hm.appendChild(el('div','mt','재무 출처: '+d.years_src+(d.saved.quant_at?' ('+d.saved.quant_at+' 저장)':'')));
  var lk=el('div','lk');[['네이버증권',d.links.naver],['DART',d.links.dart],['KIND',d.links.kind]].forEach(function(x){var a=el('a',null,x[0]+' ↗');a.href=x[1];a.target='_blank';a.rel='noopener';lk.appendChild(a)});hm.appendChild(lk);H.appendChild(hm);
@@ -898,13 +900,12 @@ function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML
  /* ── 핵심 타일 ── */
  var T=el('div','dpTiles');dpTile(T,'현재가',pr0.price!=null?dpN(pr0.price,0)+'원':'-',pr0.day_pct!=null?((pr0.day_pct>0?'▲ ':(pr0.day_pct<0?'▼ ':''))+Math.abs(pr0.day_pct).toFixed(2)+'%'):'',dpSign(pr0.day_pct));
  dpTile(T,'시가총액',dpCap(d.cap));dpTile(T,'PER',fu.PER!=null?dpN(fu.PER)+'배':'-');dpTile(T,'PBR',fu.PBR!=null?dpN(fu.PBR,2)+'배':'-');dpTile(T,'ROE',bs.roe!=null?dpN(bs.roe)+'%':'-');dpTile(T,'영업이익률',bs.opm!=null?dpN(bs.opm)+'%':'-');dpTile(T,'부채비율',bs.debt_ratio!=null?dpN(bs.debt_ratio,0)+'%':'-');dpTile(T,'배당수익률',bs.div_yld!=null?dpN(bs.div_yld)+'%':(fu.DIV!=null?dpN(fu.DIV)+'%':'-'));b.appendChild(T);
- var stp=el('div','dpStp');stp.id='dpSteps';b.appendChild(stp);dpSteps();
  var nav=el('div','dpNav');b.appendChild(nav);function navAdd(id,t){nav.appendChild(bt(t,'',function(){var e=$('dps_'+id);if(e)e.scrollIntoView({behavior:'smooth',block:'start'})}))}
  /* ── 5축 ── */
- var c1=dpSec(b,'ax','🎯 5축 체력 진단','종합 '+s.total+'점 · '+s.grade+'등급','#2563eb');navAdd('ax','🎯 체력');
+ var c1=dpSec(b,'ax','🎯 5축 체력 진단','체력지표 '+s.total+' · '+dpBand(s.grade)+' (기업 평가점수 아님)','#2563eb');navAdd('ax','🎯 체력');
  var NT=[ '영업이익률 '+dpN(bs.opm)+'% · ROE '+dpN(bs.roe)+'%','부채비율 '+dpN(bs.debt_ratio,0)+'% · 유동(당좌)비율 '+dpN(bs.cur_ratio,0)+'% · 흑자 '+bs.black_years+'년','매출 CAGR '+dpN(bs.rev_cagr)+'% · 영업이익 CAGR '+dpN(bs.op_cagr)+'%','최근3년 배당 '+bs.div_paid_3y+'회 · 수익률 '+dpN(bs.div_yld)+'% · 성향 '+dpN(bs.payout)+'%',((d.valuation||{}).notes||[]).join(' · ')];
  AX.forEach(function(a,i){var r=el('div','dpAx');r.appendChild(el('span','n',a.name));var sc=el('span','sc',a.score==null?'-':a.score);sc.style.color=dpCol2(a.score||0);r.appendChild(sc);var tr=el('div','tr');var f=el('i');f.style.width=(a.score||0)+'%';f.style.background='linear-gradient(90deg,'+a.col+','+dpCol2(a.score||0)+')';tr.appendChild(f);r.appendChild(tr);if(NT[i])r.appendChild(el('div','nt',(a.g?a.g+' · ':'')+NT[i]));c1.appendChild(r)});
- c1.appendChild(el('p','note','종합 = 수익성 25% + 안정성 20% + 성장성 20% + 거버넌스 15% + 밸류에이션 20%. 원본 4축 방식으로 계산하면 '+s.orig_total+'점('+s.orig_grade+'등급)이에요. 참고용 지표입니다.'));
+ c1.appendChild(el('p','note','체력지표 = 수익성 25% + 안정성 20% + 성장성 20% + 거버넌스 15% + 밸류에이션 20%를 공개 재무·시세 자료로 규칙 계산한 참고 지표예요. 원본 4축 방식으로는 '+s.orig_total+'('+dpBand(s.orig_grade)+')이에요. 기업의 가치나 투자 매력을 평가한 점수가 아니에요.'));if(window.ScoreInfo)c1.appendChild(ScoreInfo.note('deep'))
  /* ── 재무 ── */
  var ys=d.years||[],c2=dpSec(b,'fin','📊 5개년 재무','단위 억원 · (E)=컨센서스 추정','#0891b2');navAdd('fin','📊 재무');
  if(dpLk('fin'))dpLock(c2,'fin','5개년 매출·영업이익 차트와 연도별 재무표는 등급에 따라 열려요.');else{if(ys.length)c2.appendChild(dpFinCv(ys));
@@ -941,11 +942,11 @@ function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML
  var st=el('div','m');st.id='dpAiState';c8.appendChild(st);var ta=el('textarea');ta.id='dpAiTa';ta.placeholder='AI 답변을 직접 붙여넣어도 돼요.';dpSty(ta,'width:100%;min-height:120px;box-sizing:border-box');ta.value=DP.ai[d.ticker]||'';ta.oninput=function(){DP.ai[d.ticker]=ta.value;dpAiState()};c8.appendChild(ta);dpAiState();}
  /* ── 이미지 ── */
  var c10=dpSec(b,'img',MEMBER_MODE?'🖼 요약 이미지 (3장)':'🖼 블로그용 이미지 (3장)','① 메인 · ② 5개년 재무 · ③ 통합 요약','#e11d48');navAdd('img','🖼 이미지');
- if(dpLk('img'))dpLock(c10,'img','종합점수·5축·재무 차트를 이미지로 만들어 내려받는 기능은 등급에 따라 열려요.');else{
- c10.appendChild(el('p','note',MEMBER_MODE?'① 종합점수·5축 레이더 메인 이미지, ② 5개년 매출·영업이익 차트와 재무표, ③ 체력·밸류에이션·PEER·체크리스트 통합 이미지예요. 지금 화면에 보이는 자료로 그려지며, 잠긴 구역은 이미지에서도 비어 있어요.':'① 종합점수·5축 레이더가 가운데 오는 메인 이미지, ② 5개년 매출·영업이익 차트와 재무표, ③ 체력·밸류에이션·PEER·체크리스트를 한 장에 모은 통합 이미지예요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
+ if(dpLk('img'))dpLock(c10,'img','체력지표·5축·재무 차트를 이미지로 만들어 내려받는 기능은 등급에 따라 열려요.');else{
+ c10.appendChild(el('p','note',MEMBER_MODE?'① 체력지표·5축 레이더 메인 이미지, ② 5개년 매출·영업이익 차트와 재무표, ③ 체력·밸류에이션·PEER·체크리스트 통합 이미지예요. 지금 화면에 보이는 자료로 그려지며, 잠긴 구역은 이미지에서도 비어 있어요.':'① 체력지표·5축 레이더가 가운데 오는 메인 이미지, ② 5개년 매출·영업이익 차트와 재무표, ③ 체력·밸류에이션·PEER·체크리스트를 한 장에 모은 통합 이미지예요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
  var ib=el('div');c10.appendChild(ib);if(MEMBER_MODE)dpImgMember(ib,d);else DP.imgPanel=ImgKit.panel(ib,{menu:'deep',name:d.name,ticker:d.ticker,onDone:function(){DP.st.img=true;dpSteps()},gen:function(scale){return Promise.resolve(window.DpImg.build(d,scale))}});}
  /* ── 블로그 ── */
- if(!MEMBER_MODE){var c9=dpSec(b,'blog','📝 블로그 글 만들기','원본 방식 HTML'+((d.delisting&&d.delisting.level&&d.delisting.level!=='none')?' · ⚠ 위험 경고 자동 포함':''),'#16a34a');navAdd('blog','📝 글');var bx=el('div');c9.appendChild(bx);
+ if(!MEMBER_MODE){var c9=dpSec(b,'blog','📝 블로그 글 쓰기','원본 방식 HTML'+((d.delisting&&d.delisting.level&&d.delisting.level!=='none')?' · ⚠ 위험 경고 자동 포함':''),'#16a34a');navAdd('blog','📝 글');var bx=el('div');c9.appendChild(bx);
  var secs=[['profile','기업현황'],['fin','5개년재무'],['score','체력진단'],['valu','밸류에이션'],['peers','PEER'],['check','체크리스트'],['supply','수급'],['disc','공시·뉴스'],['ai','AI분석'],['terms','용어풀이']];
  DP.blogPanel=window.BlogKit.panel(bx,{idp:'dp',key:'deepdive',kind:'deepdive',ticker:d.ticker,name:d.name,sections:secs,dup_warn:d.dup_warn,
   build:function(inc,title){return apiJ('/admin/api/deep/blog',{ticker:d.ticker,peers:DP.peers[d.ticker]||[],ai:DP.ai[d.ticker]||'',inc:inc,title:title})},onBuilt:function(){DP.st.blog=true;dpSteps()},onLogged:function(z){d.dup_warn=z.dup_warn}})}
@@ -953,7 +954,7 @@ function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML
 /* 단계 자동 진행([⚙ 설정] 의 단계 진행 방식): 분석이 열리면 AI → 이미지 → 블로그 글 순서로 설정대로 이어 간다 */
 function dpGo2(id){var e=$('dps_'+id);if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'})}
 function dpSteps(){var sp=$('dpSteps'),d=DP.d;if(!sp||!d)return;sp.innerHTML='';var ai=!!(DP.ai[d.ticker]||'').trim(),done=[true,ai,!!DP.st.img,!!DP.st.blog],cur2=-1;
- var L=[['분석 열기','불러옴 · 완료','1'],[MEMBER_MODE?'AI 요청문':'AI 정성 분석',ai?'글 있음 · 다시 만들기':'눌러서 시작','2'],[MEMBER_MODE?'요약 이미지':'이미지 만들기',done[2]?'완료 · 다시 만들기':'눌러서 만들기','3']];if(!MEMBER_MODE)L.push(['블로그 글 만들기',done[3]?'완료 · 다시 만들기':'눌러서 만들기','4']);
+ var L=[['분석 열기','불러옴 · 완료','1'],[MEMBER_MODE?'AI 요청문':'AI 정성 분석',ai?'글 있음 · 다시 만들기':'눌러서 시작','2'],[MEMBER_MODE?'요약 이미지':'이미지 만들기',done[2]?'완료 · 다시 만들기':'눌러서 만들기','3']];if(!MEMBER_MODE)L.push(['블로그 글 쓰기',done[3]?'완료 · 다시 만들기':'눌러서 만들기','4']);
  for(var i=0;i<L.length;i++){if(!done[i]){cur2=i;break}}
  L.forEach(function(a,i){var b=el('button',(done[i]?'done':'')+(i===cur2?' cur':''));b.setAttribute('data-noconfirm','1');b.appendChild(el('span','n',done[i]?'✓':a[2]));var t=el('span');t.appendChild(document.createTextNode(a[0]));t.appendChild(el('small',null,a[1]));b.appendChild(t);b.onclick=function(){dpStepRun(i)};sp.appendChild(b)})}
 function dpStepRun(i){var d=DP.d;if(!d)return;
@@ -992,8 +993,9 @@ function riskBand(c,x,y,w,lv){var dg=lv==='danger',bg=dg?'#fef2f2':'#fffbeb',bd=
  T(c,(dg?'투자 유의 — 거래 상태 이상 신호가 공개 데이터에서 확인됐어요':'투자 유의 — 거래 상태와 관련해 살펴볼 정황이 있어요'),x+w/2,y+36,{s:25,w:900,c:tc,a:'center',max:w-40});
  T(c,'확정이 아닌 자동 점검 결과예요 · 매매 전 KIND·DART 공시 원문을 꼭 확인하세요',x+w/2,y+68,{s:20,w:700,c:tc,a:'center',max:w-40})}
 function foot(c,W,y,d){c.fillStyle='rgba(100,116,139,.35)';c.fillRect(60,y,W-120,2);
- T(c,'공개 데이터 기반 참고 자료이며 투자 권유가 아닙니다. 모든 투자 판단과 책임은 투자자 본인에게 있어요.',W/2,y+40,{s:19,w:600,c:MUT,a:'center',max:W-120});
+ T(c,'공개 데이터 기반 참고 자료이며 투자 권유가 아닙니다. 체력지표는 기업 평가점수가 아니에요. 모든 투자 판단과 책임은 투자자 본인에게 있어요.',W/2,y+40,{s:19,w:600,c:MUT,a:'center',max:W-120});
  T(c,'기준 '+(d.as_of||today())+' · 출처 네이버증권·DART · stock.oky.kr',W/2,y+72,{s:19,w:700,c:'#94a3b8',a:'center',max:W-120})}
+function bandTxt(g){return {S:'매우 높은 편',A:'높은 편',B:'보통',C:'낮은 편'}[g]||''}
 function band(c,W,kick,title,sub){var g=c.createLinearGradient(0,0,0,200);g.addColorStop(0,NAVY0);g.addColorStop(1,NAVY1);c.fillStyle=g;c.fillRect(0,0,W,200);c.fillStyle=GOLD;c.fillRect(0,0,W,8);
  T(c,kick,W/2,58,{s:20,w:800,c:GOLD,a:'center',ls:5});T(c,title,W/2,124,{s:50,w:900,c:'#fff',a:'center',max:W-120});T(c,sub,W/2,170,{s:22,w:600,c:'#cbd5e1',a:'center',max:W-120})}
 
@@ -1006,9 +1008,9 @@ function main(d,scale){var rk=risk(d),dy=rk?70:0,W=1080,H=1490+dy,m=K.make(W,H,s
  T(c,d.name,W/2,160,{s:74,w:900,c:'#fff',a:'center',max:900});
  T(c,d.ticker+' · '+(d.market||'')+(sec(d)?' · '+sec(d):'')+(d.cap?' · 시총 '+cap(d.cap):''),W/2,210,{s:26,w:600,c:'#cbd5e1',a:'center',max:940});
  if(rk)riskBand(c,60,236,W-120,rk);
- var cy=470+dy,r=158;K.ring(c,W/2,cy,r,s.total,{th:30,col:col(s.total),glow:26,fs:118,sub:s.grade+'등급',ss:34,sc:GOLD2});
+ var cy=470+dy,r=158;K.ring(c,W/2,cy,r,s.total,{th:30,col:col(s.total),glow:26,fs:118,sub:bandTxt(s.grade),ss:34,sc:GOLD2});T(c,'체력지표(참고)',W/2,cy-r-18,{s:21,w:800,c:GOLD,a:'center',ls:3});
  var hl=headline(d);if(hl)T(c,hl,W/2,cy+r+60,{s:32,w:800,c:GOLD2,a:'center',max:900});
- T(c,'원본 4축 기준 '+s.orig_total+'점('+s.orig_grade+'등급) · 종합 = 수익성·안정성·성장성·거버넌스·밸류에이션',W/2,cy+r+104,{s:21,w:600,c:'#94a3b8',a:'center',max:960});
+ T(c,'공개 재무·시세를 규칙으로 계산한 참고 지표 · 기업 평가점수가 아니에요 (원본 4축 기준 '+s.orig_total+')',W/2,cy+r+104,{s:21,w:600,c:'#94a3b8',a:'center',max:960});
  card(c,50,780+dy,W-100,350,'5축 체력 진단','#2563eb');
  K.radar(c,W/2,962+dy,106,axes(d),{fs:22,label:'#334155',grid:'rgba(100,116,139,.35)',fill:'rgba(37,99,235,.2)',stroke:'#2563eb',lw:4,dot:7,fillBg:'rgba(37,99,235,.04)'});
  var tiles=[['현재가',p.price!=null?N(p.price,0)+'원':'-',p.day_pct!=null?((p.day_pct>0?'▲ ':(p.day_pct<0?'▼ ':''))+Math.abs(p.day_pct).toFixed(2)+'%'):'',p.day_pct>0?UP:(p.day_pct<0?DN:MUT)],['PER',f.PER!=null?N(f.PER,1)+'배':'-','',MUT],['PBR',f.PBR!=null?N(f.PBR,2)+'배':'-','',MUT],
@@ -1034,11 +1036,11 @@ function sum(d,scale){var rk=risk(d),oy=rk?100:0,W=1080,vv0=((d.valuation||{}).b
  if(rk)riskBand(c,60,220,W-120,rk);
  var y=226+oy;
  /* A. 5축 */
- card(c,50,y,W-100,410,'5축 체력 진단 · 종합 '+s.total+'점','#2563eb');
+ card(c,50,y,W-100,410,'5축 체력 진단 · 체력지표 '+s.total+'(참고)','#2563eb');
  var NT=['영업이익률 '+N(bs.opm,1)+'% · ROE '+N(bs.roe,1)+'%','부채비율 '+N(bs.debt_ratio,0)+'% · 당좌비율 '+N(bs.cur_ratio,0)+'%','매출 CAGR '+N(bs.rev_cagr,1)+'% · 영업이익 CAGR '+N(bs.op_cagr,1)+'%','최근3년 배당 '+bs.div_paid_3y+'회 · 성향 '+N(bs.payout,1)+'%',((d.valuation&&d.valuation.notes)||[]).join(' · ')];
  AX.forEach(function(a,i){var yy=y+92+i*62;T(c,a.name,84,yy+10,{s:24,w:800,c:'#334155'});RR(c,236,yy-8,430,20,10);c.fillStyle='#eef2f7';c.fill();RR(c,236,yy-8,Math.max(14,430*(a.score||0)/100),20,10);var gg=c.createLinearGradient(236,0,666,0);gg.addColorStop(0,a.col);gg.addColorStop(1,col(a.score||0));c.fillStyle=gg;c.fill();
   T(c,a.score==null?'-':String(a.score),712,yy+12,{s:28,w:900,c:col(a.score||0),a:'right'});T(c,NT[i]||'',236,yy+34,{s:18,w:600,c:MUT,max:470})});
- K.ring(c,882,y+232,76,s.total,{th:16,col:col(s.total),tc:INK,fs:46,sub:s.grade+'등급',ss:20,sc:MUT,track:'rgba(148,163,184,.3)'});
+ K.ring(c,882,y+232,76,s.total,{th:16,col:col(s.total),tc:INK,fs:46,sub:bandTxt(s.grade),ss:20,sc:MUT,track:'rgba(148,163,184,.3)'});
  y+=440;
  /* B. 밸류에이션 */
   var v=d.valuation||{bands:[]},bands=(v.bands||[]).filter(function(b){return b.low!=null&&b.mid!=null&&b.high!=null}).slice(0,3),bh=Math.max(150,120+bands.length*78);card(c,50,y,W-100,bh,'밸류에이션 밴드 (참고 계산)','#0d9488');
@@ -1079,7 +1081,7 @@ def register():
     # ── 기능별 공개(기본값은 관리자가 [🎚 기능 공개]에서 바꾼다) ──
     # deep/data 한 주소가 아래 기능들의 자료를 섞어 내보낸다 → 주소 자체의 문은 base 이고, 나머지 섹션은 gate_data() 가 서버에서 뺀다.
     F = C.register_feature
-    F("deep", "base", "종합점수·5축·기업현황", "종목 검색, 종합점수·5축 레이더, 핵심 타일(현재가·PER·PBR·ROE…), 기업 현황. 다른 구역의 바탕이라 이 기능이 열려 있어야 화면이 나와요.",
+    F("deep", "base", "체력지표·5축·기업현황", "종목 검색, 체력지표(참고)·5축 레이더, 핵심 타일(현재가·PER·PBR·ROE…), 기업 현황. 다른 구역의 바탕이라 이 기능이 열려 있어야 화면이 나와요.",
       default="public", endpoints=["/admin/api/deep/search", "/admin/api/deep/saved", "/admin/api/deep/data"])
     F("deep", "fin", "5개년 재무", "매출·영업이익·순이익·ROE·부채비율 등 연도별 재무 차트와 표.", default="member")
     F("deep", "val", "밸류에이션", "PER·PBR 밴드와 컨센서스 대비 위치(참고 계산, 적정주가 아님).", default="member")
@@ -1088,7 +1090,7 @@ def register():
     F("deep", "sup", "수급·공시·뉴스", "외국인·기관·개인 수급 흐름과 최근 공시·뉴스 제목.", default="L2")
     F("deep", "ai", "AI 정성 분석 요청문", "자료를 담은 AI 요청문(프롬프트)을 만들어 복사해요. 재무·밸류에이션·PEER·체크리스트·수급이 모두 열려 있어야 만들어져요.",
       default="L2", endpoints=["/admin/api/deep/prompt"], kind="tool")
-    F("deep", "img", "요약 이미지 내려받기", "종합점수·5축·재무·통합 요약을 이미지 3장으로 만들어 내려받아요.", default="L3", kind="tool")
+    F("deep", "img", "요약 이미지 내려받기", "체력지표·5축·재무·통합 요약을 이미지 3장으로 만들어 내려받아요.", default="L3", kind="tool")
     # 블로그 글 만들기(deep/blog)·작성 이력 등 관리자 업무는 어떤 기능에도 넣지 않았다 → 관리자 화면에서만 동작(회원 화면에서는 아예 숨김)
     C.register_flow("deep", "🏛 심층분석", "① 종목 심층분석 열기(분석이 열리면 자동으로 시작)", [
         {"id": "ai", "label": "② AI 정성 분석", "desc": "분석이 열리면 AI 요청문 창을 자동으로 열어요. 답변을 복사해 돌아오면 다음 단계로 이어져요(이미 AI 글이 있으면 건너뛰어요)."},

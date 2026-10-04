@@ -239,6 +239,22 @@ function run(opt){
  return {close:close};
 }
 window.MiniAI={run:run,copy:copyText,sites:SITES};
+// 점수 오해 방지: '체력지표'가 기업 평가점수가 아님을 알리는 짧은 안내 + 자세히 보기 창
+var SCORE_TXT={deep:{calc:'수익성 25% + 안정성 20% + 성장성 20% + 거버넌스 15% + 밸류에이션 20% 를 합친 값(0~100)이에요. 각 축은 공개된 5개년 재무·시세 숫자를 정해진 규칙으로 점수화해요.'},
+ lab:{calc:'기술·모멘텀·수급·재무·밸류에이션 5개 축을 정해진 규칙으로 점수화해 합친 값(0~100)이에요. 공개된 시세·재무 숫자만 써요.'}};
+function scoreOpen(kind){var T=SCORE_TXT[kind]||SCORE_TXT.deep;var old=document.getElementById('scoreInfoOv');if(old)old.remove();
+ var ov=el('div');ov.id='scoreInfoOv';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');var st=ov.style;st.position='fixed';st.left='0';st.top='0';st.right='0';st.bottom='0';st.background='rgba(2,6,23,.55)';st.zIndex='99999';st.display='flex';st.alignItems='center';st.justifyContent='center';st.padding='16px';
+ var bx=el('div');var b=bx.style;b.background='#fff';b.color='#0f172a';b.borderRadius='16px';b.maxWidth='520px';b.width='100%';b.maxHeight='88vh';b.overflowY='auto';b.padding='18px 20px';b.boxShadow='0 20px 60px rgba(0,0,0,.4)';b.lineHeight='1.7';b.fontSize='14px';
+ var h=el('div',null,'ⓘ 체력지표란? — 기업 평가점수가 아니에요');h.style.fontWeight='900';h.style.fontSize='17px';h.style.marginBottom='8px';bx.appendChild(h);
+ function sec(t,items){var d=el('div',null,t);d.style.fontWeight='800';d.style.margin='10px 0 2px';bx.appendChild(d);items.forEach(function(x){var p=el('div',null,'• '+x);p.style.margin='2px 0';bx.appendChild(p)})}
+ sec('무엇인가요',['공개된 재무·시세 자료를 정해진 규칙으로 계산한 참고용 숫자예요.',T.calc]);
+ sec('담지 않는 것',['사업의 질·경쟁력, 경영진, 산업 전망, 앞으로의 실적, 뉴스·공시의 의미, 적정 주가는 반영되지 않아요.']);
+ sec('읽을 때 주의',['숫자가 높다고 좋은 회사·좋은 투자라는 뜻이 아니고, 낮다고 나쁜 회사라는 뜻도 아니에요.','업종·상장 시기·자료 유무에 따라 달라져요(금융업·신규상장·적자 성장기업은 구조적으로 낮게 나올 수 있어요). 다른 업종끼리 숫자를 견줘 보는 건 맞지 않아요.','신용등급·투자의견·추천이 아니에요. 투자 판단과 책임은 본인에게 있어요. 공시 원문(DART·KIND)을 꼭 확인하세요.']);
+ var bt=el('button',null,'닫기');var s2=bt.style;s2.marginTop='14px';s2.padding='9px 18px';s2.border='0';s2.borderRadius='10px';s2.background='#0f172a';s2.color='#fff';s2.fontWeight='800';s2.cursor='pointer';s2.fontSize='14px';bt.setAttribute('data-noconfirm','1');bx.appendChild(bt);
+ function close(){ov.remove();document.removeEventListener('keydown',onk)}function onk(e){if(e.key==='Escape')close()}bt.onclick=close;ov.onclick=function(e){if(e.target===ov)close()};document.addEventListener('keydown',onk);ov.appendChild(bx);document.body.appendChild(ov);bt.focus()}
+function scoreNote(kind,dark){var w=el('div');var st=w.style;st.fontSize='12px';st.lineHeight='1.5';st.margin='6px 0 0';st.color=dark?'#cbd5e1':'#64748b';
+ w.appendChild(document.createTextNode('※ 공개 자료를 규칙으로 계산한 참고 지표이며 기업 평가점수가 아니에요 '));var b=el('button',null,'ⓘ 자세히');var s=b.style;s.border='1px solid '+(dark?'#94a3b8':'#cbd5e1');s.background='transparent';s.color=dark?'#e2e8f0':'#334155';s.borderRadius='999px';s.padding='1px 9px';s.fontSize='11.5px';s.cursor='pointer';b.setAttribute('data-noconfirm','1');b.onclick=function(){scoreOpen(kind)};w.appendChild(b);return w}
+window.ScoreInfo={open:scoreOpen,note:scoreNote};
 // 종목 클릭 → 메인 화면의 종목분석·심층분석 탭을 연다. data-tk="종목코드" 가 붙은 요소를 누르면 동작(탭 안에서 열렸을 때).
 window.GoStock=function(t){t=String(t||'').trim().toUpperCase();if(!t)return false;try{var P=window.parent;if(P&&P!==window&&P.MiniTabs&&P.MiniTabs.openStock){P.MiniTabs.openStock(t);return true}}catch(e){}
  try{window.open('/?t='+encodeURIComponent(t),'mini_main')}catch(e){}return true};
