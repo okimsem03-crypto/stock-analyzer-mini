@@ -1,4 +1,4 @@
-"""🏛 기업 심층분석 (관리자 전용 메뉴) — 원본 프로그램의 심층분석 + 추가 기능, 블로그 글쓰기 포함.
+"""🏛 기업 심층분석 (기능별 등급 공개 메뉴 · 기본은 관리자만) — 원본 프로그램의 심층분석 + 추가 기능, 블로그 글쓰기 포함.
 
 원본(app_desktop)의 구성을 그대로 따른다
   ① 기업 현황(회사 프로필) ② 최대주주 ③ 5개년 재무 ④ 체력 진단(수익성·안정성·성장성·거버넌스, S/A/B/C 등급)
@@ -717,6 +717,42 @@ def _req():
     return d, t, [x for x in peers if TICKER_RE.match(x)]
 
 
+# 한 응답(deep/data)이 여러 기능의 자료를 섞어 내보내므로, 회원 화면(/mapi/)에서는 서버가 '잠긴 기능'의 키를 응답에서 뺀다.
+# 섹션(=기능 id) ↔ 응답 키. base(종합점수·5축·기업현황·타일)는 deep/data 주소 자체의 문이라 따로 빼지 않는다.
+SEC_KEYS = {"fin": ("years", "divs"), "val": ("valuation", "consensus"), "peer": ("peers",), "chk": ("checklist",), "sup": ("supply", "disc", "news")}
+GW_STRIP = ("dups", "dup_warn")        # 블로그 작성 이력은 관리자 업무 정보 — 회원 응답에는 항상 뺀다
+
+
+def _gw():
+    return bool(request.environ.get("mini.gateway"))
+
+
+def locked_secs():
+    """지금 보는 사람에게 잠겨 있는 섹션 기능 id 목록(관리자 화면이면 항상 빈 목록)."""
+    if not _gw():
+        return []
+    return [f for f in list(SEC_KEYS) + ["ai"] if not C.feature_ok("deep", f)]
+
+
+def gate_data(x):
+    """회원 화면이면 잠긴 섹션의 키를 빼고 "locked" 목록을 붙인다. 관리자 화면(gateway 아님)은 그대로."""
+    if not _gw():
+        return x
+    lk = locked_secs()
+    for f in lk:
+        for k in SEC_KEYS.get(f, ()):
+            x.pop(k, None)
+    if "ai" in lk:
+        sv = dict(x.get("saved") or {})
+        sv.update(has_ai=False, ai_at="", ai_text="")
+        x["saved"] = sv
+    for k in GW_STRIP:
+        x.pop(k, None)
+    x["dups"], x["dup_warn"] = [], ""
+    x["locked"] = lk
+    return x
+
+
 @bp.route("/admin/api/deep/data", methods=["POST"])
 def api_data():
     deny = _admin_deny()
@@ -728,7 +764,7 @@ def api_data():
     x, err = build_deep(t, peers)
     if err:
         return _admin_json({"error": err}, 502)
-    return _admin_json(x)
+    return _admin_json(gate_data(x))
 
 
 @bp.route("/admin/api/deep/prompt", methods=["POST"])
@@ -736,6 +772,13 @@ def api_prompt():
     deny = _admin_deny()
     if deny:
         return deny
+    if _gw():
+        # AI 요청문에는 재무·밸류에이션·PEER·체크리스트·수급 자료가 모두 들어가므로, 그 중 하나라도 잠겨 있으면 만들어 주지 않는다(우회 방지)
+        lk = [f for f in SEC_KEYS if not C.feature_ok("deep", f)]
+        if lk:
+            need = C.feature_need_text("deep", lk[0])
+            return _admin_json({"error": "AI 요청문에는 재무·밸류에이션·PEER·체크리스트·수급 자료가 모두 들어가요. ‘" + C.feature_spec("deep", lk[0])["label"] + "’ 기능이 열려야 만들 수 있어요.",
+                                "feature": lk[0], "login": C.viewer_token() == C.GUEST, "need": need}, 403)
     d, t, peers = _req()
     if not TICKER_RE.match(t):
         return _admin_json({"error": "종목코드가 올바르지 않아요."}, 400)
@@ -775,8 +818,19 @@ function dpCol(s){return s>=70?'#16a34a':(s>=50?'#d97706':'#dc2626')}
 function dpN(v,d){if(v==null)return '-';return Number(v).toLocaleString('ko-KR',{maximumFractionDigits:d==null?1:d})}
 function dpCls(v){return v>0?'up':(v<0?'dn':'')}
 function dpSty(e,s){e.style.cssText=s;return e}
+function dpLock(box,fid,txt){box.appendChild(el('p','note',txt));return ftSec(box,fid)}
+function dpImgMember(box,d){var K=window.ImgKit,row=el('div','bar'),view=dpSty(el('div'),'display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:8px'),st=el('div','m');
+ var go=bt('🖼 이미지 만들기','bt',function(){go.disabled=true;go.textContent='⏳ 그리는 중…';view.innerHTML='';st.textContent='';
+  Promise.resolve(K.fonts()).then(function(){return window.DpImg.build(d,2)}).then(function(items){items.forEach(function(it){var c=el('div','c');c.appendChild(el('b',null,K.CIRC[it.idx-1]+' '+it.label));
+    var pw=Math.min(720,it.canvas.width),sm=document.createElement('canvas');sm.width=pw;sm.height=Math.round(it.canvas.height*pw/it.canvas.width);sm.getContext('2d').drawImage(it.canvas,0,0,sm.width,sm.height);
+    var im=new Image();im.alt=it.label;im.src=sm.toDataURL('image/png');im.style.cssText='width:100%;height:auto;display:block;border-radius:8px;margin:6px 0';c.appendChild(im);
+    c.appendChild(bt('💾 이미지 내려받기','bt2',function(){it.canvas.toBlob(function(b){if(!b){toast('이미지를 만들지 못했어요');return}var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=K.fileName(it.idx,d.name,d.ticker);document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},4000)},'image/png')}));view.appendChild(c)});
+   st.textContent='이미지를 만들었어요. 각 이미지의 [이미지 내려받기]로 내 기기에 저장하세요.';go.textContent='🔄 다시 만들기'})
+   .catch(function(e){st.textContent='이미지를 만들지 못했어요: '+(e&&e.message||e);go.textContent='🖼 이미지 만들기'}).then(function(){go.disabled=false})});
+ row.appendChild(go);box.appendChild(row);box.appendChild(st);box.appendChild(view)}
 function dpLoad(p){p.innerHTML='';var top=el('div','c');top.appendChild(el('b',null,'🏛 기업 심층분석'));
- top.appendChild(el('p','note','종목을 고르면 5개년 재무·체력 진단(5축)·밸류에이션·PEER·체크리스트·수급·공시를 한 화면에 모아 보여주고, AI 정성 분석과 블로그 글(복사하고 바로 열기)까지 이어서 만들 수 있어요. 원본 프로그램에서 이미 분석해 둔 종목은 그 저장분(DART 5개년·최대주주·AI 글)을 함께 불러옵니다.'));
+ top.appendChild(el('p','note',MEMBER_MODE?'종목 이름이나 6자리 코드를 입력하면 5개년 재무·체력 진단(5축)·밸류에이션·PEER·체크리스트·수급·공시를 한 화면에 모아 보여줘요. 숫자를 읽기 쉽게 정리한 참고 자료이며 투자 권유가 아니에요. 등급에 따라 잠긴 구역은 🔒로 표시돼요.':'종목을 고르면 5개년 재무·체력 진단(5축)·밸류에이션·PEER·체크리스트·수급·공시를 한 화면에 모아 보여주고, AI 정성 분석과 블로그 글(복사하고 바로 열기)까지 이어서 만들 수 있어요. 원본 프로그램에서 이미 분석해 둔 종목은 그 저장분(DART 5개년·최대주주·AI 글)을 함께 불러옵니다.'));
+ if(!ftOk('base')){p.appendChild(ftSec(top,'base'));return}
  var r=el('div','bar');var q=el('input');q.placeholder='종목명 또는 코드 (예: 삼성전자, 005930)';q.style.width='260px';q.value=DP.q;r.appendChild(q);
  var sg=el('div');sg.id='dpSug';dpSty(sg,'display:flex;gap:6px;flex-wrap:wrap;margin-top:6px');
  function sugg(){DP.q=q.value;if(!q.value.trim()){sg.innerHTML='';return}api('/admin/api/deep/search?q='+encodeURIComponent(q.value)).then(function(j){sg.innerHTML='';(j.rows||[]).forEach(function(x){var tk=x.ticker||x[0],nm=x.name||x[1];sg.appendChild(bt(nm+' '+tk,'bt3',function(){sg.innerHTML='';q.value='';dpOpen(tk,p)}))})})}
@@ -829,7 +883,7 @@ function dpFinCv(ys){var K=ImgKit,W=820,H=330;return dpCv(W,H,function(c){K.lege
  K.bars(c,0,24,W,H-24,{labels:ys.map(function(y){return String(y.y).slice(2)+'년'}),est:ys.map(function(y){return !!y.estimate}),bars:[{name:'매출액',values:ys.map(function(y){return y.rev}),color:'#2563eb'},{name:'영업이익',values:ys.map(function(y){return y.op}),color:'#f59e0b'}],
   line:{name:'영업이익률',values:ys.map(function(y){return y.opm}),color:'#e11d48',unit:'%'},fmt:dpEok,fs:13})})}
 function dpEok(v){if(v==null||isNaN(v))return '-';var a=Math.abs(v);if(a>=10000)return (v/10000).toLocaleString('ko-KR',{maximumFractionDigits:1})+'조';return Math.round(v).toLocaleString('ko-KR')}
-function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML='';var s=d.score,bs=s.basis,AX=dpAxes(d),pr0=d.price||{},fu=d.fundamentals||{};
+function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML='';var s=d.score,bs=s.basis,AX=dpAxes(d),pr0=d.price||{},fu=d.fundamentals||{},LK=d.locked||[];function dpLk(f){return LK.indexOf(f)>=0||!ftOk(f)}
  /* ── 위쪽 큰 카드 ── */
  var H=el('div','dpH');var hl=el('div');hl.appendChild(dpCv(190,190,function(c){ImgKit.ring(c,95,95,74,s.total,{th:17,col:dpCol2(s.total),sub:s.grade+'등급',glow:10,ss:15})}));H.appendChild(hl);
  var hm=el('div','dpHm');hm.appendChild(el('div','kk','COMPANY DEEP DIVE'));hm.appendChild(el('h2',null,d.name));hm.appendChild(el('div','mt',d.ticker+' · '+(d.market||'')+(dpSector(d)?' · '+dpSector(d):'')+' · 시총 '+dpCap(d.cap)+' · 기준 '+(d.as_of||'')));
@@ -846,49 +900,54 @@ function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML
  var nav=el('div','dpNav');b.appendChild(nav);function navAdd(id,t){nav.appendChild(bt(t,'',function(){var e=$('dps_'+id);if(e)e.scrollIntoView({behavior:'smooth',block:'start'})}))}
  /* ── 5축 ── */
  var c1=dpSec(b,'ax','🎯 5축 체력 진단','종합 '+s.total+'점 · '+s.grade+'등급','#2563eb');navAdd('ax','🎯 체력');
- var NT=[ '영업이익률 '+dpN(bs.opm)+'% · ROE '+dpN(bs.roe)+'%','부채비율 '+dpN(bs.debt_ratio,0)+'% · 유동(당좌)비율 '+dpN(bs.cur_ratio,0)+'% · 흑자 '+bs.black_years+'년','매출 CAGR '+dpN(bs.rev_cagr)+'% · 영업이익 CAGR '+dpN(bs.op_cagr)+'%','최근3년 배당 '+bs.div_paid_3y+'회 · 수익률 '+dpN(bs.div_yld)+'% · 성향 '+dpN(bs.payout)+'%',(d.valuation.notes||[]).join(' · ')];
+ var NT=[ '영업이익률 '+dpN(bs.opm)+'% · ROE '+dpN(bs.roe)+'%','부채비율 '+dpN(bs.debt_ratio,0)+'% · 유동(당좌)비율 '+dpN(bs.cur_ratio,0)+'% · 흑자 '+bs.black_years+'년','매출 CAGR '+dpN(bs.rev_cagr)+'% · 영업이익 CAGR '+dpN(bs.op_cagr)+'%','최근3년 배당 '+bs.div_paid_3y+'회 · 수익률 '+dpN(bs.div_yld)+'% · 성향 '+dpN(bs.payout)+'%',((d.valuation||{}).notes||[]).join(' · ')];
  AX.forEach(function(a,i){var r=el('div','dpAx');r.appendChild(el('span','n',a.name));var sc=el('span','sc',a.score==null?'-':a.score);sc.style.color=dpCol2(a.score||0);r.appendChild(sc);var tr=el('div','tr');var f=el('i');f.style.width=(a.score||0)+'%';f.style.background='linear-gradient(90deg,'+a.col+','+dpCol2(a.score||0)+')';tr.appendChild(f);r.appendChild(tr);if(NT[i])r.appendChild(el('div','nt',(a.g?a.g+' · ':'')+NT[i]));c1.appendChild(r)});
  c1.appendChild(el('p','note','종합 = 수익성 25% + 안정성 20% + 성장성 20% + 거버넌스 15% + 밸류에이션 20%. 원본 4축 방식으로 계산하면 '+s.orig_total+'점('+s.orig_grade+'등급)이에요. 참고용 지표입니다.'));
  /* ── 재무 ── */
- var ys=d.years,c2=dpSec(b,'fin','📊 5개년 재무','단위 억원 · (E)=컨센서스 추정','#0891b2');navAdd('fin','📊 재무');if(ys.length)c2.appendChild(dpFinCv(ys));
+ var ys=d.years||[],c2=dpSec(b,'fin','📊 5개년 재무','단위 억원 · (E)=컨센서스 추정','#0891b2');navAdd('fin','📊 재무');
+ if(dpLk('fin'))dpLock(c2,'fin','5개년 매출·영업이익 차트와 연도별 재무표는 등급에 따라 열려요.');else{if(ys.length)c2.appendChild(dpFinCv(ys));
  var rows=[['매출액'].concat(ys.map(function(y){return dpN(y.rev,0)})),['  전년비(%)'].concat(ys.map(function(y){return dpN(y.rev_g)})),['영업이익'].concat(ys.map(function(y){return dpN(y.op,0)})),['영업이익률(%)'].concat(ys.map(function(y){return dpN(y.opm)})),['순이익'].concat(ys.map(function(y){return dpN(y.ni,0)})),['ROE(%)'].concat(ys.map(function(y){return dpN(y.roe)})),['부채비율(%)'].concat(ys.map(function(y){return dpN(y.debt_ratio,0)})),['유동(당좌)비율(%)'].concat(ys.map(function(y){return dpN(y.cur_ratio,0)}))];
  if(ys.some(function(y){return y.ocf!=null}))rows.push(['영업현금흐름'].concat(ys.map(function(y){return dpN(y.ocf,0)})),['간이 FCF'].concat(ys.map(function(y){return dpN(y.fcf,0)})));rows.push(['EPS(원)'].concat(ys.map(function(y){return dpN(y.eps,0)})),['주당배당금(원)'].concat(ys.map(function(y){return dpN(y.dps,0)})));
  dpTable(c2,['항목'].concat(ys.map(function(y){return y.label+(y.estimate?'(E)':'')})),rows,{cls:function(r,i){if(i===0)return '';if(r[0].indexOf('전년비')>=0||r[0]==='영업이익'||r[0]==='순이익'){var n=Number(String(r[i]).replace(/,/g,''));return isNaN(n)?'':(n>0?(r[0]==='영업이익'||r[0]==='순이익'?'':'up'):(n<0?'dn':''))}return ''}});
- c2.appendChild(el('p','note','5개년 DART 자료는 원본 저장분이 있는 종목에서 나와요.'));
+ c2.appendChild(el('p','note','5개년 DART 자료는 원본 저장분이 있는 종목에서 나와요.'))}
  /* ── 기업 현황 ── */
  if(d.profile||d.holders.length){var c3=dpSec(b,'prof','🏢 기업 현황',d.profile_src||'','#64748b');if(d.profile){var pr=d.profile;c3.appendChild(el('p','note',['대표 '+(pr.ceo||'-'),'설립 '+(pr.est_dt||'-'),'결산 '+(pr.acc_mt||'-'),(pr.corp_cls||''),(pr.adres||'')].join(' · ')))}
   if(d.holders.length)dpTable(c3,['주주','관계','지분율(%)'],d.holders.map(function(h){return [h.nm,h.relate,dpN(h.rt,2)]}))}
  /* ── 밸류에이션 ── */
- var c4=dpSec(b,'val','💹 밸류에이션 밴드','참고 계산 · 적정주가 아님','#0d9488');navAdd('val','💹 밸류에이션');var v=d.valuation;
- if(v.bands.length){c4.appendChild(dpBandCv(v));dpTable(c4,['방법','낮은 값','중간','높은 값','근거'],v.bands.map(function(x){return [x.name,dpN(x.low,0),dpN(x.mid,0),dpN(x.high,0),x.basis]}));c4.appendChild(el('p','note','🔴 현재가 '+dpN(v.price,0)+'원'+(v.upside!=null?' · 컨센서스 목표가 대비 '+(v.upside>0?'+':'')+v.upside+'%':'')+'. 초록 막대=낮은~높은 값, 짙은 선=중간. PEER·업종 배수를 단순 적용한 값이라 적정주가·목표가가 아니에요.'))}else c4.appendChild(el('p','note','PEER 배수나 EPS 자료가 부족해 밴드를 만들지 못했어요.'));
+ var c4=dpSec(b,'val','💹 밸류에이션 밴드','참고 계산 · 적정주가 아님','#0d9488');navAdd('val','💹 밸류에이션');var v=d.valuation||{bands:[]};
+ if(dpLk('val'))dpLock(c4,'val','PER·PBR 밴드와 컨센서스 대비 위치는 등급에 따라 열려요.');else if(v.bands.length){c4.appendChild(dpBandCv(v));dpTable(c4,['방법','낮은 값','중간','높은 값','근거'],v.bands.map(function(x){return [x.name,dpN(x.low,0),dpN(x.mid,0),dpN(x.high,0),x.basis]}));c4.appendChild(el('p','note','🔴 현재가 '+dpN(v.price,0)+'원'+(v.upside!=null?' · 컨센서스 목표가 대비 '+(v.upside>0?'+':'')+v.upside+'%':'')+'. 초록 막대=낮은~높은 값, 짙은 선=중간. PEER·업종 배수를 단순 적용한 값이라 적정주가·목표가가 아니에요.'))}else c4.appendChild(el('p','note','PEER 배수나 EPS 자료가 부족해 밴드를 만들지 못했어요.'));
  /* ── PEER ── */
  var c5=dpSec(b,'peer','🤝 PEER 비교','동일 업종','#7c3aed');navAdd('peer','🤝 PEER');
- if(d.peers.length){var me=[d.name+' (본 종목)',dpN(fu.PER),dpN(fu.PBR,2),dpN(bs.roe),dpN(bs.opm),'-',dpN((d.price||{}).pct20)];dpTable(c5,['종목','PER','PBR','ROE(%)','영업이익률(%)','시총(억)','20일(%)'],[me].concat(d.peers.map(function(x){var r=[x.name+' '+x.ticker,dpN(x.per),dpN(x.pbr,2),dpN(x.roe),dpN(x.opm),dpN(x.cap_eok,0),dpN(x.pct20)];r._t=x.ticker;return r})),{tk:function(r,i){return i===0?r._t:null}})}else c5.appendChild(el('p','note','동일 업종 PEER를 찾지 못했어요. 아래에 종목코드를 직접 넣을 수 있어요.'));
- var pr=el('div','bar');var pi=el('input');pi.placeholder='PEER 종목코드 (쉼표로 구분, 예: 000660,005380)';pi.style.width='300px';pi.value=(DP.peers[d.ticker]||[]).join(',');pr.appendChild(pi);pr.appendChild(bt('PEER 다시 계산','bt2',function(){var a=pi.value.split(/[ ,]+/).map(function(x){return x.trim().toUpperCase()}).filter(function(x){return /^[0-9A-Z]{6}$/.test(x)}).slice(0,6);DP.peers[d.ticker]=a;dpOpen(d.ticker,p,a)}));c5.appendChild(pr);
+ if(dpLk('peer'))dpLock(c5,'peer','같은 업종 종목과의 PER·PBR·ROE 비교는 등급에 따라 열려요.');else{var PE=d.peers||[];
+ if(PE.length){var me=[d.name+' (본 종목)',dpN(fu.PER),dpN(fu.PBR,2),dpN(bs.roe),dpN(bs.opm),'-',dpN((d.price||{}).pct20)];dpTable(c5,['종목','PER','PBR','ROE(%)','영업이익률(%)','시총(억)','20일(%)'],[me].concat(PE.map(function(x){var r=[x.name+' '+x.ticker,dpN(x.per),dpN(x.pbr,2),dpN(x.roe),dpN(x.opm),dpN(x.cap_eok,0),dpN(x.pct20)];r._t=x.ticker;return r})),{tk:function(r,i){return i===0?r._t:null}})}else c5.appendChild(el('p','note','동일 업종 PEER를 찾지 못했어요. 아래에 종목코드를 직접 넣을 수 있어요.'));
+ var pr=el('div','bar');var pi=el('input');pi.placeholder='PEER 종목코드 (쉼표로 구분, 예: 000660,005380)';pi.style.width='300px';pi.value=(DP.peers[d.ticker]||[]).join(',');pr.appendChild(pi);pr.appendChild(bt('PEER 다시 계산','bt2',function(){var a=pi.value.split(/[ ,]+/).map(function(x){return x.trim().toUpperCase()}).filter(function(x){return /^[0-9A-Z]{6}$/.test(x)}).slice(0,6);DP.peers[d.ticker]=a;dpOpen(d.ticker,p,a)}));c5.appendChild(pr)}
  /* ── 체크리스트 ── */
- var okn=d.checklist.filter(function(x){return x.state==='ok'}).length,tot=d.checklist.filter(function(x){return x.state!=='na'}).length;var c6=dpSec(b,'chk','📝 투자 전 체크리스트',okn+'/'+tot+' 충족','#ca8a04');navAdd('chk','📝 체크');
- d.checklist.forEach(function(x){var r=el('div','dpCk');r.appendChild(el('div','ic '+x.state,x.state==='ok'?'✓':(x.state==='warn'?'!':'–')));r.appendChild(el('b',null,x.label));r.appendChild(el('span',null,x.note));c6.appendChild(r)});
+ var CK=d.checklist||[],okn=CK.filter(function(x){return x.state==='ok'}).length,tot=CK.filter(function(x){return x.state!=='na'}).length;var c6=dpSec(b,'chk','📝 투자 전 체크리스트',dpLk('chk')?'':okn+'/'+tot+' 충족','#ca8a04');navAdd('chk','📝 체크');
+ if(dpLk('chk'))dpLock(c6,'chk','수익성·안정성·배당·공시 등 자동 점검표는 등급에 따라 열려요.');else CK.forEach(function(x){var r=el('div','dpCk');r.appendChild(el('div','ic '+x.state,x.state==='ok'?'✓':(x.state==='warn'?'!':'–')));r.appendChild(el('b',null,x.label));r.appendChild(el('span',null,x.note));c6.appendChild(r)});
  /* ── 수급·공시 ── */
- var c7=dpSec(b,'sup','👥 수급 · 📄 공시 · 📰 뉴스','','#0f766e');navAdd('sup','👥 수급·공시');var sp=d.supply;if(sp){c7.appendChild(el('p','note',sp.summary||''));
+ var c7=dpSec(b,'sup','👥 수급 · 📄 공시 · 📰 뉴스','','#0f766e');navAdd('sup','👥 수급·공시');var sp=d.supply;
+ if(dpLk('sup'))dpLock(c7,'sup','외국인·기관·개인 수급과 최근 공시·뉴스 제목은 등급에 따라 열려요.');else{if(sp){c7.appendChild(el('p','note',sp.summary||''));
   dpTable(c7,['기간','외국인(억)','기관(억)','개인(억)'],['1','3','5','10','20'].filter(function(n){return sp.per[n]&&sp.per[n].days>=Number(n)}).map(function(n){var x=sp.per[n];return [n+'일',dpN(x.foreign_eok,0),dpN(x.inst_eok,0),dpN(x.indiv_eok,0)]}),{cls:function(r,i){if(i===0)return '';var n=Number(String(r[i]).replace(/,/g,''));return n>0?'up':(n<0?'dn':'')}})}
  if((d.disc||[]).length)dpTable(c7,['날짜','분류','공시 제목'],d.disc.slice(0,8).map(function(x){return [x.date.slice(5),x.tag,x.title]}));
- (d.news||[]).slice(0,6).forEach(function(n){c7.appendChild(el('div','m','▪ '+n.title+' ('+n.press+' '+n.date+')'))});
+ (d.news||[]).slice(0,6).forEach(function(n){c7.appendChild(el('div','m','▪ '+n.title+' ('+n.press+' '+n.date+')'))})}
  /* ── AI ── */
  var c8=dpSec(b,'ai','🤖 AI 정성 분석','사업현황·밸류체인·정량해석·정성분석·리스크·뉴스','#4f46e5');navAdd('ai','🤖 AI');
- c8.appendChild(el('p','note','위 데이터를 정리한 프롬프트를 만들어 설정된 AI를 열어요. 답변을 복사하고 이 탭으로 돌아오면 자동으로 읽어 옵니다. 프롬프트는 [프롬프트] 탭에서 고칠 수 있어요.'));
+ if(dpLk('ai'))dpLock(c8,'ai','AI 분석용 프롬프트 만들기와 AI 글 보기는 등급에 따라 열려요.');else{
+ c8.appendChild(el('p','note',MEMBER_MODE?'위 자료를 정리한 AI 요청문(프롬프트)을 만들어 드려요. 복사해서 내가 쓰는 AI에 붙여 넣고, 받은 답을 아래 칸에 붙여 두면 이 화면에서만 보관돼요(서버에 저장되지 않아요). AI 답변은 참고용이며 틀릴 수 있어요.':'위 데이터를 정리한 프롬프트를 만들어 설정된 AI를 열어요. 답변을 복사하고 이 탭으로 돌아오면 자동으로 읽어 옵니다. 프롬프트는 [프롬프트] 탭에서 고칠 수 있어요.'));
  var rr=el('div','bar');rr.appendChild(bt('🤖 AI 분석 만들기','bt',function(){dpAI(d)}));
  if(d.saved.has_ai){rr.appendChild(bt('📂 원본 저장 AI 글 불러오기 ('+d.saved.ai_at+')','bt2',function(){DP.ai[d.ticker]=d.saved.ai_text;var ta=$('dpAiTa');if(ta)ta.value=d.saved.ai_text;dpAiState();toast('원본 프로그램이 저장해 둔 AI 글을 불러왔어요')}))}c8.appendChild(rr);
- var st=el('div','m');st.id='dpAiState';c8.appendChild(st);var ta=el('textarea');ta.id='dpAiTa';ta.placeholder='AI 답변을 직접 붙여넣어도 돼요.';dpSty(ta,'width:100%;min-height:120px;box-sizing:border-box');ta.value=DP.ai[d.ticker]||'';ta.oninput=function(){DP.ai[d.ticker]=ta.value;dpAiState()};c8.appendChild(ta);dpAiState();
+ var st=el('div','m');st.id='dpAiState';c8.appendChild(st);var ta=el('textarea');ta.id='dpAiTa';ta.placeholder='AI 답변을 직접 붙여넣어도 돼요.';dpSty(ta,'width:100%;min-height:120px;box-sizing:border-box');ta.value=DP.ai[d.ticker]||'';ta.oninput=function(){DP.ai[d.ticker]=ta.value;dpAiState()};c8.appendChild(ta);dpAiState();}
  /* ── 이미지 ── */
- var c10=dpSec(b,'img','🖼 블로그용 이미지 (3장)','① 메인 · ② 5개년 재무 · ③ 통합 요약','#e11d48');navAdd('img','🖼 이미지');
- c10.appendChild(el('p','note','① 종합점수·5축 레이더가 가운데 오는 메인 이미지, ② 5개년 매출·영업이익 차트와 재무표, ③ 체력·밸류에이션·PEER·체크리스트를 한 장에 모은 통합 이미지예요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
- var ib=el('div');c10.appendChild(ib);DP.imgPanel=ImgKit.panel(ib,{menu:'deep',name:d.name,ticker:d.ticker,gen:function(scale){return Promise.resolve(window.DpImg.build(d,scale))}});
+ var c10=dpSec(b,'img',MEMBER_MODE?'🖼 요약 이미지 (3장)':'🖼 블로그용 이미지 (3장)','① 메인 · ② 5개년 재무 · ③ 통합 요약','#e11d48');navAdd('img','🖼 이미지');
+ if(dpLk('img'))dpLock(c10,'img','종합점수·5축·재무 차트를 이미지로 만들어 내려받는 기능은 등급에 따라 열려요.');else{
+ c10.appendChild(el('p','note',MEMBER_MODE?'① 종합점수·5축 레이더 메인 이미지, ② 5개년 매출·영업이익 차트와 재무표, ③ 체력·밸류에이션·PEER·체크리스트 통합 이미지예요. 지금 화면에 보이는 자료로 그려지며, 잠긴 구역은 이미지에서도 비어 있어요.':'① 종합점수·5축 레이더가 가운데 오는 메인 이미지, ② 5개년 매출·영업이익 차트와 재무표, ③ 체력·밸류에이션·PEER·체크리스트를 한 장에 모은 통합 이미지예요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
+ var ib=el('div');c10.appendChild(ib);if(MEMBER_MODE)dpImgMember(ib,d);else DP.imgPanel=ImgKit.panel(ib,{menu:'deep',name:d.name,ticker:d.ticker,gen:function(scale){return Promise.resolve(window.DpImg.build(d,scale))}});}
  /* ── 블로그 ── */
- var c9=dpSec(b,'blog','📝 블로그 글 만들기','원본 방식 HTML'+((d.delisting&&d.delisting.level&&d.delisting.level!=='none')?' · ⚠ 위험 경고 자동 포함':''),'#16a34a');navAdd('blog','📝 글');var bx=el('div');c9.appendChild(bx);
+ if(!MEMBER_MODE){var c9=dpSec(b,'blog','📝 블로그 글 만들기','원본 방식 HTML'+((d.delisting&&d.delisting.level&&d.delisting.level!=='none')?' · ⚠ 위험 경고 자동 포함':''),'#16a34a');navAdd('blog','📝 글');var bx=el('div');c9.appendChild(bx);
  var secs=[['profile','기업현황'],['fin','5개년재무'],['score','체력진단'],['valu','밸류에이션'],['peers','PEER'],['check','체크리스트'],['supply','수급'],['disc','공시·뉴스'],['ai','AI분석'],['terms','용어풀이']];
  window.BlogKit.panel(bx,{idp:'dp',key:'deepdive',kind:'deepdive',ticker:d.ticker,name:d.name,sections:secs,dup_warn:d.dup_warn,
-  build:function(inc,title){return apiJ('/admin/api/deep/blog',{ticker:d.ticker,peers:DP.peers[d.ticker]||[],ai:DP.ai[d.ticker]||'',inc:inc,title:title})},onLogged:function(z){d.dup_warn=z.dup_warn}})}
-function dpAiState(){var d=DP.d,z=$('dpAiState');if(!z||!d)return;var t=DP.ai[d.ticker]||'';z.textContent=t.trim()?('✅ AI 글 '+t.length.toLocaleString()+'자 — 블로그 글에 포함돼요.'):'아직 AI 글이 없어요(없어도 블로그 글은 만들 수 있어요).'}
+  build:function(inc,title){return apiJ('/admin/api/deep/blog',{ticker:d.ticker,peers:DP.peers[d.ticker]||[],ai:DP.ai[d.ticker]||'',inc:inc,title:title})},onLogged:function(z){d.dup_warn=z.dup_warn}})}}
+function dpAiState(){var d=DP.d,z=$('dpAiState');if(!z||!d)return;var t=DP.ai[d.ticker]||'';z.textContent=t.trim()?('✅ AI 글 '+t.length.toLocaleString()+'자'+(MEMBER_MODE?' — 이 화면에만 있어요.':' — 블로그 글에 포함돼요.')):(MEMBER_MODE?'아직 AI 글이 없어요.':'아직 AI 글이 없어요(없어도 블로그 글은 만들 수 있어요).')}
 function dpAI(d){if(!window.MiniAI){toast('AI 도우미 파일(menu_ui.py)이 올라가지 않았어요.');return}
  apiJ('/admin/api/deep/prompt',{ticker:d.ticker,peers:DP.peers[d.ticker]||[]}).then(function(j){if(j.error){toast(j.error);return}
   window.MiniAI.run({title:'기업 심층분석 AI — '+j.name,key:'deep',steps:[{label:j.name,prompt:j.prompt}],minLen:400,hint:'AI가 "## 1. 사업 현황 …" 형식으로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
@@ -990,11 +1049,26 @@ window.DpImg={build:function(d,scale){return [{idx:1,label:'메인 이미지',ca
 
 
 def register():
-    C.register_menu({"id": "deep", "label": "심층분석", "icon": "🏛", "public_path": "/deepdive", "admin_path": "/admin#dp",
-                     "desc": "5개년 재무·체력 진단·밸류에이션·PEER·AI 정성 분석 + 블로그 글쓰기", "access": "admin", "admin_only": True})
+    C.register_menu({"id": "deep", "label": "심층분석", "icon": "🏛", "public_path": "/m/deep", "admin_path": "/admin#dp",
+                     "desc": "종목 하나를 5개년 재무·5축 체력 진단·밸류에이션·PEER 비교·체크리스트·수급·공시까지 깊이 살펴봐요. 투자 권유가 아닌 참고용 정보예요.",
+                     "access": "admin"})
     C.register_prompt("deep_report", {
         "title": "기업 심층분석 AI 프롬프트", "default": DEEP_DEFAULT, "required": ["{data}"], "must_have": ["## 1."],
         "vars": "{data}=종목 데이터 요약(필수) · {name} · {ticker} · {today}",
         "desc": "심층분석 화면에서 AI에게 보내는 요청문. '## 1.'~'## 7.' 제목 형식을 유지해야 블로그 글의 섹션 카드로 나뉘어 들어가요."})
-    C.register_admin_tab("dp", "🏛 심층분석", TAB_JS, "dpLoad")
+    C.register_admin_tab("dp", "🏛 심층분석", TAB_JS, "dpLoad", menu="deep")
+    # ── 기능별 공개(기본값은 관리자가 [🎚 기능 공개]에서 바꾼다) ──
+    # deep/data 한 주소가 아래 기능들의 자료를 섞어 내보낸다 → 주소 자체의 문은 base 이고, 나머지 섹션은 gate_data() 가 서버에서 뺀다.
+    F = C.register_feature
+    F("deep", "base", "종합점수·5축·기업현황", "종목 검색, 종합점수·5축 레이더, 핵심 타일(현재가·PER·PBR·ROE…), 기업 현황. 다른 구역의 바탕이라 이 기능이 열려 있어야 화면이 나와요.",
+      default="public", endpoints=["/admin/api/deep/search", "/admin/api/deep/saved", "/admin/api/deep/data"])
+    F("deep", "fin", "5개년 재무", "매출·영업이익·순이익·ROE·부채비율 등 연도별 재무 차트와 표.", default="member")
+    F("deep", "val", "밸류에이션", "PER·PBR 밴드와 컨센서스 대비 위치(참고 계산, 적정주가 아님).", default="member")
+    F("deep", "chk", "투자 전 체크리스트", "수익성·안정성·배당·공시 등을 자동으로 점검한 표.", default="member")
+    F("deep", "peer", "PEER 비교", "같은 업종 종목과 PER·PBR·ROE·영업이익률 비교.", default="L2")
+    F("deep", "sup", "수급·공시·뉴스", "외국인·기관·개인 수급 흐름과 최근 공시·뉴스 제목.", default="L2")
+    F("deep", "ai", "AI 정성 분석 요청문", "자료를 담은 AI 요청문(프롬프트)을 만들어 복사해요. 재무·밸류에이션·PEER·체크리스트·수급이 모두 열려 있어야 만들어져요.",
+      default="L2", endpoints=["/admin/api/deep/prompt"], kind="tool")
+    F("deep", "img", "요약 이미지 내려받기", "종합점수·5축·재무·통합 요약을 이미지 3장으로 만들어 내려받아요.", default="L3", kind="tool")
+    # 블로그 글 만들기(deep/blog)·작성 이력 등 관리자 업무는 어떤 기능에도 넣지 않았다 → 관리자 화면에서만 동작(회원 화면에서는 아예 숨김)
     return bp

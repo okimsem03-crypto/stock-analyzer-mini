@@ -214,6 +214,8 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v148 — 🎚 기능별 등급 공개: 메뉴 하나 안의 기능마다 비회원·회원 단계별로 열어 줄 곳을 [🎚 기능 공개] 표에서 정해요(이용자 화면 /m/메뉴 에 🔒 표시·안내창, 등급별 👁 미리보기, 서버에서도 강제). 새 메뉴 💧수급분석·🎯도전주(기본 관리자 전용)·📰뉴스분석, 심층분석·오늘추천·거래정지상폐 기능 분해, 등급 안내(/plans)·전체 메뉴(/menus) 개편, 관리자 화면 메뉴 묶음·설정·버튼 이름 정비
+✨ v147 — ⚡ 속도 개선: ① DB 연결을 매번 새로 맺던 것을 '재사용(풀)'으로(설정 화면 DB 접속 31번→0번) ② 설정·프롬프트를 표째 한 번에 읽어 20초 캐시 ③ 관리자 요약·회원 통계 쿼리 합치기 ④ 관리자 [요약]에 DB 응답시간·느린 요청 목록 표시
 ✨ v146 — ① 회원가입·로그인(이메일이 아이디, 인증번호 메일) + 네이버·구글·카카오 SNS 로그인(키는 환경변수로만) ② 설정·저장·적용 버튼은 반드시 '확인 창'(바뀐 칸 이전→새 값)을 거쳐 진행 ③ 관리자 [👤 회원] 탭(회원 목록·단계·차단·SNS 상태)
 ✨ v145 — ① 메인 화면 메뉴 바가 '탭 줄'로: 메뉴를 누르면 이 화면 안의 탭으로 열리고 다른 탭으로 옮겨도 내용이 그대로 남음(×로 닫기) ② 숨김(🔒) 메뉴·관리자 화면도 팝업 없이 메인 화면 안에서 실행 ③ 오늘추천·심층분석·거래정지 등에서 종목을 누르면 종목분석 탭 + 심층분석 탭이 함께 열림 ④ 심층분석 밸류에이션 밴드의 '현재가' 글자 잘림 수정 ⑤ AI 복사·적용 점검(질문까지 같이 복사해도 답변만 인식, 저장 버튼 조건 완화, 기본 자동 저장) ⑥ 거래정지·상폐 메뉴를 원본 '투자주의' 화면 방식으로 개편(전종목 시세 목록 한 번으로 스크리닝·기준 설정·위험/경계·신규진입/졸업·이미지 대시보드·AI 조언·블로그) + AI 일괄 분석(보이는 전 종목을 묶음으로 이어서).
 ✨ v143 — 관리자 [🖼 이미지 저장] 설정 화면이 비어 보이던 문제 보강: 설정을 기다리지 않고 폴더·저장 방식 칸을 먼저 표시, 응답이 늦거나 실패하면 이유를 화면에 안내.
@@ -328,7 +330,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v146"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v148"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -452,6 +454,28 @@ app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # [v118] POST 본문 상한 
 @app.before_request
 def _ensure_anon_uid():
     g.anon_uid = request.cookies.get("anon_uid") or uuid.uuid4().hex
+    g._t0 = time.perf_counter()
+    g.dbn = 0
+
+
+# 🐢 [v147] 느린 요청 기록 — 0.7초 넘게 걸린 요청을 최근 40개까지 기억해 관리자 [요약]에 보여준다(어느 화면이 왜 느린지 찾는 용도).
+import collections as _collections
+_SLOW = _collections.deque(maxlen=40)
+
+
+@app.after_request
+def _perf_log(resp):
+    try:
+        t0 = g.get("_t0")
+        if t0 is not None and not request.path.startswith("/static"):
+            ms = int((time.perf_counter() - t0) * 1000)
+            if ms >= 700 and request.path != "/healthz":
+                _SLOW.appendleft({"at": time.strftime("%H:%M:%S", time.localtime()), "m": request.method, "path": request.path[:70], "ms": ms, "db": int(g.get("dbn", 0)), "st": resp.status_code})
+                if ms >= 2500:
+                    print(f"[느림] {request.method} {request.path[:70]} {ms}ms db={g.get('dbn', 0)}")
+    except Exception:
+        pass
+    return resp
 
 
 @app.after_request
@@ -800,11 +824,106 @@ if DATABASE_URL and not PG_OK:
           "추가한 뒤 다시 배포해 주세요.")
 
 
+# ⚡ [v147] Postgres 연결 재사용(풀) — 예전에는 쿼리 한 번마다 새로 접속(TCP+TLS+로그인)해서, 설정 화면 하나가 DB 접속만 31번이었다.
+#   이제 열어 둔 연결을 돌려 쓴다. 호출부는 그대로 conn.close() 를 부르면 '닫기'가 아니라 '풀에 반납'이 된다.
+#   오래 놀던 연결은 쓰기 전에 살아 있는지 확인하고(Neon 은 5분 쉬면 연결을 끊는다), 죽어 있으면 새로 맺는다.
+import queue as _queue
+_PG_POOL = _queue.LifoQueue()
+_PG_MAX = 6
+_PG_PING_AFTER = 30          # 이 초 이상 놀았던 연결은 쓰기 전에 SELECT 1 로 확인
+_PG_LOCK = threading.Lock()
+_PG_OPEN = [0]
+
+
+def _pg_connect():
+    return psycopg2.connect(DATABASE_URL, connect_timeout=10, keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=3)
+
+
+class _PooledConn:
+    """psycopg2 연결을 감싼 껍데기 — close() 만 '풀에 반납'으로 바꾸고 나머지는 그대로 전달한다."""
+    __slots__ = ("_c", "_pooled", "_done")
+
+    def __init__(self, c, pooled):
+        self._c, self._pooled, self._done = c, pooled, False
+
+    def __getattr__(self, name):
+        return getattr(self._c, name)
+
+    def __enter__(self):
+        self._c.__enter__()
+        return self
+
+    def __exit__(self, *a):
+        return self._c.__exit__(*a)
+
+    def close(self):
+        if self._done:
+            return
+        self._done = True
+        c = self._c
+        ok = False
+        try:
+            if not c.closed:
+                c.rollback()                      # 커밋 안 된 거래가 남아 있으면 정리(이미 끝났으면 서버 통신 없음)
+                ok = True
+        except Exception:
+            ok = False
+        if ok and self._pooled and _PG_POOL.qsize() < _PG_MAX:
+            _PG_POOL.put((c, time.time()))
+            return
+        try:
+            c.close()
+        except Exception:
+            pass
+        if self._pooled:
+            with _PG_LOCK:
+                _PG_OPEN[0] = max(0, _PG_OPEN[0] - 1)
+
+
+def _count_db():
+    try:
+        g.dbn = g.get("dbn", 0) + 1
+    except RuntimeError:
+        pass
+
+
+def _pg_get(fresh=False):
+    _count_db()
+    while not fresh:
+        try:
+            c, last = _PG_POOL.get_nowait()
+        except _queue.Empty:
+            break
+        try:
+            if c.closed:
+                raise RuntimeError("closed")
+            if time.time() - last > _PG_PING_AFTER:
+                cur = c.cursor()
+                cur.execute("SELECT 1")
+                cur.close()
+                c.rollback()
+            return _PooledConn(c, True)
+        except Exception:
+            try:
+                c.close()
+            except Exception:
+                pass
+            with _PG_LOCK:
+                _PG_OPEN[0] = max(0, _PG_OPEN[0] - 1)
+    c = _pg_connect()
+    with _PG_LOCK:
+        pooled = _PG_OPEN[0] < _PG_MAX
+        if pooled:
+            _PG_OPEN[0] += 1
+    return _PooledConn(c, pooled)
+
+
 def _history_conn():
     """Postgres(DATABASE_URL 있음) 또는 SQLite(없음) 커넥션을 반환한다. 호출부는 두 DB의
        문법 차이(플레이스홀더 %s/?, AUTOINCREMENT 등)만 _USE_PG로 분기하면 된다."""
     if _USE_PG:
-        return psycopg2.connect(DATABASE_URL)
+        return _pg_get()
+    _count_db()
     return sqlite3.connect(get_db(), timeout=30)     # 다른 작업이 쓰는 중이면 최대 30초 기다린다(기본 5초는 큰 가져오기 중 오류 위험)
 
 
@@ -3877,6 +3996,8 @@ def _admin_session():
 def _admin_deny(write=False):
     """관리자만 지나갈 수 있는 문. 통과하면 None, 아니면 돌려줄 응답."""
     import hmac
+    if request.environ.get("mini.gateway"):
+        return _gateway_gate(write)           # [v148] 회원 화면(/mapi/)은 관리자 문 대신 '기능별 등급' 문을 지난다
     if not ADMIN_EMAILS or not _admin_ip_allowed():
         return "not found", 404
     s = _admin_session()
@@ -4053,7 +4174,7 @@ def admin_auth_verify():
                         f"관리자 콘솔에 로그인했습니다.\n시각: {_now_kst().strftime('%Y-%m-%d %H:%M:%S')} (KST)\nIP: {ip}\n브라우저: {ua[:100]}\n\n"
                         "본인이 아니라면 즉시 Render 환경변수의 ADMIN_EMAIL·RESEND_API_KEY를 점검하고, 콘솔의 [모든 세션 종료]를 누르세요.")
     resp = _admin_json({"ok": True})
-    resp.set_cookie("adm_s", sid, max_age=_adm_abs(), httponly=True, secure=request.is_secure, samesite="Strict", path="/admin")
+    resp.set_cookie("adm_s", sid, max_age=_adm_abs(), httponly=True, secure=request.is_secure, samesite="Strict", path="/")
     resp.delete_cookie("adm_ch", path="/admin")
     return resp
 
@@ -4080,7 +4201,7 @@ def admin_auth_logout():
     _admin_kill_sessions(_admin_session()["sid_hash"])
     _alog("logout")
     resp = _admin_json({"ok": True})
-    resp.delete_cookie("adm_s", path="/admin")
+    resp.delete_cookie("adm_s", path="/admin"); resp.delete_cookie("adm_s", path="/")
     return resp
 
 
@@ -4092,7 +4213,7 @@ def admin_auth_logout_all():
     _admin_kill_sessions()
     _alog("logout_all")
     resp = _admin_json({"ok": True})
-    resp.delete_cookie("adm_s", path="/admin")
+    resp.delete_cookie("adm_s", path="/admin"); resp.delete_cookie("adm_s", path="/")
     return resp
 
 
@@ -4115,14 +4236,16 @@ def admin_api_summary():
            "counter": counter_stats(), "email": ", ".join(_mask_email(e) for e in ADMIN_EMAILS),
            "mail": "resend" if RESEND_API_KEY else ("smtp" if SMTP_HOST else "none"),
            "ip_limit": bool(ADMIN_ALLOWED_IPS), "idle_minutes": _adm_idle() // 60, "session_expires": _kst_str(_admin_session()["expires_at"]),
-           "comments": 0, "comments_hidden": 0, "overviews": 0, "searches": 0}
+           "comments": 0, "comments_hidden": 0, "overviews": 0, "searches": 0, "slow": list(_SLOW)[:12], "db_ms": -1}
+    try:
+        _t = time.perf_counter(); _dbx("SELECT 1", fetch=True); out["db_ms"] = int((time.perf_counter() - _t) * 1000)      # 저장소 한 번 왕복 시간
+    except Exception:
+        pass
     try:
         _ensure_comments_table(); _ensure_overview_table(); _ensure_history_table()
-        one = lambda q: (_admin_rows(q, ("n",)) or [{"n": 0}])[0]["n"]
-        out["comments"] = int(one("SELECT COUNT(*) FROM stock_comments"))
-        out["comments_hidden"] = int(one("SELECT COUNT(*) FROM stock_comments WHERE hidden=1"))
-        out["overviews"] = int(one("SELECT COUNT(*) FROM stock_overview"))
-        out["searches"] = int(one("SELECT COUNT(*) FROM search_history"))
+        row = (_admin_rows("SELECT (SELECT COUNT(*) FROM stock_comments), (SELECT COUNT(*) FROM stock_comments WHERE hidden=1), "
+                           "(SELECT COUNT(*) FROM stock_overview), (SELECT COUNT(*) FROM search_history)", ("a", "b", "c", "d")) or [{}])[0]
+        out["comments"], out["comments_hidden"], out["overviews"], out["searches"] = (int(row.get(k) or 0) for k in "abcd")
     except Exception as e:
         print(f"[관리자] 요약 조회 실패: {e}")
     return _admin_json(out)
@@ -4236,7 +4359,7 @@ body.emb header{display:none}body.emb.one nav{display:none}body.emb .w{max-width
 header{background:#0f172a;color:#fff;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:5}
 header b{font-size:15px;flex:1}header #ver{font-weight:400;opacity:.7}header a.home{color:#93c5fd;font-size:13px;text-decoration:none;margin-right:6px}header button{background:#334155;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12.5px;cursor:pointer}
 header button.red{background:#b91c1c}.w{max-width:960px;margin:0 auto;padding:14px}
-nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}nav button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer}
+nav{display:flex;gap:6px 14px;flex-wrap:wrap;margin-bottom:12px}.ng{display:flex;gap:5px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:5px 8px}.ngl{font-size:11.5px;font-weight:800;color:#64748b;margin-right:2px}nav button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer}
 nav button.on{background:#0f172a;color:#fff;border-color:#0f172a}
 .c{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin:10px 0}.h{background:#fff7ed;border-color:#fdba74}
 .m{font-size:12px;color:#64748b;margin-bottom:6px;word-break:break-all}.b{white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.55}
@@ -4253,19 +4376,41 @@ td,th{padding:7px 9px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-a
 .cfB b{color:#0f172a}.cfList{margin:8px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}.cfList li{background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:6px 9px;word-break:break-all}
 .cfList .o{color:#94a3b8;text-decoration:line-through}.cfList .n{color:#15803d;font-weight:700}.cfNo{color:#64748b;font-size:12.5px;margin-top:8px}
 .cfF{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid #e2e8f0;background:#f8fafc}.cfF button{border-radius:10px;padding:9px 16px;font-size:14px;font-weight:700;cursor:pointer;border:1px solid #cbd5e1;background:#fff;color:#334155}.cfF button.go{background:#2563eb;border-color:#2563eb;color:#fff}
-th{white-space:nowrap}.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}.bar input,.bar select{border:1px solid #cbd5e1;border-radius:8px;padding:7px 9px;font-size:13px;background:#fff}
+th{white-space:nowrap}.lockd{opacity:.55;filter:grayscale(.5);cursor:not-allowed!important}.lockSec{position:relative}.lockSec>*:not(.lockBar){opacity:.42;pointer-events:none;filter:grayscale(.6);user-select:none}
+.lockBar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:10px;padding:9px 12px;margin:0 0 8px;font-size:13px;opacity:1!important;pointer-events:auto!important}
+.lockBar a{color:#1d4ed8;font-weight:700;text-decoration:none}.lockBar b{color:#78350f}
+#mbar{display:none;background:#0f172a;color:#fff;padding:11px 16px;align-items:center;gap:10px;flex-wrap:wrap}body.mem #mbar{display:flex}body.mem.emb #mbar{display:none}#mbar b{font-size:15px;flex:1}#mbar a{color:#93c5fd;font-size:13px;text-decoration:none}#mbar .pv{background:#f59e0b;color:#1f2937;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800}
+body.mem header,body.mem nav{display:none}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}.bar input,.bar select{border:1px solid #cbd5e1;border-radius:8px;padding:7px 9px;font-size:13px;background:#fff}
 textarea{border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-size:12.5px;font-family:inherit;line-height:1.5}
 </style></head><body>
 <header><b>🛠 종목분석 미니 관리자 <span id="ver"></span></b>
 <a href="/" target="mini_main" class="home">🏠 메인 화면</a><button id="lo">로그아웃</button><button id="loall" class="red">모든 세션 종료</button></header>
+<div id="mbar"><b id="mbt"></b><span id="mbs"></span><a href="/" target="_top">🏠 종목분석</a><a href="/menus" target="_top">전체 메뉴</a><a href="/plans" target="_top">등급 안내</a><a id="mbl" href="/member" target="_top">로그인·가입</a></div>
 <div class="w"><nav id="nav"></nav><div id="pane"></div></div><div id="toast"></div>
 <script nonce="{{ nonce }}">
 var CSRF="{{ csrf }}";var cur='sum';var EXT={};
 try{if(window.self!==window.top){document.body.classList.add('emb');if(!/embed=full/.test(location.search))document.body.classList.add('one')}}catch(e){}
 var TABS=[['sum','요약'],['pr','✍ 프롬프트'],['mn','⚙ 메뉴·설정'],['cmt','댓글'],['ovw','기업개요'],['log','보안 기록']];
+var MEMBER_MODE=false,FEATS=null,MENU_ID='';
 function $(i){return document.getElementById(i)}
 function el(t,cls,txt){var e=document.createElement(t);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
 var LASTBTN=null,_tt=null;document.addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('button'):null;if(b)LASTBTN=b},true);
+/* 🎚 [v148] 기능별 등급 잠금 — 관리자 화면에서는 아무 일도 하지 않고, 회원 화면(/m/메뉴)에서만 잠긴 기능을 막는다 */
+function ftOk(fid){return !MEMBER_MODE||!FEATS||!FEATS[fid]||FEATS[fid].ok}
+function lockDlg(fid){var f=(FEATS||{})[fid]||{label:fid,need:''};var nx=encodeURIComponent('/m/'+MENU_ID);
+ var ov=el('div','cfOv'),bx=el('div','cfBox');bx.appendChild(el('div','cfH','🔒 '+f.label));var b=el('div','cfB');
+ b.appendChild(el('div',null,f.need==='관리자 전용(아직 공개 전)'?'이 기능은 아직 일반 이용자에게 공개되지 않았어요.':'이 기능은 '+f.need+'부터 쓸 수 있어요.'));
+ if(f.desc)b.appendChild(el('div','cfNo',f.desc));if(f.login)b.appendChild(el('div','cfNo','로그인하거나 가입하면 자신의 등급에 맞는 기능을 쓸 수 있어요.'));bx.appendChild(b);
+ var ft2=el('div','cfF');function link(t,h,go){var a=el('a',go?'go':null,t);a.href=h;a.target='_top';a.style.cssText='text-decoration:none;display:inline-block;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:700;border:1px solid #cbd5e1;background:'+(go?'#2563eb':'#fff')+';color:'+(go?'#fff':'#334155');return a}
+ var no=el('button',null,'닫기');no.type='button';no.onclick=function(){ov.remove()};ft2.appendChild(no);ft2.appendChild(link('등급 안내','/plans',false));
+ if(f.login){ft2.appendChild(link('회원가입','/member?tab=signup&next='+nx,false));ft2.appendChild(link('로그인','/member?next='+nx,true))}
+ bx.appendChild(ft2);ov.appendChild(bx);ov.onclick=function(e){if(e.target===ov)ov.remove()};document.body.appendChild(ov)}
+function adm(n){if(MEMBER_MODE&&n&&n.style)n.style.display='none';return n}
+function ft(node,fid){if(ftOk(fid))return node;var f=FEATS[fid];node.classList.add('lockd');node.title='🔒 '+f.label+' — '+f.need+'부터';node.setAttribute('aria-disabled','true');
+ node.onclick=function(e){if(e){e.preventDefault();e.stopPropagation()}lockDlg(fid);return false};return node}
+function ftSec(box,fid){if(ftOk(fid))return box;var f=FEATS[fid];box.classList.add('lockSec');var bar=el('div','lockBar');bar.appendChild(el('b',null,'🔒 '+f.label));
+ bar.appendChild(el('span',null,f.need==='관리자 전용(아직 공개 전)'?'아직 공개되지 않은 기능이에요.':f.need+'부터 쓸 수 있어요.'));var a=el('a',null,'자세히');a.href='#';a.onclick=function(e){e.preventDefault();lockDlg(fid)};bar.appendChild(a);box.insertBefore(bar,box.firstChild);return box}
 function hms(){var d=new Date(),z=function(n){return ('0'+n).slice(-2)};return z(d.getHours())+':'+z(d.getMinutes())+':'+z(d.getSeconds())}
 function savedMark(b){var h=document.querySelector('header'),s=$('saveStat');if(!s&&h){s=el('span');s.id='saveStat';h.appendChild(s)}if(s)s.textContent='✅ 마지막 저장 '+hms();
  if(b&&document.body.contains(b)&&b.parentNode){var m=b.parentNode.querySelector('.savedAt');if(!m){m=el('span','savedAt');b.parentNode.insertBefore(m,b.nextSibling)}m.textContent='✅ '+hms()+' 저장됨'}}
@@ -4273,14 +4418,23 @@ function toast(t,kind){var x=$('toast');t=String(t==null?'':t);var bad=kind==='b
  x.textContent=(ok&&t.indexOf('✅')<0?'✅ ':'')+t;x.className=ok?'ok':(bad?'bad':'');x.style.display='block';clearTimeout(_tt);_tt=setTimeout(function(){x.style.display='none'},ok?3800:2600);
  if(ok&&/저장|바꿨|반영/.test(t))savedMark(LASTBTN)}
 function api(u,post){return fetch(u,{method:post?'POST':'GET',credentials:'same-origin',headers:post?{'X-CSRF-Token':CSRF}:{}}).then(function(r){
-  if(r.status===401){location.replace('/admin');throw 0}return r.json()})}
-function nav(){var n=$('nav');n.innerHTML='';TABS.forEach(function(t){var b=el('button',t[0]===cur?'on':'',t[1]);b.onclick=function(){cur=t[0];nav();load()};n.appendChild(b)})}
+  if(r.status===401){location.replace('/admin');throw 0}return r.json()}).then(gwErr)}
+function gwErr(j){if(MEMBER_MODE&&j&&j.feature&&j.error){toast(j.error,'bad');if(FEATS&&FEATS[j.feature]&&j.login!==undefined)lockDlg(j.feature)}return j}
+var TAB_GROUPS=[['📊 운영',['sum','cmt','ovw','log']],['🧰 메뉴 도구',['dl','dp','dy','fl','ch','nw']],['🎚 공개·회원',['mm','fe','mem']],['✍ 콘텐츠',['bu','bl','ik','pr']],['⚙ 설정',['mn','im']]];
+function nav(){var n=$('nav');n.innerHTML='';var seen={};
+ function pill(t,box){var b=el('button',t[0]===cur?'on':'',t[1]);b.onclick=function(){cur=t[0];nav();load()};box.appendChild(b);seen[t[0]]=1}
+ if(MEMBER_MODE||TABS.length<6){TABS.forEach(function(t){pill(t,n)});return}
+ TAB_GROUPS.forEach(function(g){var items=g[1].map(function(id){return TABS.filter(function(t){return t[0]===id})[0]}).filter(Boolean);if(!items.length)return;
+  var box=el('div','ng');box.appendChild(el('span','ngl',g[0]));items.forEach(function(t){pill(t,box)});n.appendChild(box)});
+ var rest=TABS.filter(function(t){return !seen[t[0]]});if(rest.length){var bx=el('div','ng');bx.appendChild(el('span','ngl','기타'));rest.forEach(function(t){pill(t,bx)});n.appendChild(bx)}}
 function ago(s){return s}
 function load(){var p=$('pane');p.textContent='불러오는 중…';
  if(EXT[cur]){EXT[cur](p);return}
  if(cur==='sum')api('/admin/api/summary').then(function(d){p.innerHTML='';$('ver').textContent=d.version;
-  var g=el('div','grid');[['누적 이용자',d.counter.total],['오늘 방문',d.counter.today],['댓글',d.comments+(d.comments_hidden?' (숨김 '+d.comments_hidden+')':'')],['기업개요 저장',d.overviews],['검색 기록',d.searches],['저장소',d.db],['가동 시간',Math.floor(d.uptime_sec/60)+'분'],['메일 방식',d.mail]].forEach(function(x){var k=el('div','k');k.appendChild(el('small',null,x[0]));k.appendChild(el('b',null,String(x[1])));g.appendChild(k)});p.appendChild(g);
+  var g=el('div','grid');[['누적 이용자',d.counter.total],['오늘 방문',d.counter.today],['댓글',d.comments+(d.comments_hidden?' (숨김 '+d.comments_hidden+')':'')],['기업개요 저장',d.overviews],['검색 기록',d.searches],['저장소',d.db+(d.db_ms>=0?' · 응답 '+d.db_ms+'ms':'')],['가동 시간',Math.floor(d.uptime_sec/60)+'분'],['메일 방식',d.mail]].forEach(function(x){var k=el('div','k');k.appendChild(el('small',null,x[0]));k.appendChild(el('b',null,String(x[1])));g.appendChild(k)});p.appendChild(g);
   p.appendChild(el('p','note','관리자 이메일: '+d.email+' · 이 로그인은 '+d.session_expires+' 까지(무활동 '+(d.idle_minutes>=60?(d.idle_minutes/60)+'시간':d.idle_minutes+'분')+'이면 자동 로그아웃 · [메뉴·설정]에서 변경) · 접속 IP 제한: '+(d.ip_limit?'사용 중':'안 함')));
+  if(d.db_ms>=150)p.appendChild(el('p','note bad','⚠ 저장소(DB) 한 번 왕복이 '+d.db_ms+'ms 로 느려요. DB와 서버의 지역이 멀거나(예: 서버 싱가포르·DB 미국) DB가 절전에서 막 깨어난 경우예요. Render 리전과 Neon 리전을 같은 곳(싱가포르)으로 맞추면 크게 빨라져요.'));
+  if(d.slow&&d.slow.length){var sb=el('div','c');sb.appendChild(el('b',null,'🐢 느렸던 요청 (0.7초 이상, 최근 순)'));d.slow.forEach(function(r){sb.appendChild(el('div','m',r.at+' · '+r.m+' '+r.path+' · '+r.ms+'ms · DB '+r.db+'회 · '+r.st))});p.appendChild(sb)}
   if(d.db!=='postgres')p.appendChild(el('p','note bad','⚠ 저장소가 sqlite입니다 — 서버가 잠들면 기록이 사라집니다(DATABASE_URL 확인).'))});
  else if(cur==='cmt')api('/admin/api/comments').then(function(d){p.innerHTML='';p.appendChild(el('p','note','최근 댓글 '+d.rows.length+'개 · 주황색은 신고 '+d.hide_n+'회 이상으로 자동 숨김된 댓글 · 삭제하면 복구할 수 없습니다.'));
   d.rows.forEach(function(r){var c=el('div','c'+(r.hidden?' h':''));c.appendChild(el('div','m','#'+r.id+' · '+r.name+'('+r.ticker+') · '+r.nick+' · '+r.created_at+' · 신고 '+r.reports+(r.hidden?' · 숨김':'')));c.appendChild(el('div','b',r.body));
@@ -4298,7 +4452,7 @@ $('lo').onclick=function(){api('/admin/auth/logout',1).then(function(){location.
 $('loall').onclick=function(){if(!confirm('이 브라우저를 포함해 모든 관리자 로그인을 끝낼까요?'))return;api('/admin/auth/logout-all',1).then(function(){location.replace('/admin')})};
 /* ── v135: 거래정지·상폐 / 프롬프트 / 메뉴·설정 ── */
 function apiJ(u,obj){return fetch(u,{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':CSRF,'Content-Type':'application/json'},body:JSON.stringify(obj||{})}).then(function(r){
-  if(r.status===401){location.replace('/admin');throw 0}return r.json()}).then(function(j){if(u==='/admin/api/settings'&&j&&!j.error)toast('저장이 완료되었어요');return j})}
+  if(r.status===401){location.replace('/admin');throw 0}return r.json()}).then(function(j){if(u==='/admin/api/settings'&&j&&!j.error)toast('저장이 완료되었어요');return gwErr(j)})}
 function bt(txt,cls,fn){var b=el('button',cls||'bt',txt);b.onclick=fn;return b}
 /* ── 💾 [v146] 저장·적용 버튼은 반드시 '확인 창'을 거친다 — 무엇을 저장하는지(바뀐 칸 이전→새 값)를 보여주고 [확인하고 저장]을 눌러야 진행돼요 ── */
 var CF={bypass:null,orig:new WeakMap(),open:false};
@@ -4367,33 +4521,33 @@ function prHist(key,ta,c){api('/admin/api/prompt/'+key+'/history').then(function
 
 /* ── 메뉴·설정 ── */
 function mnLoad(p){api('/admin/api/settings').then(function(d){if(cur!=='mn')return;p.innerHTML='';
- var c=el('div','c');c.appendChild(el('b',null,'🧭 메뉴 공개·숨김은 [메뉴 관리] 탭에서'));c.appendChild(el('p','note','메뉴 목록, 숨김/보이기, 회원 단계별 노출, 순서, 회원 단계(최대 10개) 구성은 위쪽 [🧭 메뉴 관리] 탭으로 옮겼어요. 이 설정 화면에는 AI·로그인 시간 같은 일반 설정만 남겨 두었습니다.'));
- c.appendChild(bt('🧭 메뉴 관리 열기','bt',function(){cur='mm';nav();load()}));p.appendChild(c);
- var a=el('div','c');a.appendChild(el('b',null,'AI 설정'));
+ var c=el('div','c');c.appendChild(el('b',null,'🎚 공개·회원 설정 바로가기'));c.appendChild(el('p','note','누구에게 무엇을 보여줄지는 아래 세 곳에서 정해요. 이 [⚙ 설정] 화면에는 AI·로그인 시간 같은 일반 설정만 있어요.'));
+ var qb=el('div','bar');[['mm','🧭 메뉴 관리','메뉴 보이기·순서·회원 단계'],['fe','🎚 기능 공개','기능마다 열어 줄 등급'],['mem','👤 회원','가입자 목록·관리']].forEach(function(x){if(!TABS.some(function(t){return t[0]===x[0]}))return;var b=bt(x[1],'bt2',function(){cur=x[0];nav();load()});b.title=x[2];qb.appendChild(b);qb.appendChild(el('span','m',x[2]))});c.appendChild(qb);p.appendChild(c);
+ var a=el('div','c');a.appendChild(el('b',null,'🤖 AI 설정 (서버 자동 호출용)'));
  var prov=['gemini','anthropic','openai'];var names={gemini:'Gemini',anthropic:'Claude',openai:'OpenAI'};
  a.appendChild(el('p','note','서버 API 키: '+prov.map(function(x){return names[x]+(d.providers[x]?' ✅':' ✖')}).join(' · ')+' — 키는 Render 환경변수(GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY)에만 넣어요. 화면과 DB에는 저장하지 않아요. 지금 자동 모드에 쓰는 것: '+(d.provider_now?names[d.provider_now]:'없음(수동 모드만 가능)')));
  var sel=el('select');[['auto','자동 선택(키가 있는 순서: Gemini → Claude → OpenAI)'],['gemini','Gemini'],['anthropic','Claude'],['openai','OpenAI']].forEach(function(o){var x=el('option',null,o[1]);x.value=o[0];sel.appendChild(x)});sel.value=d.ai_provider;
  var r1=el('div','bar');r1.appendChild(el('span',null,'사용할 AI'));r1.appendChild(sel);a.appendChild(r1);
  var sc=el('input');sc.type='checkbox';sc.checked=d.ai_search==='1';var r2=el('div','bar');r2.appendChild(sc);r2.appendChild(el('span',null,'웹검색 사용(Gemini·Claude) — 공시를 실제로 검색해 확인하려면 켜 두세요'));a.appendChild(r2);
  var md={};prov.forEach(function(x){var i=el('input');i.placeholder='기본: '+d.default_models[x];i.value=d['ai_model_'+x];i.style.width='260px';md[x]=i;var r=el('div','bar');r.appendChild(el('span',null,names[x]+' 모델'));r.appendChild(i);a.appendChild(r)});
- a.appendChild(bt('AI 설정 저장','bt',function(){var o={ai_provider:sel.value,ai_search:sc.checked?'1':'0'};prov.forEach(function(x){o['ai_model_'+x]=md[x].value.trim()});apiJ('/admin/api/settings',o).then(function(j){if(j.error)toast(j.error);else{toast('저장했어요');mnLoad(p)}})}));p.appendChild(a);
- var ss=el('div','c');ss.appendChild(el('b',null,'관리자 로그인 유지 시간'));
+ a.appendChild(bt('💾 AI 설정 저장','bt',function(){var o={ai_provider:sel.value,ai_search:sc.checked?'1':'0'};prov.forEach(function(x){o['ai_model_'+x]=md[x].value.trim()});apiJ('/admin/api/settings',o).then(function(j){if(j.error)toast(j.error);else{toast('저장했어요');mnLoad(p)}})}));p.appendChild(a);
+ var ss=el('div','c');ss.appendChild(el('b',null,'🔐 관리자 로그인 유지 시간'));
  ss.appendChild(el('p','note','길게 잡을수록 편하지만, 이 브라우저를 다른 사람이 쓰게 될 때 위험도 길어져요. 공용 PC에서는 짧게 두거나 쓰고 나서 [로그아웃]을 누르세요. 최대 유지 시간은 다음에 로그인할 때부터, 무활동 시간은 바로 적용돼요.'));
  function mkSel(opts,val){var x=el('select');opts.forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];x.appendChild(op)});x.value=val;return x}
  var hs=mkSel([['1','1시간'],['4','4시간'],['8','8시간 (기본)'],['12','12시간'],['24','24시간']],d.admin_session_hours);
  var ids=mkSel([['10','10분'],['30','30분 (기본)'],['60','1시간'],['120','2시간'],['240','4시간'],['480','8시간'],['1440','24시간']],d.admin_idle_minutes);
  var q1=el('div','bar');q1.appendChild(el('span',null,'로그인 최대 유지: '));q1.appendChild(hs);ss.appendChild(q1);
  var q2=el('div','bar');q2.appendChild(el('span',null,'아무것도 안 하면 로그아웃: '));q2.appendChild(ids);ss.appendChild(q2);
- ss.appendChild(bt('로그인 시간 저장','bt',function(){apiJ('/admin/api/settings',{admin_session_hours:hs.value,admin_idle_minutes:ids.value}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));
- var ms=el('div','c');ms.appendChild(el('b',null,'수동 AI 분석 — 열어줄 AI'));
+ ss.appendChild(bt('💾 로그인 시간 저장','bt',function(){apiJ('/admin/api/settings',{admin_session_hours:hs.value,admin_idle_minutes:ids.value}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));
+ var ms=el('div','c');ms.appendChild(el('b',null,'🔷 수동 AI 분석 — 열어줄 AI'));
  ms.appendChild(el('p','note','이용자가 [AI로 분석] 버튼을 누르면 여기서 고른 AI 사이트가 열려요. 프롬프트는 자동으로 복사되고, AI 답변을 복사한 뒤 돌아오면 자동으로 읽어 들입니다. 이용자는 창 안에서 다른 AI로 바꿔 쓸 수도 있어요(그 브라우저에 기억됨).'));
  var msel=mkSel([['gemini','🔷 제미나이'],['chatgpt','🟢 챗GPT'],['claude','🟠 클로드'],['perplexity','🟣 퍼플렉시티']],d.manual_ai_site||'gemini');
  var q3=el('div','bar');q3.appendChild(el('span',null,'기본으로 열 AI: '));q3.appendChild(msel);ms.appendChild(q3);
- ms.appendChild(bt('저장','bt',function(){apiJ('/admin/api/settings',{manual_ai_site:msel.value}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));
- var s=el('div','c');s.appendChild(el('b',null,'스캔 설정'));
+ ms.appendChild(bt('💾 수동 AI 설정 저장','bt',function(){apiJ('/admin/api/settings',{manual_ai_site:msel.value}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));
+ var s=el('div','c');s.appendChild(el('b',null,'🚫 거래정지·상폐 스캔 설정'));
  var days=el('input');days.type='number';days.min=3;days.max=60;days.value=d.delist_stale_days;days.style.width='80px';var r3=el('div','bar');r3.appendChild(el('span',null,'마지막 거래일이 며칠 이상 지나면 거래정지 의심으로 볼까요?'));r3.appendChild(days);s.appendChild(r3);
  var cs=el('input');cs.type='checkbox';cs.checked=d.delist_include_caution==='1';var r4=el('div','bar');r4.appendChild(cs);r4.appendChild(el('span',null,'동전주(1,000원 미만)도 후보에 넣기 — 목록이 많이 길어져요'));s.appendChild(r4);
- s.appendChild(bt('스캔 설정 저장','bt',function(){apiJ('/admin/api/settings',{delist_stale_days:String(days.value),delist_include_caution:cs.checked?'1':'0'}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));p.appendChild(ss);p.appendChild(ms);p.appendChild(s)})}
+ s.appendChild(bt('💾 스캔 설정 저장','bt',function(){apiJ('/admin/api/settings',{delist_stale_days:String(days.value),delist_include_caution:cs.checked?'1':'0'}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));p.appendChild(ss);p.appendChild(ms);p.appendChild(s)})}
 
 /*__MODULE_JS__*/
 var HH=(location.hash||'').slice(1);if(TABS.some(function(t){return t[0]===HH}))cur=HH;
@@ -4461,14 +4615,22 @@ def register_admin_lib(js):
     ADMIN_LIB_JS.append(js)
 
 
-def register_admin_tab(tab_id, label, js, loader):
-    """관리자 화면에 탭을 추가한다. js 는 loader(함수 이름)를 정의하는 코드(Jinja 기호 {{ {% {# 금지)."""
+ADMIN_TAB_JS = {}           # [v148] 탭 id → 그 탭의 JS(회원 화면 /m/<메뉴> 가 이 탭 하나만 골라 쓴다)
+MENU_TAB = {}               # [v148] 메뉴 id → 탭 id
+
+
+def register_admin_tab(tab_id, label, js, loader, menu=None):
+    """관리자 화면에 탭을 추가한다. js 는 loader(함수 이름)를 정의하는 코드(Jinja 기호 {{ {% {# 금지).
+    menu 를 주면 같은 화면이 회원용 /m/<menu> 로도 열린다(기능별 등급 공개 — register_feature 참고)."""
     if any(t in js for t in ("{{", "{%", "{#")):
         raise ValueError("관리자 탭 JS에 {{ {% {# 를 쓸 수 없어요.")
     if not re.match(r"^[a-z][a-z0-9]{1,7}$", tab_id) or not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", loader):
         raise ValueError("관리자 탭 id/loader 형식 오류")
     ADMIN_TABS.append(js + "\nTABS.splice(TABS.length-1,0,[" + json.dumps(tab_id) + "," + json.dumps(label, ensure_ascii=False)
                       + "]);EXT[" + json.dumps(tab_id) + "]=" + loader + ";")
+    ADMIN_TAB_JS[tab_id] = ADMIN_TABS[-1]
+    if menu:
+        MENU_TAB[menu] = tab_id
 
 
 GUEST = "guest"                      # 비회원(로그인 안 한 방문자) — 회원 단계와 별개로 항상 있는 기본 단계
@@ -4592,6 +4754,186 @@ def menus_ordered():
     return sorted(MENUS, key=lambda m: (idx.get(m["id"], 10 ** 6), MENUS.index(m)))
 
 
+# ══════════════════════════════════════════════════════════════
+# 🎚 [v148] 기능별 등급 공개 — 메뉴 하나 안의 기능마다 '누구에게 열지'를 따로 정한다
+#   · 메뉴 모듈이 register_feature(메뉴, 기능id, 이름, ..., 기본 공개범위, 이 기능이 쓰는 /admin/api 주소들) 로 기능을 등록한다.
+#   · 회원 화면 /m/<메뉴> 는 관리자 탭과 같은 화면을 쓰되, 모든 서버 호출이 /mapi/ 문(gateway)을 거치며 등록된 주소만, 등급이 맞을 때만 통과한다.
+#   · 관리자는 [🎚 기능 공개] 표에서 기능마다 비회원·회원 단계를 체크한다. 아무것도 체크 안 하면 관리자 전용.
+# ══════════════════════════════════════════════════════════════
+FEATURES = []                 # [{menu,id,label,desc,default,kind,endpoints}]
+FEATURE_EXACT = {}            # '/admin/api/x/y' → [(menu, fid), …]
+FEATURE_PREFIX = []           # [(접두 주소, (menu, fid)), …]  (등록할 때 끝에 * 를 붙인 것)
+_FEAT_ID_RE = re.compile(r"^[a-z][a-z0-9_]{1,23}$")
+FEATURE_DEFAULTS = ("admin", "public", "member")
+
+
+def register_feature(menu, fid, label, desc="", default="admin", endpoints=(), kind="view"):
+    """기능 하나를 등록한다. default: 'admin'(관리자만) · 'public'(비회원 포함 모두) · 'member'(모든 회원) · 'L2'(2번째 단계 이상 회원).
+    endpoints: 이 기능이 부르는 /admin/api/... 주소(끝에 *를 붙이면 그 접두로 시작하는 모든 주소). 여기 없는 주소는 회원 화면에서 절대 열리지 않는다."""
+    if not _FEAT_ID_RE.match(str(fid)) or not str(menu):
+        raise ValueError(f"기능 id가 올바르지 않아요: {fid!r}")
+    if any(f["menu"] == menu and f["id"] == fid for f in FEATURES):
+        raise ValueError(f"기능 id 중복: {menu}.{fid}")
+    if default not in FEATURE_DEFAULTS and not re.match(r"^L([1-9]|10)$", default):
+        raise ValueError(f"기본 공개범위가 올바르지 않아요: {default!r}")
+    eps = []
+    for e in endpoints:
+        e = str(e)
+        if not e.startswith("/admin/api/"):
+            raise ValueError(f"기능 주소는 /admin/api/ 로 시작해야 해요: {e}")
+        eps.append(e)
+        if e.endswith("*"):
+            FEATURE_PREFIX.append((e[:-1], (menu, fid)))
+        else:
+            FEATURE_EXACT.setdefault(e, []).append((menu, fid))
+    FEATURES.append({"menu": menu, "id": fid, "label": label, "desc": desc, "default": default, "kind": kind, "endpoints": eps})
+    SETTING_DEFAULTS.setdefault(f"feat_{menu}_{fid}", "")
+
+
+def feature_spec(menu, fid):
+    return next((f for f in FEATURES if f["menu"] == menu and f["id"] == fid), None)
+
+
+def feature_default_tokens(default):
+    ids = [x["id"] for x in member_levels()]
+    if default == "public":
+        return {GUEST} | set(ids)
+    if default == "member":
+        return set(ids)
+    m = re.match(r"^L(\d+)$", default or "")
+    if m:
+        return set(ids[int(m.group(1)) - 1:])
+    return set()
+
+
+def feature_policy(menu, fid):
+    """이 기능을 볼 수 있는 사람 집합(GUEST 와 회원 단계 id). 비어 있으면 관리자 전용."""
+    spec = feature_spec(menu, fid)
+    if not spec:
+        return set()
+    valid = {GUEST} | {x["id"] for x in member_levels()}
+    raw = setting_get(f"feat_{menu}_{fid}", "")
+    if raw == "":
+        return feature_default_tokens(spec["default"]) & valid
+    return {t for t in raw.split(",") if t in valid}
+
+
+def feature_policy_set(menu, fid, tokens):
+    ids = [x["id"] for x in member_levels()]
+    ordered = ([GUEST] if GUEST in tokens else []) + [i for i in ids if i in tokens]
+    setting_set(f"feat_{menu}_{fid}", ",".join(ordered) if ordered else "-")
+
+
+def admin_viewer():
+    """지금 요청이 로그인한 관리자의 것인가(이메일 인증 콘솔 기준)."""
+    try:
+        return bool(ADMIN_EMAILS and _admin_ip_allowed() and _admin_session())
+    except Exception:
+        return False
+
+
+def viewer_token():
+    """지금 보는 사람의 등급 표시: 'admin' · GUEST · 회원 단계 id. 관리자는 ?as=guest|1|2.. 로 다른 등급으로 '미리보기'할 수 있다."""
+    if g.get("_vtok") is not None:
+        return g._vtok
+    tok = None
+    if admin_viewer():
+        pa = request.headers.get("X-Preview-As") or request.args.get("as") or ""
+        valid = {GUEST} | {x["id"] for x in member_levels()}
+        tok = pa if pa in valid else "admin"
+    if tok is None:
+        tok = viewer_level()
+    g._vtok = tok
+    return tok
+
+
+def menu_visible_token(menu_id, tok):
+    if tok == "admin":
+        return True
+    on, tk = menu_policy(menu_id)
+    return bool(on and (GUEST in tk or tok in tk))
+
+
+def feature_ok(menu, fid, tok=None):
+    tok = tok or viewer_token()
+    return tok == "admin" or tok in feature_policy(menu, fid)
+
+
+def feature_need_text(menu, fid):
+    """잠긴 기능 안내 문구: '정회원 이상' 같은 말."""
+    tk = feature_policy(menu, fid)
+    if not tk:
+        return "관리자 전용(아직 공개 전)"
+    if GUEST in tk:
+        return "누구나"
+    names = {x["id"]: x["name"] for x in member_levels()}
+    ids = [x["id"] for x in member_levels() if x["id"] in tk]
+    if not ids:
+        return "관리자 전용(아직 공개 전)"
+    lowest = ids[0]
+    contiguous = ids == [x["id"] for x in member_levels()][len(member_levels()) - len(ids):]
+    return f"{names[lowest]} 이상" if contiguous else "·".join(names[i] for i in ids) + " 회원"
+
+
+_GW_HITS = {}
+
+
+def _gw_rate_ok(limit=120, per=60):
+    ip = _client_ip()
+    now = time.time()
+    q = _GW_HITS.setdefault(ip, [])
+    while q and now - q[0] > per:
+        q.pop(0)
+    if len(q) >= limit:
+        return False
+    q.append(now)
+    if len(_GW_HITS) > 5000:
+        _GW_HITS.clear()
+    return True
+
+
+def _gateway_gate(write=False):
+    """회원 화면(/mapi/…) 문 — 등록된 기능 주소이고, 그 기능이 이 사람의 등급에 열려 있을 때만 통과."""
+    p = request.path
+    feats = FEATURE_EXACT.get(p)
+    if not feats:
+        for pre, f in FEATURE_PREFIX:
+            if p.startswith(pre):
+                feats = [f]
+                break
+    if not feats:
+        return _admin_json({"error": "이 기능은 회원 화면에서 쓸 수 없어요."}, 404)
+    if write and not _same_origin():
+        return _admin_json({"error": "잘못된 요청이에요(다른 사이트에서 보낸 요청)."}, 403)
+    tok = viewer_token()
+    if tok != "admin" and not _gw_rate_ok():
+        return _admin_json({"error": "요청이 너무 많아요. 잠시 후 다시 해 주세요."}, 429)
+    for menu, fid in feats:
+        if feature_ok(menu, fid, tok) and menu_visible_token(menu, tok):
+            return None
+    menu, fid = feats[0]
+    spec = feature_spec(menu, fid) or {"label": fid}
+    need = feature_need_text(menu, fid)
+    return _admin_json({"error": f"🔒 ‘{spec['label']}’ 기능은 {need}부터 쓸 수 있어요.", "feature": fid, "login": tok == GUEST, "need": need}, 403)
+
+
+class _MapiRewrite:
+    """/mapi/x → /admin/api/x 로 주소만 바꿔 같은 처리 함수로 보낸다(밖에서는 이 표시를 만들 수 없는 WSGI 환경 값으로 구분)."""
+    def __init__(self, inner):
+        self.inner = inner
+
+    def __call__(self, environ, start_response):
+        p = environ.get("PATH_INFO", "")
+        environ.pop("mini.gateway", None)
+        if p.startswith("/mapi/"):
+            environ["PATH_INFO"] = "/admin/api/" + p[6:]
+            environ["mini.gateway"] = True
+        return self.inner(environ, start_response)
+
+
+app.wsgi_app = _MapiRewrite(app.wsgi_app)
+
+
 def load_menu_modules():
     """menu_ctx.py 가 가리키는 메뉴 모듈(menu_*.py)을 불러와 등록한다. 한 모듈이 실패해도 나머지와 본체는 그대로 동작한다."""
     if MENU_MODULES or MENU_LOAD_ERRORS:
@@ -4621,6 +4963,7 @@ def load_menu_modules():
             print(f"[메뉴모듈] {name} 을(를) 불러오지 못했어요: {e}")
 _v135_ready = False
 _SETTING_CACHE = {}
+_SETTING_TTL = 20
 _AIJOBS = {}
 
 SETTING_DEFAULTS = {
@@ -4657,19 +5000,29 @@ def _ensure_v135_tables():
 
 def _dbx(sql, args=(), fetch=False):
     """SQL은 ? 로 쓰면 Postgres에서는 자동으로 %s 로 바꿔 실행한다."""
-    conn = _history_conn()
-    try:
-        c = conn.cursor()
-        q = sql.replace("?", "%s") if _USE_PG else sql
-        if args:
-            c.execute(q, tuple(args))
-        else:
-            c.execute(q)       # 파라미터가 없으면 아예 넘기지 않는다(Postgres에서 LIKE '%..' 의 % 가 오해되지 않도록)
-        rows = c.fetchall() if fetch else None
-        conn.commit()
-        return rows
-    finally:
-        conn.close()
+    for attempt in (0, 1):
+        conn = _pg_get(fresh=bool(attempt)) if _USE_PG else _history_conn()
+        try:
+            c = conn.cursor()
+            q = sql.replace("?", "%s") if _USE_PG else sql
+            if args:
+                c.execute(q, tuple(args))
+            else:
+                c.execute(q)       # 파라미터가 없으면 아예 넘기지 않는다(Postgres에서 LIKE '%..' 의 % 가 오해되지 않도록)
+            rows = c.fetchall() if fetch else None
+            conn.commit()
+            return rows
+        except Exception as e:
+            # 풀에서 꺼낸 연결이 그 사이 끊겼다면(서버 재시작·절전) 새 연결로 한 번만 다시 시도한다
+            if _USE_PG and attempt == 0 and isinstance(e, (psycopg2.OperationalError, psycopg2.InterfaceError)):
+                try:
+                    conn._c.close()
+                except Exception:
+                    pass
+                continue
+            raise
+        finally:
+            conn.close()
 
 
 def _dbrows(sql, cols, args=()):
@@ -4680,19 +5033,20 @@ def _dbrows(sql, cols, args=()):
 def setting_get(k, default=None):
     if default is None:
         default = SETTING_DEFAULTS.get(k, "")
-    hit = _SETTING_CACHE.get(k)
-    if hit and time.time() - hit[1] < 8:
-        return hit[0]
-    val = default
-    try:
-        if _ensure_v135_tables():
-            rows = _dbx("SELECT v FROM admin_settings WHERE k=?", (k,), fetch=True)
-            if rows:
-                val = rows[0][0]
-    except Exception as e:
-        print(f"[관리자메뉴] 설정 읽기 실패(기본값 사용): {e}")
-    _SETTING_CACHE[k] = (val, time.time())
-    return val
+    # ⚡ [v147] 설정은 키마다 DB 를 부르지 않고, 표 전체를 한 번에 읽어 20초 동안 메모리에 둔다(바꾸면 setting_set 이 바로 반영).
+    now = time.time()
+    hit = _SETTING_CACHE.get("\0all")
+    if not hit or now - hit[1] >= _SETTING_TTL:
+        data = dict(hit[0]) if hit else {}
+        try:
+            if _ensure_v135_tables():
+                data = {r[0]: r[1] for r in (_dbx("SELECT k,v FROM admin_settings", fetch=True) or [])}
+        except Exception as e:
+            print(f"[관리자메뉴] 설정 읽기 실패(이전 값·기본값 사용): {e}")
+            now -= _SETTING_TTL - 3                       # 실패하면 3초 뒤에 다시 시도
+        hit = (data, now)
+        _SETTING_CACHE["\0all"] = hit
+    return hit[0].get(k, default)
 
 
 def setting_set(k, v):
@@ -4700,7 +5054,9 @@ def setting_set(k, v):
     _ensure_v135_tables()
     _dbx("INSERT INTO admin_settings(k,v,at) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v, at=excluded.at",
          (k, v, int(time.time())))
-    _SETTING_CACHE[k] = (v, time.time())
+    hit = _SETTING_CACHE.get("\0all")
+    if hit:
+        hit[0][k] = v
 
 
 def _setting_valid(k, v):
@@ -4806,14 +5162,26 @@ def prompt_get(key):
     spec = PROMPTS.get(key)
     if not spec:
         return ""
-    try:
-        if _ensure_v135_tables():
-            rows = _dbx("SELECT body FROM admin_prompts WHERE k=?", (key,), fetch=True)
-            if rows and rows[0][0].strip():
-                return rows[0][0]
-    except Exception as e:
-        print(f"[관리자메뉴] 프롬프트 읽기 실패(기본값 사용): {e}")
+    body = _prompts_all().get(key)           # ⚡ [v147] 프롬프트 표를 한 번에 읽어 20초 동안 메모리에 둔다(저장·초기화하면 바로 반영)
+    if body and body.strip():
+        return body
     return spec["default"]
+
+
+_PROMPT_CACHE = {"at": 0.0, "data": {}}
+
+
+def _prompts_all():
+    now = time.time()
+    if now - _PROMPT_CACHE["at"] >= _SETTING_TTL:
+        try:
+            if _ensure_v135_tables():
+                _PROMPT_CACHE["data"] = {r[0]: r[1] for r in (_dbx("SELECT k,body FROM admin_prompts", fetch=True) or [])}
+            _PROMPT_CACHE["at"] = now
+        except Exception as e:
+            print(f"[관리자메뉴] 프롬프트 읽기 실패(기본값 사용): {e}")
+            _PROMPT_CACHE["at"] = now - _SETTING_TTL + 3
+    return _PROMPT_CACHE["data"]
 
 
 def _prompt_check(key, body):
@@ -4840,6 +5208,7 @@ def prompt_save(key, body, note=""):
     now = int(time.time())
     _dbx("INSERT INTO admin_prompts(k,body,at) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET body=excluded.body, at=excluded.at",
          (key, body, now))
+    _PROMPT_CACHE["at"] = 0.0
     _dbx("INSERT INTO admin_prompt_hist(k,body,at,note) VALUES(?,?,?,?)", (key, body, now, note[:60]))
     _dbx("DELETE FROM admin_prompt_hist WHERE k=? AND id NOT IN (SELECT id FROM admin_prompt_hist WHERE k=? ORDER BY id DESC LIMIT 20)", (key, key))
 
@@ -4847,6 +5216,7 @@ def prompt_save(key, body, note=""):
 def prompt_reset(key):
     _ensure_v135_tables()
     _dbx("DELETE FROM admin_prompts WHERE k=?", (key,))
+    _PROMPT_CACHE["at"] = 0.0
     _dbx("INSERT INTO admin_prompt_hist(k,body,at,note) VALUES(?,?,?,?)", (key, PROMPTS[key]["default"], int(time.time()), "기본값으로 되돌림"))
 
 

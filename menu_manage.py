@@ -78,7 +78,7 @@ function mmDirty(p){MM.dirty=true;var b=$('mmsave');if(b){b.disabled=false;b.tex
 function mmDraw(p){p.innerHTML='';var D=MM.draft;
  var top=el('div','c');top.appendChild(el('b',null,'🧭 메뉴 관리'));
  top.appendChild(el('p','note','메인 화면 위쪽 메뉴 바에 어떤 메뉴를, 누구에게 보여줄지 정해요. 관리자로 로그인하면 숨김 메뉴도 🔒 표시로 항상 보입니다. 아래에서 고친 뒤 [저장]을 눌러야 적용돼요.'));
- var sv=bt('저장','bt',function(){mmSave(p)});sv.id='mmsave';sv.textContent='💾 저장';sv.disabled=!MM.dirty;top.appendChild(sv);p.appendChild(top);
+ var sv=bt('💾 저장','bt',function(){mmSave(p)});sv.id='mmsave';sv.textContent='💾 저장';sv.disabled=!MM.dirty;top.appendChild(sv);p.appendChild(top);
  // ── 회원 단계
  var lc=el('div','c');lc.appendChild(el('b',null,'👥 회원 단계 (최대 '+D.max+'단계)'));
  lc.appendChild(el('p','note','회원이 몇 단계로 나뉠지 자유롭게 정해요. 위쪽이 낮은 단계예요. 비회원은 항상 따로 있습니다. 가입한 회원은 [👤 회원] 탭에서 단계를 바꿀 수 있고, 새로 가입하면 [👤 회원]에서 정한 기본 단계가 돼요.'));
@@ -87,7 +87,7 @@ function mmDraw(p){p.innerHTML='';var D=MM.draft;
   var d=el('input');d.value=l.desc||'';d.maxLength=60;d.placeholder='설명(선택)';d.style.width='260px';d.oninput=function(){l.desc=d.value;mmDirty(p)};r.appendChild(d);
   var up=bt('▲','bt3',function(){if(i>0){var t=D.levels[i-1];D.levels[i-1]=l;D.levels[i]=t;mmDirty(p);mmDraw(p)}});up.disabled=i===0;r.appendChild(up);
   var dn=bt('▼','bt3',function(){if(i<D.levels.length-1){var t=D.levels[i+1];D.levels[i+1]=l;D.levels[i]=t;mmDirty(p);mmDraw(p)}});dn.disabled=i===D.levels.length-1;r.appendChild(dn);
-  r.appendChild(bt('삭제','bt3',function(){if(!confirm('"'+l.name+'" 단계를 지울까요? 이 단계에만 보이던 메뉴 설정에서도 빠집니다.'))return;D.levels.splice(i,1);D.menus.forEach(function(m){m.levels=m.levels.filter(function(t){return t!==l.id})});mmDirty(p);mmDraw(p)}));
+  r.appendChild(bt('🗑 삭제','bt3',function(){if(!confirm('"'+l.name+'" 단계를 지울까요? 이 단계에만 보이던 메뉴 설정에서도 빠집니다.'))return;D.levels.splice(i,1);D.menus.forEach(function(m){m.levels=m.levels.filter(function(t){return t!==l.id})});mmDirty(p);mmDraw(p)}));
   lc.appendChild(r)});
  var add=bt('+ 단계 추가','bt2',function(){var id=mmFree();if(!id){toast('최대 '+D.max+'단계까지예요');return}D.levels.push({id:id,name:'새 단계',desc:''});mmDirty(p);mmDraw(p)});add.disabled=D.levels.length>=D.max;lc.appendChild(add);
  lc.appendChild(el('span','m',' '+D.levels.length+' / '+D.max));p.appendChild(lc);

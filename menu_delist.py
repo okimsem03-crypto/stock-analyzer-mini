@@ -601,6 +601,62 @@ def _advice_get():
         return {}
 
 
+def _is_gw():
+    """회원 화면(/mapi/ 문)을 거쳐 온 요청인가."""
+    return bool(request.environ.get("mini.gateway"))
+
+
+_AI_BLANK = {"ai_verdict": "", "ai_basis": "", "ai_source": "", "ai_date": "", "ai_at": "", "ai_mode": ""}
+
+
+def _gw_cand_rows(rows):
+    """회원 화면용 후보 행 정리 — ① 관리자가 '제외'한 종목과 자동 신호가 없는 AI 전용 행을 빼고, ② AI 의견은 어느 등급에도 내리지 않으며,
+    ③ 확정 표시는 '확정'만 남긴다(제외·미결정 표시와 관리자 메모는 지운다). 돌려주는 값: (행 목록, 제외된 종목코드 집합)."""
+    excl = {r["ticker"] for r in rows if r["admin_state"] == "excluded"}
+    out = []
+    for r in rows:
+        if r["ticker"] in excl or not (r["active"] or r["admin_state"] == "confirmed"):
+            continue
+        r = dict(r)
+        r.update(_AI_BLANK)
+        if r["admin_state"] != "confirmed":
+            r["admin_state"] = r["admin_label"] = r["admin_note"] = ""
+        r["admin_at"] = ""
+        out.append(r)
+    return out, excl
+
+
+def _gw_recount(items):
+    """저장 이력 항목(제외 종목을 뺀 것)으로 합계를 다시 센다 — 원래 합계에는 제외한 종목이 섞여 있어서 그대로 내리지 않는다."""
+    its = [x for x in items if isinstance(x, dict)]
+    return {"total": len(its), "danger": sum(1 for x in its if x.get("risk") == "danger"), "warn": sum(1 for x in its if x.get("risk") == "warn"),
+            "status": sum(1 for x in its if x.get("kind") in ("halt", "delist"))}
+
+
+def _gw_snaps(excl):
+    """저장 이력 목록(날짜·건수). 제외한 종목이 있으면 그 종목을 뺀 건수로 다시 센다."""
+    try:
+        rs = _dbx("SELECT snap_date, items_json FROM delist_snaps ORDER BY snap_date DESC LIMIT 60", fetch=True) or []
+    except Exception:
+        return []
+    out = []
+    for d, ij in rs:
+        try:
+            items = [x for x in json.loads(ij or "[]") if isinstance(x, dict) and x.get("ticker") not in excl]
+        except Exception:
+            items = []
+        c = _gw_recount(items)
+        out.append({"date": d, "total": c["total"], "danger": c["danger"], "warn": c["warn"]})
+    return out
+
+
+def _excluded_set():
+    try:
+        return {r[0] for r in (_dbx("SELECT ticker FROM delist_watch WHERE admin_state='excluded'", fetch=True) or [])}
+    except Exception:
+        return set()
+
+
 @bp.route("/admin/api/delist/list")
 def admin_api_delist_list():
     deny = _admin_deny()
@@ -630,6 +686,19 @@ def admin_api_delist_list():
     if last.get("finished"):
         last["finished_txt"] = _kst_str(last["finished"])
     adv = _advice_get()
+    if _is_gw():
+        # [v148] 회원 화면(gateway)에는 '후보'를 열어 준 등급에게만, 그것도 AI 의견·내 결정(제외 등)을 뺀 자동 신호 부분만 내려간다.
+        if not C.feature_ok("delist", "candidates"):
+            return _admin_json({"error": "🔒 ‘후보 목록’ 기능은 아직 열려 있지 않아요.", "feature": "candidates", "need": C.feature_need_text("delist", "candidates")}, 403)
+        rows, excl = _gw_cand_rows(rows)
+        diff = {"has_baseline": diff["has_baseline"], "prev_date": diff["prev_date"],
+                "added": [x for x in diff["added"] if x["ticker"] not in excl], "graduated": [x for x in diff["graduated"] if x["ticker"] not in excl]}
+        if not C.feature_ok("delist", "advice"):
+            adv = {}
+        if excl:
+            snaps = _gw_snaps(excl)
+        return _admin_json({"rows": rows, "summary": _dl_summary(rows), "last_scan": {"finished_txt": last.get("finished_txt", ""), "total": last.get("total", 0)},
+                            "diff": diff, "snaps": snaps, "criteria": crit, "advice": adv, "kinds": _KIND_LABEL, "today": _dl_today()})
     return _admin_json({"rows": rows, "summary": _dl_summary(rows), "last_scan": last, "scan": {k: _DL_SCAN[k] for k in _DL_SCAN if k != "cancel"},
                         "diff": diff, "snaps": snaps, "criteria": crit, "advice": adv, "kinds": _KIND_LABEL,
                         "verdicts": list(DL_VERDICTS), "public_labels": list(DL_PUBLIC_LABELS), "public": menu_visible("delist"),
@@ -910,10 +979,20 @@ def admin_api_delist_history_get():
         return _admin_json({"error": "그 날짜 기록이 없어요."}, 404)
     r = rows[0]
     try:
-        return _admin_json({"date": d, "items": json.loads(r[0] or "[]"), "summary": json.loads(r[1] or "{}"), "added": json.loads(r[2] or "[]"),
-                            "graduated": json.loads(r[3] or "[]"), "prev_date": r[4] or ""})
+        out = {"date": d, "items": json.loads(r[0] or "[]"), "summary": json.loads(r[1] or "{}"), "added": json.loads(r[2] or "[]"),
+               "graduated": json.loads(r[3] or "[]"), "prev_date": r[4] or ""}
     except Exception:
         return _admin_json({"error": "기록을 읽지 못했어요."}, 500)
+    if _is_gw():
+        # [v148] 저장 이력은 '후보' 기능에 속한다 — 잠겨 있으면 내보내지 않고, 열려 있어도 AI 의견·제외한 종목은 뺀다.
+        if not C.feature_ok("delist", "candidates"):
+            return _admin_json({"error": "🔒 ‘후보 목록’ 기능은 아직 열려 있지 않아요.", "feature": "candidates", "need": C.feature_need_text("delist", "candidates")}, 403)
+        ex = _excluded_set()
+        out["items"] = [dict(it, ai="") for it in out["items"] if isinstance(it, dict) and it.get("ticker") not in ex]
+        out["added"] = [x for x in out["added"] if isinstance(x, dict) and x.get("ticker") not in ex]
+        out["graduated"] = [x for x in out["graduated"] if isinstance(x, dict) and x.get("ticker") not in ex]
+        out["summary"] = _gw_recount(out["items"])
+    return _admin_json(out)
 
 
 @bp.route("/admin/api/delist/history/delete", methods=["POST"])
@@ -1064,10 +1143,89 @@ def api_delist_public():
 
 @bp.route("/admin/api/delist/public-preview")
 def api_delist_public_preview():
+    """확정 종목 목록(공개 화면 /delist 와 같은 데이터). 회원 화면의 ‘확정 종목 목록’ 기능이 읽는다 — 확정만 나가므로 후보 정보가 없다."""
     deny = _admin_deny()
     if deny:
         return deny
     return _admin_json({"rows": _public_rows()})
+
+
+# ── [v148] 회원 화면용 읽기 전용 주소들 — 모두 '관리자가 확정한 종목'에서만 값을 만든다(후보·AI 의견·제외 표시는 읽지 않음) ──
+_TK_RE = re.compile(r"^[0-9A-Za-z]{6}$")
+
+
+@bp.route("/admin/api/delist/stats")
+def admin_api_delist_stats():
+    """확정 이력·통계 — 확정 종목 수, 상태별·시장별 수, 월별 확정 수, 확정일별 이력."""
+    deny = _admin_deny()
+    if deny:
+        return deny
+    rows = _public_rows()
+    by_label, by_market, by_month, by_date = {}, {}, {}, {}
+    for r in rows:
+        lb = r["label"] or "기타"
+        by_label[lb] = by_label.get(lb, 0) + 1
+        mk = r["market"] if r["market"] in ("KOSPI", "KOSDAQ") else "기타"
+        by_market[mk] = by_market.get(mk, 0) + 1
+        if r["at"]:
+            by_month[r["at"][:7]] = by_month.get(r["at"][:7], 0) + 1
+            by_date.setdefault(r["at"], []).append({"ticker": r["ticker"], "name": r["name"], "label": lb})
+    dates = sorted(by_date, reverse=True)
+    timeline = [{"date": d, "n": len(by_date[d]), "items": by_date[d][:20]} for d in dates[:30]]
+    return _admin_json({"total": len(rows), "by_label": by_label, "by_market": by_market,
+                        "by_month": [{"month": k, "n": by_month[k]} for k in sorted(by_month)[-12:]], "timeline": timeline,
+                        "first_at": dates[-1] if dates else "", "last_at": dates[0] if dates else ""})
+
+
+@bp.route("/admin/api/delist/detail/<ticker>")
+def admin_api_delist_detail(ticker):
+    """확정 종목 하나의 근거·공시 요약 — 확정하지 않은 종목은 없는 것으로 답한다(후보를 확인하는 통로가 되지 않도록)."""
+    deny = _admin_deny()
+    if deny:
+        return deny
+    t = str(ticker or "").strip().upper()
+    if not _TK_RE.match(t):
+        return _admin_json({"error": "종목코드는 6자리예요."}, 400)
+    if not _ensure_v135_tables():
+        return _admin_json({"error": "저장소를 준비하지 못했어요."}, 500)
+    cols = ("ticker", "name", "market", "admin_label", "admin_note", "admin_at", "price", "cap", "pct", "last_trade", "last_seen", "matched", "signals")
+    rs = _dbrows(f"SELECT {','.join(cols)} FROM delist_watch WHERE ticker=? AND admin_state='confirmed'", cols, (t,))
+    if not rs:
+        return _admin_json({"error": "확정 목록에 없는 종목이에요."}, 404)
+    r = _dl_row_out(rs[0])
+    rules = {x.get("key"): x for x in dl_criteria().get("rules", [])}
+    matched = [{"label": str(m.get("label") or m.get("key") or "")[:60], "cur": m.get("cur"), "value": m.get("value"), "unit": str(m.get("unit") or "")[:8],
+                "desc": str((rules.get(m.get("key")) or {}).get("desc") or "")[:600]} for m in r["matched"] if isinstance(m, dict)][:8]
+    # AI 의견은 어느 등급에도 내리지 않는다(확정과 같은 의견이라도) — 아예 읽지 않는다.
+    return _admin_json({"ticker": t, "name": r["name"], "market": r["market"], "label": r["admin_label"], "note": r["admin_note"],
+                        "at": datetime.fromtimestamp(int(r["admin_at"]), _now_kst().tzinfo).strftime("%Y-%m-%d") if r["admin_at"] else "",
+                        "price": r["price"], "cap": r["cap"], "pct": r["pct"], "last_trade": r["last_trade"],
+                        "as_of": datetime.fromtimestamp(int(r["last_seen"]), _now_kst().tzinfo).strftime("%Y-%m-%d") if r["last_seen"] else "",
+                        "matched": matched, "signals": [str(x)[:160] for x in r["signals"]][:6]})
+
+
+@bp.route("/admin/api/delist/advice")
+def admin_api_delist_advice():
+    """저장해 둔 AI 조언 글(투자 시 주의점). 후보 종목 이름이 들어 있을 수 있어 기본은 관리자 전용 — 관리자가 글을 읽어 본 뒤 연다."""
+    deny = _admin_deny()
+    if deny:
+        return deny
+    a = _advice_get()
+    return _admin_json({"text": str(a.get("text") or "")[:20000], "date": str(a.get("date") or "")})
+
+
+@bp.route("/admin/api/delist/img-data")
+def admin_api_delist_img_data():
+    """확정 종목 이미지(내려받기용)를 그릴 재료 — 확정 목록과 상태별 수만."""
+    deny = _admin_deny()
+    if deny:
+        return deny
+    rows = _public_rows()
+    by_label = {}
+    for r in rows:
+        by_label[r["label"] or "기타"] = by_label.get(r["label"] or "기타", 0) + 1
+    return _admin_json({"rows": [{"ticker": r["ticker"], "name": r["name"], "market": r["market"], "label": r["label"], "at": r["at"]} for r in rows[:30]],
+                        "total": len(rows), "by_label": by_label, "today": _dl_today()})
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1087,7 +1245,10 @@ var DLCSS='.dlH{background:linear-gradient(135deg,#7f1d1d 0%,#b91c1c 55%,#dc2626
 '.dlDt td{background:#f8fafc;font-size:12px;color:#475569;line-height:1.8}.dlSeg{display:flex;gap:2px}.up{color:#e11d48}.dn{color:#2563eb}'+
 '.dlRule{display:grid;grid-template-columns:44px 1.5fr 92px 92px 92px 74px 74px;gap:6px;align-items:start;padding:7px 0;border-bottom:1px solid #eef2f7;font-size:12.5px}.dlRule input,.dlRule select,.dlRule textarea{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:7px;padding:5px 7px;font-size:12.5px;font-family:inherit}'+
 '.dlDiff{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:700px){.dlDiff{grid-template-columns:1fr}.dlRule{grid-template-columns:1fr 1fr}}.dlList{max-height:220px;overflow:auto;border:1px solid #e5e7eb;border-radius:10px;padding:6px 10px;background:#fff;font-size:12.5px;line-height:1.9}'+
-'.dlAdv{white-space:pre-wrap;line-height:1.75;font-size:13px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 13px;max-height:360px;overflow:auto}';
+'.dlAdv{white-space:pre-wrap;line-height:1.75;font-size:13px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 13px;max-height:360px;overflow:auto}'+
+'.dlKpi{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.dlKpi div{border:1px solid #e2e8f0;border-radius:12px;padding:8px 14px;min-width:92px;background:#fff}.dlKpi small{display:block;color:#64748b;font-size:11.5px}.dlKpi b{font-size:20px;font-weight:900;color:#1a2744}'+
+'.dlBk{display:grid;grid-template-columns:96px 1fr 44px;gap:8px;align-items:center;font-size:12.5px;margin:5px 0}.dlBk .t{height:12px;background:#e2e8f0;border-radius:7px;overflow:hidden}.dlBk .t i{display:block;height:100%;background:linear-gradient(90deg,#dc2626,#f97316)}.dlBk .n{text-align:right;font-weight:800}'+
+'.dlKv{display:grid;grid-template-columns:110px 1fr;gap:4px 10px;font-size:13px;margin:8px 0}.dlKv b{color:#475569;font-weight:700}.dlTl{border-left:3px solid #fecaca;padding:2px 0 2px 10px;margin:8px 0}';
 function dlCss(){if(window.ImgKit&&ImgKit.addCss)ImgKit.addCss('dlCss',DLCSS)}
 function dlN(v,d){if(v==null||v==='')return '-';return Number(v).toLocaleString('ko-KR',{maximumFractionDigits:d==null?0:d})}
 function dlCap(c){if(!c)return '-';return c>=10000?(c/10000).toLocaleString('ko-KR',{maximumFractionDigits:1})+'조':dlN(c)+'억'}
@@ -1098,6 +1259,7 @@ function dlNorm(it){return {ticker:it.ticker,name:it.name,market:it.market,kind:
 function dlRule(key,label){var rs=(DL.crit&&DL.crit.rules)||[];for(var i=0;i<rs.length;i++){if((key&&rs[i].key===key)||(label&&rs[i].label===label))return rs[i]}return null}
 /* ── 불러오기 ── */
 function dlLoad(p){dlCss();DL.p=p;p.innerHTML='';
+ if(MEMBER_MODE){dlMemDraw(p);return}
  if(!DL.meta)p.appendChild(el('p','note','⏳ 불러오는 중…'));
  api('/admin/api/delist/list').then(function(d){if(cur!=='dl')return;dlApplyData(d);dlDraw()}).catch(function(){if(cur==='dl')p.appendChild(el('p','note bad','목록을 불러오지 못했어요. 다시 시도해 주세요.'))})}
 function dlApplyData(d){DL.rows=d.rows||[];DL.sum=d.summary||{};DL.diff=d.diff;DL.snaps=d.snaps||[];DL.crit=d.criteria;DL.advice=d.advice||{};DL.meta=d;if(!DL.critEdit)DL.critEdit=JSON.parse(JSON.stringify(d.criteria))}
@@ -1168,33 +1330,33 @@ function dlToolDraw(){var t=$('dlTool');if(!t)return;t.innerHTML='';var f=DL.f;
  var r1=el('div','dlBtns');r1.appendChild(el('span','note','표시 범위'));[['all','전체(위험+경계)'],['danger','🔴 위험만'],['warn','🟡 경계만'],['status','거래상태 신호']].forEach(function(o){r1.appendChild(dlB(o[1],f.scope===o[0]?'on':'',function(){f.scope=o[0];DL.more=200;dlToolDraw();dlTable()}))});
  var so=el('select');[['default','기본순(위험도)'],['name_asc','가나다순'],['name_desc','가나다 역순'],['cap_asc','시총 낮은순'],['cap_desc','시총 높은순'],['price_asc','주가 낮은순'],['price_desc','주가 높은순'],['pct_asc','등락률 낮은순'],['pct_desc','등락률 높은순']].forEach(function(o){var x=el('option',null,o[1]);x.value=o[0];so.appendChild(x)});so.value=f.sort;so.onchange=function(){f.sort=so.value;dlTable()};r1.appendChild(so);
  var mk=el('select');[['','시장: 전체'],['KOSPI','코스피'],['KOSDAQ','코스닥']].forEach(function(o){var x=el('option',null,o[1]);x.value=o[0];mk.appendChild(x)});mk.value=f.mkt;mk.onchange=function(){f.mkt=mk.value;dlTable();dlAiLabel()};r1.appendChild(mk);
- var ai=el('select');[['','AI: 전체'],['todo','AI 미확인'],['done','AI 확인됨'],['bad','AI 이상 판정']].forEach(function(o){var x=el('option',null,o[1]);x.value=o[0];ai.appendChild(x)});ai.value=f.ai;ai.onchange=function(){f.ai=ai.value;dlTable();dlAiLabel()};r1.appendChild(ai);
- var st=el('select');[['','내 결정: 전체'],['none','미결정'],['confirmed','확정'],['excluded','제외']].forEach(function(o){var x=el('option',null,o[1]);x.value=o[0];st.appendChild(x)});st.value=f.st;st.onchange=function(){f.st=st.value;dlTable()};r1.appendChild(st);
+ var ai=el('select');[['','AI: 전체'],['todo','AI 미확인'],['done','AI 확인됨'],['bad','AI 이상 판정']].forEach(function(o){var x=el('option',null,o[1]);x.value=o[0];ai.appendChild(x)});ai.value=f.ai;ai.onchange=function(){f.ai=ai.value;dlTable();dlAiLabel()};r1.appendChild(adm(ai));
+ var st=el('select');[['','내 결정: 전체'],['none','미결정'],['confirmed','확정'],['excluded','제외']].forEach(function(o){var x=el('option',null,o[1]);x.value=o[0];st.appendChild(x)});st.value=f.st;st.onchange=function(){f.st=st.value;dlTable()};r1.appendChild(adm(st));
  var q=el('input');q.placeholder='🔍 종목명·코드 검색';q.value=f.q;q.style.minWidth='170px';q.oninput=function(){f.q=q.value;clearTimeout(DL._qt);DL._qt=setTimeout(function(){dlTable();dlAiLabel()},200)};r1.appendChild(q);t.appendChild(r1);
- var r2=el('div','dlBtns');r2.appendChild(el('span','note','선택한 종목을'));r2.appendChild(dlB('✔ 확정(공개)','',function(){dlMark('confirmed')}));r2.appendChild(dlB('✖ 제외','',function(){dlMark('excluded')}));r2.appendChild(dlB('↺ 결정 해제','',function(){dlMark('')}));
- var ai3=el('input');ai3.placeholder='종목코드 직접 추가';ai3.maxLength=6;ai3.style.width='140px';r2.appendChild(ai3);r2.appendChild(dlB('추가','',function(){apiJ('/admin/api/delist/add',{ticker:ai3.value}).then(function(j){if(j.error)toast(j.error);else{toast(j.name+' 추가 — 저장 완료');dlReload()}})}));
+ var r2=el('div','dlBtns');r2.appendChild(adm(el('span','note','선택한 종목을')));r2.appendChild(adm(dlB('✔ 확정(공개)','',function(){dlMark('confirmed')})));r2.appendChild(adm(dlB('✖ 제외','',function(){dlMark('excluded')})));r2.appendChild(adm(dlB('↺ 결정 해제','',function(){dlMark('')})));
+ var ai3=el('input');ai3.placeholder='종목코드 직접 추가';ai3.maxLength=6;ai3.style.width='140px';r2.appendChild(adm(ai3));r2.appendChild(adm(dlB('추가','',function(){apiJ('/admin/api/delist/add',{ticker:ai3.value}).then(function(j){if(j.error)toast(j.error);else{toast(j.name+' 추가 — 저장 완료');dlReload()}})})));
  var hs=el('select');hs.id='dlHist';var o0=el('option',null,'📅 저장 이력(날짜)');o0.value='';hs.appendChild(o0);(DL.snaps||[]).forEach(function(x){var o=el('option',null,x.date+' · 위험 '+x.danger+' · 경계 '+x.warn);o.value=x.date;hs.appendChild(o)});r2.appendChild(hs);
- r2.appendChild(dlB('📂 불러오기','',dlHistLoad));r2.appendChild(dlB('🗑 삭제','',dlHistDel));t.appendChild(r2);
+ r2.appendChild(dlB('📂 불러오기','',dlHistLoad));r2.appendChild(adm(dlB('🗑 삭제','',dlHistDel)));t.appendChild(r2);
  if(DL.view){var vb=el('div','dlNote');vb.appendChild(document.createTextNode('📂 저장 이력('+DL.view.date+')을 보는 중이에요 — 읽기 전용입니다. '));vb.appendChild(dlB('현재 결과로 돌아가기','',function(){DL.view=null;dlToolDraw();dlTable();dlAiLabel()}));t.appendChild(vb)}}
 function dlTable(){var box=$('dlTb');if(!box)return;box.innerHTML='';var rows=dlVisible();var shown=rows.slice(0,DL.more);
  box.appendChild(el('p','note',rows.length+'개 표시 (전체 '+dlRows().length+'개) · 자동 계산은 틀릴 수 있어요. 종목 이름을 누르면 종목분석·심층분석이 열려요.'));
  if(!rows.length){box.appendChild(el('p','note','표시할 종목이 없어요. [🔍 스크리닝 실행]을 눌러 보세요.'));return}
- var t=el('table','dlTbl'),h=el('tr');var all=el('input');all.type='checkbox';all.onchange=function(){rows.forEach(function(r){if(all.checked)DL.sel[r.ticker]=1;else delete DL.sel[r.ticker]});dlTable();dlAiLabel()};var th0=el('th');th0.appendChild(all);h.appendChild(th0);
- [['#',''],['종목',''],['시총','r'],['현재가 · 등락','r'],['단계',''],['해당 기준 · 신호',''],['AI 판정',''],['내 결정','']].forEach(function(x){h.appendChild(el('th',x[1],x[0]))});t.appendChild(h);
- shown.forEach(function(r,i){var tr=el('tr');var c=el('td');var cb=el('input');cb.type='checkbox';cb.checked=!!DL.sel[r.ticker];cb.onchange=function(){if(cb.checked)DL.sel[r.ticker]=1;else delete DL.sel[r.ticker];dlAiLabel()};c.appendChild(cb);tr.appendChild(c);
+ var t=el('table','dlTbl'),h=el('tr');var all=el('input');all.type='checkbox';all.onchange=function(){rows.forEach(function(r){if(all.checked)DL.sel[r.ticker]=1;else delete DL.sel[r.ticker]});dlTable();dlAiLabel()};var th0=el('th');th0.appendChild(all);h.appendChild(adm(th0));
+ [['#',''],['종목',''],['시총','r'],['현재가 · 등락','r'],['단계',''],['해당 기준 · 신호',''],['AI 판정',''],['내 결정','']].forEach(function(x){var th=el('th',x[1],x[0]);h.appendChild(x[0]==='AI 판정'||x[0]==='내 결정'?adm(th):th)});t.appendChild(h);
+ shown.forEach(function(r,i){var tr=el('tr');var c=el('td');var cb=el('input');cb.type='checkbox';cb.checked=!!DL.sel[r.ticker];cb.onchange=function(){if(cb.checked)DL.sel[r.ticker]=1;else delete DL.sel[r.ticker];dlAiLabel()};c.appendChild(cb);tr.appendChild(adm(c));
   var no=el('td',null,String(i+1));no.style.color='#94a3b8';tr.appendChild(no);
   var n=el('td');n.style.cssText='min-width:130px;word-break:keep-all';var nm=el('b','tkl',r.name);nm.setAttribute('data-tk',r.ticker);nm.title='눌러서 종목분석·심층분석 열기';n.appendChild(nm);n.appendChild(el('div','m',r.ticker+' · '+(r.market||'')));
   var ex=el('span',null,' ▾');ex.style.cssText='cursor:pointer;color:#64748b';ex.title='상세';ex.onclick=function(){DL.open[r.ticker]=!DL.open[r.ticker];dlTable()};n.firstChild.parentNode.firstChild.after(ex);tr.appendChild(n);
   tr.appendChild(el('td','r',dlCap(r.cap)));var pc=el('td','r');pc.appendChild(document.createTextNode(dlN(r.price)+'원'));if(r.pct!=null){var pp=el('div',r.pct>0?'up':(r.pct<0?'dn':''),(r.pct>0?'+':'')+Number(r.pct).toFixed(2)+'%');pp.style.fontSize='11.5px';pc.appendChild(pp)}tr.appendChild(pc);
   var rk=dlRisk(r);var sg=el('td');sg.appendChild(el('span','dlBd '+(rk==='danger'?'d':(rk==='warn'?'w':'o')),rk==='danger'?'🔴 위험':(rk==='warn'?'🟡 경계':'해당 없음')));if(r.kind==='halt'||r.kind==='delist'){var k2=el('div');k2.appendChild(el('span','dlBd s',(DL.meta.kinds||{})[r.kind]||r.kind));k2.style.marginTop='3px';sg.appendChild(k2)}tr.appendChild(sg);
   var w=el('td');(r.matched||[]).forEach(function(m){var rl=dlRule(m.key,m.label);var x=el('span','dlCh'+(m.sev==='danger'?' d':''),m.label||m.key);x.title=(rl&&rl.desc)||'';w.appendChild(x)});(r.signals||[]).slice(0,2).forEach(function(s){w.appendChild(el('div','m',s))});if(!w.firstChild)w.appendChild(el('span','m','—'));tr.appendChild(w);
-  var a=el('td');if(r.ai_verdict){a.appendChild(el('b',/정상|확인불가/.test(r.ai_verdict)?'':'bad',r.ai_verdict));if(r.ai_basis)a.appendChild(el('div','m',r.ai_basis+(r.ai_date?' ('+r.ai_date+')':'')));if(r.ai_source)a.appendChild(el('div','m','출처: '+r.ai_source))}else a.appendChild(el('span','m','—'));tr.appendChild(a);
-  var m=el('td');if(r.admin_state==='confirmed')m.appendChild(el('b','good','확정: '+r.admin_label));else if(r.admin_state==='excluded')m.appendChild(el('span','m','제외'));else m.appendChild(el('span','m','—'));if(r.admin_note)m.appendChild(el('div','m',r.admin_note));tr.appendChild(m);t.appendChild(tr);
+  var a=el('td');if(r.ai_verdict){a.appendChild(el('b',/정상|확인불가/.test(r.ai_verdict)?'':'bad',r.ai_verdict));if(r.ai_basis)a.appendChild(el('div','m',r.ai_basis+(r.ai_date?' ('+r.ai_date+')':'')));if(r.ai_source)a.appendChild(el('div','m','출처: '+r.ai_source))}else a.appendChild(el('span','m','—'));tr.appendChild(adm(a));
+  var m=el('td');if(r.admin_state==='confirmed')m.appendChild(el('b','good','확정: '+r.admin_label));else if(r.admin_state==='excluded')m.appendChild(el('span','m','제외'));else m.appendChild(el('span','m','—'));if(r.admin_note)m.appendChild(el('div','m',r.admin_note));tr.appendChild(adm(m));t.appendChild(tr);
   if(DL.open[r.ticker]){var d2=el('tr','dlDt');var dc=el('td');dc.colSpan=9;var tx='';(r.matched||[]).forEach(function(m){var rl=dlRule(m.key,m.label);tx+='• '+(m.label||m.key)+(m.cur!=null?' — 현재 '+dlN(m.cur)+(m.unit||'')+' < 기준 '+dlN(m.value)+(m.unit||''):'')+(rl&&rl.desc?'\n   '+rl.desc:'')+'\n'});(r.signals||[]).forEach(function(s){tx+='• 신호: '+s+'\n'});if(r.last_trade)tx+='• 마지막 거래일 '+r.last_trade+'\n';
-   var pre=el('div',null,tx||'상세 정보가 없어요.');pre.style.whiteSpace='pre-wrap';dc.appendChild(pre);var bx=el('div','dlBtns');bx.appendChild(dlB('네이버 원본 확인','',function(){dlRaw(r.ticker)}));var lk=el('a',null,'KIND 공시');lk.href='https://kind.krx.co.kr/common/searchcorpname.do?method=searchCorpNameMain&searchCorpName='+encodeURIComponent(r.name);lk.target='_blank';lk.rel='noopener';bx.appendChild(lk);var lk2=el('a',null,' DART');lk2.href='https://dart.fss.or.kr/dsab007/main.do?textCrpNm='+encodeURIComponent(r.name);lk2.target='_blank';lk2.rel='noopener';bx.appendChild(lk2);dc.appendChild(bx);d2.appendChild(dc);t.appendChild(d2)}});
+   var pre=el('div',null,tx||'상세 정보가 없어요.');pre.style.whiteSpace='pre-wrap';dc.appendChild(pre);var bx=el('div','dlBtns');bx.appendChild(adm(dlB('네이버 원본 확인','',function(){dlRaw(r.ticker)})));var lk=el('a',null,'KIND 공시');lk.href='https://kind.krx.co.kr/common/searchcorpname.do?method=searchCorpNameMain&searchCorpName='+encodeURIComponent(r.name);lk.target='_blank';lk.rel='noopener';bx.appendChild(lk);var lk2=el('a',null,' DART');lk2.href='https://dart.fss.or.kr/dsab007/main.do?textCrpNm='+encodeURIComponent(r.name);lk2.target='_blank';lk2.rel='noopener';bx.appendChild(lk2);dc.appendChild(bx);d2.appendChild(dc);t.appendChild(d2)}});
  box.appendChild(t);if(rows.length>shown.length){var mb=dlB('더 보기 ('+(rows.length-shown.length)+'개 남음)','',function(){DL.more+=300;dlTable()});mb.style.marginTop='8px';box.appendChild(mb)}
  var pn=el('div');pn.id='dlpanel';box.appendChild(pn)}
-function dlRaw(tk){var pn=$('dlpanel');if(!pn)return;api('/admin/api/delist/diag/'+tk).then(function(j){pn.innerHTML='';var c=el('div','c');c.appendChild(el('div','m',tk+' — 네이버가 보내 준 기본정보 원본(자동 신호가 맞는지 확인용)'));var pre=el('pre',null,j.raw||j.error||'');pre.style.cssText='white-space:pre-wrap;font-size:11.5px;max-height:260px;overflow:auto';c.appendChild(pre);c.appendChild(bt('닫기','bt3',function(){pn.innerHTML=''}));pn.appendChild(c);pn.scrollIntoView()})}
+function dlRaw(tk){var pn=$('dlpanel');if(!pn)return;api('/admin/api/delist/diag/'+tk).catch(function(){return {error:'지금은 원본을 확인할 수 없어요.'}}).then(function(j){pn.innerHTML='';var c=el('div','c');c.appendChild(el('div','m',tk+' — 네이버가 보내 준 기본정보 원본(자동 신호가 맞는지 확인용)'));var pre=el('pre',null,j.raw||j.error||'');pre.style.cssText='white-space:pre-wrap;font-size:11.5px;max-height:260px;overflow:auto';c.appendChild(pre);c.appendChild(bt('닫기','bt3',function(){pn.innerHTML=''}));pn.appendChild(c);pn.scrollIntoView()})}
 function dlSelList(){return Object.keys(DL.sel)}
 function dlMark(state){if(DL.view){toast('저장 이력을 보는 중에는 바꿀 수 없어요');return}var tk=dlSelList();if(!tk.length){toast('먼저 종목을 체크하세요');return}
  if(state==='confirmed'&&!confirm('선택한 '+tk.length+'종목을 ‘확정(공개)’으로 표시할까요?\n공개 화면(거래정지·상폐 메뉴)에 이름이 올라가요. 확정은 KIND·DART 공시로 직접 확인한 뒤에만 해 주세요.'))return;
@@ -1241,7 +1403,7 @@ function dlDiffDraw(c){c=c||$('dlDiffBox');if(!c)return;Array.prototype.slice.ca
   box('🆕 신규 진입',d.added||[],'bad');box('🎓 졸업(기준 벗어남)',d.graduated||[],'good');c.appendChild(g)}
  var r=el('div','dlBtns');r.appendChild(dlB('📌 현재 결과를 기준으로 저장','',dlSnap));c.appendChild(r)}
 function dlSnap(){if(DL.view){toast('저장 이력을 보는 중에는 쓸 수 없어요');return}apiJ('/admin/api/delist/snapshot',{}).then(function(j){if(j.error){toast(j.error);return}toast('✅ 저장 완료 — '+j.date+' 기준 '+j.n+'종목 (신규 '+j.added+' · 졸업 '+j.graduated+')');dlReload()})}
-function dlHistLoad(){var s=$('dlHist');if(!s||!s.value){toast('저장된 날짜를 먼저 고르세요');return}api('/admin/api/delist/history/get?date='+encodeURIComponent(s.value)).then(function(j){if(j.error){toast(j.error);return}
+function dlHistLoad(){var s=$('dlHist');if(!s||!s.value){toast('저장된 날짜를 먼저 고르세요');return}api('/admin/api/delist/history/get?date='+encodeURIComponent(s.value)).catch(function(){return {error:'지금은 기록을 불러오지 못했어요.'}}).then(function(j){if(j.error){toast(j.error);return}
  DL.view={date:j.date,rows:(j.items||[]).map(dlNorm)};DL.more=200;dlToolDraw();dlTable();dlAiLabel();toast('📂 '+j.date+' 기록을 불러왔어요(읽기 전용)')})}
 function dlHistDel(){var s=$('dlHist');if(!s||!s.value){toast('삭제할 날짜를 먼저 고르세요');return}if(!confirm(s.value+' 저장 기록을 삭제할까요?'))return;apiJ('/admin/api/delist/history/delete',{date:s.value}).then(function(){toast('삭제했어요 — 저장 완료');DL.view=null;dlReload()})}
 /* ── 기준 편집 ── */
@@ -1255,7 +1417,7 @@ function dlCritDraw(c){c=c||$('dlCritBox');if(!c)return;Array.prototype.slice.ca
    var me=el('select');[['market_cap','시가총액(억)'],['price','주가(원)']].forEach(function(v){var o=el('option',null,v[1]);o.value=v[0];me.appendChild(o)});me.value=r.metric;me.onchange=function(){r.metric=me.value;r.unit=r.metric==='price'?'원':'억원'};var d4=el('div');d4.appendChild(me);row.appendChild(d4);
    var va=el('input');va.type='number';va.value=r.value;va.oninput=function(){r.value=Number(va.value)};var d5=el('div');d5.appendChild(va);row.appendChild(d5);
    var rc=el('input');rc.type='number';rc.value=r.recover_days;rc.oninput=function(){r.recover_days=Number(rc.value)};var d6=el('div');d6.appendChild(rc);row.appendChild(d6);
-   var d7=el('div');d7.appendChild(bt('삭제','bt3',function(){E2.rules.splice(i,1);dlCritDraw()}));row.appendChild(d7);w.appendChild(row)});
+   var d7=el('div');d7.appendChild(bt('🗑 삭제','bt3',function(){E2.rules.splice(i,1);dlCritDraw()}));row.appendChild(d7);w.appendChild(row)});
   var bb=el('div','dlBtns');bb.appendChild(dlB('＋ 조건 추가','',function(){E2.rules.push({key:'rule_'+Date.now().toString(36).slice(-5),on:true,market:'ALL',metric:'market_cap',op:'lt',value:100,unit:'억원',warn_days:0,grace_days:0,recover_days:0,label:'새 조건',desc:''});dlCritDraw()}));
   bb.appendChild(dlB('🤖 AI로 최신 기준 확인·갱신','n',dlCritAI));bb.appendChild(dlB('💾 기준 저장','t',function(){E2.updated_at=DL.meta.today;apiJ('/admin/api/delist/criteria',{criteria:E2}).then(function(j){if(j.error){toast(j.error);return}DL.crit=j.criteria;DL.critEdit=JSON.parse(JSON.stringify(j.criteria));toast('기준을 저장했어요 — 스크리닝을 다시 실행하면 반영돼요');dlCritDraw()})}));
   bb.appendChild(dlB('↺ 저장된 값으로 되돌리기','',function(){DL.critEdit=JSON.parse(JSON.stringify(DL.crit));dlCritDraw()}));w.appendChild(bb)}
@@ -1265,6 +1427,100 @@ function dlCritAI(){if(!window.MiniAI){toast('AI 도우미 파일(menu_ui.py)이
   window.MiniAI.run({title:'AI로 최신 상폐 기준 확인',key:'dlcrit',steps:[{label:'기준 확인',prompt:j.prompt}],minLen:80,hint:'AI가 JSON으로만 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요. 기준 편집 칸에 불러온 뒤 직접 확인하고 [💾 기준 저장]을 누르세요.',
    preview:function(t){return apiJ('/admin/api/delist/criteria-parse',{text:t}).then(function(x){var d=el('div');d.textContent=x.error?x.error:('규칙 '+x.rules+'개를 읽었어요 — '+x.proposed.rules.map(function(r){return r.label}).join(' / '));return {node:d,canApply:!x.error,strict:!x.error}})},
    apply:function(t){return apiJ('/admin/api/delist/criteria-parse',{text:t}).then(function(x){if(x.error)return {message:x.error};DL.critEdit=x.proposed;DL.critOpen=true;setTimeout(dlCritDraw,50);return {message:'기준 편집 칸에 불러왔어요(아직 저장 전). 확인하고 [💾 기준 저장]을 누르세요.'}})}})})}
+/* ══════════ [v148] 회원 화면(/m/delist) — 확정 종목 중심. 후보는 열어 준 등급에게만, 관리자 업무 버튼은 보이지 않아요 ══════════ */
+DL.mem={q:'',rows:null};
+function dlMemSafe(pr,msg){return pr.catch(function(){return {error:msg||'지금은 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'}})}
+function dlMemTone(l){return /폐지/.test(l)?'d':(/정지|관리/.test(l)?'w':(/정리/.test(l)?'s':'o'))}
+function dlMemLoading(box){box.innerHTML='';box.appendChild(el('p','note','⏳ 불러오는 중…'))}
+function dlMemLink(t,h){var a=el('a',null,t);a.href=h;a.target='_blank';a.rel='noopener';return a}
+function dlMemDraw(p){p.innerHTML='';
+ var H=el('div','dlH');H.appendChild(el('h3',null,'🚫 거래정지·상장폐지 — 확정 종목 안내'));
+ H.appendChild(el('p',null,'운영자가 한국거래소 KIND·금융감독원 DART 공시를 직접 확인해 ‘확정’한 종목만 모아 보여드려요. 컴퓨터가 자동으로 가려낸 후보는 틀릴 수 있어서 기본으로는 보여드리지 않아요.'));p.appendChild(H);
+ var al=el('div','dlNote');al.appendChild(el('b',null,'🚨 투자 경고 — '));al.appendChild(document.createTextNode('이 화면은 참고용 정보이며 매수·매도 권유가 아니에요. 거래정지·상장폐지 상태는 수시로 바뀌고, 목록에 없다고 안전하다는 뜻도 아니에요. 투자 전에 KIND·DART 공시와 증권사 앱에서 직접 확인하세요. 투자 판단과 책임은 본인에게 있어요.'));p.appendChild(al);
+ p.appendChild(dlMemConfirmed());p.appendChild(dlMemStats());p.appendChild(dlMemDetailBox());p.appendChild(dlMemAdvice());p.appendChild(dlMemImg());p.appendChild(dlMemCand())}
+/* ① 확정 종목 목록 */
+function dlMemConfirmed(){var c=dlCard('① 🚫 확정 종목 목록','운영자가 확인한 종목만 · 이름이나 코드로 검색해 보세요');c.id='dlmConf';
+ c.appendChild(el('p','note','상태는 거래정지 · 관리종목 · 상장폐지확정 · 정리매매 중 하나예요. 종목 이름을 누르면 종목분석이 열려요. 이 목록에 없다고 안전하다는 뜻은 아니에요.'));
+ if(!ftOk('confirmed')){c.appendChild(el('p','note','이 기능이 열리면 확정 종목을 검색하고 볼 수 있어요.'));return ftSec(c,'confirmed')}
+ var bar=el('div','dlBtns');var q=el('input');q.type='search';q.placeholder='🔍 종목명 또는 6자리 코드';q.maxLength=30;q.setAttribute('aria-label','종목 검색');q.style.minWidth='170px';q.style.flex='1 1 170px';
+ function go(){DL.mem.q=(q.value||'').trim();dlMemConfDraw()}
+ q.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();go()}};q.oninput=function(){if(!q.value.trim()&&DL.mem.q){DL.mem.q='';dlMemConfDraw()}};
+ bar.appendChild(q);bar.appendChild(dlB('검색하기','n',go));bar.appendChild(dlB('전체 보기','',function(){q.value='';go()}));c.appendChild(bar);
+ var v=el('div');v.id='dlmV';c.appendChild(v);var box=el('div');box.id='dlmConfBox';box.style.overflowX='auto';c.appendChild(box);dlMemLoading(box);
+ dlMemSafe(api('/admin/api/delist/public-preview')).then(function(j){if(j.error){box.innerHTML='';box.appendChild(el('p','note bad',j.error));return}DL.mem.rows=j.rows||[];dlMemConfDraw()});
+ return c}
+function dlMemConfDraw(){var box=$('dlmConfBox'),v=$('dlmV');if(!box||!v||DL.mem.rows==null)return;box.innerHTML='';v.innerHTML='';
+ var q=DL.mem.q,ql=q.toLowerCase();var rows=DL.mem.rows.filter(function(r){return !ql||(r.name+' '+r.ticker).toLowerCase().indexOf(ql)>=0});
+ if(q){var vb=el('div','dlNote');
+  if(rows.length){vb.appendChild(el('b',null,'⚠️ “'+q+'” — 확정 목록에 '+rows.length+'건 있어요. '));vb.appendChild(document.createTextNode('아래 상태를 확인하고, 투자 전 반드시 KIND·DART 공시 원문으로 직접 다시 확인하세요.'))}
+  else{vb.appendChild(el('b',null,'“'+q+'” — 확정 목록에는 없어요. '));vb.appendChild(document.createTextNode('안전한 종목이라는 뜻은 아니에요. 운영자가 아직 확인하지 못했거나 최근에 바뀐 상태일 수 있으니 '));vb.appendChild(dlMemLink('KIND','https://kind.krx.co.kr'));vb.appendChild(document.createTextNode('·'));vb.appendChild(dlMemLink('DART','https://dart.fss.or.kr'));vb.appendChild(document.createTextNode('에서 직접 확인하세요. '));
+   if(/^[0-9A-Za-z]{6}$/.test(q)){var an=el('a',null,'이 종목 분석 보기 →');an.href='/?t='+encodeURIComponent(q.toUpperCase());an.setAttribute('data-tk',q.toUpperCase());vb.appendChild(an)}}
+  v.appendChild(vb)}
+ box.appendChild(el('p','note',(q?'검색 결과 ':'전체 ')+rows.length+'건'));
+ if(!rows.length){box.appendChild(el('p','note',q?'검색한 종목이 확정 목록에 없어요.':'현재 확정된 종목이 없어요.'));return}
+ var t=el('table','dlTbl'),h=el('tr');['종목','상태','메모','확정일','근거'].forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
+ rows.forEach(function(r){var tr=el('tr');var n=el('td');n.style.minWidth='120px';var a=el('a',null,r.name+' ('+r.ticker+')');a.href='/?t='+encodeURIComponent(r.ticker);a.setAttribute('data-tk',r.ticker);a.style.fontWeight='700';n.appendChild(a);n.appendChild(el('div','m',r.market||''));tr.appendChild(n);
+  var s=el('td');s.style.whiteSpace='nowrap';s.appendChild(el('span','dlBd '+dlMemTone(r.label||''),r.label||'-'));tr.appendChild(s);var nt=el('td','m',r.note||'');nt.style.minWidth='90px';tr.appendChild(nt);var d=el('td','m',r.at||'');d.style.whiteSpace='nowrap';tr.appendChild(d);
+  var g=el('td');g.style.whiteSpace='nowrap';var gb=ft(dlB('근거 보기','',function(){dlMemDetail(r.ticker)}),'detail');gb.style.whiteSpace='nowrap';g.appendChild(gb);tr.appendChild(g);t.appendChild(tr)});
+ box.appendChild(t)}
+/* ② 확정 이력·통계 */
+function dlMemBars(box,obj,order){var mx=1;Object.keys(obj).forEach(function(k){if(obj[k]>mx)mx=obj[k]});(order||Object.keys(obj)).forEach(function(k){var r=el('div','dlBk');r.appendChild(el('span',null,k));var tr=el('div','t'),i=el('i');i.style.width=Math.max(4,Math.round(obj[k]*100/mx))+'%';tr.appendChild(i);r.appendChild(tr);r.appendChild(el('span','n',String(obj[k])));box.appendChild(r)})}
+function dlMemStats(){var c=dlCard('② 📊 확정 이력·통계','확정 종목 수와 언제·어떤 상태로 확정됐는지');c.id='dlmStat';
+ c.appendChild(el('p','note','운영자가 확정한 종목만 센 숫자예요(자동 계산 후보는 들어 있지 않아요). 확정일은 운영자가 가장 최근에 표시한 날이에요.'));
+ if(!ftOk('stats')){c.appendChild(el('p','note','이 기능이 열리면 확정 종목 수, 상태별·시장별·월별 통계와 확정일별 이력을 볼 수 있어요.'));return ftSec(c,'stats')}
+ var box=el('div');c.appendChild(box);dlMemLoading(box);
+ dlMemSafe(api('/admin/api/delist/stats')).then(function(j){box.innerHTML='';if(j.error){box.appendChild(el('p','note bad',j.error));return}
+  var k=el('div','dlKpi');function kp(l,v){var d=el('div');d.appendChild(el('small',null,l));d.appendChild(el('b',null,String(v)));k.appendChild(d)}
+  kp('확정 종목',j.total+'개');kp('최근 확정일',j.last_at||'-');kp('첫 확정일',j.first_at||'-');box.appendChild(k);
+  if(!j.total){box.appendChild(el('p','note','아직 확정된 종목이 없어요.'));return}
+  var lb=Object.keys(j.by_label||{}).sort(function(a,b){return j.by_label[b]-j.by_label[a]});box.appendChild(el('b',null,'상태별'));dlMemBars(box,j.by_label||{},lb);
+  var mk=Object.keys(j.by_market||{});box.appendChild(el('b',null,'시장별'));dlMemBars(box,j.by_market||{},mk);
+  if((j.by_month||[]).length){var bm={},ord=[];j.by_month.forEach(function(x){bm[x.month]=x.n;ord.push(x.month)});box.appendChild(el('b',null,'월별 확정 수(최근 12개월)'));dlMemBars(box,bm,ord)}
+  box.appendChild(el('b',null,'확정일별 이력'));
+  (j.timeline||[]).forEach(function(x){var tl=el('div','dlTl');tl.appendChild(el('b',null,x.date+' · '+x.n+'종목'));var w=el('div');(x.items||[]).forEach(function(it){var sp=el('span','dlCh',it.name+' · '+it.label);sp.setAttribute('data-tk',it.ticker);sp.style.cursor='pointer';w.appendChild(sp)});tl.appendChild(w);box.appendChild(tl)})});
+ return c}
+/* ③ 종목별 근거·공시 요약 */
+function dlMemDetailBox(){var c=dlCard('③ 🔎 종목별 근거·공시 요약','위 표에서 [근거 보기]를 누르면 여기에 나와요');c.id='dlmDet';
+ c.appendChild(el('p','note','현재가·시총·해당 기준은 컴퓨터가 계산한 참고값이에요. 실제 지정·폐지 여부는 KIND·DART 공시 원문으로 직접 확인하세요.'));
+ var box=el('div');box.id='dlmDetBox';box.appendChild(el('p','note',ftOk('detail')?'아직 고른 종목이 없어요. 위 표에서 [근거 보기]를 눌러 주세요.':'이 기능이 열리면 종목별 근거와 공시 확인 링크를 볼 수 있어요.'));c.appendChild(box);
+ return ftSec(c,'detail')}
+function dlMemDetail(tk){var box=$('dlmDetBox');if(!box)return;if(!ftOk('detail')){lockDlg('detail');return}dlMemLoading(box);
+ dlMemSafe(api('/admin/api/delist/detail/'+encodeURIComponent(tk))).then(function(j){box.innerHTML='';if(j.error){box.appendChild(el('p','note bad',j.error));return}
+  var hd=el('div','dlBtns');hd.appendChild(el('b',null,j.name+' ('+j.ticker+')'));hd.appendChild(el('span','dlBd '+dlMemTone(j.label||''),j.label||'-'));hd.appendChild(el('span','m',(j.market||'')+(j.at?' · 확정일 '+j.at:'')));box.appendChild(hd);
+  if(j.note)box.appendChild(el('p','note','운영자 메모: '+j.note));
+  var kv=el('div','dlKv');function row(l,v){kv.appendChild(el('b',null,l));kv.appendChild(el('span',null,v))}
+  row('현재가',j.price?dlN(j.price)+'원':'-');row('시가총액',dlCap(j.cap));row('최근 등락률',j.pct==null?'-':(j.pct>0?'+':'')+Number(j.pct).toFixed(2)+'%');row('마지막 거래일',j.last_trade||'-');row('자동 점검일',j.as_of||'-');box.appendChild(kv);
+  if((j.matched||[]).length){box.appendChild(el('b',null,'해당하는 기준(자동 계산)'));j.matched.forEach(function(m){var d=el('div','m','• '+m.label+(m.cur!=null?' — 현재 '+dlN(m.cur)+(m.unit||'')+' < 기준 '+dlN(m.value)+(m.unit||''):''));box.appendChild(d);if(m.desc){var e=el('div','m',m.desc);e.style.marginLeft='12px';box.appendChild(e)}})}
+  if((j.signals||[]).length){box.appendChild(el('b',null,'자동 신호(참고)'));j.signals.forEach(function(x){box.appendChild(el('div','m','• '+x))})}
+  var lk=el('div','dlBtns');lk.appendChild(dlMemLink('KIND 공시 확인 ↗','https://kind.krx.co.kr/common/searchcorpname.do?method=searchCorpNameMain&searchCorpName='+encodeURIComponent(j.name)));lk.appendChild(dlMemLink('DART 공시 확인 ↗','https://dart.fss.or.kr/dsab007/main.do?textCrpNm='+encodeURIComponent(j.name)));box.appendChild(lk);
+  var cc=$('dlmDet');if(cc&&cc.scrollIntoView)cc.scrollIntoView({behavior:'smooth',block:'start'})})}
+/* ④ 투자 주의 안내문(AI 조언) */
+function dlMemAdvice(){var c=dlCard('④ 💡 투자 주의 안내문','AI 조언으로 정리한 투자 시 주의점');c.id='dlmAdv';
+ if(!ftOk('advice')){c.appendChild(el('p','note','이 글은 운영자가 내용을 읽어 본 뒤 열어요. 아직 공개되지 않았어요.'));return ftSec(c,'advice')}
+ var box=el('div');c.appendChild(box);dlMemLoading(box);
+ dlMemSafe(api('/admin/api/delist/advice')).then(function(j){box.innerHTML='';if(j.error){box.appendChild(el('p','note bad',j.error));return}
+  if(!j.text){box.appendChild(el('p','note','아직 등록된 안내문이 없어요.'));return}box.appendChild(el('div','dlAdv',j.text));box.appendChild(el('p','note','작성일 '+(j.date||'-')+' · AI가 정리한 일반적인 주의점이며 투자 권유가 아니에요.'))});
+ return c}
+/* ⑤ 확정 종목 이미지 내려받기 */
+function dlMemImg(){var c=dlCard('⑤ 🖼 확정 종목 이미지','확정 종목 현황을 PNG 그림으로 내려받아요');c.id='dlmImg';
+ c.appendChild(el('p','note','[이미지 만들기]를 누르면 지금의 확정 종목 현황 그림 1장이 만들어져요. 마음에 들면 [내려받기]를 눌러 보관하세요.'));
+ var bx=el('div','dlBtns'),out=el('div');var gen=dlB('🖼 이미지 만들기','n',function(){dlMemImgMake(out,gen)});bx.appendChild(ft(gen,'img'));c.appendChild(bx);c.appendChild(out);
+ if(!ftOk('img'))c.appendChild(el('p','note','이 기능이 열리면 확정 종목 현황 이미지를 만들어 내려받을 수 있어요.'));
+ return ftSec(c,'img')}
+function dlMemImgMake(out,btn){var K=window.ImgKit;if(!K||!window.DlImg||!window.DlImg.confirmed){toast('이미지 도우미를 불러오지 못했어요. 새로고침해 주세요.');return}
+ btn.disabled=true;btn.textContent='⏳ 그리는 중…';out.innerHTML='';
+ dlMemSafe(api('/admin/api/delist/img-data')).then(function(j){if(j.error)throw new Error(j.error);return Promise.resolve(K.fonts?K.fonts():0).then(function(){return window.DlImg.confirmed(j,2)}).then(function(cv){return {cv:cv,day:(j.today||'').replace(/-/g,'')}})}).then(function(x){var cv=x.cv;
+  var im=new Image();im.alt='확정 종목 현황 이미지';var pw=Math.min(720,cv.width),sm=document.createElement('canvas');sm.width=pw;sm.height=Math.round(cv.height*pw/cv.width);sm.getContext('2d').drawImage(cv,0,0,sm.width,sm.height);im.src=sm.toDataURL('image/png');im.style.cssText='max-width:100%;height:auto;border:1px solid #e2e8f0;border-radius:10px';out.appendChild(im);
+  var r=el('div','dlBtns');r.appendChild(dlB('💾 내려받기','t',function(){cv.toBlob(function(b){if(!b){toast('이미지를 만들지 못했어요');return}var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='거래정지상폐_확정종목_'+(x.day||'')+'.png';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},4000)},'image/png')}));out.appendChild(r);btn.textContent='🔄 다시 만들기'})
+  .catch(function(e){btn.textContent='🖼 이미지 만들기';toast('이미지를 만들지 못했어요: '+((e&&e.message)||'잠시 후 다시 시도해 주세요'))}).then(function(){btn.disabled=false})}
+/* ⑥ 후보 목록(자동 신호) — 기본은 관리자 전용 */
+function dlMemCand(){var c=dlCard('⑥ 🧪 후보 목록(자동 신호)','컴퓨터가 자동으로 가려낸 후보 · 확정이 아니에요');c.id='dlmCand';
+ c.appendChild(el('p','note bad','⚠ 자동 계산은 틀릴 수 있고 확정이 아니에요. 후보에 있다고 거래정지·상장폐지가 된다는 뜻이 아니에요. 반드시 KIND·DART 공시로 직접 확인하세요.'));
+ if(!ftOk('candidates')){c.appendChild(el('p','note','자동 신호는 틀릴 수 있어서, 운영자가 신중히 열어 둔 경우에만 볼 수 있어요.'));return ftSec(c,'candidates')}
+ var tool=el('div');tool.id='dlTool';c.appendChild(tool);var tb=el('div');tb.id='dlTb';tb.style.overflowX='auto';c.appendChild(tb);dlMemLoading(tb);
+ dlMemSafe(api('/admin/api/delist/list')).then(function(d){if(d.error||!d.rows){tb.innerHTML='';tb.appendChild(el('p','note bad',d.error||'후보를 불러오지 못했어요.'));return}
+  dlApplyData(d);DL.view=null;dlToolDraw();dlTable()});
+ return c}
 """
 
 IMG_JS = r"""
@@ -1303,7 +1559,20 @@ function table(D,scale){var W=1080,all=rows(D).filter(function(r){return risk(r)
  all.forEach(function(r,i){var yy=y+122+i*62;if(i%2===1){c.fillStyle='#f8fafc';c.fillRect(56,yy-12,968,60)}T(c,r.name,76,yy+22,{s:23,w:800,c:INK,max:300});T(c,r.ticker+' · '+(r.market==='KOSPI'?'코스피':'코스닥'),76,yy+44,{s:15,w:600,c:'#94a3b8'});T(c,capT(r.cap),560,yy+30,{s:22,w:800,c:'#334155',a:'right'});T(c,N(r.price)+'원',720,yy+30,{s:21,w:700,c:'#334155',a:'right'});
   var lb=(r.matched||[]).map(function(m){return m.label}).join(' · ')||((r.signals&&r.signals[0])||'거래상태 신호');lb=String(lb).split(' (')[0].split(' — ')[0];if(lb.length>26)lb=lb.slice(0,25)+'…';T(c,lb,742,yy+30,{s:17,w:700,c:'#9f1239',max:270})});
  if(!all.length)T(c,'위험 구간 종목이 없어요',86,y+150,{s:22,w:600,c:MUT});y+=th+30;foot(c,W,y);return m.cv}
-window.DlImg={build:function(D,scale){return [{idx:1,label:'메인 대시보드',canvas:main(D,scale)},{idx:2,label:'위험 종목 표',canvas:table(D,scale)}]}};
+function tone(l){return /폐지/.test(l)?['#fee2e2','#991b1b']:(/정지|관리/.test(l)?['#fef3c7','#92400e']:(/정리/.test(l)?['#ede9fe','#5b21b6']:['#e2e8f0','#475569']))}
+function conf(D,scale){var W=1080,rows=(D.rows||[]).slice(0,15),by=D.by_label||{},tot=D.total||0,keys=Object.keys(by).sort(function(a,b){return by[b]-by[a]}).slice(0,3);
+ var more=tot>rows.length?44:0,th=90+Math.max(1,rows.length)*62+more,H=250+40+170+30+th+30+150;var m=K.make(W,H,scale),c=m.c;c.fillStyle='#f4f1ec';c.fillRect(0,0,W,H);
+ var g=c.createLinearGradient(0,0,W,260);g.addColorStop(0,'#450a0a');g.addColorStop(.55,'#991b1b');g.addColorStop(1,'#dc2626');c.fillStyle=g;c.fillRect(0,0,W,250);
+ T(c,'CONFIRMED LIST',W/2,64,{s:20,w:800,c:'#fecaca',a:'center',ls:6});T(c,'거래정지·상장폐지 확정 종목',W/2,130,{s:54,w:900,c:'#fff',a:'center',max:W-120});T(c,'운영자가 공시로 확인한 종목 '+tot+'개',W/2,186,{s:24,w:600,c:'#fecaca',a:'center',max:W-120});
+ T(c,(D.today||today()).replace(/-/g,'.')+' 기준 · 참고용 정보(투자 권유 아님)',W/2,226,{s:19,w:600,c:'rgba(255,255,255,.75)',a:'center'});
+ var y=290,items=[['확정 종목',tot,INK]].concat(keys.map(function(k){return [k,by[k],RED]})),cw=(W-80-(items.length-1)*16)/items.length;
+ items.forEach(function(s,i){var x=40+i*(cw+16);shadow(c,x,y,cw,170,22);T(c,s[0],x+cw/2,y+54,{s:24,w:800,c:MUT,a:'center',max:cw-20});T(c,String(s[1]),x+cw/2,y+128,{s:72,w:900,c:s[2],a:'center'})});y+=200;
+ shadow(c,40,y,1000,th,24);c.fillStyle=RED;RR(c,66,y+26,6,30,3);c.fill();T(c,'확정 종목 목록',86,y+50,{s:26,w:900,c:INK});
+ rows.forEach(function(r,i){var yy=y+84+i*62;if(i%2===0){c.fillStyle='#f8fafc';c.fillRect(56,yy-8,968,58)}T(c,String(i+1),86,yy+30,{s:22,w:900,c:'#94a3b8',a:'center'});T(c,r.name,120,yy+26,{s:24,w:800,c:INK,max:380});T(c,r.ticker+' · '+(r.market==='KOSPI'?'코스피':(r.market==='KOSDAQ'?'코스닥':(r.market||''))),120,yy+46,{s:15,w:600,c:'#94a3b8'});
+  var tn=tone(r.label||'');RR(c,540,yy+4,190,40,20);c.fillStyle=tn[0];c.fill();T(c,r.label||'-',635,yy+31,{s:20,w:800,c:tn[1],a:'center',max:170});T(c,r.at||'',1004,yy+30,{s:20,w:700,c:'#334155',a:'right'})});
+ if(!rows.length)T(c,'현재 확정된 종목이 없어요',86,y+130,{s:22,w:600,c:MUT});if(more)T(c,'… 외 '+(tot-rows.length)+'종목은 화면에서 확인하세요',86,y+th-26,{s:20,w:700,c:MUT});
+ y+=th+30;foot(c,W,y);return m.cv}
+window.DlImg={build:function(D,scale){return [{idx:1,label:'메인 대시보드',canvas:main(D,scale)},{idx:2,label:'위험 종목 표',canvas:table(D,scale)}]},confirmed:function(D,scale){return conf(D,scale)}};
 })();
 """
 
@@ -1437,9 +1706,9 @@ def _valid_bool(k, v):
 def register():
     global _AIJOBS
     _AIJOBS = C._AIJOBS
-    C.register_menu({"id": "delist", "label": "거래정지·상폐", "icon": "🚫", "public_path": "/delist",
-                     "admin_path": "/admin#dl", "preview_path": "/admin/preview/delist", "desc": "거래정지·상장폐지(확정·정리매매) 종목 목록",
-                     "access": "admin"})
+    C.register_menu({"id": "delist", "label": "거래정지·상폐", "icon": "🚫", "public_path": "/m/delist",
+                     "admin_path": "/admin#dl", "preview_path": "/m/delist",
+                     "desc": "관리자가 공시로 확인한 거래정지·상장폐지(관리종목·정리매매) 종목 목록과 확정 이력·통계", "access": "admin"})
     C.register_settings({"delist_stale_days": "10", "delist_include_caution": "0"},
                         {"delist_stale_days": _valid_days, "delist_include_caution": _valid_bool})
     C.register_prompt("delist_verify", {
@@ -1454,5 +1723,19 @@ def register():
         "vars": "{today}=오늘 날짜 · {summary}=결과 요약(필수) · {items}=상위 종목(필수)",
         "desc": "스크리닝 결과를 바탕으로 '투자 시 주의점·접근 방향'을 쓰게 하는 요청문. 블로그 글에 함께 들어가요."})
     C.register_table_hook(_ensure_delist_table)
-    C.register_admin_tab("dl", "🚫 거래정지·상폐", TAB_JS + "\n" + IMG_JS, "dlLoad")
+    C.register_admin_tab("dl", "🚫 거래정지·상폐", TAB_JS + "\n" + IMG_JS, "dlLoad", menu="delist")
+    # 🎚 기능별 등급 공개 — 읽기 전용 기능만. 스캔·기준 저장·확정 표시·AI 붙여넣기·스냅샷 저장/삭제·블로그·설정·가져오기 같은 관리자 업무 주소는
+    # 어떤 기능에도 넣지 않는다(= 회원 화면에서는 404, 관리자만).
+    C.register_feature("delist", "confirmed", "확정 종목 목록", "관리자가 공시로 확인한 거래정지·상장폐지 종목을 검색·열람해요(공개 화면 /delist 와 같은 데이터).",
+                       default="public", endpoints=["/admin/api/delist/public-preview"])
+    C.register_feature("delist", "stats", "확정 이력·통계", "확정 종목 수, 상태별·시장별·월별 수와 확정일별 이력을 봐요.",
+                       default="member", endpoints=["/admin/api/delist/stats"])
+    C.register_feature("delist", "detail", "종목별 근거·공시 요약", "확정 종목마다 현재가·시총·해당 기준·공시 확인 링크를 모아 봐요.",
+                       default="L2", endpoints=["/admin/api/delist/detail/*"])
+    C.register_feature("delist", "advice", "투자 주의 안내문(AI 조언)", "AI 조언으로 만든 ‘투자 시 주의점’ 글. 후보 종목 이름이 들어 있을 수 있어 관리자가 읽어 본 뒤 열어요.",
+                       default="admin", endpoints=["/admin/api/delist/advice"])
+    C.register_feature("delist", "img", "확정 종목 이미지 내려받기", "확정 종목 현황을 PNG 이미지로 만들어 내려받아요.",
+                       default="L3", endpoints=["/admin/api/delist/img-data"])
+    C.register_feature("delist", "candidates", "후보 목록(자동 신호)", "자동 계산으로 가려낸 후보와 저장 이력. 자동 신호는 틀릴 수 있어 일반 공개는 관리자가 신중히 열어요(AI 의견·제외 종목은 어느 등급에도 안 보여요).",
+                       default="admin", endpoints=["/admin/api/delist/list", "/admin/api/delist/history/get"])
     return bp

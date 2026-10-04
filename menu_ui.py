@@ -251,7 +251,7 @@ def page(title, body, icon="", subtitle="", script="", active="", disclaimer=Tru
     ver = esc(getattr(C, "APP_VERSION", ""))
     hero = (f'<div class="mu-hero"><div class="mu-hero-in"><h1>{("<span class=ic>" + esc(icon) + "</span>") if icon else ""}{esc(title)}</h1>'
             f'{("<p>" + esc(subtitle) + "</p>") if subtitle else ""}</div></div>')
-    foot = (f'<div class="mu-foot">{esc(DISCLAIMER) if disclaimer else ""}<br><a href="/">종목분석</a> · <a href="/menus">전체 메뉴</a> · '
+    foot = (f'<div class="mu-foot">{esc(DISCLAIMER) if disclaimer else ""}<br><a href="/">종목분석</a> · <a href="/menus">전체 메뉴</a> · <a href="/plans">등급 안내</a> · '
             f'<a href="/privacy">개인정보처리방침</a></div>')
     nav = ('<nav class="mu-nav" id="muNav"><a href="/">종목분석</a><a href="/menus"' + (' class="on"' if active == "menus" else "") + '>전체 메뉴</a></nav>')
     nav_js = ("fetch('/api/menus',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){var n=document.getElementById('muNav');"
@@ -293,26 +293,6 @@ def ui_js():
 def ui_config():
     resp = jsonify({"ai_site": ai_site(), "ai_sites": {k: v["name"] for k, v in AI_SITES.items()}})
     resp.headers["Cache-Control"] = "no-store"
-    return resp
-
-
-@bp.route("/menus")
-def menus_page():
-    cards = []
-    for m in C.menus_ordered():
-        if not C.menu_visible(m["id"]):
-            continue
-        cards.append(f'<a class="mu-menu" href="{esc(m["public_path"])}"><div class="t">{esc(m["icon"])}</div>'
-                     f'<div><b>{esc(m["label"])}</b><span>{esc(m.get("desc", ""))}</span></div><em>›</em></a>')
-    if cards:
-        body = ('<div class="mu-card"><div class="mu-card-h">🧰 이용할 수 있는 도구<small>' + str(len(cards)) + '개</small></div>'
-                '<div class="mu-card-b"><div class="mu-grid">' + "".join(cards) + '</div></div></div>')
-    else:
-        body = '<div class="mu-card"><div class="mu-empty"><b>🛠️</b>아직 공개된 메뉴가 없어요. 곧 하나씩 열립니다.</div></div>'
-    body = ('<div class="mu-card"><div class="mu-card-h">🔎 종목 분석<small>핵심 기능</small></div><div class="mu-card-b">'
-            '<a class="mu-menu" href="/"><div class="t">📈</div><div><b>종목 분석</b><span>종목명이나 코드를 입력하면 가격·재무·뉴스·AI 분석용 프롬프트까지 한 번에 정리합니다.</span></div><em>›</em></a></div></div>') + body
-    resp = C.app.make_response(page("전체 메뉴", body, icon="🧭", subtitle="필요한 도구를 골라 쓰세요. 모두 같은 화면 구성으로 되어 있습니다.", active="menus"))
-    resp.headers["Cache-Control"] = "no-cache"
     return resp
 
 

@@ -638,15 +638,15 @@ function blDraw(p){p.innerHTML='';var top=el('div','c');top.appendChild(el('b',n
  top.appendChild(el('p','note','분석실·심층분석·오늘추천에서 블로그 글을 만든 뒤 남긴 기록이에요. 같은 종목을 같은 메뉴로 또 쓰면 ⚠ 표시가 붙고, 글을 만들 때도 경고가 떠서 중복 작성을 막아 줍니다. 총 '+BL.rows.length+'건'+(BL.multi.length?' · 2건 이상 쓴 종목 '+BL.multi.length+'개':'')+'.'));
  var q=el('input');q.placeholder='종목명·코드·제목 검색';q.value=BL.q;q.style.width='220px';q.onkeydown=function(e){if(e.key==='Enter'){BL.q=q.value;blLoad(p)}};top.appendChild(q);
  var ks=el('select');[['','모든 메뉴']].concat(Object.keys(BL.kinds||{}).map(function(k){return [k,BL.kinds[k]]})).forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];if(o[0]===BL.kind)op.selected=true;ks.appendChild(op)});ks.onchange=function(){BL.kind=ks.value;blLoad(p)};top.appendChild(ks);
- top.appendChild(bt('검색','bt2',function(){BL.q=q.value;blLoad(p)}));p.appendChild(top);
+ top.appendChild(bt('🔍 검색','bt2',function(){BL.q=q.value;blLoad(p)}));p.appendChild(top);
  var lc=el('div','c');var tw=el('div');tw.style.overflowX='auto';var t=el('table'),h=el('tr');['날짜','메뉴','종목','제목','글 주소','메모',''].forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
  BL.rows.forEach(function(r){var tr=el('tr');var d=new Date(r.at*1000);tr.appendChild(el('td',null,(d.getMonth()+1)+'/'+d.getDate()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)));
   tr.appendChild(el('td',null,(BL.kinds||{})[r.kind]||r.kind));var dup=BL.multi.indexOf(r.ticker+'|'+r.kind)>=0;tr.appendChild(el('td',dup?'bad':'',(dup?'⚠ ':'')+(r.name||'')+' '+r.ticker));tr.appendChild(el('td',null,r.title));
   var u=el('td');var ui=el('input');ui.value=r.url||'';ui.placeholder='https://…';ui.style.width='170px';u.appendChild(ui);tr.appendChild(u);
   var m=el('td');var mi=el('input');mi.value=r.memo||'';mi.style.width='120px';m.appendChild(mi);tr.appendChild(m);
-  var a=el('td');a.appendChild(bt('저장','bt3',function(){apiJ('/admin/api/blog/log/'+r.id,{url:ui.value,memo:mi.value}).then(function(j){toast(j.error?j.error:'저장했어요')})}));
+  var a=el('td');a.appendChild(bt('💾 저장','bt3',function(){apiJ('/admin/api/blog/log/'+r.id,{url:ui.value,memo:mi.value}).then(function(j){toast(j.error?j.error:'저장했어요')})}));
   if(r.url){var lk=el('a',null,' 열기');lk.href=r.url;lk.target='_blank';lk.rel='noopener';a.appendChild(lk)}
-  a.appendChild(bt('삭제','bt3',function(){if(!confirm('이 기록을 지울까요?'))return;fetch('/admin/api/blog/log/'+r.id,{method:'DELETE',credentials:'same-origin',headers:{'X-CSRF-Token':CSRF}}).then(function(){blLoad(p)})}));tr.appendChild(a);t.appendChild(tr)});
+  a.appendChild(bt('🗑 삭제','bt3',function(){if(!confirm('이 기록을 지울까요?'))return;fetch('/admin/api/blog/log/'+r.id,{method:'DELETE',credentials:'same-origin',headers:{'X-CSRF-Token':CSRF}}).then(function(){blLoad(p)})}));tr.appendChild(a);t.appendChild(tr)});
  if(!BL.rows.length){var tr=el('tr'),td=el('td',null,'아직 기록이 없어요.');td.colSpan=7;tr.appendChild(td);t.appendChild(tr)}
  tw.appendChild(t);lc.appendChild(tw);p.appendChild(lc)}
 """

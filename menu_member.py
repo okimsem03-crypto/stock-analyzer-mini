@@ -810,14 +810,11 @@ def page():
 # ───────────────────────── 관리자 API ─────────────────────────
 def _stats():
     now = int(time.time())
-    total = int(_q("SELECT COUNT(*) FROM members", fetch=True)[0][0])
     today0 = now - ((now + 9 * 3600) % 86400)
-    new_today = int(_q("SELECT COUNT(*) FROM members WHERE created_at>=?", (today0,), fetch=True)[0][0])
-    new_7d = int(_q("SELECT COUNT(*) FROM members WHERE created_at>=?", (now - 7 * 86400,), fetch=True)[0][0])
-    blocked = int(_q("SELECT COUNT(*) FROM members WHERE status<>'active'", fetch=True)[0][0])
-    online = int(_q("SELECT COUNT(DISTINCT email) FROM member_sessions WHERE last_seen>=?", (now - 1800,), fetch=True)[0][0])
-    mails = int(_q("SELECT COUNT(*) FROM member_codes WHERE created_at>=?", (now - 86400,), fetch=True)[0][0])
-    return {"total": total, "new_today": new_today, "new_7d": new_7d, "blocked": blocked, "online": online, "mails_24h": mails}
+    r = _q("SELECT (SELECT COUNT(*) FROM members), (SELECT COUNT(*) FROM members WHERE created_at>=?), (SELECT COUNT(*) FROM members WHERE created_at>=?), "
+           "(SELECT COUNT(*) FROM members WHERE status<>'active'), (SELECT COUNT(DISTINCT email) FROM member_sessions WHERE last_seen>=?), "
+           "(SELECT COUNT(*) FROM member_codes WHERE created_at>=?)", (today0, now - 7 * 86400, now - 1800, now - 86400), fetch=True)[0]
+    return {"total": int(r[0]), "new_today": int(r[1]), "new_7d": int(r[2]), "blocked": int(r[3]), "online": int(r[4]), "mails_24h": int(r[5])}
 
 
 def _state():
@@ -965,7 +962,7 @@ function mbDraw(p){p.innerHTML='';var S=MB.S,s=S.settings,st=S.stats;
  sc.appendChild(bt('💾 회원 설정 저장','bt',function(){apiJ('/admin/api/member/settings',{on:cOn.checked,signup:cSg.checked,verify:cVf.checked,default_level:sel.value,mail_cap:parseInt(cap.value,10)}).then(function(j){if(j.error){toast(j.error);return}MB.S=j;toast('회원 설정을 저장했어요');mbDraw(p);mbList()})}));
  p.appendChild(sc);
  var lc=el('div','c');lc.appendChild(el('b',null,'📋 회원 목록'));var bar=el('div','bar');var qi=el('input');qi.placeholder='이메일 검색';qi.value=MB.q;qi.style.width='220px';
- qi.onkeydown=function(e){if(e.key==='Enter'){MB.q=qi.value;MB.page=1;mbList()}};bar.appendChild(qi);bar.appendChild(bt('검색','bt2',function(){MB.q=qi.value;MB.page=1;mbList()}));lc.appendChild(bar);
+ qi.onkeydown=function(e){if(e.key==='Enter'){MB.q=qi.value;MB.page=1;mbList()}};bar.appendChild(qi);bar.appendChild(bt('🔍 검색','bt2',function(){MB.q=qi.value;MB.page=1;mbList()}));lc.appendChild(bar);
  var box=el('div');box.id='mbList';lc.appendChild(box);p.appendChild(lc)}
 function mbList(){var box=$('mbList');if(!box)return;api('/admin/api/member/list?q='+encodeURIComponent(MB.q)+'&page='+MB.page).then(function(j){if(cur!=='mem'||!$('mbList'))return;MB.L=j;box=$('mbList');box.innerHTML='';
  if(!j.rows.length){box.appendChild(el('p','note',MB.q?'검색 결과가 없어요.':'아직 가입한 회원이 없어요.'));return}
@@ -978,7 +975,7 @@ function mbList(){var box=$('mbList');if(!box)return;api('/admin/api/member/list
   var ac=el('td');
   ac.appendChild(bt(r.status==='active'?'차단 적용':'차단 해제','bt3',function(){apiJ('/admin/api/member/update',{email:r.email,status:r.status==='active'?'blocked':'active'}).then(function(x){if(x.error){toast(x.error);return}toast(r.status==='active'?'차단을 적용했어요':'차단을 해제했어요');mbLoad(MB.p)})}));
   var lo=bt('강제 로그아웃','bt3',function(){apiJ('/admin/api/member/logout',{email:r.email}).then(function(x){toast(x.error||'모든 기기에서 로그아웃시켰어요')})});lo.style.marginLeft='6px';ac.appendChild(lo);
-  var dl=bt('삭제','bt3',function(){if(!confirm(r.email+' 회원을 삭제할까요? 되돌릴 수 없어요.'))return;apiJ('/admin/api/member/delete',{email:r.email}).then(function(x){if(x.error){toast(x.error);return}toast('삭제했어요');mbLoad(MB.p)})});dl.style.marginLeft='6px';ac.appendChild(dl);tr.appendChild(ac);
+  var dl=bt('🗑 삭제','bt3',function(){if(!confirm(r.email+' 회원을 삭제할까요? 되돌릴 수 없어요.'))return;apiJ('/admin/api/member/delete',{email:r.email}).then(function(x){if(x.error){toast(x.error);return}toast('삭제했어요');mbLoad(MB.p)})});dl.style.marginLeft='6px';ac.appendChild(dl);tr.appendChild(ac);
   t.appendChild(tr)});tw.appendChild(t);box.appendChild(tw);
  var pages=Math.max(1,Math.ceil(j.total/j.per));var nv=el('div','bar');nv.appendChild(el('span','m',j.total+'명 · '+j.page+' / '+pages+' 쪽'));
  var pv=bt('◀ 이전','bt3',function(){MB.page--;mbList()});pv.disabled=j.page<=1;var nx=bt('다음 ▶','bt3',function(){MB.page++;mbList()});nx.disabled=j.page>=pages;nv.appendChild(pv);nv.appendChild(nx);box.appendChild(nv)})}
