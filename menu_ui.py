@@ -331,7 +331,7 @@ def _js_str(s):
 HELPER_JS = r"""// ==UserScript==
 // @name         종목분석 미니 · AI 도우미
 // @namespace    __ORIGIN__
-// @version      1.1.0
+// @version      1.2.0
 // @updateURL    __ORIGIN__/assets/mini-ai-helper.user.js
 // @downloadURL  __ORIGIN__/assets/mini-ai-helper.user.js
 // @description  종목분석 미니에서 [AI 열기]를 누르면 AI 사이트에서 프롬프트 입력 → 전송 → 답변 복사 → 탭 닫기까지 자동으로 해 주고, 답변을 종목분석 미니로 바로 돌려줍니다.
@@ -348,13 +348,13 @@ HELPER_JS = r"""// ==UserScript==
 // @run-at       document-start
 // @noframes
 // ==/UserScript==
-/* 종목분석 미니 AI 도우미 v1.1.0
+/* 종목분석 미니 AI 도우미 v1.2.0
  * · 종목분석 미니 화면에서 보낸 작업(프롬프트)만 처리합니다. 다른 경로로 열린 AI 화면은 건드리지 않아요.
  * · 이 스크립트는 사용자의 브라우저 안에서만 동작하며, 로그인 정보·대화 내용을 어디로도 보내지 않습니다.
  * · AI 사이트 화면이 개편되면 자동 진행이 멈출 수 있어요. 그때는 프롬프트가 복사돼 있으니 직접 붙여넣으면 됩니다. */
 (function () {
   'use strict';
-  var ORIGIN = '__ORIGIN__', VER = '1.1.0';
+  var ORIGIN = '__ORIGIN__', VER = '1.2.0';
   function gget(k) { try { return Promise.resolve(GM_getValue(k, null)); } catch (e) { return Promise.resolve(null); } }
   function gset(k, v) { try { return Promise.resolve(GM_setValue(k, v)); } catch (e) { return Promise.resolve(); } }
   function gdel(k) { try { return Promise.resolve(GM_deleteValue(k)); } catch (e) { return Promise.resolve(); } }
@@ -463,7 +463,7 @@ HELPER_JS = r"""// ==UserScript==
   }
 
   /* 화면 위쪽 안내 띠 */
-  function banner(msg, kind) {
+  function banner(msg, kind, action) {
     try {
       if (!bar) {
         bar = document.createElement('div');
@@ -476,6 +476,13 @@ HELPER_JS = r"""// ==UserScript==
         (document.body || document.documentElement).appendChild(bar);
       }
       barMsg.textContent = msg;
+      if (bar._act) { try { bar._act.remove(); } catch (e) {} bar._act = null; }
+      if (action) {
+        var ab = document.createElement('button'); ab.textContent = action.label;
+        ab.style.cssText = 'border:0;border-radius:8px;padding:4px 12px;font:inherit;cursor:pointer;background:#fde68a;color:#78350f';
+        ab.onclick = function () { try { ab.remove(); } catch (e) {} bar._act = null; action.fn(); };
+        bar.insertBefore(ab, bar.lastChild); bar._act = ab;
+      }
       bar.style.background = kind === 'bad' ? '#b45309' : (kind === 'ok' ? '#15803d' : '#312e81');
     } catch (e) {}
   }
@@ -580,22 +587,45 @@ HELPER_JS = r"""// ==UserScript==
     throw new Error('답변이 너무 오래 걸려서 멈췄어요');
   }
 
+  var WHY = '';
   async function findJob() {
-    for (var i = 0; i < 20; i++) {
+    for (var i = 0; i < 40; i++) {   /* 최대 16초 기다려요(확장 프로그램 저장소 반영이 늦는 경우 대비) */
       var j = await gget('job');
-      if (JOB) { if (j && j.id === JOB && Date.now() - j.ts < 180000) return j; }
-      else if (j && j.host === location.hostname && Date.now() - j.ts < 30000) { JOB = j.id; return j; }
+      if (!j) WHY = '저장된 작업이 없어요';
+      else if (JOB) { if (j.id === JOB) return j; WHY = '다른 작업이 저장돼 있어요(번호 불일치)'; }
+      else if (j.host === location.hostname && Date.now() - j.ts < 30000) { JOB = j.id; return j; }
       await sleep(400);
     }
     return null;
+  }
+  /* 작업을 못 찾았을 때의 구조 방법: 종목분석 미니가 열기 직전에 클립보드에 복사해 둔 프롬프트를 읽어 같은 방식으로 진행 */
+  function rescue() {
+    banner('⚠ 종목분석 미니에서 보낸 작업을 찾지 못했어요(' + (WHY || '원인 모름') + '). 아래 [복사된 프롬프트로 진행]을 누르면 복사해 둔 프롬프트로 이어서 자동 진행해요.', 'bad', { label: '📋 복사된 프롬프트로 진행', fn: function () {
+      var rd = null;
+      try { rd = navigator.clipboard.readText(); } catch (e) { rd = null; }
+      if (!rd) { banner('⚠ 이 브라우저에서 클립보드를 읽을 수 없어요. 입력칸에 Ctrl+V 하고 직접 진행하세요.', 'bad'); return; }
+      rd.then(function (t) {
+        t = String(t || '').trim();
+        if (t.length < 100) { banner('⚠ 복사된 프롬프트가 없어요. 종목분석 미니에서 [📋 다시 복사]를 누르고 다시 시도하세요.', 'bad'); return; }
+        runJob({ id: JOB, prompt: t, host: location.hostname, ts: Date.now() });
+      }).catch(function () { banner('⚠ 클립보드 읽기가 허용되지 않았어요(주소창 왼쪽 권한에서 허용). 입력칸에 Ctrl+V 하고 직접 진행하세요.', 'bad'); });
+    } });
   }
 
   async function main() {
     if (JOB) banner('🤖 종목분석 미니 도우미 · 작업을 확인하는 중…');
     var job = await findJob();
     if (!job && !JOB) return;   /* 그냥 직접 연 AI 화면: 아무것도 하지 않아요 */
-    if (!job) { banner('⚠ 종목분석 미니에서 보낸 작업을 찾지 못했어요(시간이 지났거나 다른 곳에서 열었어요). 자동 진행을 하지 않아요.', 'bad'); return; }
-    await gdel('job');
+    if (!job) { rescue(); return; }
+    /* 작업은 끝날 때까지 지우지 않아요: 화면이 새로고침돼 도우미가 다시 시작돼도 작업을 잃지 않게 */
+    if (job.sent) {
+      var msg0 = '전송한 뒤 AI 화면이 새로고침돼서 답변을 자동으로 읽지 못했어요. AI 대화에서 답변을 직접 복사하고 종목분석 미니로 돌아가세요.';
+      await gset('result', { id: JOB, error: msg0, ts: Date.now() }); await gdel('job');
+      banner('⚠ ' + msg0, 'bad'); return;
+    }
+    await runJob(job);
+  }
+  async function runJob(job) {
     try {
       status(P.name + ' 입력창을 찾는 중…');
       var inp = await waitFor(function () { return pick(P.input); }, 45000, '입력창');
@@ -609,6 +639,7 @@ HELPER_JS = r"""// ==UserScript==
       }
       var base = answers().length;
       status('전송하는 중…');
+      await gset('job', { id: job.id, prompt: job.prompt, host: job.host, ts: Date.now(), sent: true });
       var btn = null;
       try { btn = await waitFor(function () { var b = pick(P.send); if (b && !disabled(b)) return b; return genericSend(inp); }, 12000, '전송 버튼'); } catch (e) { btn = null; }
       if (btn) btn.click(); else enter(inp);
@@ -625,6 +656,7 @@ HELPER_JS = r"""// ==UserScript==
       if (text.length < 20) throw new Error('답변 글을 읽지 못했어요');
       try { GM_setClipboard(text, 'text'); } catch (e) { try { navigator.clipboard.writeText(text); } catch (e2) {} }
       await gset('result', { id: JOB, text: text, ts: Date.now() });
+      await gdel('job');
       banner('✅ 답변을 복사해서 종목분석 미니로 보냈어요 (' + text.length.toLocaleString() + '자). 이 탭은 곧 닫혀요.', 'ok');
       await sleep(1600);
       try { window.close(); } catch (e) {}
@@ -633,6 +665,7 @@ HELPER_JS = r"""// ==UserScript==
     } catch (err) {
       var msg = String((err && err.message) || err);
       await gset('result', { id: JOB, error: msg, ts: Date.now() });
+      await gdel('job');
       banner('⚠ 자동 진행이 멈췄어요: ' + msg + ' — 프롬프트는 복사돼 있어요. 입력칸에 Ctrl+V 하고 직접 이어서 진행하세요.', 'bad');
     }
   }
@@ -692,7 +725,7 @@ def helper_page():
         '<b>🔧 설치했는데 자동으로 안 될 때 (순서대로 확인)</b><br>'
         '① 위 ‘설치 여부’가 ✅ 로 나오는지 — 안 나오면 이 화면을 새로고침(Ctrl+F5)<br>'
         '② Tampermonkey [세부정보]에서 <b>사용자 스크립트 허용 ON</b>, <b>사이트 액세스 = 모든 사이트에서</b><br>'
-        '③ Tampermonkey 대시보드에서 ‘종목분석 미니 · AI 도우미’가 <b>켜짐</b>(파란 스위치)인지, 버전이 <b>1.1.0</b>인지 — 아니면 아래 [도우미 설치]를 다시 눌러 ‘업데이트/재설치’<br>'
+        '③ Tampermonkey 대시보드에서 ‘종목분석 미니 · AI 도우미’가 <b>켜짐</b>(파란 스위치)인지, 버전이 <b>1.2.0</b>인지 — 아니면 아래 [도우미 설치]를 다시 눌러 ‘업데이트/재설치’<br>'
         '④ AI 사이트(제미나이 등)에 <b>로그인</b>된 상태인지, 이미 열려 있던 AI 탭은 새로고침<br>'
         '⑤ 그래도 안 되면: [AI 열기] 때 프롬프트는 이미 복사돼 있으니 AI 입력칸에 Ctrl+V → 전송 → 답변 복사 후 이 창으로 돌아오면 기존 방식으로 가져와요.</div>'
         '<p><a class="mu-btn" href="/assets/mini-ai-helper.user.js" style="display:inline-block;padding:10px 18px;border-radius:12px;background:#3151d3;color:#fff;font-weight:700;text-decoration:none">⬇ 도우미 설치</a></p>'
@@ -703,7 +736,7 @@ def helper_page():
         '</div></div>'
     )
     script = ("function ahChk(last){var s=document.documentElement.getAttribute('data-mini-helper');var e=document.getElementById('ahState');"
-              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<1);e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.1.0)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
+              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<2);e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.2.0)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
               "ahChk(false);setTimeout(function(){ahChk(false)},300);setTimeout(function(){ahChk(true)},1200);")
     resp = C.app.make_response(page("AI 도우미", body, icon="🤖", subtitle="AI 입력·전송·답변 복사를 자동으로 해 주는 선택 도구", script=script))
     resp.headers["Cache-Control"] = "no-cache"

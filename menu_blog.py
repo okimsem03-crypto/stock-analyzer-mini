@@ -351,11 +351,44 @@ def side_title(title, accent="#4f46e5"):
             f'border-bottom:2px solid #eef2ff;letter-spacing:-0.3px;line-height:1.4;{FONT}">{title}</div>')
 
 
-def bar(score, color):
-    w = int(clamp(score))
-    return (f'<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>'
-            f'<td width="{w}%" bgcolor="{color}" style="background-color:{color};height:12px;font-size:1px;line-height:12px;">&nbsp;</td>'
-            f'<td width="{100 - w}%" bgcolor="#e5e7eb" style="background-color:#e5e7eb;height:12px;font-size:1px;line-height:12px;">&nbsp;</td></tr></table>')
+def bar(score, color, n=16):
+    """점수 막대 — 표 안에 표를 넣으면 네이버 편집기가 칸을 통째로 늘려 버려서, 글자 막대(█)로 그린다."""
+    w = int(round(clamp(score) * n / 100))
+    return (f'<span style="font-size:12px;line-height:1.3;white-space:nowrap;"><span style="color:{color};">{"█" * w}</span>'
+            f'<span style="color:#e5e7eb;">{"█" * (n - w)}</span></span>')
+
+
+def nlink(ticker, inner, color="#111827", bold=True):
+    """종목 이름 → 네이버 증권 종목 페이지 링크(6자리 코드가 아니면 링크 없이 그대로)."""
+    t = str(ticker or "").strip()
+    if not re.fullmatch(r"[0-9A-Za-z]{6}", t):
+        return inner
+    return (f'<a href="https://finance.naver.com/item/main.naver?code={t}" target="_blank" '
+            f'style="color:{color};text-decoration:underline;{"font-weight:800;" if bold else ""}">{inner}</a>')
+
+
+def link_names(html, pairs, color="#2563eb"):
+    """글 속 종목 이름(처음 나온 한 번씩)을 네이버 증권 링크로 바꾼다. pairs=[(이름, 코드)] — 태그 안쪽은 건드리지 않는다."""
+    ok = {}
+    for nm, tk in pairs:
+        nm = str(nm or "").strip()
+        if len(nm) >= 2 and re.fullmatch(r"[0-9A-Za-z]{6}", str(tk or "").strip()):
+            ok.setdefault(E(nm), str(tk).strip())
+    if not ok or not html:
+        return html
+    pat = re.compile("|".join(re.escape(k) for k in sorted(ok, key=len, reverse=True)))
+    done = set()
+
+    def sub_text(m):
+        k = m.group(0)
+        if k in done:
+            return k
+        done.add(k)
+        return nlink(ok[k], k, color, bold=False)
+    out = []
+    for part in re.split(r"(<[^>]*>)", html):
+        out.append(part if part.startswith("<") else pat.sub(sub_text, part))
+    return "".join(out)
 
 
 def inline(s, accent=None):
@@ -599,6 +632,7 @@ K.panel=function(box,opt){var idp=opt.idp||'bk';box.innerHTML='';
     var main=bt(ao?'📋 복사하고 블로그 열기':'📋 서식 그대로 복사',true,mainFn);
     rr.appendChild(main);
     if(ao)rr.appendChild(bt('복사만',false,function(){toast(K.copyHtml(j.html)?'📋 복사했어요.':'복사가 막혔어요.')}));
+    else rr.appendChild(bt('📋 복사 → 블로그 열기',true,function(){var ok=K.copyHtml(j.html);if(!ok){toast('복사가 막혔어요. 아래 [HTML 파일로 저장]을 쓰거나 미리보기를 드래그해 복사하세요.');return}if(opt.onCopied){try{opt.onCopied()}catch(x){}}window.open(K.urlOf(opt.key),'_blank','noopener');toast('📋 복사했어요 — 열린 블로그 글쓰기 화면에서 Ctrl+V 하세요 ('+lab+')')}));
     rr.appendChild(bt('✍ 블로그만 열기',false,function(){window.open(K.urlOf(opt.key),'_blank','noopener')}));
     rr.appendChild(bt('💾 HTML 파일로 저장',false,function(){K.save((opt.ticker||'blog')+'_'+(opt.kind||'blog')+'.html',j.title,j.html)}));
     out.appendChild(rr);

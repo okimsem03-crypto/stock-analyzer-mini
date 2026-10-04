@@ -1562,7 +1562,7 @@ def _blog_build(items, meta, ai_text, inc, title, n):
         rows = ""
         for k, lab in (("fin", "&#128185; 재무"), ("flow", "&#128176; 수급"), ("theme", "&#128293; 테마")):
             c = {s: sum(1 for i in items if i[k + "_st"] == s) for s in ("ok", "weak", "no", "na")}
-            rows += ('<tr><td width="18%%" style="padding:6px 4px;font-size:13px;font-weight:800;color:#111827;">%s</td><td width="42%%" style="padding:6px 4px;">%s</td>'
+            rows += ('<tr><td width="16%%" style="padding:6px 4px;font-size:13px;font-weight:800;color:#111827;white-space:nowrap;">%s</td><td width="34%%" style="padding:6px 4px;">%s</td>'
                      '<td style="padding:6px 4px;font-size:12px;color:#475569;">회복 확인 <b>%d</b> · 일부 %d · 미흡 %d · 자료 없음 %d</td></tr>'
                      % (lab, B.bar(round(c["ok"] * 100 / cnt), "#4f46e5"), c["ok"], c["weak"], c["no"], c["na"]))
         h.append(B.side_title("&#128300; 재무·수급·테마 회복 신호 현황", "#4f46e5") + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;' + B.FONT + '">' + rows + "</table>")
@@ -1570,27 +1570,29 @@ def _blog_build(items, meta, ai_text, inc, title, n):
         trs = ""
         for i in items[:10]:
             c = B.tone(i["ch_score"])
-            trs += ('<tr><td width="25%%" style="padding:5px 4px;font-size:13px;font-weight:800;color:#111827;">%s</td><td width="48%%" style="padding:5px 4px;">%s</td>'
-                    '<td width="15%%" align="right" style="padding:5px 4px;font-size:12.5px;font-weight:800;color:#2563eb;">%s</td>'
-                    '<td width="12%%" align="right" style="padding:5px 4px;font-size:13px;font-weight:900;color:%s;">%d</td></tr>' % (E(i["name"]), B.bar(i["ch_score"], c), _pct(i["dd"]), c, i["ch_score"]))
+            trs += ('<tr><td width="34%%" style="padding:6px 4px;font-size:13px;font-weight:800;color:#111827;">%s</td><td width="36%%" style="padding:6px 4px;">%s</td>'
+                    '<td width="16%%" align="right" style="padding:6px 4px;font-size:12.5px;font-weight:800;color:#2563eb;white-space:nowrap;">%s</td>'
+                    '<td width="14%%" align="right" style="padding:6px 4px;font-size:13px;font-weight:900;color:%s;white-space:nowrap;">%d</td></tr>' % (B.nlink(i["ticker"], E(i["name"])), B.bar(i["ch_score"], c), _pct(i["dd"]), c, i["ch_score"]))
         h.append(B.side_title("&#127942; 회복 점수 TOP 10", "#d97706") + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;' + B.FONT + '">' + trs + "</table>")
     if inc.get("ai") and ai_body:
         h.append(B.side_title("&#129302; AI 분석", "#0d1b3e"))
-        h.append(B.ai_to_html(ai_body))
+        h.append(B.link_names(B.ai_to_html(ai_body), [(i["name"], i["ticker"]) for i in items]))
     if inc.get("list") and cnt:
         trs = ""
         for k, i in enumerate(items[:n], 1):
             sc = B.tone(i["ch_score"])
-            trs += ('<tr><td align="center" style="padding:6px 3px;border-bottom:1px solid #eef2f7;font-size:12px;color:#64748b;">%d</td>'
-                    '<td style="padding:6px 3px;border-bottom:1px solid #eef2f7;font-size:13px;font-weight:800;color:#111827;">%s<div style="font-size:11px;font-weight:400;color:#94a3b8;">%s %s</div></td>'
-                    '<td align="right" style="padding:6px 3px;border-bottom:1px solid #eef2f7;font-size:13px;font-weight:900;color:%s;">%d<span style="font-size:11px;color:#64748b;"> %s</span></td>'
-                    '<td align="right" style="padding:6px 3px;border-bottom:1px solid #eef2f7;font-size:13px;font-weight:800;color:#2563eb;">%s</td>'
-                    '<td align="right" style="padding:6px 3px;border-bottom:1px solid #eef2f7;font-size:12.5px;color:#c62828;">%s</td>'
-                    '<td align="center" style="padding:6px 3px;border-bottom:1px solid #eef2f7;font-size:14px;">%s%s%s</td></tr>'
-                    % (k, E(i["name"]), E(i["ticker"]), E(i["market"]), sc, i["ch_score"], E(i["grade"]), _pct(i["dd"]), _pct(i["rebound"]) if i["rebound"] is not None else "-",
+            trs += ('<tr><td width="6%%" align="center" style="padding:7px 2px;border-bottom:1px solid #eef2f7;font-size:12px;color:#64748b;">%d</td>'
+                    '<td width="32%%" style="padding:7px 4px;border-bottom:1px solid #eef2f7;font-size:13px;font-weight:800;color:#111827;">%s<div style="font-size:11px;font-weight:400;color:#94a3b8;">%s %s</div></td>'
+                    '<td width="14%%" align="right" style="padding:7px 4px;border-bottom:1px solid #eef2f7;font-size:13px;font-weight:900;color:%s;white-space:nowrap;">%d<span style="font-size:11px;color:#64748b;"> %s</span></td>'
+                    '<td width="14%%" align="right" style="padding:7px 4px;border-bottom:1px solid #eef2f7;font-size:13px;font-weight:800;color:#2563eb;white-space:nowrap;">%s</td>'
+                    '<td width="15%%" align="right" style="padding:7px 4px;border-bottom:1px solid #eef2f7;font-size:12.5px;color:#c62828;white-space:nowrap;">%s</td>'
+                    '<td width="19%%" align="center" style="padding:7px 2px;border-bottom:1px solid #eef2f7;font-size:14px;white-space:nowrap;">%s%s%s</td></tr>'
+                    % (k, B.nlink(i["ticker"], E(i["name"])), E(i["ticker"]), E(i["market"]), sc, i["ch_score"], E(i["grade"]), _pct(i["dd"]), _pct(i["rebound"]) if i["rebound"] is not None else "-",
                        _ST_EMO.get(i["fin_st"], ""), _ST_EMO.get(i["flow_st"], ""), _ST_EMO.get(i["theme_st"], "")))
-        head = "".join('<th style="padding:7px 3px;font-size:12px;color:#475569;background-color:#f1f5f9;border-bottom:2px solid #e2e8f0;">%s</th>' % x for x in ("#", "종목", "점수", "낙폭", "저점 대비", "재무·수급·테마"))
-        h.append(B.side_title("&#128203; 낙폭 회복 후보 TOP %d" % min(n, cnt), "#2563eb") + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;' + B.FONT + '"><tr>' + head + "</tr>" + trs + "</table>")
+        wd = (6, 32, 14, 14, 15, 19)
+        head = "".join('<th width="%d%%" style="padding:7px 2px;font-size:12px;color:#475569;background-color:#f1f5f9;border-bottom:2px solid #e2e8f0;white-space:nowrap;">%s</th>' % (w_, x)
+                       for w_, x in zip(wd, ("#", "종목", "점수", "낙폭", "저점대비", "재무·수급·테마")))
+        h.append(B.side_title("&#128203; 낙폭 회복 후보 TOP %d" % min(n, cnt), "#2563eb") + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;' + B.FONT + '"><tr>' + head + "</tr>" + trs + "</table>")
         h.append('<p style="font-size:11.5px;color:#9ca3af;margin:6px 0 0;">낙폭은 52주 고점 대비, 저점 대비는 고점 이후 최저가 대비 반등폭이에요. &#9989; 회복 확인 · &#128312; 일부 · &#10060; 미흡 · &#9898; 자료 없음. 회복 점수는 신호가 몇 가지 확인되는지 보여 줄 뿐 오른다는 뜻이 아니에요.</p>')
     if inc.get("notes") and cnt:
         blocks = ""
@@ -1599,7 +1601,7 @@ def _blog_build(items, meta, ai_text, inc, title, n):
             lines = "".join('<div style="font-size:12.5px;color:#374151;line-height:1.8;">&#9642; <b>%s</b> (%s): %s</div>' % (lab, _ST_NAME.get(i[k + "_st"], ""), E("; ".join((ns.get(k) or [])[:3]) or "표시할 근거가 없어요"))
                             for k, lab in (("fin", "재무"), ("flow", "수급"), ("theme", "테마")))
             blocks += ('<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:10px 0;' + B.FONT + '"><tr><td bgcolor="#f8faff" style="background-color:#f8faff;padding:11px 14px;border:1px solid #e5e7eb;border-left:5px solid #4f46e5;">'
-                       '<div style="font-size:14px;font-weight:900;color:#111827;margin-bottom:4px;">%s <span style="font-size:11.5px;font-weight:600;color:#94a3b8;">%s · 낙폭 %s · %d점</span></div>%s</td></tr></table>' % (E(i["name"]), E(i["ticker"]), _pct(i["dd"]), i["ch_score"], lines))
+                       '<div style="font-size:14px;font-weight:900;color:#111827;margin-bottom:4px;">%s <span style="font-size:11.5px;font-weight:600;color:#94a3b8;">%s · 낙폭 %s · %d점</span></div>%s</td></tr></table>' % (B.nlink(i["ticker"], E(i["name"])), E(i["ticker"]), _pct(i["dd"]), i["ch_score"], lines))
         h.append(B.side_title("&#128270; 회복 근거 (상위 5종목)", "#0891b2") + blocks)
     h.append('<table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #d97706;border-collapse:collapse;margin:14px 0 4px;' + B.FONT + '"><tr><td bgcolor="#fffbeb" style="background-color:#fffbeb;padding:12px 16px;">'
              '<div style="font-size:13px;font-weight:900;color:#92400e;">&#9888;&#65039; 많이 떨어진 종목은 더 떨어질 수 있어요</div><div style="font-size:12.5px;color:#92400e;line-height:1.85;margin-top:4px;">'
