@@ -1070,11 +1070,16 @@ function dlDraw(){var p=DL.p;if(!p||cur!=='dl')return;var sy=window.pageYOffset|
  var cD=dlCard('🆕 신규 진입 · 🎓 졸업','직전 스크리닝 대비 변화 — 스크리닝이 끝날 때마다 결과가 자동으로 저장돼 다음 번과 비교해요');cD.id='dlDiffBox';p.appendChild(cD);dlDiffDraw(cD);
  var cR=dlCard('⚙️ 스크리닝 기준 (고급)',(DL.crit&&DL.crit.updated_at?'기준 갱신 '+DL.crit.updated_at+' · ':'')+((DL.crit&&DL.crit.source_note)||''));cR.id='dlCritBox';p.appendChild(cR);dlCritDraw(cR);
  dlWatch(true);if(DL._drawn)window.scrollTo(0,sy);DL._drawn=true}
-function dlStepRun(id){/* 단계 줄을 누르면 그 단계 작업을 바로 실행 */
+/* 단계 자동 진행([⚙ 설정] 의 단계 진행 방식): 스크리닝이 끝나면 이미지 → 블로그 글 순서로 설정대로 이어 간다 */
+var DLFLOW=['img','blog'];
+var DLACTS={
+ img:function(next){if(!DL.rows.length||!DL.imgPanel)return;dlGo('dlS3');DL.imgPanel.gen(true).then(function(){if(DL.imgPanel&&DL.imgPanel.items())next()},function(){})},
+ blog:function(){if(!DL.rows.length||!DL.blogPanel)return;dlGo('dlS4');DL.blogPanel.rebuild()}};
+function dlStepRun(id){/* 단계 줄을 누르면 그 단계 작업을 바로 실행(이어지는 단계는 설정대로) */
  if(id==='dlS1'){dlScan(true);return}
  if(!DL.rows.length){toast('먼저 ① 스크리닝을 실행하세요');return}
- if(id==='dlS3'){if(DL.imgPanel)DL.imgPanel.gen(true);return}
- if(id==='dlS4'){if(DL.blogPanel)DL.blogPanel.rebuild()}}
+ if(id==='dlS3')MiniFlow.go('delist',DLFLOW,DLACTS,'img');
+ else if(id==='dlS4')MiniFlow.go('delist',DLFLOW,DLACTS,'blog')}
 function dlGo(id){var e=$(id);if(e)e.scrollIntoView({behavior:'smooth',block:'start'})}
 /* ── 스크리닝 ── */
 function dlScan(now){if(!now&&!confirm('네이버에서 전 종목(코스피·코스닥) 시세 목록을 받아 기준에 맞는 종목을 가려냅니다(보통 10~40초). 계속할까요?'))return;
@@ -1085,7 +1090,7 @@ function dlWatch(quiet){if(DL.timer)clearInterval(DL.timer);
    if(s.running){var pc=s.pages_total?Math.min(99,Math.round(s.pages_done*100/s.pages_total)):5;e.textContent='⏳ '+(s.phase||'진행 중')+(s.pages_total?' — 시세 목록 '+s.pages_done+'/'+s.pages_total+'쪽':'')+(s.total?' · 받은 종목 '+dlN(s.total):'');e.className='note';
     if(b){b.style.display='';b.firstChild.style.width=pc+'%'}}
    else{if(b)b.style.display='none';
-    if(DL._wasRunning){DL._wasRunning=false;clearInterval(DL.timer);DL.timer=null;e.textContent=s.error?'⚠ '+s.error:'✅ 스크리닝 완료 — 위험 '+s.danger+'개 · 경계 '+s.warn+'개 (받은 종목 '+dlN(s.total)+')';e.className='note'+(s.error?' bad':'');if(!s.error)toast('스크리닝이 끝났어요 — 위험 '+s.danger+'개 · 경계 '+s.warn+'개');dlReload();return}
+    if(DL._wasRunning){DL._wasRunning=false;clearInterval(DL.timer);DL.timer=null;e.textContent=s.error?'⚠ '+s.error:'✅ 스크리닝 완료 — 위험 '+s.danger+'개 · 경계 '+s.warn+'개 (받은 종목 '+dlN(s.total)+')';e.className='note'+(s.error?' bad':'');if(!s.error)toast('스크리닝이 끝났어요 — 위험 '+s.danger+'개 · 경계 '+s.warn+'개');dlReload(s.error?null:function(){MiniFlow.run('delist',DLFLOW,DLACTS)});return}
     e.textContent=s.error?'⚠ '+s.error:'';e.className='note'+(s.error?' bad':'');if(!s.running&&!DL._wasRunning){clearInterval(DL.timer);DL.timer=null}}})}
  tick();DL.timer=setInterval(tick,1500)}
 /* ── 표 ── */
@@ -1451,6 +1456,9 @@ def register():
         "required": ["{summary}", "{items}"], "must_have": ["## 1."],
         "vars": "{today}=오늘 날짜 · {summary}=결과 요약(필수) · {items}=상위 종목(필수)",
         "desc": "스크리닝 결과를 바탕으로 '투자 시 주의점·접근 방향'을 쓰게 하는 요청문. 블로그 글에 함께 들어가요."})
+    C.register_flow("delist", "🚫 거래정지·상폐", "① 스크리닝 실행(직접 시작)", [
+        {"id": "img", "label": "② 이미지 만들기", "desc": "스크리닝이 끝나면 PNG 이미지 2장을 자동으로 그려요."},
+        {"id": "blog", "label": "③ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요. 만든 뒤 복사해서 올리면 돼요."}])
     C.register_table_hook(_ensure_delist_table)
     C.register_admin_tab("dl", "🚫 거래정지·상폐", TAB_JS + "\n" + IMG_JS, "dlLoad", menu="delist")
     # 🎚 기능별 등급 공개 — 읽기 전용 기능만. 스캔·기준 저장·공개 제외·블로그·설정·가져오기 같은 관리자 업무 주소는

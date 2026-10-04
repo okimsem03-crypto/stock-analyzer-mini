@@ -1155,21 +1155,28 @@ function dyPoll(){clearInterval(DY._poll);var g=$('dyGo');if(g)g.disabled=true;D
   api('/admin/api/daily/scan-status').then(function(s){var pg=$('dyProg');if(!pg)return;pg.innerHTML='';var pc=s.total?Math.round(s.done/s.total*100):0;var b=el('div','bar');var i=el('i');i.style.width=pc+'%';b.appendChild(i);pg.appendChild(b);
    pg.appendChild(el('div',null,(s.running?'⏳ ':'')+(s.current||'')+' · 통과 '+s.kept+'종목'));
    if(!s.running){clearInterval(DY._poll);var g2=$('dyGo');if(g2)g2.disabled=false;if(s.error){pg.appendChild(el('div',null,'⚠ '+s.error))}else if(s.scan_date){toast('스캔 완료 — '+s.saved+'종목을 저장했어요');
-    api('/admin/api/daily/state').then(function(j){DY.st=j;DY.dates=j.dates;DY.date=s.scan_date;dyHeadDraw();dyOpen(s.scan_date)})}}})},1500)}
+    api('/admin/api/daily/state').then(function(j){DY.st=j;DY.dates=j.dates;DY.date=s.scan_date;dyHeadDraw();DY._chain=1;dyOpen(s.scan_date)})}}})},1500)}
 function dyOpen(date,live){DY.date=date;if(live!=null)DY.live=live;var m=$('dyMain');if(m&&!DY.rows.length)m.innerHTML='<div class="c">⏳ 불러오는 중…</div>';
  api('/admin/api/daily/list?date='+encodeURIComponent(date)+(DY.live?'&live=1':'')).then(function(j){if(cur!=='dy')return;DY.rows=j.rows||[];DY.lk=j.locked||[];DY.src=j.src;DY.dates=j.dates||DY.dates;DY.excl=j.excluded||0;DY.prev=j.prev_date||'';DY.date=j.date;DY.flag={img:false,blog:false};dySelSync();
   if(DY.ai[DY.date]==null&&DY.date&&!ftOk('ai')){DY.ai[DY.date]='';DY.picks[DY.date]=[]}
   if(DY.ai[DY.date]==null&&DY.date){api('/admin/api/daily/ai?date='+encodeURIComponent(DY.date)).then(function(a){DY.ai[DY.date]=a.found?a.result:'';DY.picks[DY.date]=a.found?(a.picks||[]):[];DY.mc=a.found?(a.market_context||''):'';if(cur==='dy')dyMainDraw()}).catch(function(){DY.ai[DY.date]='';dyMainDraw()})}
-  dyMainDraw()})}
+  dyMainDraw();if(DY._chain){DY._chain=0;MiniFlow.run('daily',DYFLOW,DYACTS)}})}
 function dySteps(){var sp=$('dySteps');if(!sp)return;sp.innerHTML='';var has=DY.rows.length>0,ai=((DY.ai[DY.date]||'').trim().length>0),done=[has,ai,DY.flag.img||DY.flag.blog];var cur2=-1;for(var i=0;i<3;i++){if(!done[i]){cur2=i;break}}
  [['오늘의 후보',has?(DY.rows.length+'종목 · 완료'):'스캔하세요','1'],['AI 추천주',ai?'저장됨 · 다시 만들기':'눌러서 시작','2'],[MEMBER_MODE?'요약 이미지':'이미지 · 블로그 글',(DY.flag.img||DY.flag.blog)?'진행 중/완료':'눌러서 만들기','3']].forEach(function(a,i){var b=el('button',(done[i]?'done':'')+(i===cur2?' cur':''));b.setAttribute('data-noconfirm','1');b.appendChild(el('span','n',done[i]?'✓':a[2]));var t=el('span');t.appendChild(document.createTextNode(a[0]));t.appendChild(el('small',null,a[1]));b.appendChild(t);
   b.onclick=function(){var e=$('dys'+(i+1));if(e)e.scrollIntoView({behavior:'smooth',block:'start'});dyStepRun(i)};sp.appendChild(b)})}
-function dyStepRun(i){/* 단계 줄을 누르면 그 단계 작업을 바로 실행 */
+/* 단계 자동 진행([⚙ 설정] 의 단계 진행 방식): 스캔이 끝나면 AI 요청문 → 이미지 → 블로그 글 순서로 설정대로 이어 간다 */
+var DYFLOW=['ai','img','blog'];
+var DYACTS={
+ ai:function(next){if(!DY.rows.length)return;if((DY.ai[DY.date]||'').trim()){next();return}if(!ftOk('prompt'))return;dyGo2('dys2');dyAIRun()},
+ img:function(next){if(!DY.rows.length||!DY.imgPanel)return;dyGo2('dys3');DY.imgPanel.gen(true).then(function(){if(DY.imgPanel&&DY.imgPanel.items())next()},function(){})},
+ blog:function(){if(!DY.rows.length||!DY.blogPanel)return;dyGo2('dys3');DY.blogPanel.rebuild()}};
+function dyGo2(id){var e=$(id);if(e)e.scrollIntoView({behavior:'smooth',block:'start'})}
+function dyStepRun(i){/* 단계 줄을 누르면 그 단계 작업을 바로 실행(이어지는 단계는 설정대로) */
  if(i===0){if(MEMBER_MODE||DY.rows.length)return;var g=$('dyGo');if(g&&!g.disabled)g.click();return}
  if(!DY.rows.length){toast('먼저 ① 오늘의 후보를 만드세요');return}
  if(i===1){if(!ftOk('prompt')){lockDlg('prompt');return}dyAIRun();return}
  if(MEMBER_MODE){if(!ftOk('img')){lockDlg('img');return}if(DY.memGo&&!DY.memGo.disabled)DY.memGo.click();return}
- if(DY.imgPanel)DY.imgPanel.gen(true);if(DY.blogPanel)DY.blogPanel.rebuild()}
+ MiniFlow.go('daily',DYFLOW,DYACTS,'img')}
 function dyFiltered(){var f=DY.f,q=f.q.trim().toLowerCase();var a=DY.rows.filter(function(r){if(f.dip){if(!(r.day_pct<0&&r.dip>=60))return false}else if(r.score<f.min)return false;if(q&&(r.name.toLowerCase().indexOf(q)<0&&r.ticker.indexOf(q)<0))return false;return true});
  var k=f.sort;a.sort(function(x,y){if(k==='dip')return y.dip-x.dip;if(k==='pct')return (y.day_pct||0)-(x.day_pct||0);if(k==='since')return (y.since||-99)-(x.since||-99);return y.score-x.score});return a}
 function dyMainDraw(){var m=$('dyMain');if(!m)return;m.innerHTML='';dySteps();
@@ -1227,7 +1234,7 @@ function dyAIRun(){if(!window.MiniAI){toast('AI 도우미 파일(menu_ui.py)이 
  apiJ('/admin/api/daily/prompt',{date:DY.date}).then(function(j){if(j.error){toast(j.error);return}DY.mc=j.market_context;
   window.MiniAI.run({title:'오늘추천 AI — '+DY.date,key:'daily',steps:[{label:DY.date+' 후보 '+j.count+'종목',prompt:j.prompt}],minLen:300,hint:'AI가 [추천종목] [종합의견] 형식으로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
    preview:function(t){var ok=/\[추천종목\]/.test(t)||/PICKS_JSON/.test(t)||/\[(단기|중기|장기)/.test(t);var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString()+'자 — '+t.slice(0,260)+(t.length>260?' …':'');return {node:x,canApply:t.trim().length>=200,strict:ok||t.length>600}},
-   apply:function(t){DY.ai[DY.date]=t;if(MEMBER_MODE){setTimeout(dyMainDraw,50);return Promise.resolve({message:'답변을 읽어 왔어요(이 화면에서만 보관되고 저장되지 않아요).'})}return apiJ('/admin/api/daily/ai',{date:DY.date,result:t,market_context:DY.mc||''}).then(function(z){if(z.error)return {message:'읽었지만 저장하지 못했어요: '+z.error};DY.picks[DY.date]=z.picks;setTimeout(dyMainDraw,50);return {message:'AI 추천 '+z.picks.length+'종목을 저장하고 성과 추적에 넣었어요.'}})}})})}
+   apply:function(t){DY.ai[DY.date]=t;if(MEMBER_MODE){setTimeout(dyMainDraw,50);return Promise.resolve({message:'답변을 읽어 왔어요(이 화면에서만 보관되고 저장되지 않아요).'})}return apiJ('/admin/api/daily/ai',{date:DY.date,result:t,market_context:DY.mc||''}).then(function(z){if(z.error)return {message:'읽었지만 저장하지 못했어요: '+z.error};DY.picks[DY.date]=z.picks;setTimeout(function(){dyMainDraw();MiniFlow.run('daily',DYFLOW,DYACTS,'ai')},50);return {message:'AI 추천 '+z.picks.length+'종목을 저장하고 성과 추적에 넣었어요.'}})}})})}
 function dyImgMember(ib,rows){var K=window.ImgKit,row=el('div','bar'),view=dySty(el('div'),'display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:8px'),st=el('div','m');
  var go=bt('🖼 이미지 만들기','bt',function(){if(!rows.length){toast('후보가 없어요');return}go.disabled=true;go.textContent='⏳ 그리는 중…';view.innerHTML='';st.textContent='';
   Promise.resolve(K.fonts()).then(function(){return window.DyImg.build(rows.slice().sort(function(a,b){return b.score-a.score}),DY.picks[DY.date]||[],DY.date,2,DY.excl)}).then(function(items){items.forEach(function(it){var c=el('div','c');c.appendChild(el('b',null,K.CIRC[it.idx-1]+' '+it.label));
@@ -1307,6 +1314,10 @@ def register():
     C.register_admin_tab("dy", "🌟 오늘추천", TAB_JS, "dyLoad", menu="daily")
     # ── 기능별 공개: 추천형 메뉴라 법적 검토 전에는 모두 관리자만(default admin). 관리자가 [🎚 기능 공개]에서 하나씩 연다. ──
     F = C.register_feature
+    C.register_flow("daily", "🌟 오늘추천", "① 오늘 스캔하기(직접 시작)", [
+        {"id": "ai", "label": "② AI 추천주", "desc": "스캔이 끝나면 AI 요청문 창을 자동으로 열어요. AI 답변을 복사해 돌아오면 다음 단계로 이어져요(이미 저장된 AI 글이 있으면 건너뛰어요)."},
+        {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 단계가 끝나면 이미지를 자동으로 그려요."},
+        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."}])
     F("daily", "list", "후보 목록 보기", "스캔 날짜의 후보 종목 이름·점수·등락률. 이 기능이 열려 있어야 화면이 나와요(주소: 상태·목록).", default="admin",
       endpoints=["/admin/api/daily/state", "/admin/api/daily/list"])
     F("daily", "detail", "상세 근거", "RSI·이평선·52주 위치·수급·신호·음봉강세·연속 등장, 스캔 후 수익률(현재가 기준) 같은 점수의 근거 열.", default="admin")

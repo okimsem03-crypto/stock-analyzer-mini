@@ -784,7 +784,7 @@ def asset_js():
     deny = _admin_deny()
     if deny:
         return deny
-    resp = Response(B.BLOGKIT_JS + IMG.IMGKIT_JS + IMG.STOCK_JS + MAIN_JS, mimetype="application/javascript")
+    resp = Response(C.FLOW_JS + B.BLOGKIT_JS + IMG.IMGKIT_JS + IMG.STOCK_JS + MAIN_JS, mimetype="application/javascript")
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -862,7 +862,15 @@ function secAI(c,x){var s=el('div','lsec');s.id='labS2';s.appendChild(el('h4',nu
  var ps=el('div','note');ps.id='labPubState';ps.textContent=pubState();s.appendChild(ps);
  var has=LAB.ai[LAB.tk];var st=el('div','note');st.id='labAiState';st.textContent=has?('✅ AI 종합 리포트 저장됨 ('+has.length.toLocaleString()+'자) — 아래 블로그 글에 포함돼요.'):'아직 AI 종합 리포트가 없어요(없어도 블로그 글은 만들 수 있어요).';s.appendChild(st);
  var ta=el('textarea');ta.id='labAiTa';ta.placeholder='AI 종합 리포트 답변을 직접 붙여넣어도 됩니다.';ta.value=has||'';ta.oninput=function(){LAB.ai[LAB.tk]=ta.value;var z=document.getElementById('labAiState');if(z)z.textContent=ta.value.trim()?('✍ 직접 입력/붙여넣기 ('+ta.value.length.toLocaleString()+'자)'):'아직 AI 종합 리포트가 없어요(없어도 블로그 글은 만들 수 있어요).'};s.appendChild(ta);c.appendChild(s)}
-function afterAI(){drawSteps();if(window.ImgKit&&window.ImgKit.mode()==='auto'&&window.ImgKit.when()==='ai'&&LAB.imgPanel&&!LAB.st.img)LAB.imgPanel.gen(true)}
+/* 단계 자동 진행([⚙ 설정] 의 단계 진행 방식): 분석 열기 → AI → 이미지 → 글 → 블로그에 쓰기. 수동으로 둔 단계에서는 멈춘다. */
+var LABFLOW=['ai','img','blog','post'];
+var LABACTS={
+ ai:function(next){if(pubText()&&LAB.ai[LAB.tk]&&String(LAB.ai[LAB.tk]).trim()){next();return}scrollTo2('labS2');runBoth()},
+ img:function(next){if(LAB.st.img){next();return}if(!LAB.imgPanel)return;scrollTo2('labS3');LAB.imgPanel.gen(true).then(function(){if(LAB.st.img)next()},function(){})},
+ blog:function(next){if(LAB.st.blog){next();return}if(!LAB.blogPanel)return;scrollTo2('labS4');LAB.blogPanel.rebuild()},
+ post:function(){if(LAB.st.blog&&LAB.blogPanel)LAB.blogPanel.copyOpen()}};
+function labFlow(from){if(window.MiniFlow)window.MiniFlow.run('stock',LABFLOW,LABACTS,from)}
+function afterAI(){drawSteps();var fl=window.MiniFlow;if(window.ImgKit&&window.ImgKit.mode()==='auto'&&window.ImgKit.when()==='ai'&&LAB.imgPanel&&!LAB.st.img&&!(fl&&fl.auto('stock','img')))LAB.imgPanel.gen(true);setTimeout(function(){labFlow('ai')},200)}
 function applyLab(t){LAB.ai[LAB.tk]=t;setTimeout(afterAI,50);var ta=document.getElementById('labAiTa');if(ta)ta.value=t;var z=document.getElementById('labAiState');if(z)z.textContent='✅ AI 종합 리포트 저장됨 ('+t.length.toLocaleString()+'자) — 아래 블로그 글에 포함돼요.'}
 function applyPub(t){setTimeout(drawSteps,50);var b=document.getElementById('aiPasteBox');if(b){b.value=t;try{renderAiResult()}catch(e){}}var z=document.getElementById('labPubState');if(z)z.textContent=pubState()}
 function prevLab(t){var ok=/##\s*1\./.test(t)||t.length>600;var d=el('div');d.textContent=t.slice(0,500)+(t.length>500?' …':'');var can=t.trim().length>=200;return {node:d,canApply:can,strict:ok,text:ok?null:'형식(## 1. 한줄 결론 …)이 보이지 않아요. 다른 답변이면 저장하지 마세요. 맞는 답변이면 [저장]을 눌러도 돼요.'}}
@@ -887,7 +895,7 @@ function secImg(c,x){var s=el('div','lsec');s.id='labS3';s.appendChild(el('h4',n
  LAB.imgPanel=window.ImgKit.panel(box,{menu:'stock',name:LAB.x.name,ticker:LAB.tk,onDone:function(){LAB.st.img=true;drawSteps()},gen:function(scale){if(!LAB.cur)return Promise.reject(new Error('분석 결과를 찾지 못했어요. 종목을 다시 분석해 주세요.'));return Promise.resolve(window.ImgKit.stock.build(LAB.cur,LAB.x,scale))}})}
 var SEC=[['summary','핵심지표'],['score','5축점수'],['supply','수급'],['fin','재무'],['disc','공시'],['news','뉴스'],['pubai','AI분석(하단)'],['ai','AI종합리포트']];
 function secBlog(c,x){var s=el('div','lsec');s.id='labS4';s.appendChild(el('h4',null,'④⑤ 📝 글 만들기 → 블로그에 쓰기 (네이버 블로그용 HTML)'));var box=el('div');s.appendChild(box);c.appendChild(s);
- LAB.blogPanel=window.BlogKit.panel(box,{idp:'lab',key:'stock',kind:'stock',ticker:LAB.tk,name:LAB.x.name,sections:SEC,dup_warn:x.dup_warn,onBuilt:function(){LAB.st.blog=true;drawSteps()},onCopied:function(){LAB.st.posted=true;drawSteps()},
+ LAB.blogPanel=window.BlogKit.panel(box,{idp:'lab',key:'stock',kind:'stock',ticker:LAB.tk,name:LAB.x.name,sections:SEC,dup_warn:x.dup_warn,onBuilt:function(){LAB.st.blog=true;drawSteps();labFlow('blog')},onCopied:function(){LAB.st.posted=true;drawSteps()},
   build:function(inc,title){var pt=pubText();if(!pt)inc.pubai=false;return api(BASE+'blog',{ticker:LAB.tk,ai:(LAB.ai[LAB.tk]||''),pub_ai:pt,inc:inc,title:title})},
   onLogged:function(z){LAB.x.dup_warn=z.dup_warn}})}
 
@@ -897,7 +905,7 @@ function drawSteps(){var h=document.getElementById('labSteps');if(!h)return;h.in
  var acts=[
   {t:'분석 열기',sub:d[0]?'자동 완료 · 다시 불러오기':'불러오는 중',go:function(){load()}},
   {t:'AI 분석 + 종합 리포트',sub:ai>=2?'둘 다 완료':(ai===1?'1/2 완료 · 이어서 진행':'눌러서 시작'),go:function(){scrollTo2('labS2');runBoth()}},
-  {t:'이미지 만들기',sub:d[2]?'완료 · 다시 만들기':(window.ImgKit&&window.ImgKit.mode()==='auto'?'자동 저장 켜짐':'눌러서 만들기'),go:function(){scrollTo2('labS3');if(LAB.imgPanel)LAB.imgPanel.gen(true)}},
+  {t:'이미지 만들기',sub:d[2]?'완료 · 다시 만들기':(window.ImgKit&&window.ImgKit.mode()==='auto'?'자동 저장 켜짐':'눌러서 만들기'),go:function(){scrollTo2('labS3');if(LAB.imgPanel)LAB.imgPanel.gen(true).then(function(){if(LAB.st.img)labFlow('img')},function(){})}},
   {t:'글 만들기',sub:d[3]?'완료 · 다시 만들기':'눌러서 만들기',go:function(){scrollTo2('labS4');if(LAB.blogPanel)LAB.blogPanel.rebuild()}},
   {t:'블로그에 쓰기',sub:d[4]?'복사·열기 완료':(d[3]?'복사하고 블로그 열기':'글을 먼저 만드세요'),go:function(){scrollTo2('labS4');if(LAB.blogPanel)LAB.blogPanel.copyOpen()}}];
  var done=[d[0],ai>=1,d[2],d[3],d[4]],cur=-1;for(var i=0;i<done.length;i++){if(!done[i]){cur=i;break}}
@@ -911,14 +919,15 @@ function draw(){var c=card();if(!c)return;var x=LAB.x;head(c,x);
  var d=el('details','lsec');d.id='labS1';d.open=true;d.appendChild(el('summary',null,'① 분석 결과 — 종합 '+x.score.total+'점 · '+x.score.grade+' (5축·수급·재무·공시)'));c.appendChild(d);
  secScore(d,x);secSupply(d,x);secFin(d,x);secDisc(d,x);
  secAI(c,x);secImg(c,x);secBlog(c,x);drawSteps();
- if(LAB.autoImg){LAB.autoImg=false;if(LAB.imgPanel)LAB.imgPanel.gen(true)}}
+ if(LAB.autoImg){LAB.autoImg=false;if(LAB.imgPanel)LAB.imgPanel.gen(true)}
+ if(LAB._ft!==LAB.tk){LAB._ft=LAB.tk;setTimeout(function(){labFlow()},300)}}
 window.__onAnalysis=function(d){if(!d||!d.ticker)return;var changed=LAB.tk!==d.ticker;LAB.tk=d.ticker;LAB.name=d.name;LAB.cur=d;if(changed){LAB.x=null;LAB.blog=null;LAB.open=false;LAB.st={img:false,blog:false,posted:false};LAB.imgPanel=null;LAB.blogPanel=null}
  if(!window.MiniAI&&!LAB._ldm){LAB._ldm=1;var s=document.createElement('script');s.src='/assets/mini-ui.js';document.head.appendChild(s)}
  var c=document.getElementById('labCard');if(c)c.remove();
  if(LAB.x&&LAB.x.ticker===d.ticker&&LAB.open){draw();return}
  LAB.autoImg=!!(window.ImgKit&&window.ImgKit.mode()==='auto'&&window.ImgKit.when()==='analysis');
  load()};
-window.__onReset=function(){var c=document.getElementById('labCard');if(c)c.remove();LAB.tk=null;LAB.x=null;LAB.open=false};
+window.__onReset=function(){var c=document.getElementById('labCard');if(c)c.remove();LAB._ft=null;LAB.tk=null;LAB.x=null;LAB.open=false};
 if(window.__LAB_PENDING__){window.__onAnalysis(window.__LAB_PENDING__);window.__LAB_PENDING__=null}
 })();
 """
@@ -930,4 +939,10 @@ def register():
         "title": "AI 종합 리포트(분석실) 프롬프트", "default": LAB_REPORT_DEFAULT, "required": ["{data}"], "must_have": ["## 1."],
         "vars": "{data}=종목 데이터 요약(필수) · {name} · {ticker} · {today}",
         "desc": "관리자 분석실에서 AI에게 보내는 종합 리포트 요청문. '## 1.' 형식 제목을 유지해야 블로그 글에 예쁘게 들어가요."})
+    C.register_flow("stock", "📈 종목분석 (분석실)", "① 종목 분석 열기(분석이 열리면 자동으로 시작)", [
+        {"id": "ai", "label": "② AI 분석 + 종합 리포트", "desc": "분석이 열리면 AI 요청문 창을 자동으로 열어요. 답변을 복사해 돌아오면 다음 단계로 이어져요(이미 둘 다 있으면 건너뛰어요)."},
+        {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 단계가 끝나면 이미지를 자동으로 그려요."},
+        {"id": "blog", "label": "④ 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."},
+        {"id": "post", "label": "⑤ 블로그에 쓰기(복사하고 열기)", "default": "manual",
+         "desc": "글을 만든 뒤 자동으로 복사하고 블로그를 열어요. 브라우저가 자동 복사·새 창을 막는 경우가 있어 기본은 수동이에요."}])
     return bp

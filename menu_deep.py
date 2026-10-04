@@ -845,7 +845,7 @@ window.__openTicker=function(t){try{localStorage.setItem('mini_deep_ticker',Stri
 function dpSavedDraw(p){var sv=$('dpSaved');if(!sv)return;sv.innerHTML='';if(!DP.saved||!DP.saved.length)return;sv.appendChild(el('span','m','원본 저장분 있는 종목(최근순): '));
  DP.saved.slice(0,24).forEach(function(x){var b=bt((x.name||x.ticker)+' '+x.at.slice(5),'bt3',function(){dpOpen(x.ticker,p)});b.style.margin='2px';sv.appendChild(b)})}
 function dpOpen(tk,p,peers){DP.tk=tk;var b=$('dpBody');b.innerHTML='';b.appendChild(el('div','c','⏳ 재무·수급·공시·PEER를 모으는 중… (처음 한 번 5~10초)'));
- apiJ('/admin/api/deep/data',{ticker:tk,peers:peers||DP.peers[tk]||[]}).then(function(j){if(j.error){b.innerHTML='';b.appendChild(el('div','c bad','⚠ '+j.error));return}DP.d=j;dpDraw(p)})}
+ apiJ('/admin/api/deep/data',{ticker:tk,peers:peers||DP.peers[tk]||[]}).then(function(j){if(j.error){b.innerHTML='';b.appendChild(el('div','c bad','⚠ '+j.error));return}DP.d=j;DP._chain=1;dpDraw(p)})}
 var DPCSS='.dpH{background:linear-gradient(135deg,#0a1228 0%,#16275a 62%,#243a73 100%);color:#fff;border-radius:18px;padding:20px 22px;display:grid;grid-template-columns:200px 1fr 340px;gap:14px;align-items:center;position:relative;overflow:hidden;margin-bottom:12px;box-shadow:0 14px 36px -16px rgba(10,18,40,.7)}'+
 '.dpH:after{content:"";position:absolute;right:-70px;top:-70px;width:260px;height:260px;border-radius:50%;background:radial-gradient(closest-side,rgba(214,178,94,.38),transparent)}'+
 '.dpH>*{position:relative;z-index:1}.dpHm h2{margin:0;font-size:26px;font-weight:900;letter-spacing:-.02em}.dpHm .kk{font-size:11px;letter-spacing:.2em;color:#d6b25e;font-weight:800}.dpHm .mt{color:#cbd5e1;font-size:13px;margin-top:6px;line-height:1.7}'+
@@ -945,14 +945,21 @@ function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML
  /* ── 블로그 ── */
  if(!MEMBER_MODE){var c9=dpSec(b,'blog','📝 블로그 글 만들기','원본 방식 HTML'+((d.delisting&&d.delisting.level&&d.delisting.level!=='none')?' · ⚠ 위험 경고 자동 포함':''),'#16a34a');navAdd('blog','📝 글');var bx=el('div');c9.appendChild(bx);
  var secs=[['profile','기업현황'],['fin','5개년재무'],['score','체력진단'],['valu','밸류에이션'],['peers','PEER'],['check','체크리스트'],['supply','수급'],['disc','공시·뉴스'],['ai','AI분석'],['terms','용어풀이']];
- window.BlogKit.panel(bx,{idp:'dp',key:'deepdive',kind:'deepdive',ticker:d.ticker,name:d.name,sections:secs,dup_warn:d.dup_warn,
-  build:function(inc,title){return apiJ('/admin/api/deep/blog',{ticker:d.ticker,peers:DP.peers[d.ticker]||[],ai:DP.ai[d.ticker]||'',inc:inc,title:title})},onLogged:function(z){d.dup_warn=z.dup_warn}})}}
+ DP.blogPanel=window.BlogKit.panel(bx,{idp:'dp',key:'deepdive',kind:'deepdive',ticker:d.ticker,name:d.name,sections:secs,dup_warn:d.dup_warn,
+  build:function(inc,title){return apiJ('/admin/api/deep/blog',{ticker:d.ticker,peers:DP.peers[d.ticker]||[],ai:DP.ai[d.ticker]||'',inc:inc,title:title})},onLogged:function(z){d.dup_warn=z.dup_warn}})}
+ if(DP._chain&&!MEMBER_MODE){DP._chain=0;MiniFlow.run('deep',DPFLOW,DPACTS)}}
+/* 단계 자동 진행([⚙ 설정] 의 단계 진행 방식): 분석이 열리면 AI → 이미지 → 블로그 글 순서로 설정대로 이어 간다 */
+var DPFLOW=['ai','img','blog'];
+var DPACTS={
+ ai:function(next){var d=DP.d;if(!d||MEMBER_MODE)return;if((DP.ai[d.ticker]||'').trim()){next();return}var e=$('dps_ai')||$('dpAiTa');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'});dpAI(d)},
+ img:function(next){if(!DP.imgPanel)return;var e=$('dps_img');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'});DP.imgPanel.gen(true).then(function(){if(DP.imgPanel&&DP.imgPanel.items())next()},function(){})},
+ blog:function(){if(!DP.blogPanel)return;DP.blogPanel.rebuild()}};
 function dpAiState(){var d=DP.d,z=$('dpAiState');if(!z||!d)return;var t=DP.ai[d.ticker]||'';z.textContent=t.trim()?('✅ AI 글 '+t.length.toLocaleString()+'자'+(MEMBER_MODE?' — 이 화면에만 있어요.':' — 블로그 글에 포함돼요.')):(MEMBER_MODE?'아직 AI 글이 없어요.':'아직 AI 글이 없어요(없어도 블로그 글은 만들 수 있어요).')}
 function dpAI(d){if(!window.MiniAI){toast('AI 도우미 파일(menu_ui.py)이 올라가지 않았어요.');return}
  apiJ('/admin/api/deep/prompt',{ticker:d.ticker,peers:DP.peers[d.ticker]||[]}).then(function(j){if(j.error){toast(j.error);return}
   window.MiniAI.run({title:'기업 심층분석 AI — '+j.name,key:'deep',steps:[{label:j.name,prompt:j.prompt}],minLen:400,hint:'AI가 "## 1. 사업 현황 …" 형식으로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
    preview:function(t){var ok=/##\s*1\./.test(t)||t.length>900;var n=(t.match(/^#{1,4}\s*\d+\./gm)||[]).length;var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString()+'자 · 섹션 '+n+'개 — '+t.slice(0,300)+(t.length>300?' …':'');var can=t.trim().length>=300;return {node:x,canApply:can,strict:ok,text:ok?null:'형식(## 1. 사업 현황 …)이 보이지 않아요. 다른 답변이면 저장하지 마세요. 맞는 답변이면 [저장]을 눌러도 돼요.'}},
-   apply:function(t){DP.ai[d.ticker]=t;var ta=$('dpAiTa');if(ta)ta.value=t;dpAiState();return Promise.resolve({message:'AI 글을 읽어 왔어요. 아래 [글 만들기]를 누르세요.'})}})})}
+   apply:function(t){DP.ai[d.ticker]=t;var ta=$('dpAiTa');if(ta)ta.value=t;dpAiState();setTimeout(function(){MiniFlow.run('deep',DPFLOW,DPACTS,'ai')},200);return Promise.resolve({message:'AI 글을 읽어 왔어요. 설정에 따라 이미지·글이 이어서 만들어져요.'})}})})}
 (function(){
 var K=window.ImgKit;if(!K||window.DpImg)return;
 var T=K.text,N=K.n,RR=K.rr;
@@ -1071,4 +1078,8 @@ def register():
       default="L2", endpoints=["/admin/api/deep/prompt"], kind="tool")
     F("deep", "img", "요약 이미지 내려받기", "종합점수·5축·재무·통합 요약을 이미지 3장으로 만들어 내려받아요.", default="L3", kind="tool")
     # 블로그 글 만들기(deep/blog)·작성 이력 등 관리자 업무는 어떤 기능에도 넣지 않았다 → 관리자 화면에서만 동작(회원 화면에서는 아예 숨김)
+    C.register_flow("deep", "🏛 심층분석", "① 종목 심층분석 열기(분석이 열리면 자동으로 시작)", [
+        {"id": "ai", "label": "② AI 정성 분석", "desc": "분석이 열리면 AI 요청문 창을 자동으로 열어요. 답변을 복사해 돌아오면 다음 단계로 이어져요(이미 AI 글이 있으면 건너뛰어요)."},
+        {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 단계가 끝나면 이미지 3장을 자동으로 그려요."},
+        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."}])
     return bp

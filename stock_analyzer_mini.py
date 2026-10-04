@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v152 — 각 메뉴의 단계가 원스톱으로 자동 진행돼요(거래정지·상폐 / 오늘추천 / 종목분석 / 심층분석). 관리자 설정에서 단계마다 '자동·수동'을 고를 수 있고 기본은 자동이에요. 수동 단계에서는 멈추고, 직접 끝내면 뒤 단계가 다시 자동으로 이어져요
 ✨ v151 — 상단 단계 줄(거래정지·상폐 / 오늘추천 / 종목분석)을 누르면 이동만 하지 않고 그 단계 작업이 바로 실행돼요(스크리닝 시작·AI 요청문 창·이미지 만들기·글 만들기). 단계 줄이 저장 확인창에 걸려 멈추던 문제도 고쳤어요
 ✨ v150 — 🚫 거래정지·상폐: AI 검증 단계를 없앴어요(AI가 공식 자료를 직접 조회하지 못해 '확인불가'만 나왔음). 스크리닝 때 네이버 거래상태에 거래정지·관리종목·상장폐지·정리매매가 표시된 종목이 일반 이용자 목록에 자동으로 올라가고(거래 재개 시 내려감), 기준 미달·'오래 거래 없음' 같은 추정 신호는 공개하지 않아요. 화면은 ①스크리닝 → ②이미지 → ③블로그 글 3단계, 잘못 올라간 종목은 '공개에서 제외'
 ✨ v149 — 🚫 거래정지·상폐 개편: 화면을 ①스크리닝 → ②AI 검증 → ③이미지 → ④블로그 글 4단계로 위에서 아래로 정리(상단 단계 표시줄), '관리자 확정·공개' 버튼 제거(AI가 공시로 확인한 종목은 자동 공개, 잘못된 종목만 '공개에서 제외'), 서버 AI 자동 검증을 AI 검증의 '방식'으로 통합하고 AI 조언은 블로그 글 단계로 이동, 기준 스냅샷은 스크리닝 때 자동 저장(수동 저장·이력 삭제 제거), 이미지 만들기 버튼 단일화
@@ -333,7 +334,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v151"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v152"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4550,7 +4551,14 @@ function mnLoad(p){api('/admin/api/settings').then(function(d){if(cur!=='mn')ret
  var s=el('div','c');s.appendChild(el('b',null,'🚫 거래정지·상폐 스캔 설정'));
  var days=el('input');days.type='number';days.min=3;days.max=60;days.value=d.delist_stale_days;days.style.width='80px';var r3=el('div','bar');r3.appendChild(el('span',null,'마지막 거래일이 며칠 이상 지나면 거래정지 의심으로 볼까요?'));r3.appendChild(days);s.appendChild(r3);
  var cs=el('input');cs.type='checkbox';cs.checked=d.delist_include_caution==='1';var r4=el('div','bar');r4.appendChild(cs);r4.appendChild(el('span',null,'동전주(1,000원 미만)도 후보에 넣기 — 목록이 많이 길어져요'));s.appendChild(r4);
- s.appendChild(bt('💾 스캔 설정 저장','bt',function(){apiJ('/admin/api/settings',{delist_stale_days:String(days.value),delist_include_caution:cs.checked?'1':'0'}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})}));p.appendChild(ss);p.appendChild(ms);p.appendChild(s)})}
+ s.appendChild(bt('💾 스캔 설정 저장','bt',function(){apiJ('/admin/api/settings',{delist_stale_days:String(days.value),delist_include_caution:cs.checked?'1':'0'}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})})); var fc=el('div','c');fc.appendChild(el('b',null,'⚡ 단계 진행 방식 (원스톱)'));
+ fc.appendChild(el('p','note','메뉴마다 첫 단계(스캔·스크리닝·분석 열기)를 시작하면, 뒤 단계를 어떻게 이어 갈지 단계별로 정해요. 자동 = 앞 단계가 끝나면 이 단계를 알아서 실행 · 수동 = 이 단계에서 멈추고 직접 눌러요(직접 끝내면 그 뒤 단계는 다시 자동으로 이어져요). AI 단계는 AI 답변을 복사해 붙여 넣는 일이 있어, 자동이면 요청문 창을 자동으로 열어 줘요. 관리자 화면에서만 적용되고 회원 화면은 늘 직접 눌러요.'));
+ var fsel={};(d.flows||[]).forEach(function(f){var bx=el('div','c');bx.appendChild(el('b',null,f.label));bx.appendChild(el('div','note','시작: '+f.start));
+  f.steps.forEach(function(st){var r=el('div','bar');var nm=el('span',null,st.label);r.appendChild(nm);var x=mkSel([['auto','⚡ 자동'],['manual','✋ 수동']],d['flow_'+f.menu+'_'+st.id]||st.default);fsel['flow_'+f.menu+'_'+st.id]=x;r.appendChild(x);bx.appendChild(r);if(st.desc)bx.appendChild(el('div','note',st.desc))});fc.appendChild(bx)});
+ if(!(d.flows||[]).length)fc.appendChild(el('p','note','단계 흐름이 있는 메뉴가 아직 없어요.'));
+ else{var fb=bt('💾 단계 진행 방식 저장','bt',function(){var o={};Object.keys(fsel).forEach(function(k){o[k]=fsel[k].value});apiJ('/admin/api/settings',o).then(function(j){if(j.error)toast(j.error);else{if(window.MiniFlow)MiniFlow.reset();toast('저장했어요')}})});fc.appendChild(fb);
+  var fa=bt('모두 자동으로','bt2',function(){Object.keys(fsel).forEach(function(k){fsel[k].value='auto'})});fc.appendChild(fa)}
+ p.appendChild(fc);p.appendChild(ss);p.appendChild(ms);p.appendChild(s)})}
 
 /*__MODULE_JS__*/
 var HH=(location.hash||'').slice(1);if(TABS.some(function(t){return t[0]===HH}))cur=HH;
@@ -4616,6 +4624,55 @@ def register_admin_lib(js):
     if any(t in js for t in ("{{", "{%", "{#")):
         raise ValueError("관리자 공용 JS에 {{ {% {# 를 쓸 수 없어요.")
     ADMIN_LIB_JS.append(js)
+
+
+# ── [v152] 단계 자동 진행(원스톱) ──────────────────────────────────────────────
+# 메뉴 모듈이 register_flow(메뉴, 이름, 시작문구, [단계…]) 로 '앞 단계가 끝나면 다음 단계를 자동으로 실행'할 단계들을 알리면
+# [⚙ 설정] 의 '단계 진행 방식' 카드에서 단계마다 자동/수동을 고른다(기본 자동). 값은 flow_<메뉴>_<단계> 설정에 저장된다.
+FLOWS = []
+_FLOW_ID_RE = re.compile(r"^[a-z][a-z0-9]{0,11}$")
+
+
+def _flow_valid(k, v):
+    return v if v in ("auto", "manual") else None
+
+
+def register_flow(menu, label, start, steps):
+    """steps: [{"id","label","desc","default"('auto'|'manual', 기본 auto)}]. 첫 단계(start)는 이용자가 직접 시작하고, steps 는 그 뒤 단계들이다."""
+    if not _FLOW_ID_RE.match(str(menu).replace("_", "")) or any(f["menu"] == menu for f in FLOWS):
+        raise ValueError(f"단계 흐름 메뉴 id가 올바르지 않거나 중복이에요: {menu!r}")
+    out = []
+    for st in steps:
+        sid = str(st["id"])
+        if not _FLOW_ID_RE.match(sid):
+            raise ValueError(f"단계 id가 올바르지 않아요: {sid!r}")
+        d = st.get("default", "auto")
+        out.append({"id": sid, "label": str(st.get("label", sid)), "desc": str(st.get("desc", "")), "default": d if d in ("auto", "manual") else "auto"})
+        key = f"flow_{menu}_{sid}"
+        SETTING_DEFAULTS.setdefault(key, out[-1]["default"])
+        SETTING_VALIDATORS[key] = _flow_valid
+    FLOWS.append({"menu": menu, "label": str(label), "start": str(start), "steps": out})
+
+
+def flow_modes():
+    return {f"{f['menu']}.{st['id']}": (setting_get(f"flow_{f['menu']}_{st['id']}", st["default"]) or st["default"]) for f in FLOWS for st in f["steps"]}
+
+
+FLOW_JS = r"""
+(function(){if(window.MiniFlow)return;var M={modes:null};
+M.member=function(){return typeof MEMBER_MODE!=='undefined'&&MEMBER_MODE};
+M.load=function(cb){if(M.modes){cb();return}
+ fetch('/admin/api/flow/modes',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){M.modes=(j&&j.modes)||{}}).catch(function(){M.modes={}}).then(cb)};
+M.auto=function(menu,id){return !M.member()&&!(M.modes&&M.modes[menu+'.'+id]==='manual')};
+/* from 다음 단계부터 차례로 실행한다. 단계 함수는 끝나면 next() 를 부르고, 수동 단계를 만나면 거기서 멈춘다(직접 끝내면 그 뒤는 다시 이어진다). */
+M.run=function(menu,ids,acts,from){if(M.member())return;M.load(function(){var i=from?ids.indexOf(from)+1:0;
+ function step(){if(i>=ids.length)return;var id=ids[i++];if(!acts[id]||!M.auto(menu,id))return;try{acts[id](step)}catch(e){}}step()})};
+/* 이용자가 단계를 직접 눌렀을 때: 그 단계를 실행하고 끝나면 뒤 단계를 자동 설정대로 이어 간다. */
+M.go=function(menu,ids,acts,id){if(!acts[id])return;try{acts[id](function(){M.run(menu,ids,acts,id)})}catch(e){}};
+M.reset=function(){M.modes=null};
+window.MiniFlow=M})();
+"""
+ADMIN_LIB_JS.append(FLOW_JS)
 
 
 ADMIN_TAB_JS = {}           # [v148] 탭 id → 그 탭의 JS(회원 화면 /m/<메뉴> 가 이 탭 하나만 골라 쓴다)
@@ -5438,7 +5495,7 @@ def admin_api_settings():
     avail, _ = ai_providers()
     out = {k: setting_get(k) for k in SETTING_DEFAULTS}
     out.update(menus=_menus_admin_list(), providers=avail, provider_now=ai_pick_provider(),
-               default_models=AI_DEFAULT_MODELS)
+               default_models=AI_DEFAULT_MODELS, flows=FLOWS)
     return _admin_json(out)
 
 
@@ -5460,6 +5517,14 @@ def admin_api_settings():
 
 
 
+
+
+@app.route("/admin/api/flow/modes")
+def admin_api_flow_modes():
+    deny = _admin_deny()
+    if deny:
+        return deny
+    return _admin_json({"modes": flow_modes()})
 
 
 @app.route("/admin/api/job/<jid>")
