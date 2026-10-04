@@ -211,7 +211,8 @@ function run(opt){
   body.appendChild(s3);if(lastText)preview(lastText,true)}
  function openAI(s){var ok=copyText(s.prompt);var S=SITES[site],u=S.u,viaHelper=false;
   if(helperOn()){curJob=newJob();var hostN='';try{hostN=new URL(S.u).hostname}catch(e){}helperPost({id:curJob,prompt:s.prompt,host:hostN});gotMsg=false;clearTimeout(hTm);
-   var w=null;try{w=window.open(S.u+'#miniai='+curJob,'_blank')}catch(e){w=null}
+   var pl='';try{if(s.prompt.length<=24000)pl='&p='+btoa(unescape(encodeURIComponent(s.prompt))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(e){pl=''}
+   var w=null;try{w=window.open(S.u+'#miniai='+curJob+pl,'_blank')}catch(e){w=null}
    if(w){viaHelper=true;var jb=curJob;hTm=setTimeout(function(){if(!gotMsg&&!closed&&curJob===jb)setLive('⚠ 20초가 지나도 도우미 응답이 없어요. 프롬프트는 복사돼 있으니 '+S.n+' 입력칸에 Ctrl+V 해서 이어가세요. 도우미가 동작하게 하려면: ① 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’ ② 같은 곳의 ‘사용자 스크립트 허용’ 켜기 ③ 열려 있는 AI 탭을 새로고침 ④ 이 화면도 새로고침 후 다시 시도.','bad')},20000)}else{curJob=null;openUrl(S.u)}}
   else{if(S.q){var enc=encodeURIComponent(s.prompt);if(enc.length<=PREFILL_MAX*3)u=S.q+enc}openUrl(u)}
   armed=true;seen[norm(s.prompt)]=1;draw();
@@ -331,7 +332,7 @@ def _js_str(s):
 HELPER_JS = r"""// ==UserScript==
 // @name         종목분석 미니 · AI 도우미
 // @namespace    __ORIGIN__
-// @version      1.2.0
+// @version      1.3.0
 // @updateURL    __ORIGIN__/assets/mini-ai-helper.user.js
 // @downloadURL  __ORIGIN__/assets/mini-ai-helper.user.js
 // @description  종목분석 미니에서 [AI 열기]를 누르면 AI 사이트에서 프롬프트 입력 → 전송 → 답변 복사 → 탭 닫기까지 자동으로 해 주고, 답변을 종목분석 미니로 바로 돌려줍니다.
@@ -348,13 +349,13 @@ HELPER_JS = r"""// ==UserScript==
 // @run-at       document-start
 // @noframes
 // ==/UserScript==
-/* 종목분석 미니 AI 도우미 v1.2.0
+/* 종목분석 미니 AI 도우미 v1.3.0
  * · 종목분석 미니 화면에서 보낸 작업(프롬프트)만 처리합니다. 다른 경로로 열린 AI 화면은 건드리지 않아요.
  * · 이 스크립트는 사용자의 브라우저 안에서만 동작하며, 로그인 정보·대화 내용을 어디로도 보내지 않습니다.
  * · AI 사이트 화면이 개편되면 자동 진행이 멈출 수 있어요. 그때는 프롬프트가 복사돼 있으니 직접 붙여넣으면 됩니다. */
 (function () {
   'use strict';
-  var ORIGIN = '__ORIGIN__', VER = '1.2.0';
+  var ORIGIN = '__ORIGIN__', VER = '1.3.0';
   function gget(k) { try { return Promise.resolve(GM_getValue(k, null)); } catch (e) { return Promise.resolve(null); } }
   function gset(k, v) { try { return Promise.resolve(GM_setValue(k, v)); } catch (e) { return Promise.resolve(); } }
   function gdel(k) { try { return Promise.resolve(GM_deleteValue(k)); } catch (e) { return Promise.resolve(); } }
@@ -388,6 +389,10 @@ HELPER_JS = r"""// ==UserScript==
   /* ───────── 2) AI 사이트 쪽 ───────── */
   if (window.top !== window) return;
   var m = /[#&]miniai=([A-Za-z0-9_-]{6,64})/.exec(location.hash);
+  var PL = /[#&]p=([A-Za-z0-9_-]+)/.exec(location.hash);
+  function dec(x) { try { x = x.replace(/-/g, '+').replace(/_/g, '/'); while (x.length % 4) x += '='; return decodeURIComponent(escape(atob(x))); } catch (e) { return ''; } }
+  var HASHJOB = (m && PL) ? { id: m[1], prompt: dec(PL[1]), host: location.hostname, ts: Date.now() } : null;   /* 주소에 프롬프트를 같이 실어 보내서, 저장소 전달이 안 돼도 진행돼요 */
+  if (HASHJOB && HASHJOB.prompt.length < 20) HASHJOB = null;
   var JOB = m ? m[1] : null;   /* 주소 끝(#miniai=…)이 사라진 경우에도 방금 보낸 작업을 찾아 이어가요(findJob) */
   if (m) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
 
@@ -614,7 +619,8 @@ HELPER_JS = r"""// ==UserScript==
 
   async function main() {
     if (JOB) banner('🤖 종목분석 미니 도우미 · 작업을 확인하는 중…');
-    var job = await findJob();
+    var job = HASHJOB;
+    if (job) await gset('job', job); else job = await findJob();
     if (!job && !JOB) return;   /* 그냥 직접 연 AI 화면: 아무것도 하지 않아요 */
     if (!job) { rescue(); return; }
     /* 작업은 끝날 때까지 지우지 않아요: 화면이 새로고침돼 도우미가 다시 시작돼도 작업을 잃지 않게 */
@@ -725,7 +731,7 @@ def helper_page():
         '<b>🔧 설치했는데 자동으로 안 될 때 (순서대로 확인)</b><br>'
         '① 위 ‘설치 여부’가 ✅ 로 나오는지 — 안 나오면 이 화면을 새로고침(Ctrl+F5)<br>'
         '② Tampermonkey [세부정보]에서 <b>사용자 스크립트 허용 ON</b>, <b>사이트 액세스 = 모든 사이트에서</b><br>'
-        '③ Tampermonkey 대시보드에서 ‘종목분석 미니 · AI 도우미’가 <b>켜짐</b>(파란 스위치)인지, 버전이 <b>1.2.0</b>인지 — 아니면 아래 [도우미 설치]를 다시 눌러 ‘업데이트/재설치’<br>'
+        '③ Tampermonkey 대시보드에서 ‘종목분석 미니 · AI 도우미’가 <b>켜짐</b>(파란 스위치)인지, 버전이 <b>1.3.0</b>인지 — 아니면 아래 [도우미 설치]를 다시 눌러 ‘업데이트/재설치’<br>'
         '④ AI 사이트(제미나이 등)에 <b>로그인</b>된 상태인지, 이미 열려 있던 AI 탭은 새로고침<br>'
         '⑤ 그래도 안 되면: [AI 열기] 때 프롬프트는 이미 복사돼 있으니 AI 입력칸에 Ctrl+V → 전송 → 답변 복사 후 이 창으로 돌아오면 기존 방식으로 가져와요.</div>'
         '<p><a class="mu-btn" href="/assets/mini-ai-helper.user.js" style="display:inline-block;padding:10px 18px;border-radius:12px;background:#3151d3;color:#fff;font-weight:700;text-decoration:none">⬇ 도우미 설치</a></p>'
@@ -736,7 +742,7 @@ def helper_page():
         '</div></div>'
     )
     script = ("function ahChk(last){var s=document.documentElement.getAttribute('data-mini-helper');var e=document.getElementById('ahState');"
-              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<2);e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.2.0)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
+              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<3);e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.3.0)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
               "ahChk(false);setTimeout(function(){ahChk(false)},300);setTimeout(function(){ahChk(true)},1200);")
     resp = C.app.make_response(page("AI 도우미", body, icon="🤖", subtitle="AI 입력·전송·답변 복사를 자동으로 해 주는 선택 도구", script=script))
     resp.headers["Cache-Control"] = "no-cache"
