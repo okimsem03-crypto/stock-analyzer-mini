@@ -45,8 +45,13 @@ body.mu{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 'Pretendar
 .mu-nav{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .mu-nav a{color:#c7d2ee;text-decoration:none;font-size:13px;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.14);white-space:nowrap}
 .mu-nav a:hover,.mu-nav a.on{background:rgba(255,255,255,.14);color:#fff}
-.mu-g{display:inline-flex;align-items:center;gap:6px;padding-left:10px;margin-left:2px;border-left:1px solid rgba(255,255,255,.2)}
-.mu-g i{font-style:normal;font-size:11px;font-weight:700;color:#93a8d4;white-space:nowrap}
+.mu-g{position:relative;display:inline-flex;align-items:center;gap:6px}
+.mu-gb{display:inline-flex;align-items:center;gap:5px;color:#c7d2ee;background:transparent;font:inherit;font-size:13px;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.14);white-space:nowrap;cursor:pointer;max-width:240px}
+.mu-gb b{font-weight:600;overflow:hidden;text-overflow:ellipsis}.mu-gb em{font-style:normal;font-size:10px;opacity:.7;transition:transform .15s}
+.mu-gb:hover,.mu-g.open .mu-gb,.mu-g.on .mu-gb{background:rgba(255,255,255,.14);color:#fff}.mu-g.open .mu-gb em{transform:rotate(180deg)}
+.mu-dd{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:30;min-width:180px;padding:6px;flex-direction:column;gap:2px;background:#fff;border-radius:12px;box-shadow:0 14px 34px -10px rgba(15,23,42,.45)}
+.mu-g.open .mu-dd{display:flex}.mu-g.r .mu-dd{left:auto;right:0}
+.mu-dd a{color:#1e293b;border:0;border-radius:8px;padding:8px 11px;font-size:13.5px}.mu-dd a:hover{background:#eef2ff;color:#1e293b}.mu-dd a.on{background:#0f172a;color:#fff}
 .mu-hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 60%,#243a73 100%);color:#fff;position:relative;overflow:hidden}
 .mu-hero:after{content:"";position:absolute;right:-60px;top:-60px;width:240px;height:240px;border-radius:50%;background:radial-gradient(closest-side,rgba(201,162,39,.35),transparent)}
 .mu-hero-in{max-width:980px;margin:0 auto;padding:30px 16px 34px;position:relative;z-index:1}
@@ -297,10 +302,15 @@ def page(title, body, icon="", subtitle="", script="", active="", disclaimer=Tru
             f'<a href="/privacy">개인정보처리방침</a></div>')
     nav = ('<nav class="mu-nav" id="muNav"><a href="/">종목분석</a><a href="/menus"' + (' class="on"' if active == "menus" else "") + '>전체 메뉴</a></nav>')
     nav_js = ("fetch('/api/menus',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){var n=document.getElementById('muNav');"
-              "var gl={};(j.groups||[]).forEach(function(g){gl[g.id]=g});var cg=null,bx=null;"
+              "var gl={};(j.groups||[]).forEach(function(g){gl[g.id]=g});var cg=null,bx=null,dd=null;"
+              "function closeAll(x){[].forEach.call(n.querySelectorAll('.mu-g.open'),function(o){if(o!==x)o.classList.remove('open')})}"
+              "document.addEventListener('click',function(e){if(!e.target.closest||!e.target.closest('.mu-g'))closeAll()});document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAll()});"
               "(j.menus||[]).forEach(function(m){var a=document.createElement('a');a.href=m.path;a.textContent=m.icon+' '+m.label;"
-              f"if(m.id==={_js_str(active)})a.className='on';"
-              "var gid=m.group||'etc';if(gid!==cg){cg=gid;bx=document.createElement('span');bx.className='mu-g';var g=gl[gid];if(g&&gid!=='main'){var lb=document.createElement('i');lb.textContent=g.icon+' '+g.label;bx.appendChild(lb)}n.appendChild(bx)}bx.appendChild(a)});"
+              f"var isOn=m.id==={_js_str(active)};if(isOn)a.className='on';"
+              "var gid=m.group||'etc';if(gid!==cg){cg=gid;bx=document.createElement('span');bx.className='mu-g';var g=gl[gid];"
+              "if(gid==='main'||!g){dd=bx}else{var gb=document.createElement('button');gb.type='button';gb.className='mu-gb';var lb=document.createElement('b');lb.textContent=g.icon+' '+g.label;gb.appendChild(lb);var cr=document.createElement('em');cr.textContent='▾';gb.appendChild(cr);"
+              "dd=document.createElement('div');dd.className='mu-dd';bx.appendChild(gb);bx.appendChild(dd);(function(B,G,L){G.onclick=function(e){e.stopPropagation();var was=B.classList.contains('open');closeAll(B);B.classList.toggle('open',!was);B.classList.remove('r');if(!was){var r=B.querySelector('.mu-dd').getBoundingClientRect();if(r.right>window.innerWidth-8)B.classList.add('r')}}})(bx,gb,lb);bx._lb=lb;bx._base=g.icon+' '+g.label}n.appendChild(bx)}"
+              "dd.appendChild(a);if(isOn&&bx._lb){bx.classList.add('on');bx._lb.textContent=bx._base+' · '+m.label}});"
               f"var on=n.querySelector('a.on');if(on&&n.scrollTo){{n.scrollTo({{left:Math.max(0,on.offsetLeft-(n.clientWidth-on.offsetWidth)/2),behavior:'smooth'}})}}}}).catch(function(){{}});")
     return (f'<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<meta name="theme-color" content="#0b1730"><title>{esc(title)} · 종목분석 미니</title>'

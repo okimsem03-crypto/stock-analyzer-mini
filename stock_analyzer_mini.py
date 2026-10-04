@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v159 — 메뉴를 내림(드롭다운) 버튼으로 한 줄에 컴팩트하게: 메인 메뉴 바(종목분석·심층분석 + [🏆 추천·AI ▾] [🔬 시장분석 ▾]), 각 메뉴 화면 상단, 관리자 탭 줄. 지금 보는 메뉴는 단추 이름 옆에 표시, 열어 둔 탭은 ●, 바깥을 누르거나 Esc 로 닫힘
 ✨ v158 — 관리자 [👤 회원]의 메일 발송·SNS 로그인(네이버·구글·카카오) 설정을 단계별 안내서로 개편: 단계마다 바로가기 링크, 입력할 값(Redirect URI·도메인·MAIL_FROM 등) 복사 버튼, 환경변수 이름·.env 형식 복사, 설정됨/아직 표시, Render 환경변수 넣는 법, 테스트 메일 보내기(실패 원인별 쉬운 안내)
 ✨ v157 — 메뉴를 원본처럼 분류별로 정리(종목·심층 / 🏆 추천·AI / 🔬 시장분석 / 📒 기록·관리): 메인 메뉴 바·전체 메뉴·각 메뉴 상단·메뉴 관리·관리자 탭 모두 같은 묶음. AI 도우미 보강(메뉴 탭 안에서도 동작하도록 바깥 화면 중계, 연결 상태 표시, 20초 무응답 안내, 전송 버튼 찾기 강화, 도우미 v1.1.0 자동 업데이트 주소)
 ✨ v156 — 뉴스분석 차례 메뉴(뉴스 고르기→AI→이미지→블로그 글 만들기→복사하고 블로그 쓰기)와 블로그 글 생성(관리자), 심층분석 차례 메뉴에 “복사하고 블로그 쓰기” 단계 추가
@@ -340,7 +341,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v158"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v159"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4369,7 +4370,10 @@ body.emb header{display:none}body.emb.one nav{display:none}body.emb .w{max-width
 header{background:#0f172a;color:#fff;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:5}
 header b{font-size:15px;flex:1}header #ver{font-weight:400;opacity:.7}header a.home{color:#93c5fd;font-size:13px;text-decoration:none;margin-right:6px}header button{background:#334155;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12.5px;cursor:pointer}
 header button.red{background:#b91c1c}.w{max-width:960px;margin:0 auto;padding:14px}
-nav{display:flex;gap:6px 14px;flex-wrap:wrap;margin-bottom:12px}.ng{display:flex;gap:5px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:5px 8px}.ngl{font-size:11.5px;font-weight:800;color:#64748b;margin-right:2px}nav button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer}
+nav{display:flex;gap:6px 14px;flex-wrap:wrap;margin-bottom:12px}.ng{display:flex;gap:5px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:5px 8px}.ngl{font-size:11.5px;font-weight:800;color:#64748b;margin-right:2px}
+.ng.dd{position:relative;padding:0;border:0;background:transparent}.ngb{display:inline-flex;align-items:center;gap:6px;font-weight:700}.ngb em{font-style:normal;font-size:10px;opacity:.6}.ng.open .ngb{border-color:#5b7cfa;background:#eef2ff}.ng.open .ngb.on{background:#0f172a}
+.ngd{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:50;min-width:190px;padding:6px;flex-direction:column;gap:2px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 14px 34px -10px rgba(15,23,42,.35)}
+.ng.open .ngd{display:flex}.ngd button{border:0;border-radius:8px;text-align:left;width:100%;background:#fff;color:#1e293b}.ngd button:hover{background:#eef2ff}.ngd button.on{background:#0f172a;color:#fff}nav button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer}
 nav button.on{background:#0f172a;color:#fff;border-color:#0f172a}
 .c{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin:10px 0}.h{background:#fff7ed;border-color:#fdba74}
 .m{font-size:12px;color:#64748b;margin-bottom:6px;word-break:break-all}.b{white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.55}
@@ -4435,8 +4439,15 @@ function nav(){var n=$('nav');n.innerHTML='';var seen={};
  function pill(t,box){var b=el('button',t[0]===cur?'on':'',t[1]);b.onclick=function(){cur=t[0];nav();load()};box.appendChild(b);seen[t[0]]=1}
  if(MEMBER_MODE||TABS.length<6){TABS.forEach(function(t){pill(t,n)});return}
  TAB_GROUPS.forEach(function(g){var items=g[1].map(function(id){return TABS.filter(function(t){return t[0]===id})[0]}).filter(Boolean);if(!items.length)return;
-  var box=el('div','ng');box.appendChild(el('span','ngl',g[0]));items.forEach(function(t){pill(t,box)});n.appendChild(box)});
- var rest=TABS.filter(function(t){return !seen[t[0]]});if(rest.length){var bx=el('div','ng');bx.appendChild(el('span','ngl','기타'));rest.forEach(function(t){pill(t,bx)});n.appendChild(bx)}}
+  ddGroup(g[0],items)});
+ var rest=TABS.filter(function(t){return !seen[t[0]]});if(rest.length)ddGroup('🧰 기타',rest);
+ function ddGroup(label,items){var box=el('div','ng dd');var act=items.filter(function(t){return t[0]===cur})[0];
+  var gb=el('button','ngb'+(act?' on':''));gb.type='button';gb.appendChild(el('span',null,label+(act?' · '+act[1]:'')));gb.appendChild(el('em',null,'▾'));
+  var dd=el('div','ngd');items.forEach(function(t){pill(t,dd)});
+  gb.onclick=function(e){e.stopPropagation();var was=box.classList.contains('open');navCloseAll();box.classList.toggle('open',!was)};
+  box.appendChild(gb);box.appendChild(dd);n.appendChild(box)}}
+function navCloseAll(){[].forEach.call(document.querySelectorAll('.ng.open'),function(x){x.classList.remove('open')})}
+document.addEventListener('click',function(e){if(!e.target.closest||!e.target.closest('.ng'))navCloseAll()});document.addEventListener('keydown',function(e){if(e.key==='Escape')navCloseAll()});
 function ago(s){return s}
 function load(){var p=$('pane');p.textContent='불러오는 중…';
  if(EXT[cur]){EXT[cur](p);return}
@@ -6041,13 +6052,30 @@ HTML_TEMPLATE = r"""
   .mmIn{max-width:1180px; margin:0 auto; padding:9px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
   .mmTitle{font-size:12px; font-weight:800; color:#64748b; letter-spacing:.02em;}
   .mmList{display:flex; gap:8px 10px; flex-wrap:wrap; align-items:stretch;}
-  /* 🧭 [v157] 분류별 묶음 — 원본의 상단 메뉴 그룹처럼 라벨 + 알약 버튼을 한 상자에 */
-  .mmGrp{display:flex; align-items:center; gap:8px; padding:3px 8px 3px 10px; border:1px solid #e2e8f0; border-radius:16px; background:#f8fafc;}
-  .mmGrp[data-grp="main"]{border-color:transparent; background:transparent; padding-left:0;}
-  .mmGl{font-size:11.5px; font-weight:800; color:#475569; white-space:nowrap; letter-spacing:.01em;}
+  /* 🧭 [v158] 분류 = 내림(드롭다운) 버튼 — 한 줄로 컴팩트하게. 눌러서 펼치고, 열어 둔 탭은 ●, 지금 보는 메뉴는 단추 이름 옆에 표시 */
+  .mmGrp{position:relative; display:flex; align-items:center;}
   .mmGi{display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
-  .mmGrp .mmItem{padding:6px 13px; font-size:13px;}
-  @media (max-width:560px){ .mmGrp{flex-direction:column; align-items:flex-start; gap:4px; width:100%;} .mmGrp[data-grp="main"]{width:auto;} }
+  .mmGb{display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border-radius:999px; border:1px solid #dbe3f0; background:#f8fafc; color:#1e293b;
+    font-size:13.5px; font-weight:700; font-family:inherit; cursor:pointer; white-space:nowrap; max-width:260px;}
+  .mmGb .mmGt{overflow:hidden; text-overflow:ellipsis;}
+  .mmGb .mmCaret{font-size:10px; opacity:.6; transition:transform .15s;}
+  .mmGb:hover{border-color:#5b7cfa; background:#eef2ff; color:#3151d3;}
+  .mmGrp.open .mmGb{border-color:#5b7cfa; background:#eef2ff;}
+  .mmGrp.open .mmCaret{transform:rotate(180deg);}
+  .mmGrp.hasopen:not(.on) .mmGb{border-color:#93c5fd; background:#eff6ff;}
+  .mmGrp.on .mmGb{background:#0f172a; border-color:#0f172a; color:#fff;}
+  .mmGrp .mmGb .mmDot{width:7px; height:7px; border-radius:50%; background:#22c55e; display:none;}
+  .mmGrp.hasopen .mmGb .mmDot{display:inline-block;}
+  .mmDd{display:none; position:absolute; left:0; top:calc(100% + 6px); z-index:1040; min-width:200px; max-width:min(300px,90vw); padding:6px; flex-direction:column; gap:2px;
+    background:#fff; border:1px solid #e2e8f0; border-radius:14px; box-shadow:0 14px 34px -10px rgba(15,23,42,.35);}
+  .mmGrp.open .mmDd{display:flex;}
+  .mmGrp.r .mmDd{left:auto; right:0;}
+  .mmDd .mmItem{border:0; background:transparent; border-radius:9px; padding:9px 11px; width:100%; font-size:13.5px; justify-content:flex-start;}
+  .mmDd .mmItem:hover{background:#eef2ff;}
+  .mmDd .mmItem.on{background:#0f172a; color:#fff;}
+  .mmDd .mmItem .tx{margin-left:auto;}
+  .mmGrp[data-grp="admin"]{gap:6px;}
+  @media (max-width:560px){ .mmIn{padding:7px 10px; gap:6px;} .mmTitle{display:none;} .mmList{gap:6px;} .mmItem{padding:7px 11px; font-size:13px;} .mmGb{padding:7px 11px; font-size:13px;} .mmGb .mmGt{max-width:150px;} }
   .mmItem{display:inline-flex; align-items:center; gap:6px; padding:8px 15px; border-radius:999px; border:1px solid #dbe3f0; background:#f8fafc;
     color:#1e293b; font-size:13.5px; font-weight:700; text-decoration:none; font-family:inherit; cursor:pointer;}
   .mmItem:hover{border-color:#5b7cfa; background:#eef2ff; color:#3151d3;}
@@ -8400,6 +8428,23 @@ var MiniTabs = (function(){
       } else { if(x) x.remove(); if(d) d.remove(); }
     }
     if(msg) msg.classList.toggle('on', !!(T[active] && T[active].ld));
+    var gs = wrap.querySelectorAll('.mmGrp[data-dd]');
+    for(var k = 0; k < gs.length; k++){
+      var g = gs[k], on = g.querySelector('.mmItem.on'), op = g.querySelector('.mmItem.open'), gt = g.querySelector('.mmGt');
+      g.classList.toggle('on', !!on); g.classList.toggle('hasopen', !!op);
+      if(gt) gt.textContent = g.getAttribute('data-label') + (on ? ' · ' + (on.getAttribute('data-lbl') || '') : '');
+    }
+  }
+  function ddClose(except){
+    if(!wrap) return;
+    var o = wrap.querySelectorAll('.mmGrp.open');
+    for(var i = 0; i < o.length; i++){ if(o[i] === except) continue; o[i].classList.remove('open'); var b = o[i].querySelector('.mmGb'); if(b) b.setAttribute('aria-expanded', 'false'); }
+  }
+  function toggleGroup(g){
+    var was = g.classList.contains('open'); ddClose(g);
+    g.classList.toggle('open', !was);
+    var b = g.querySelector('.mmGb'); if(b) b.setAttribute('aria-expanded', was ? 'false' : 'true');
+    if(!was){ g.classList.remove('r'); var d = g.querySelector('.mmDd'); if(d){ var r = d.getBoundingClientRect(); if(r.right > window.innerWidth - 8) g.classList.add('r'); } }
   }
   function create(id){
     if(T[id]) return T[id];
@@ -8470,11 +8515,15 @@ var MiniTabs = (function(){
     a.href = m.href || m.url;
     var sp = document.createElement('span'); sp.textContent = ((m.icon ? m.icon + ' ' : '') + m.label + (m.hidden ? ' 🔒' : '')); a.appendChild(sp);
     if(m.title) a.title = m.title;
-    a.onclick = function(e){ if(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); open(m.id); };
+    a.setAttribute('data-lbl', m.label);
+    a.onclick = function(e){ if(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); ddClose(); open(m.id); };
     return a;
   }
   function init(w, b){ wrap = w; bar = b; host = $$('tabHost'); msg = $$('tabMsg'); window.addEventListener('resize', fit); }
-  return { init: init, setMenus: setMenus, makeItem: makeItem, open: open, show: show, close: close, refresh: refresh, openAdmin: openAdmin, openStock: openStock, openDeep: openDeep,
+  document.addEventListener('click', function(e){ if(!e.target.closest || !e.target.closest('.mmGrp')) ddClose(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') ddClose(); });
+  window.addEventListener('blur', function(){ ddClose(); });   // 아래 탭 화면(iframe)을 누르면 내림 메뉴도 닫는다
+  return { init: init, setMenus: setMenus, makeItem: makeItem, toggleGroup: toggleGroup, closeGroups: ddClose, open: open, show: show, close: close, refresh: refresh, openAdmin: openAdmin, openStock: openStock, openDeep: openDeep,
            admin: function(){ return isAdm; }, active: function(){ return active; } };
 })();
 // [v157] AI 도우미 중계 — 메뉴 화면(iframe 탭)의 [AI 열기]가 맡긴 작업을 이 바깥 화면의 도우미에게 전달하고, 도우미의 진행·결과를 열려 있는 탭들에 되돌려 준다
@@ -8524,8 +8573,18 @@ var MiniTabs = (function(){
       function boxOf(gid, label){
         if(boxes[gid]) return boxes[gid];
         var bx = document.createElement('div'); bx.className = 'mmGrp'; bx.setAttribute('data-grp', gid);
-        if(label){ var lb = document.createElement('span'); lb.className = 'mmGl'; lb.textContent = label; bx.appendChild(lb); }
-        var inn = document.createElement('div'); inn.className = 'mmGi'; bx.appendChild(inn);
+        var inn = document.createElement('div');
+        if(gid === 'main' || gid === 'admin'){ inn.className = 'mmGi'; bx.appendChild(inn); }
+        else{
+          // 내림 버튼: [🏆 추천·AI ▾] 를 누르면 아래에 그 분류의 메뉴가 펼쳐져요
+          bx.setAttribute('data-dd', '1'); bx.setAttribute('data-label', label);
+          var gb = document.createElement('button'); gb.type = 'button'; gb.className = 'mmGb'; gb.setAttribute('aria-haspopup', 'true'); gb.setAttribute('aria-expanded', 'false');
+          var dt = document.createElement('i'); dt.className = 'mmDot'; gb.appendChild(dt);
+          var gt = document.createElement('span'); gt.className = 'mmGt'; gt.textContent = label; gb.appendChild(gt);
+          var gc = document.createElement('span'); gc.className = 'mmCaret'; gc.textContent = '▾'; gb.appendChild(gc);
+          gb.onclick = function(e){ e.stopPropagation(); MiniTabs.toggleGroup(bx); };
+          bx.appendChild(gb); inn.className = 'mmDd'; inn.setAttribute('role', 'menu'); bx.appendChild(inn);
+        }
         wrap.appendChild(bx); boxes[gid] = inn; return inn;
       }
       var gl = {}; (GROUPS || []).forEach(function(g){ gl[g.id] = g; });
@@ -8535,13 +8594,13 @@ var MiniTabs = (function(){
         var items = list.filter(function(m){ return (m.group || 'etc') === gid; });
         if(!items.length) return;
         var g = gl[gid] || { label: '기타 도구', icon: '🧰' };
-        var bx = boxOf(gid, gid === 'main' ? '' : ((g.icon ? g.icon + ' ' : '') + g.label));
+        var bx = boxOf(gid, (g.icon ? g.icon + ' ' : '') + g.label);
         items.forEach(function(m){ bx.appendChild(MiniTabs.makeItem(m)); });
       });
       if(isAdm){
         var adminItem = { id: 'adm_', label: '관리자', icon: '🛠', url: '/admin?embed=full', href: '/admin', title: '관리자 화면(모든 설정)을 이 화면 안에서 엽니다' };
         MiniTabs.setMenus(list.concat([adminItem]), true);
-        boxOf('admin', '🛠 관리').appendChild(MiniTabs.makeItem(adminItem));
+        boxOf('admin', '').appendChild(MiniTabs.makeItem(adminItem));
       }
     }
     if(mbar) mbar.style.display = wrap.children.length ? '' : 'none';
