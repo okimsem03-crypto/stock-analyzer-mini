@@ -58,6 +58,21 @@ def _ensure_tables(cur, use_pg):
     cur.execute(f"""CREATE TABLE IF NOT EXISTS investor_scan_cache(
         ticker TEXT PRIMARY KEY, name TEXT, foreign_1 {real} DEFAULT 0, inst_1 {real} DEFAULT 0, foreign_5 {real} DEFAULT 0,
         inst_5 {real} DEFAULT 0, foreign_20 {real} DEFAULT 0, inst_20 {real} DEFAULT 0, scanned_at TEXT DEFAULT '', base_date TEXT DEFAULT '')""")
+    # 개인 순매수(시장수급 메뉴용) — 열이 없으면 덧붙인다(옛 표라도 오류 없이)
+    try:
+        if use_pg:
+            for c_ in ("retail_1", "retail_5", "retail_20"):
+                cur.execute(f"ALTER TABLE investor_scan_cache ADD COLUMN IF NOT EXISTS {c_} {real} DEFAULT 0")
+        else:
+            have_ = {r_[1] for r_ in cur.execute("PRAGMA table_info(investor_scan_cache)").fetchall()}
+            for c_ in ("retail_1", "retail_5", "retail_20"):
+                if c_ not in have_:
+                    cur.execute(f"ALTER TABLE investor_scan_cache ADD COLUMN {c_} {real} DEFAULT 0")
+    except Exception as e_:
+        print(f"[가져오기] 개인 수급 열 추가 실패(무시): {e_}")
+    cur.execute(f"""CREATE TABLE IF NOT EXISTS market_flow_day(
+        market TEXT NOT NULL, date TEXT NOT NULL, actor TEXT NOT NULL, src TEXT NOT NULL DEFAULT 'index', amount {real} DEFAULT 0,
+        updated_at TEXT DEFAULT '', PRIMARY KEY(market,date,actor,src))""")
     cur.execute("""CREATE TABLE IF NOT EXISTS stock_theme_map(
         ticker TEXT NOT NULL, name TEXT NOT NULL, market TEXT DEFAULT '', sector TEXT DEFAULT '', theme TEXT NOT NULL,
         theme_type TEXT DEFAULT 'user', PRIMARY KEY(ticker,theme))""")
@@ -68,6 +83,9 @@ def _ensure_tables(cur, use_pg):
     cur.execute(f"""CREATE TABLE IF NOT EXISTS collect_theme_list(
         no {big} PRIMARY KEY, name TEXT NOT NULL DEFAULT '', total {big} DEFAULT 0, change_rate {real} DEFAULT 0,
         rise {big} DEFAULT 0, fall {big} DEFAULT 0, steady {big} DEFAULT 0, fetched_at TEXT DEFAULT '')""")
+    cur.execute(f"""CREATE TABLE IF NOT EXISTS theme_day(
+        date TEXT NOT NULL, no {big} NOT NULL, name TEXT NOT NULL DEFAULT '', rate {real} DEFAULT 0,
+        rise {big} DEFAULT 0, fall {big} DEFAULT 0, steady {big} DEFAULT 0, PRIMARY KEY(date,no))""")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -177,6 +195,12 @@ def _reload_flow():
             m._load(force=True)
     except Exception as e:
         print(f"[가져오기] 수급분석 다시 읽기 실패(무시): {e}")
+    try:
+        t = sys.modules.get("menu_theme")
+        if t is not None:
+            t._CACHE["d"] = None          # 네이버테마 화면이 읽어 둔 자료 비우기
+    except Exception as e:
+        print(f"[가져오기] 네이버테마 다시 읽기 실패(무시): {e}")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -239,8 +263,9 @@ def _universe(limit):
     return rows[:limit]
 
 
-def _one_ticker(tk):
-    """종목 하나의 최근 20거래일 수급 → (f1,i1,f5,i5,f20,i20,기준일). 값이 없으면 None."""
+def _one_ticker2(tk):
+    """종목 하나의 최근 20거래일 수급 → (7개 값, 개인 1·5·20일, 날짜별 [(날짜,외국인,기관,개인)]). 값이 없으면 None.
+    금액은 '순매수 수량 × 그날 종가'(원)."""
     data = _get_json(f"/api/stock/{tk}/trend", {"pageSize": 20})
     if not isinstance(data, list) or not data:
         return None
@@ -250,13 +275,21 @@ def _one_ticker(tk):
         px = abs(_num(d.get("closePrice")))
         if not bd or not px:
             continue
-        rows.append((bd, _num(d.get("foreignerPureBuyQuant")) * px, _num(d.get("organPureBuyQuant")) * px))
+        rows.append((bd, _num(d.get("foreignerPureBuyQuant")) * px, _num(d.get("organPureBuyQuant")) * px, _num(d.get("individualPureBuyQuant")) * px))
     if not rows:
         return None
     rows.sort(key=lambda x: x[0], reverse=True)         # 최신 날짜가 앞
     f = [r[1] for r in rows]
     i = [r[2] for r in rows]
-    return (f[0], i[0], sum(f[:5]), sum(i[:5]), sum(f[:20]), sum(i[:20]), rows[0][0])
+    p = [r[3] for r in rows]
+    t7 = (f[0], i[0], sum(f[:5]), sum(i[:5]), sum(f[:20]), sum(i[:20]), rows[0][0])
+    return t7, (p[0], sum(p[:5]), sum(p[:20])), rows
+
+
+def _one_ticker(tk):
+    """종목 하나의 최근 20거래일 수급 → (f1,i1,f5,i5,f20,i20,기준일). 값이 없으면 None."""
+    r = _one_ticker2(tk)
+    return r[0] if r else None
 
 
 def _save_investor(batch):
@@ -268,6 +301,67 @@ def _save_investor(batch):
         ops.append(("INSERT INTO investor_scan_cache(ticker,name,foreign_1,inst_1,foreign_5,inst_5,foreign_20,inst_20,scanned_at,base_date) VALUES(?,?,?,?,?,?,?,?,?,?)",
                     (r["ticker"], r["name"], float(v[0]), float(v[1]), float(v[2]), float(v[3]), float(v[4]), float(v[5]), now, v[6])))
     _run(ops)
+
+
+def _univ_complete(agg):
+    """수집한 종목 수가 적은 날짜(상장일이 짧은 종목만 있는 오래된 날짜)는 합계가 왜곡되므로 빼고, 모든 날짜를 그대로 둔다(시장별 최근 20거래일)."""
+    dates = sorted({k[1] for k in agg}, reverse=True)[:20]
+    keep = set(dates)
+    return {k: v for k, v in agg.items() if k[1] in keep}
+
+
+_RETAIL_WARNED = []
+
+
+def _add_retail_cols():
+    """📦 가져오기로 올린 표처럼 개인 열이 없는 표에 열을 덧붙인다(실패하면 False)."""
+    real = "DOUBLE PRECISION" if C._USE_PG else "REAL"
+    ok_ = False
+    for c_ in ("retail_1", "retail_5", "retail_20"):
+        try:
+            _run([(f"ALTER TABLE investor_scan_cache ADD COLUMN {c_} {real} DEFAULT 0", None)])
+            ok_ = True
+        except Exception:
+            pass
+    return ok_
+
+
+def _save_retail(batch):
+    """개인 순매수 1·5·20일 — 열이 없는 옛 표면 열을 덧붙여 보고, 안 되면 조용히 건너뛴다(한 번만 알림)."""
+    ops = [("UPDATE investor_scan_cache SET retail_1=?,retail_5=?,retail_20=? WHERE ticker=?", (float(p[0]), float(p[1]), float(p[2]), r["ticker"])) for r, p in batch]
+    for attempt in (0, 1):
+        try:
+            for k in range(0, len(ops), 200):
+                _run(ops[k:k + 200])
+            return
+        except Exception as e:
+            if attempt == 0 and _add_retail_cols():
+                continue
+            if not _RETAIL_WARNED:
+                _RETAIL_WARNED.append(1)
+                print(f"[가져오기] 개인 수급 저장 실패(무시): {e}")
+            return
+
+
+def _save_univ_daily(agg, add=False):
+    """수집 종목 합산 일별 수급(시장수급 메뉴용) — agg={(시장,날짜,주체): 원}.
+    add=False(처음부터 모두 받은 경우): 기존 합산을 모두 지우고 새로 넣는다. add=True(오늘 이어서 받은 경우): 기존 합계에 더한다."""
+    if not agg:
+        return
+    try:
+        old = {}
+        if add:
+            for mk, dt, ac, am in (_dbx("SELECT market,date,actor,amount FROM market_flow_day WHERE src='univ'", (), fetch=True) or []):
+                old[(str(mk), str(dt), str(ac))] = float(am or 0)
+        ops = [("DELETE FROM market_flow_day WHERE src='univ'", None)] if not add else []
+        for (mk, dt, ac), v in agg.items():
+            if add:
+                ops.append(("DELETE FROM market_flow_day WHERE market=? AND date=? AND actor=? AND src='univ'", (mk, dt, ac)))
+            ops.append(("INSERT INTO market_flow_day(market,date,actor,src,amount) VALUES(?,?,?,?,?)", (mk, dt, ac, "univ", float(v) + old.get((mk, dt, ac), 0.0))))
+        for k in range(0, len(ops), 300):
+            _run(ops[k:k + 300])
+    except Exception as e:
+        print(f"[가져오기] 수집 종목 합산 저장 실패(무시): {e}")
 
 
 def _save_prices(rows):
@@ -310,14 +404,15 @@ def _investor_worker(limit, skip_today):
         skip = _today_done() if skip_today else set()
         todo = [r for r in uni if r["ticker"] not in skip]
         _set(phase="trend", total=len(uni), skip=len(uni) - len(todo), done=len(uni) - len(todo), msg="② 종목별 수급 받는 중…")
-        buf, bases, aborted = [], [], False
+        buf, rbuf, bases, aborted = [], [], [], False
+        agg = {}
         first_fail = {"n": 0, "ok": 0}
 
         def job(r):
             if _stopped():
                 return r, None, "stop"
             try:
-                return r, _one_ticker(r["ticker"]), ""
+                return r, _one_ticker2(r["ticker"]), ""
             except Exception as e:
                 return r, None, str(e)[:60]
 
@@ -333,20 +428,29 @@ def _investor_worker(limit, skip_today):
                     else:
                         _ST["fail"] += 1
                 if v:
-                    buf.append((r, v))
-                    bases.append(v[6])
+                    buf.append((r, v[0]))
+                    rbuf.append((r, v[1]))
+                    for dd_, fa_, ia_, pa_ in v[2]:
+                        for ac_, am_ in (("foreign", fa_), ("inst", ia_), ("retail", pa_)):
+                            k_ = (r["market"] or "KOSPI", dd_, ac_)
+                            agg[k_] = agg.get(k_, 0.0) + am_
+                    bases.append(v[0][6])
                     first_fail["ok"] += 1
                 else:
                     first_fail["n"] += 1
                 if len(buf) >= 40:
                     _save_investor(buf)
-                    buf = []
+                    _save_retail(rbuf)
+                    buf, rbuf = [], []
                 if first_fail["ok"] == 0 and first_fail["n"] >= 15:
                     _set(stop=True)           # 처음 15개가 모두 실패 → 네이버 쪽 문제로 보고 중단(남은 일은 곧 끝남)
                     aborted = True
                     break
         if buf:
             _save_investor(buf)
+            _save_retail(rbuf)
+        if agg and not aborted:
+            _save_univ_daily(_univ_complete(agg), add=bool(skip))
         if aborted:
             return _end("처음 15개 종목이 모두 실패해 멈췄어요. 잠시 뒤 다시 시도해 주세요(네이버 응답 없음·차단 가능).")
         snap = _snapshot()
@@ -404,6 +508,20 @@ def _theme_stocks(no):
     return rows
 
 
+def _save_theme_day(themes):
+    """테마별 오늘 등락률을 날짜별로 쌓아 둔다(연속 강세·순위 변화용) — 실패해도 가져오기는 그대로 성공."""
+    day = _now_kst().strftime("%Y-%m-%d")
+    ops = [("DELETE FROM theme_day WHERE date=?", (day,))]
+    for th in themes:
+        ops.append(("INSERT INTO theme_day(date,no,name,rate,rise,fall,steady) VALUES(?,?,?,?,?,?,?)", (day, th["no"], th["name"], th["rate"], th["rise"], th["fall"], th["steady"])))
+    try:
+        for k in range(0, len(ops), 400):
+            _run(ops[k:k + 400])
+        _run([("DELETE FROM theme_day WHERE date<?", ((_now_kst() - __import__("datetime").timedelta(days=400)).strftime("%Y-%m-%d"),))])
+    except Exception as e:
+        print(f"[테마수집] 일별 기록 저장 실패(무시): {e}")
+
+
 def _theme_worker():
     try:
         _set(phase="list", msg="① 네이버 테마 목록 받는 중…")
@@ -449,6 +567,7 @@ def _theme_worker():
                         (th["no"], th["name"], th["total"], th["rate"], th["rise"], th["fall"], th["steady"], now)))
         for k in range(0, len(ops), 400):
             _run(ops[k:k + 400])
+        _save_theme_day(themes)
         res = {"at": _stamp(), "themes": len(themes), "stocks": len(pairs), "uniq_tickers": len({p[0] for p in pairs}), "fail": snap["fail"]}
         _last_set(KEY_THEME, res)
         _reload_flow()

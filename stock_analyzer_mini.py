@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v165 — 새 메뉴 [📊 시장수급]·[🏷 네이버테마]: 수급분석 화면의 ‘수급·테마 가져오기’ 상자를 두 메뉴로 나눠 옮김. 시장수급은 개인·외국인·기관에 금융투자·보험·투신·사모·은행·연기금·기타법인 등 세부 주체(KRX 표 붙여넣기)까지 일별 흐름·연속 일수·종목 상위·AI 해설·이미지·블로그 글로, 네이버테마는 테마 순위·연속 강세·테마 안 종목·테마별 수급·일별 추이·AI·이미지·블로그 글로 제공.
 ✨ v164 — AI 도우미 1.3.0: 프롬프트를 AI 탭 주소(#miniai=…&p=…)에 함께 실어 보내 저장소 전달이 안 돼도 자동 진행되게 보완(Tampermonkey 스크립트 재설치 필요). [복사된 프롬프트로 진행]은 엉뚱한 클립보드 내용이 AI에 전송되지 않도록 클릭 확인용으로 유지.
 ✨ v163 — 블로그 글 보완: 표 안의 표(점수 막대)가 네이버 편집기에서 칸을 늘려 깨지던 문제를 글자 막대로 교체, 표 칸 너비 고정, 종목명에 네이버 증권 링크(표·근거·AI 글), 복사 설정이 꺼져 있어도 [📋 복사 → 블로그 열기] 버튼 표시.
 ✨ v162 — AI 도우미 1.2.0: ‘작업을 찾지 못했어요’로 자동 진행이 멈추던 문제 보완 — 작업을 끝날 때까지 지우지 않아 AI 화면이 새로고침돼도 이어 가고, 못 찾으면 원인을 알려 주며 [복사된 프롬프트로 진행] 버튼으로 구조해요(Tampermonkey 스크립트 재설치 필요).
@@ -346,7 +347,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v164"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v165"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4439,7 +4440,7 @@ function toast(t,kind){var x=$('toast');t=String(t==null?'':t);var bad=kind==='b
 function api(u,post){return fetch(u,{method:post?'POST':'GET',credentials:'same-origin',headers:post?{'X-CSRF-Token':CSRF}:{}}).then(function(r){
   if(r.status===401){location.replace('/admin');throw 0}return r.json()}).then(gwErr)}
 function gwErr(j){if(MEMBER_MODE&&j&&j.feature&&j.error){toast(j.error,'bad');if(FEATS&&FEATS[j.feature]&&j.login!==undefined)lockDlg(j.feature)}return j}
-var TAB_GROUPS=[['📊 운영',['sum','cmt','ovw','log']],['📈 종목·심층',['dp']],['🏆 추천·AI',['dy','ch']],['🔬 시장분석',['fl','nw','dl']],['🎚 공개·회원',['mm','fe','mem']],['✍ 콘텐츠',['bu','bl','ik','pr']],['⚙ 설정',['mn','im']]];
+var TAB_GROUPS=[['📊 운영',['sum','cmt','ovw','log']],['📈 종목·심층',['dp']],['🏆 추천·AI',['dy','ch']],['🔬 시장분석',['mk','th','fl','nw','dl']],['🎚 공개·회원',['mm','fe','mem']],['✍ 콘텐츠',['bu','bl','ik','pr']],['⚙ 설정',['mn','im']]];
 function nav(){var n=$('nav');n.innerHTML='';var seen={};
  function pill(t,box){var b=el('button',t[0]===cur?'on':'',t[1]);b.onclick=function(){cur=t[0];nav();load()};box.appendChild(b);seen[t[0]]=1}
  if(MEMBER_MODE||TABS.length<6){TABS.forEach(function(t){pill(t,n)});return}
@@ -4848,8 +4849,8 @@ MENU_GROUPS = [
     {"id": "records", "label": "기록·관리", "icon": "📒"},
     {"id": "etc", "label": "기타 도구", "icon": "🧰"},
 ]
-MENU_ORDER_DEFAULT = ["deep", "daily", "challenge", "flow", "news", "delist"]
-MENU_GROUP_DEFAULT = {"deep": "main", "daily": "reco", "challenge": "reco", "flow": "market", "news": "market", "delist": "market"}
+MENU_ORDER_DEFAULT = ["deep", "daily", "challenge", "market", "theme", "flow", "news", "delist"]
+MENU_GROUP_DEFAULT = {"deep": "main", "daily": "reco", "challenge": "reco", "market": "market", "theme": "market", "flow": "market", "news": "market", "delist": "market"}
 
 
 def menu_group(m):
