@@ -935,7 +935,7 @@ function chSel(bar,lbl,obj,key,opts,fn){var l=el('label','chL');l.appendChild(el
 function chGrade(g){var c={S:'#4f46e5',A:'#0891b2',B:'#64748b'}[g]||'#94a3b8';var x=el('span','chGr',(g||'-')+'급');x.style.background=c;return x}
 function chSigs(list){var w=document.createDocumentFragment();(list||[]).forEach(function(s){var m=CH_SIG[s];var x=el('span','chSg',(m?m[0]+' ':'')+s);x.style.background=m?m[1]:'#eee';x.style.color=m?m[2]:'#555';if(m)x.title=m[3];w.appendChild(x)});if(!(list||[]).length)w.appendChild(el('span','chZ','-'));return w}
 function chTblBuild(heads,aligns){var w=el('div','chW'),t=el('table','chT'),h=el('tr');heads.forEach(function(x,i){h.appendChild(el('th',aligns&&aligns[i]==='r'?'r':'',x))});t.appendChild(h);w.appendChild(t);return {wrap:w,t:t,h:h}}
-function chEmpty(box,j){var c=el('div','chCard2');c.appendChild(el('b',null,'📦 아직 보여 줄 자료가 없어요'));c.appendChild(el('p','note',j.msg||'데이터 가져오기 메뉴에서 표를 가져오면 보여요.'));box.appendChild(c)}
+function chEmpty(box,j){var c=el('div','chCard2');c.appendChild(el('b',null,'📦 아직 보여 줄 자료가 없어요'));NeedNote(c,j.msg,'데이터 가져오기 메뉴에서 표를 가져오면 보여요.');box.appendChild(c)}
 function chPlace(box,fid,txt){var c=el('div','chCard2');c.appendChild(el('b',null,txt||'이 기능은 잠겨 있어요'));c.appendChild(el('p','note','등급이 열리면 이 자리에 내용이 나타나요. 위 안내를 눌러 자세히 확인해 보세요.'));
  var sk=el('div');sk.style.cssText='height:90px;background:repeating-linear-gradient(90deg,#f1f5f9 0 40px,#e2e8f0 40px 42px);border-radius:10px';c.appendChild(sk);box.appendChild(c);ftSec(box,fid)}
 function chDetailOk(j){return ftOk('detail')&&!(j&&j.locked&&j.locked.indexOf('detail')>=0)}

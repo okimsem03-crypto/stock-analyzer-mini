@@ -76,12 +76,11 @@ function mmLoad(p){api('/admin/api/menumgr/state').then(function(j){if(cur!=='mm
 function mmFree(){var used={};MM.draft.levels.forEach(function(l){used[l.id]=1});for(var i=1;i<=10;i++){if(!used[String(i)])return String(i)}return null}
 function mmDirty(p){MM.dirty=true;var b=$('mmsave');if(b){b.disabled=false;b.textContent='💾 저장 (변경사항 있음)'}}
 function mmDraw(p){p.innerHTML='';var D=MM.draft;
- var top=el('div','c');top.appendChild(el('b',null,'🧭 메뉴 관리'));
- top.appendChild(el('p','note','메인 화면 위쪽 메뉴 바에 어떤 메뉴를, 누구에게 보여줄지 정해요. 관리자로 로그인하면 숨김 메뉴도 🔒 표시로 항상 보입니다. 아래에서 고친 뒤 [저장]을 눌러야 적용돼요.'));
- var sv=bt('💾 저장','bt',function(){mmSave(p)});sv.id='mmsave';sv.textContent='💾 저장';sv.disabled=!MM.dirty;top.appendChild(sv);p.appendChild(top);
+ var top=el('div','c');
+ var th=el('div','bar');th.appendChild(el('b',null,'🧭 메뉴 관리'));th.appendChild(el('span','m','메인 화면 메뉴 바에 누구에게 보일지 · 순서 · 회원 단계 (고친 뒤 [저장]을 눌러야 적용)'));var sv=bt('💾 저장','bt',function(){mmSave(p)});sv.id='mmsave';sv.textContent='💾 저장';sv.disabled=!MM.dirty;th.appendChild(sv);top.innerHTML='';top.appendChild(th);p.appendChild(top);
  // ── 회원 단계
  var lc=el('div','c');lc.appendChild(el('b',null,'👥 회원 단계 (최대 '+D.max+'단계)'));
- lc.appendChild(el('p','note','회원이 몇 단계로 나뉠지 자유롭게 정해요. 위쪽이 낮은 단계예요. 비회원은 항상 따로 있습니다. 가입한 회원은 [👤 회원] 탭에서 단계를 바꿀 수 있고, 새로 가입하면 [👤 회원]에서 정한 기본 단계가 돼요.'));
+ lc.firstChild.title='위쪽이 낮은 단계예요. 비회원은 항상 따로 있어요. 가입한 회원의 단계는 [👤 회원] 탭에서 바꿔요.';
  D.levels.forEach(function(l,i){var r=el('div','bar');r.appendChild(el('span','m',(i+1)+'단계'));
   var n=el('input');n.value=l.name;n.maxLength=12;n.placeholder='단계 이름';n.style.width='150px';n.oninput=function(){l.name=n.value;mmDirty(p)};r.appendChild(n);
   var d=el('input');d.value=l.desc||'';d.maxLength=60;d.placeholder='설명(선택)';d.style.width='260px';d.oninput=function(){l.desc=d.value;mmDirty(p)};r.appendChild(d);
@@ -93,14 +92,13 @@ function mmDraw(p){p.innerHTML='';var D=MM.draft;
  lc.appendChild(el('span','m',' '+D.levels.length+' / '+D.max));p.appendChild(lc);
  // ── 메뉴 목록
  var mc=el('div','c');mc.appendChild(el('b',null,'📋 메뉴 목록 ('+D.menus.length+'개)'));
- mc.appendChild(el('p','note','✅ 켜짐 = 아래 체크한 사람에게 보임 · 🙈 숨김 = 관리자만 보임. "비회원"을 체크하면 모든 사람에게 공개돼요. 메뉴는 앞으로 계속 늘어나요 — 이름으로 찾거나 ▲▼로 순서를 바꾸세요(메인 화면 메뉴 바 순서).'));
- var sb=el('input');sb.placeholder='메뉴 이름 검색';sb.value=MM.q;sb.style.width='220px';sb.oninput=function(){MM.q=sb.value;mmRows()};mc.appendChild(sb);
+ var sb=el('input');sb.placeholder='메뉴 이름 검색';sb.value=MM.q;sb.style.width='160px';sb.oninput=function(){MM.q=sb.value;mmRows()};var mh=mc.firstChild;mh.title='✅ 켜짐 = 체크한 사람에게 보임 · 🙈 숨김 = 관리자만 보임 · "비회원"을 체크하면 모두에게 공개 · ▲▼로 메인 메뉴 바 순서 변경';mc.removeChild(mh);var mbar=el('div','bar');mbar.appendChild(mh);mbar.appendChild(el('span','m','✅ 켜짐=체크한 사람에게 보임 · 🙈 숨김=관리자만 · ▲▼ 순서'));mbar.appendChild(sb);mc.appendChild(mbar);
  var tw=el('div');tw.style.cssText='overflow-x:auto;margin-top:8px';var tb=el('div');tw.appendChild(tb);mc.appendChild(tw);p.appendChild(mc);
  function mmRows(){tb.innerHTML='';var t=el('table');var h=el('tr');['순서','메뉴','상태','비회원'].concat(D.levels.map(function(l){return l.name})).concat(['열기']).forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
   var q=(MM.q||'').trim().toLowerCase();
   D.menus.forEach(function(m,i){if(q&&(m.label+' '+m.desc+' '+m.id).toLowerCase().indexOf(q)<0)return;var tr=el('tr');
    var o=el('td');var u=bt('▲','bt3',function(){if(i>0){var x=D.menus[i-1];D.menus[i-1]=m;D.menus[i]=x;mmDirty(p);mmDraw(p)}});u.disabled=i===0;var w=bt('▼','bt3',function(){if(i<D.menus.length-1){var x=D.menus[i+1];D.menus[i+1]=m;D.menus[i]=x;mmDirty(p);mmDraw(p)}});w.disabled=i===D.menus.length-1;o.appendChild(u);o.appendChild(w);tr.appendChild(o);
-   var nm=el('td');nm.appendChild(el('b',null,m.icon+' '+m.label));nm.appendChild(el('div','m',m.desc||''));tr.appendChild(nm);
+   var nm=el('td');nm.appendChild(el('b',null,m.icon+' '+m.label));var nd=el('div','m',m.desc||'');nd.title=m.desc||'';nd.style.cssText='max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';nm.appendChild(nd);tr.appendChild(nm);
    var st=el('td');if(m.admin_only){st.appendChild(el('span','m','🔒 관리자 전용'))}else{var tg=bt(m.on?'✅ 켜짐':'🙈 숨김',m.on?'bt':'bt3',function(){m.on=!m.on;mmDirty(p);mmDraw(p)});st.appendChild(tg)}tr.appendChild(st);
    function cb(tok){var td=el('td');var c=el('input');c.type='checkbox';c.checked=m.levels.indexOf(tok)>=0;c.disabled=!m.on||!!m.admin_only;c.onchange=function(){var s=m.levels.filter(function(x){return x!==tok});if(c.checked)s.push(tok);m.levels=s;mmDirty(p);mmDraw(p)};td.appendChild(c);return td}
    tr.appendChild(cb(D.guest));D.levels.forEach(function(l){tr.appendChild(cb(l.id))});

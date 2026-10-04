@@ -650,7 +650,7 @@ function flChips(it,onlyFirst){var w=document.createDocumentFragment(),sg=it.sg|
  if(sg.indexOf('pf')>=0||sg.indexOf('pi')>=0)add('지속','g','1·5·20일 모두 순매수');
  if(sg.indexOf('surge')>=0)add('급증','g','오늘 합산이 20일 일평균의 3배 이상');
  if(!n)w.appendChild(el('span','flZ','-'));return w}
-function flEmpty(box,j){var c=el('div','flCard');c.appendChild(el('b',null,'📦 아직 보여 줄 수급 자료가 없어요'));c.appendChild(el('p','note',j.msg||'데이터 가져오기 메뉴에서 수급 표를 가져오면 보여요.'));box.appendChild(c)}
+function flEmpty(box,j){var c=el('div','flCard');c.appendChild(el('b',null,'📦 아직 보여 줄 수급 자료가 없어요'));NeedNote(c,j.msg,'데이터 가져오기 메뉴에서 수급 표를 가져오면 보여요.');box.appendChild(c)}
 function flPlace(box,fid,txt){var c=el('div','flCard');c.appendChild(el('b',null,txt||'이 기능은 잠겨 있어요'));c.appendChild(el('p','note','등급이 열리면 이 자리에 내용이 나타나요. 위 안내를 눌러 자세히 확인해 보세요.'));
  var sk=el('div');sk.style.cssText='height:90px;background:repeating-linear-gradient(90deg,#f1f5f9 0 40px,#e2e8f0 40px 42px);border-radius:10px';c.appendChild(sk);box.appendChild(c);ftSec(box,fid)}
 function flTblBuild(heads,aligns){var w=el('div','flW'),t=el('table','flT'),h=el('tr');heads.forEach(function(x,i){h.appendChild(el('th',aligns&&aligns[i]==='r'?'r':'',x))});t.appendChild(h);w.appendChild(t);return {wrap:w,t:t}}

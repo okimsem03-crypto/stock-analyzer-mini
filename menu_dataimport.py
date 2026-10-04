@@ -529,5 +529,5 @@ function imResult(out,q){out.innerHTML='';var res=(q.result&&q.result.tables)||[
 
 
 def register():
-    C.register_admin_tab("im", "📦 데이터", JS, "imLoad")
+    C.register_admin_tab("im", "📦 데이터 가져오기", JS, "imLoad")
     return bp

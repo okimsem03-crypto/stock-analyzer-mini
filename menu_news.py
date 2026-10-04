@@ -1230,8 +1230,8 @@ function nwShow(v){NW.view=v;var tabs=$('nwTabs'),body=$('nwBody');if(!tabs||!bo
  var fn={latest:nwVLatest,stock:nwVStock,cls:nwVCls,theme:nwVTheme,lead:nwVLead,board:nwVBoard,ai:nwVAI}[v];if(fn)fn(box)}
 function nwLocked(s,fid,sample){s.appendChild(el('p','note',sample));ftSec(s,fid)}
 /* 뉴스 목록(최신·종목 공통) */
-function nwItems(out,j){out.innerHTML='';if(j.error){out.appendChild(el('p','note bad',j.error));return}
- var it=j.items||[];if(!it.length){out.appendChild(el('p','note',j.note||'가져온 뉴스가 없어요.'));return}
+function nwItems(out,j){out.innerHTML='';if(j.error){NeedNote(out,j.error,'','note bad');return}
+ var it=j.items||[];if(!it.length){NeedNote(out,j.note,'가져온 뉴스가 없어요.');return}
  if(j.summary){var tl=el('div','nwTiles');[['호재성',j.summary['호재성']],['악재성',j.summary['악재성']],['혼재',j.summary['혼재']],['중립',j.summary['중립']]].forEach(function(x){var t=el('div','nwTile');t.appendChild(el('div','l',x[0]));t.appendChild(el('div','v',x[1]+'건'));tl.appendChild(t)});out.appendChild(tl);nwNote(out)}
  else if((j.locked||[]).indexOf('classify')>=0){var lb=el('div','nwWarn sm','🔒 호재성·악재성·테마 분류 표시는 등급이 열려 있어야 볼 수 있어요. ');var a=el('a',null,'자세히');a.href='#';a.onclick=function(e){e.preventDefault();lockDlg('classify')};lb.appendChild(a);out.appendChild(lb)}
  it.forEach(function(x){var r=el('div','nwIt');var h=el('div');
@@ -1259,7 +1259,7 @@ function nwVStock(box){var s=nwSec(box,'🔎 종목 뉴스 조회','종목 이�
  function run(q){q=String(q||'').trim();if(!q){toast('종목 이름이나 코드를 먼저 입력하세요');return}NW.sk=q;nwWait(out,'뉴스를 찾는 중…');
   api('/admin/api/news/stock?q='+encodeURIComponent(q)).then(function(j){out.innerHTML='';
    if(j.candidates){out.appendChild(el('p','note','어느 종목인가요? 하나를 골라 주세요.'));var pk2=el('div','nwPick');j.candidates.forEach(function(c){var b=el('button',null,c.name+' ('+c.ticker+')');b.onclick=function(){inp.value=c.ticker;run(c.ticker)};pk2.appendChild(b)});out.appendChild(pk2);return}
-   if(j.error){out.appendChild(el('p','note bad',j.error));return}
+   if(j.error){NeedNote(out,j.error,'','note bad');return}
    var hd=el('div','bar');var nm=nwTk(el('b',null,(j.name||j.ticker)+' ('+j.ticker+')'),j.ticker);hd.appendChild(nm);if(j.market)hd.appendChild(el('span','m',j.market));out.appendChild(hd);
    if(j.record){var rc=el('div','nwWarn sm');rc.textContent='📚 최근 '+j.record.days+'일 저장된 분석 기록: 이 종목이 나온 기사 '+j.record.articles+'건 (직접 언급 '+j.record.direct+'건 · 호재 분류 '+j.record.pos+' · 악재 분류 '+j.record.neg+'). 분류 참고용이에요.';out.appendChild(rc)}
    var list=el('div');out.appendChild(list);nwItems(list,j);
@@ -1272,13 +1272,13 @@ function nwVCls(box){var s=nwSec(box,'🏷 키워드 분류 체험','뉴스 제�
  var ta=el('textarea','nwTa');ta.placeholder='예)\nA사, 1조원 규모 공급계약 체결…흑자전환 기대감\nB사 영업손실 확대, 목표가 하향\n(실제 뉴스 제목을 한 줄에 하나씩)';ta.maxLength=12000;ta.setAttribute('aria-label','뉴스 제목 목록');s.appendChild(ta);
  var bar=el('div','bar');var out=el('div');
  bar.appendChild(bt('분류하기','bt',function(){var ls=ta.value.split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean);if(!ls.length){toast('분류할 제목을 먼저 입력하세요');return}
-  nwWait(out,'분류하는 중…');apiJ('/admin/api/news/classify',{titles:ls.slice(0,40)}).then(function(j){out.innerHTML='';if(j.error){out.appendChild(el('p','note bad',j.error));return}
+  nwWait(out,'분류하는 중…');apiJ('/admin/api/news/classify',{titles:ls.slice(0,40)}).then(function(j){out.innerHTML='';if(j.error){NeedNote(out,j.error,'','note bad');return}
    var tl=el('div','nwTiles');['호재성','악재성','혼재','중립'].forEach(function(k){var t=el('div','nwTile');t.appendChild(el('div','l',k));t.appendChild(el('div','v',(j.summary[k]||0)+'줄'));tl.appendChild(t)});out.appendChild(tl);nwNote(out);
    j.rows.forEach(function(r){var d=el('div','nwIt');var h=el('div');h.appendChild(nwChip(r.k,r.label));(r.themes||[]).forEach(function(t){h.appendChild(nwChip('t',t))});h.appendChild(el('span',null,r.title));d.appendChild(h);
     if(r.pos.length||r.neg.length)d.appendChild(el('div','sn','근거 단어: '+r.pos.concat(r.neg).join(', ')));out.appendChild(d)})}).catch(function(){nwFail(out)})}));
  bar.appendChild(bt('✖ 지우기','bt3',function(){ta.value='';out.innerHTML=''}));s.appendChild(bar);s.appendChild(out);
  var dt=el('details');dt.appendChild(el('summary',null,'📖 분류에 쓰는 단어 보기'));var dv=el('div');dt.appendChild(dv);var loaded=false;
- dt.addEventListener('toggle',function(){if(!dt.open||loaded)return;loaded=true;api('/admin/api/news/classify').then(function(j){if(j.error){dv.appendChild(el('p','note bad',j.error));return}
+ dt.addEventListener('toggle',function(){if(!dt.open||loaded)return;loaded=true;api('/admin/api/news/classify').then(function(j){if(j.error){NeedNote(dv,j.error,'','note bad');return}
   function row(t,k,arr){var d=el('div','nwIt');d.appendChild(el('b',null,t));var w=el('div');arr.forEach(function(x){w.appendChild(nwChip(k,x))});d.appendChild(w);dv.appendChild(d)}
   row('호재성 단어','p',j.pos);row('악재성 단어','n',j.neg);row('호재로 뒤집는 표현(예: 적자 탈출)','p',j.pos_ovr);row('악재로 뒤집는 표현(예: 수주 취소)','n',j.neg_ovr);
   Object.keys(j.themes).forEach(function(k){row('테마 · '+k,'t',j.themes[k].split(','))});dv.appendChild(el('p','note','제목에서 위 단어가 더 많이 나온 쪽으로 분류하고, 같으면 혼재, 없으면 중립이에요.'))}).catch(function(){dv.appendChild(el('p','note bad','불러오지 못했어요.'))})});
@@ -1288,8 +1288,8 @@ function nwVTheme(box){var s=nwSec(box,'🧩 뉴스 기반 테마·이슈 요약
  if(!ftOk('themes')){nwLocked(s,'themes','예) 최근 14일 — 반도체 테마 기사 12건, 함께 언급된 종목 3개');return}
  var bar=el('div','bar');var sel=el('select');sel.setAttribute('aria-label','기간');[7,14,30,60].forEach(function(d){var o=el('option',null,'최근 '+d+'일');o.value=d;if(d===NW.theme.days)o.selected=true;sel.appendChild(o)});bar.appendChild(sel);
  var out=el('div');bar.appendChild(bt('불러오기','bt',function(){NW.theme.days=+sel.value;run()}));s.appendChild(bar);s.appendChild(out);
- function run(){nwWait(out,'기록을 모으는 중…');api('/admin/api/news/themes?days='+NW.theme.days).then(function(j){out.innerHTML='';if(j.error){out.appendChild(el('p','note bad',j.error));return}
-  if(j.note){out.appendChild(el('p','note',j.note));return}
+ function run(){nwWait(out,'기록을 모으는 중…');api('/admin/api/news/themes?days='+NW.theme.days).then(function(j){out.innerHTML='';if(j.error){NeedNote(out,j.error,'','note bad');return}
+  if(j.note){NeedNote(out,j.note);return}
   var tl=el('div','nwTiles');[['분석 기사',j.articles+'건'],['테마',j.themes.length+'개'],['언급 종목',j.stocks.length+'개+']].forEach(function(x){var t=el('div','nwTile');t.appendChild(el('div','l',x[0]));t.appendChild(el('div','v',x[1]));tl.appendChild(t)});out.appendChild(tl);nwNote(out);
   if(j.themes.length){out.appendChild(el('b',null,'🔥 자주 나온 테마'));j.themes.forEach(function(t){var c=el('div','nwCard');var h=el('div','hd');h.appendChild(nwChip('t',t.theme));h.appendChild(el('span','m','기사 '+t.articles+'건'));c.appendChild(h);
    if(t.names.length){var w=el('div','mt','함께 언급된 종목: ');t.names.forEach(function(n){w.appendChild(el('span',null,n+'  '))});c.appendChild(w)}
@@ -1308,8 +1308,8 @@ function nwVLead(box){var s=nwSec(box,'📈 긍정뉴스 지속 종목','저장�
  bar.appendChild(sd);bar.appendChild(sm);bar.appendChild(bt('집계하기','bt',function(){NW.lead.days=+sd.value;NW.lead.min=+sm.value;run()}));
  bar.appendChild(ft(bt('🤖 AI 총평 프롬프트 복사','bt2',function(){nwLeadAI('overview',null)}),'ai'));s.appendChild(bar);
  var out=el('div');s.appendChild(out);var ans=el('div');ans.id='nwLeadAns';s.appendChild(ans);nwLeadAns();
- function run(){nwWait(out,'집계하는 중…');api('/admin/api/news/leader?days='+NW.lead.days+'&min_days='+NW.lead.min).then(function(j){out.innerHTML='';if(j.error){out.appendChild(el('p','note bad',j.error));return}
-  if(!j.rows.length){out.appendChild(el('p','note',j.note||'조건에 맞는 종목이 없어요. 최소 보도일을 낮추거나 기간을 늘려 보세요.'));return}
+ function run(){nwWait(out,'집계하는 중…');api('/admin/api/news/leader?days='+NW.lead.days+'&min_days='+NW.lead.min).then(function(j){out.innerHTML='';if(j.error){NeedNote(out,j.error,'','note bad');return}
+  if(!j.rows.length){NeedNote(out,j.note,'조건에 맞는 종목이 없어요. 최소 보도일을 낮추거나 기간을 늘려 보세요.');return}
   out.appendChild(el('p','note','최근 '+j.days+'일 · 분석 기사 '+j.articles+'건 · 조건 충족 '+j.rows.length+'종목 · '+j.scanned_at+' 기준'));nwNote(out);
   out.appendChild(el('div','nwWarn sm','⚠ 이미 알려진 뉴스에 뒤늦게 진입하면 고점 추격이 될 수 있고, 삼성전자·SK하이닉스처럼 늘 뉴스에 나오는 대형주는 긍정·부정이 함께 많을 수 있어요. 이 순위만으로 투자하지 마세요.'));
   j.rows.forEach(function(r,i){var c=el('div','nwCard');var h=el('div','hd');h.appendChild(el('span','m',(i+1)+'위'));h.appendChild(nwTk(el('span','nm',r.name||r.ticker),r.ticker));h.appendChild(el('span','m',r.ticker+(r.market?' · '+r.market:'')));h.appendChild(el('span','sc',r.score+'점'));c.appendChild(h);
@@ -1331,8 +1331,8 @@ function nwVBoard(box){var s=nwSec(box,'🗂 분석 기록 보관함','이 사�
  var bar=el('div','bar');var inp=el('input','nwIn');inp.type='text';inp.placeholder='제목·분석 내용 검색';inp.maxLength=60;inp.value=NW.board.q;inp.setAttribute('aria-label','보관함 검색');bar.appendChild(inp);
  bar.appendChild(bt('검색하기','bt',function(){NW.board.q=inp.value.trim();NW.board.page=1;list()}));s.appendChild(bar);inp.onkeydown=function(e){if(e.key==='Enter'){NW.board.q=inp.value.trim();NW.board.page=1;list()}};
  var out=el('div');s.appendChild(out);
- function list(){nwWait(out,'불러오는 중…');api('/admin/api/news/log/list?q='+encodeURIComponent(NW.board.q)+'&page='+NW.board.page).then(function(j){out.innerHTML='';if(j.error){out.appendChild(el('p','note bad',j.error));return}
-  if(!j.rows.length){out.appendChild(el('p','note',j.note||'기록이 없어요.'));return}
+ function list(){nwWait(out,'불러오는 중…');api('/admin/api/news/log/list?q='+encodeURIComponent(NW.board.q)+'&page='+NW.board.page).then(function(j){out.innerHTML='';if(j.error){NeedNote(out,j.error,'','note bad');return}
+  if(!j.rows.length){NeedNote(out,j.note,'기록이 없어요.');return}
   out.appendChild(el('p','note','총 '+j.total.toLocaleString()+'건 — 항목을 누르면 AI 분석문을 볼 수 있어요.'));
   j.rows.forEach(function(r){var c=el('div','nwIt');c.style.cursor='pointer';var h=el('div');h.appendChild(el('span','tt',r.title));c.appendChild(h);
    c.appendChild(el('div','mt',r.created_at+(r.source&&!/^https?:/.test(r.source)?' · '+r.source:(r.link?' · 링크 있음':''))+(r.src==='web'?' · 웹 저장':'')));if(r.snippet)c.appendChild(el('div','sn',r.snippet+'…'));
@@ -1341,7 +1341,7 @@ function nwVBoard(box){var s=nwSec(box,'🗂 분석 기록 보관함','이 사�
   var pg=el('div','bar');if(NW.board.page>1)pg.appendChild(bt('◀ 이전','bt3',function(){NW.board.page--;list()}));if(j.page*j.page_size<j.total)pg.appendChild(bt('다음 ▶','bt3',function(){NW.board.page++;list()}));out.appendChild(pg)}).catch(function(){nwFail(out)})}
  function detail(id){nwWait(out,'불러오는 중…');api('/admin/api/news/log/detail?id='+encodeURIComponent(id)).then(function(j){out.innerHTML='';var top=el('div','bar');top.appendChild(bt('← 목록으로','bt3',list));
   top.appendChild(adm(bt('🗑 삭제','bt3',function(){if(!confirm('이 분석 게시물을 삭제할까요?'))return;apiJ('/admin/api/news/log/delete',{id:id}).then(function(z){if(z.error){toast(z.error);return}toast('삭제했어요');list()})})));out.appendChild(top);
-  if(j.error){out.appendChild(el('p','note bad',j.error));return}
+  if(j.error){NeedNote(out,j.error,'','note bad');return}
   out.appendChild(el('h3',null,j.title));var mt=el('div','mt',j.created_at+(j.source&&!j.link?' · '+j.source:'')+' ');if(j.link){mt.appendChild(nwLink(j.link,'원문 링크 열기 ↗'))}out.appendChild(mt);
   if(j.stocks.length){var w=el('div');w.style.margin='8px 0';j.stocks.forEach(function(x){var ch=nwChip(x.senti>0?'p':(x.senti<0?'n':'z'),(x.name||x.ticker)+' ('+x.ticker+')'+(x.mentioned?'':' · 연관'));ch.title=x.reason||'';nwTk(ch,x.ticker);w.appendChild(ch)});out.appendChild(w);nwNote(out)}
   var body=el('div');nwMd(body,j.ai_text);out.appendChild(body);

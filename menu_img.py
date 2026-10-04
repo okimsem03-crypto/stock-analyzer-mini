@@ -2,7 +2,7 @@
 
 · ① 메인 이미지: 종목명·종합점수 게이지(가운데 강조)·5축 레이더/막대·매물대/수급/재무 요약
 · ② 통합 이미지: 주가 차트(이동평균·매물대) + 재무 차트 + 동일업종 비교 + 기술적 지표를 한 장에
-· 저장 위치: [다운로드 폴더]/20261002/종목분석/① 종목명_종목코드.png  (동그라미 숫자 = 이미지 순서)
+· 저장 위치: [다운로드 폴더]/20261002/종목분석/종목명/① 종목명_종목코드.png  (동그라미 숫자 = 이미지 순서)
 · 폴더·자동/수동 모드는 이 기기(브라우저)에만 저장된다(폴더 접근 권한은 기기마다 따로 허용해야 하므로).
   메뉴 폴더 이름과 이미지 선명도(배율)는 서버 설정(img_cfg)에 저장돼 모든 기기에서 같다.
 · 폴더 지정은 데스크톱 크롬·엣지에서 가능하다. 지원하지 않는 브라우저는 일반 다운로드로 저장한다.
@@ -101,7 +101,10 @@ K.info=function(){return K.handle().then(function(h){if(!h)return {supported:K.s
 /* ── 이름 만들기 ── */
 K.dateDir=function(d){d=d||new Date();var z=function(n){return ('0'+n).slice(-2)};return d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())};
 K.fileName=function(idx,name,ticker){var nm=String(name||'').replace(/[\\\/:*?"<>|\s]+/g,'_').replace(/^_+|_+$/g,'')||'종목';return (CIRC[idx-1]||('('+idx+')'))+' '+nm+(ticker?'_'+ticker:'')+'.png'};
-K.path=function(o){return K.dateDir()+'/'+K.menuFolder(o.menu)+'/'+K.fileName(o.idx,o.name,o.ticker)};
+/* 종목이 따로 필요한 메뉴(종목분석·심층분석)는 메뉴 폴더 아래에 종목 이름 폴더를 한 단계 더 둔다. 오늘추천·투자주의처럼 목록형 메뉴는 그대로. */
+K.PER_STOCK={stock:1,deep:1};
+K.stockDir=function(o){if(!(o&&(o.perStock||(o.perStock==null&&K.PER_STOCK[o.menu]))))return '';return String(o.name||'').replace(/[\\\/:*?"<>|\s]+/g,'_').replace(/^_+|_+$/g,'')||String(o.ticker||'')||'종목'};
+K.path=function(o){var sd=K.stockDir(o);return K.dateDir()+'/'+K.menuFolder(o.menu)+'/'+(sd?sd+'/':'')+K.fileName(o.idx,o.name,o.ticker)};
 function download(blob,fn){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fn;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},4000)}
 /* 저장: 폴더가 지정돼 있고 권한이 있으면 폴더에, 아니면 일반 다운로드. noAsk=true 면 권한을 묻지 않고 'needperm' 을 돌려준다(자동 모드용). */
 K.save=function(blob,o){var fn=K.fileName(o.idx,o.name,o.ticker);
@@ -109,10 +112,10 @@ K.save=function(blob,o){var fn=K.fileName(o.idx,o.name,o.ticker);
   if(!h||!K.supported){download(blob,fn);return {where:'download',path:fn}}
   return K.perm(h,!o.noAsk).then(function(ok){
    if(!ok){if(o.noAsk)return {where:'needperm',path:fn};download(blob,fn);return {where:'download',path:fn,note:'폴더 권한이 없어 일반 다운로드로 저장했어요.'}}
-   var dd=K.dateDir(),mf=K.menuFolder(o.menu);
-   return h.getDirectoryHandle(dd,{create:true}).then(function(d1){return d1.getDirectoryHandle(mf,{create:true})}).then(function(d2){return d2.getFileHandle(fn,{create:true})})
+   var dd=K.dateDir(),mf=K.menuFolder(o.menu),sd=K.stockDir(o);
+   return h.getDirectoryHandle(dd,{create:true}).then(function(d1){return d1.getDirectoryHandle(mf,{create:true})}).then(function(d2){return sd?d2.getDirectoryHandle(sd,{create:true}):d2}).then(function(d3){return d3.getFileHandle(fn,{create:true})})
     .then(function(fh){return fh.createWritable()}).then(function(w){return w.write(blob).then(function(){return w.close()})})
-    .then(function(){return {where:'folder',path:h.name+'/'+dd+'/'+mf+'/'+fn}})
+    .then(function(){return {where:'folder',path:h.name+'/'+dd+'/'+mf+'/'+(sd?sd+'/':'')+fn}})
     .catch(function(e){download(blob,fn);return {where:'download',path:fn,note:'폴더에 저장하지 못해 일반 다운로드로 저장했어요('+(e&&e.name||'오류')+').'}})})})};
 K.toBlob=function(canvas){return new Promise(function(res){canvas.toBlob(function(b){res(b)},'image/png')})};
 /* ── 캔버스 도우미 ── */
@@ -178,13 +181,13 @@ K.panel=function(box,o){ensureCss();box.innerHTML='';var P=el('div','ikp');box.a
  var bSet=el('button','ikb','⚙ 저장 설정');
  bSet.onclick=function(){try{if(typeof TABS!=='undefined'&&typeof nav==='function'&&typeof load==='function'){cur='ik';nav();load();return}}catch(e){}try{if(typeof openAdminWin==='function'){openAdminWin('#ik');return}}catch(e){}window.open('/admin#ik','mini_admin')};
  row.appendChild(bGen);row.appendChild(bAll);row.appendChild(bSet);P.appendChild(row);P.appendChild(st);P.appendChild(warn);P.appendChild(view);
- function whereText(i){var p=i.supported&&i.name&&i.perm!=='none'?(i.name+'/'+K.dateDir()+'/'+K.menuFolder(o.menu)+'/'):'브라우저 기본 다운로드 폴더';
+ function whereText(i){var p=i.supported&&i.name&&i.perm!=='none'?(i.name+'/'+K.dateDir()+'/'+K.menuFolder(o.menu)+'/'+(K.stockDir(o)?K.stockDir(o)+'/':'')):'브라우저 기본 다운로드 폴더';
   return '저장 위치: '+p+' · 모드: '+(K.mode()==='auto'?'자동 저장':'수동 저장(버튼)')}
  function refresh(){return K.loadCfg().then(function(){return K.info()}).then(function(i){st.textContent=whereText(i);
   warn.innerHTML='';if(i.supported&&i.name&&i.perm==='prompt'){var w=el('div','ikw','🔒 폴더 "'+i.name+'" 접근 권한이 이 세션에서 아직 허용되지 않았어요. [권한 허용]을 한 번 누르면 이 창을 닫을 때까지 자동·수동 저장이 모두 폴더로 들어갑니다.');
    var b=el('button','ikb p','권한 허용');b.style.marginLeft='8px';b.onclick=function(){K.perm(i.h,true).then(function(ok){toast(ok?'폴더 권한을 허용했어요':'권한이 허용되지 않았어요');refresh();if(ok&&S.pendingAuto){S.pendingAuto=false;saveAll(true)}})};w.appendChild(b);warn.appendChild(w)}
   return i})}
- function one(it,noAsk){return K.toBlob(it.canvas).then(function(b){return K.save(b,{menu:o.menu,idx:it.idx,name:o.name,ticker:o.ticker,noAsk:noAsk})})}
+ function one(it,noAsk){return K.toBlob(it.canvas).then(function(b){return K.save(b,{menu:o.menu,idx:it.idx,name:o.name,ticker:o.ticker,perStock:o.perStock,noAsk:noAsk})})}
  function report(rs){var f=rs.filter(function(r){return r.where==='folder'}),d=rs.filter(function(r){return r.where==='download'}),n=rs.filter(function(r){return r.where==='needperm'});
   if(n.length){S.pendingAuto=true;refresh();toast('폴더 권한이 필요해요 — [권한 허용]을 눌러 주세요');return}
   if(f.length)toast('저장했어요: '+f[0].path+(f.length>1?' 외 '+(f.length-1)+'장':''));
@@ -420,7 +423,7 @@ var IK={cfg:null};
 function ikWhy(e){return (e&&(e.stack||e.message))?String(e.message||e).slice(0,200):String(e||'알 수 없는 오류')}
 function ikFail(msg){['ikFolder','ikMode','ikNames'].forEach(function(id){var b=$(id);if(!b)return;b.innerHTML='';b.appendChild(el('b',null,id==='ikFolder'?'📁 다운로드 폴더':id==='ikMode'?'⚙ 저장 방식':'🗂 메뉴 폴더 이름'));b.appendChild(el('p','note bad','⚠ '+msg))})}
 function ikLoad(p){p.innerHTML='';var top=el('div','c');top.appendChild(el('b',null,'🖼 이미지 저장 설정'));
- top.appendChild(el('p','note','블로그에 올릴 분석 이미지를 어디에·어떻게 저장할지 정해요. 저장 위치는 [지정 폴더]/날짜(20261002)/메뉴 폴더(종목분석)/① 종목명_종목코드.png 형태로 자동 정리됩니다. 폴더·자동/수동 모드는 이 기기(이 브라우저)에만 저장돼요.'));p.appendChild(top);
+ top.appendChild(el('p','note','블로그에 올릴 분석 이미지를 어디에·어떻게 저장할지 정해요. 저장 위치는 [지정 폴더]/날짜(20261002)/메뉴 폴더(종목분석)/종목명(산일전기)/① 종목명_종목코드.png 형태로(종목분석·심층분석. 오늘추천·투자주의는 종목 폴더 없이) 자동 정리됩니다. 폴더·자동/수동 모드는 이 기기(이 브라우저)에만 저장돼요.'));p.appendChild(top);
  var fc=el('div','c');fc.id='ikFolder';fc.appendChild(el('p','note','불러오는 중…'));p.appendChild(fc);var mc=el('div','c');mc.id='ikMode';p.appendChild(mc);var nc=el('div','c');nc.id='ikNames';nc.appendChild(el('p','note','불러오는 중…'));p.appendChild(nc);
  var K=window.ImgKit;
  if(!K||typeof K.info!=='function'||typeof K.loadCfg!=='function'){ikFail('이미지 도구가 불러와지지 않았어요. 페이지를 새로고침(Ctrl+Shift+R)해 보시고, 계속되면 아래 문구를 알려 주세요: '+(window.__ikBoot?ikWhy(window.__ikBoot):'ImgKit 없음'));return}
@@ -453,7 +456,7 @@ function ikNames(){var b=$('ikNames');if(!b)return;b.innerHTML='';b.appendChild(
  Object.keys(C.folders).forEach(function(k){var tr=el('tr');tr.appendChild(el('td',null,names[k]||k));var td=el('td');var i=el('input');i.value=C.folders[k];i.maxLength=20;i.style.width='180px';i.oninput=function(){C.folders[k]=i.value};td.appendChild(i);tr.appendChild(td);t.appendChild(tr)});tw.appendChild(t);b.appendChild(tw);
  var r=el('div','bar');r.appendChild(el('span','m','이미지 선명도 '));var sel=el('select');[[1,'보통 (1080px)'],[1.5,'선명 (1620px)'],[2,'아주 선명 (2160px) — 권장'],[3,'최대 (3240px, 용량 큼)']].forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];if(Number(C.scale)===o[0])op.selected=true;sel.appendChild(op)});sel.onchange=function(){C.scale=Number(sel.value)};r.appendChild(sel);b.appendChild(r);
  var pv=el('p','note');b.appendChild(bt('💾 저장','bt',function(){apiJ('/admin/api/settings',{img_cfg:JSON.stringify(C)}).then(function(j){if(j.error){toast(j.error);return}window.ImgKit.loadCfg(true);toast('저장했어요')})}));
- pv.textContent='저장 예) 20261002/'+C.folders.stock+'/① 산일전기_062040.png , ② 산일전기_062040.png  (① 메인 이미지, ② 통합 이미지). 폴더 이름에는 \\ / : * ? " < > | 를 쓸 수 없어요.';b.appendChild(pv)}
+ pv.textContent='저장 예) 20261002/'+C.folders.stock+'/산일전기/① 산일전기_062040.png , ② 산일전기_062040.png  (① 메인 이미지, ② 통합 이미지). 폴더 이름에는 \\ / : * ? " < > | 를 쓸 수 없어요.';b.appendChild(pv)}
 """
 
 

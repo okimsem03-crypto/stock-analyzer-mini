@@ -813,7 +813,7 @@ def api_blog():
 # 관리자 화면 탭 (JS) — 관리자 화면용 도우미(el, bt, api, apiJ, toast, $)를 쓴다. {{ {% {# 금지
 # ══════════════════════════════════════════════════════════════
 TAB_JS = r"""
-var DP={tk:null,d:null,ai:{},peers:{},q:'',sugg:[],saved:null};
+var DP={tk:null,d:null,ai:{},peers:{},q:'',sugg:[],saved:null,st:{}};
 function dpCol(s){return s>=70?'#16a34a':(s>=50?'#d97706':'#dc2626')}
 function dpN(v,d){if(v==null)return '-';return Number(v).toLocaleString('ko-KR',{maximumFractionDigits:d==null?1:d})}
 function dpCls(v){return v>0?'up':(v<0?'dn':'')}
@@ -844,9 +844,10 @@ function dpLoad(p){p.innerHTML='';var top=el('div','c');top.appendChild(el('b',n
 window.__openTicker=function(t){try{localStorage.setItem('mini_deep_ticker',String(t||''))}catch(e){}cur='dp';nav();load()};
 function dpSavedDraw(p){var sv=$('dpSaved');if(!sv)return;sv.innerHTML='';if(!DP.saved||!DP.saved.length)return;sv.appendChild(el('span','m','원본 저장분 있는 종목(최근순): '));
  DP.saved.slice(0,24).forEach(function(x){var b=bt((x.name||x.ticker)+' '+x.at.slice(5),'bt3',function(){dpOpen(x.ticker,p)});b.style.margin='2px';sv.appendChild(b)})}
-function dpOpen(tk,p,peers){DP.tk=tk;var b=$('dpBody');b.innerHTML='';b.appendChild(el('div','c','⏳ 재무·수급·공시·PEER를 모으는 중… (처음 한 번 5~10초)'));
+function dpOpen(tk,p,peers){DP.tk=tk;DP.st={};var b=$('dpBody');b.innerHTML='';b.appendChild(el('div','c','⏳ 재무·수급·공시·PEER를 모으는 중… (처음 한 번 5~10초)'));
  apiJ('/admin/api/deep/data',{ticker:tk,peers:peers||DP.peers[tk]||[]}).then(function(j){if(j.error){b.innerHTML='';b.appendChild(el('div','c bad','⚠ '+j.error));return}DP.d=j;DP._chain=1;dpDraw(p)})}
-var DPCSS='.dpH{background:linear-gradient(135deg,#0a1228 0%,#16275a 62%,#243a73 100%);color:#fff;border-radius:18px;padding:20px 22px;display:grid;grid-template-columns:200px 1fr 340px;gap:14px;align-items:center;position:relative;overflow:hidden;margin-bottom:12px;box-shadow:0 14px 36px -16px rgba(10,18,40,.7)}'+
+var DPCSS='.dpStp{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}.dpStp button{flex:1 1 170px;display:flex;align-items:center;gap:10px;text-align:left;border:1.5px solid #c7d2fe;background:#fff;color:#312e81;border-radius:14px;padding:10px 14px;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;line-height:1.35}.dpStp button small{display:block;font-weight:600;font-size:11.5px;color:#64748b}.dpStp .n{width:26px;height:26px;border-radius:50%;background:#c7d2fe;color:#312e81;display:flex;align-items:center;justify-content:center;font-weight:900;flex:0 0 auto}.dpStp .done{border-color:#86efac;background:#f0fdf4}.dpStp .done .n{background:#16a34a;color:#fff}.dpStp .cur{border-color:#4f46e5;box-shadow:0 0 0 3px rgba(79,70,229,.18)}.dpStp button:disabled{opacity:.55;cursor:default}'+
+'.dpH{background:linear-gradient(135deg,#0a1228 0%,#16275a 62%,#243a73 100%);color:#fff;border-radius:18px;padding:20px 22px;display:grid;grid-template-columns:200px 1fr 340px;gap:14px;align-items:center;position:relative;overflow:hidden;margin-bottom:12px;box-shadow:0 14px 36px -16px rgba(10,18,40,.7)}'+
 '.dpH:after{content:"";position:absolute;right:-70px;top:-70px;width:260px;height:260px;border-radius:50%;background:radial-gradient(closest-side,rgba(214,178,94,.38),transparent)}'+
 '.dpH>*{position:relative;z-index:1}.dpHm h2{margin:0;font-size:26px;font-weight:900;letter-spacing:-.02em}.dpHm .kk{font-size:11px;letter-spacing:.2em;color:#d6b25e;font-weight:800}.dpHm .mt{color:#cbd5e1;font-size:13px;margin-top:6px;line-height:1.7}'+
 '.dpHm .hl{margin-top:10px;display:inline-block;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 13px;font-size:13px;font-weight:800;color:#f6e7b4}.dpHm .lk a{color:#93c5fd;font-size:12px;margin-right:12px}'+
@@ -897,6 +898,7 @@ function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML
  /* ── 핵심 타일 ── */
  var T=el('div','dpTiles');dpTile(T,'현재가',pr0.price!=null?dpN(pr0.price,0)+'원':'-',pr0.day_pct!=null?((pr0.day_pct>0?'▲ ':(pr0.day_pct<0?'▼ ':''))+Math.abs(pr0.day_pct).toFixed(2)+'%'):'',dpSign(pr0.day_pct));
  dpTile(T,'시가총액',dpCap(d.cap));dpTile(T,'PER',fu.PER!=null?dpN(fu.PER)+'배':'-');dpTile(T,'PBR',fu.PBR!=null?dpN(fu.PBR,2)+'배':'-');dpTile(T,'ROE',bs.roe!=null?dpN(bs.roe)+'%':'-');dpTile(T,'영업이익률',bs.opm!=null?dpN(bs.opm)+'%':'-');dpTile(T,'부채비율',bs.debt_ratio!=null?dpN(bs.debt_ratio,0)+'%':'-');dpTile(T,'배당수익률',bs.div_yld!=null?dpN(bs.div_yld)+'%':(fu.DIV!=null?dpN(fu.DIV)+'%':'-'));b.appendChild(T);
+ var stp=el('div','dpStp');stp.id='dpSteps';b.appendChild(stp);dpSteps();
  var nav=el('div','dpNav');b.appendChild(nav);function navAdd(id,t){nav.appendChild(bt(t,'',function(){var e=$('dps_'+id);if(e)e.scrollIntoView({behavior:'smooth',block:'start'})}))}
  /* ── 5축 ── */
  var c1=dpSec(b,'ax','🎯 5축 체력 진단','종합 '+s.total+'점 · '+s.grade+'등급','#2563eb');navAdd('ax','🎯 체력');
@@ -941,20 +943,30 @@ function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML
  var c10=dpSec(b,'img',MEMBER_MODE?'🖼 요약 이미지 (3장)':'🖼 블로그용 이미지 (3장)','① 메인 · ② 5개년 재무 · ③ 통합 요약','#e11d48');navAdd('img','🖼 이미지');
  if(dpLk('img'))dpLock(c10,'img','종합점수·5축·재무 차트를 이미지로 만들어 내려받는 기능은 등급에 따라 열려요.');else{
  c10.appendChild(el('p','note',MEMBER_MODE?'① 종합점수·5축 레이더 메인 이미지, ② 5개년 매출·영업이익 차트와 재무표, ③ 체력·밸류에이션·PEER·체크리스트 통합 이미지예요. 지금 화면에 보이는 자료로 그려지며, 잠긴 구역은 이미지에서도 비어 있어요.':'① 종합점수·5축 레이더가 가운데 오는 메인 이미지, ② 5개년 매출·영업이익 차트와 재무표, ③ 체력·밸류에이션·PEER·체크리스트를 한 장에 모은 통합 이미지예요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
- var ib=el('div');c10.appendChild(ib);if(MEMBER_MODE)dpImgMember(ib,d);else DP.imgPanel=ImgKit.panel(ib,{menu:'deep',name:d.name,ticker:d.ticker,gen:function(scale){return Promise.resolve(window.DpImg.build(d,scale))}});}
+ var ib=el('div');c10.appendChild(ib);if(MEMBER_MODE)dpImgMember(ib,d);else DP.imgPanel=ImgKit.panel(ib,{menu:'deep',name:d.name,ticker:d.ticker,onDone:function(){DP.st.img=true;dpSteps()},gen:function(scale){return Promise.resolve(window.DpImg.build(d,scale))}});}
  /* ── 블로그 ── */
  if(!MEMBER_MODE){var c9=dpSec(b,'blog','📝 블로그 글 만들기','원본 방식 HTML'+((d.delisting&&d.delisting.level&&d.delisting.level!=='none')?' · ⚠ 위험 경고 자동 포함':''),'#16a34a');navAdd('blog','📝 글');var bx=el('div');c9.appendChild(bx);
  var secs=[['profile','기업현황'],['fin','5개년재무'],['score','체력진단'],['valu','밸류에이션'],['peers','PEER'],['check','체크리스트'],['supply','수급'],['disc','공시·뉴스'],['ai','AI분석'],['terms','용어풀이']];
  DP.blogPanel=window.BlogKit.panel(bx,{idp:'dp',key:'deepdive',kind:'deepdive',ticker:d.ticker,name:d.name,sections:secs,dup_warn:d.dup_warn,
-  build:function(inc,title){return apiJ('/admin/api/deep/blog',{ticker:d.ticker,peers:DP.peers[d.ticker]||[],ai:DP.ai[d.ticker]||'',inc:inc,title:title})},onLogged:function(z){d.dup_warn=z.dup_warn}})}
+  build:function(inc,title){return apiJ('/admin/api/deep/blog',{ticker:d.ticker,peers:DP.peers[d.ticker]||[],ai:DP.ai[d.ticker]||'',inc:inc,title:title})},onBuilt:function(){DP.st.blog=true;dpSteps()},onLogged:function(z){d.dup_warn=z.dup_warn}})}
  if(DP._chain&&!MEMBER_MODE){DP._chain=0;MiniFlow.run('deep',DPFLOW,DPACTS)}}
 /* 단계 자동 진행([⚙ 설정] 의 단계 진행 방식): 분석이 열리면 AI → 이미지 → 블로그 글 순서로 설정대로 이어 간다 */
+function dpGo2(id){var e=$('dps_'+id);if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'})}
+function dpSteps(){var sp=$('dpSteps'),d=DP.d;if(!sp||!d)return;sp.innerHTML='';var ai=!!(DP.ai[d.ticker]||'').trim(),done=[true,ai,!!DP.st.img,!!DP.st.blog],cur2=-1;
+ var L=[['분석 열기','불러옴 · 완료','1'],[MEMBER_MODE?'AI 요청문':'AI 정성 분석',ai?'글 있음 · 다시 만들기':'눌러서 시작','2'],[MEMBER_MODE?'요약 이미지':'이미지 만들기',done[2]?'완료 · 다시 만들기':'눌러서 만들기','3']];if(!MEMBER_MODE)L.push(['블로그 글 만들기',done[3]?'완료 · 다시 만들기':'눌러서 만들기','4']);
+ for(var i=0;i<L.length;i++){if(!done[i]){cur2=i;break}}
+ L.forEach(function(a,i){var b=el('button',(done[i]?'done':'')+(i===cur2?' cur':''));b.setAttribute('data-noconfirm','1');b.appendChild(el('span','n',done[i]?'✓':a[2]));var t=el('span');t.appendChild(document.createTextNode(a[0]));t.appendChild(el('small',null,a[1]));b.appendChild(t);b.onclick=function(){dpStepRun(i)};sp.appendChild(b)})}
+function dpStepRun(i){var d=DP.d;if(!d)return;
+ if(i===0){dpGo2('ax');return}
+ if(i===1){dpGo2('ai');if(MEMBER_MODE&&(d.locked||[]).indexOf('ai')>=0){lockDlg('ai');return}dpAI(d);return}
+ if(MEMBER_MODE){dpGo2('img');return}
+ MiniFlow.go('deep',DPFLOW,DPACTS,i===2?'img':'blog')}
 var DPFLOW=['ai','img','blog'];
 var DPACTS={
  ai:function(next){var d=DP.d;if(!d||MEMBER_MODE)return;if((DP.ai[d.ticker]||'').trim()){next();return}var e=$('dps_ai')||$('dpAiTa');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'});dpAI(d)},
  img:function(next){if(!DP.imgPanel)return;var e=$('dps_img');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'});DP.imgPanel.gen(true).then(function(){if(DP.imgPanel&&DP.imgPanel.items())next()},function(){})},
  blog:function(){if(!DP.blogPanel)return;DP.blogPanel.rebuild()}};
-function dpAiState(){var d=DP.d,z=$('dpAiState');if(!z||!d)return;var t=DP.ai[d.ticker]||'';z.textContent=t.trim()?('✅ AI 글 '+t.length.toLocaleString()+'자'+(MEMBER_MODE?' — 이 화면에만 있어요.':' — 블로그 글에 포함돼요.')):(MEMBER_MODE?'아직 AI 글이 없어요.':'아직 AI 글이 없어요(없어도 블로그 글은 만들 수 있어요).')}
+function dpAiState(){var d=DP.d,z=$('dpAiState');dpSteps();if(!z||!d)return;var t=DP.ai[d.ticker]||'';z.textContent=t.trim()?('✅ AI 글 '+t.length.toLocaleString()+'자'+(MEMBER_MODE?' — 이 화면에만 있어요.':' — 블로그 글에 포함돼요.')):(MEMBER_MODE?'아직 AI 글이 없어요.':'아직 AI 글이 없어요(없어도 블로그 글은 만들 수 있어요).')}
 function dpAI(d){if(!window.MiniAI){toast('AI 도우미 파일(menu_ui.py)이 올라가지 않았어요.');return}
  apiJ('/admin/api/deep/prompt',{ticker:d.ticker,peers:DP.peers[d.ticker]||[]}).then(function(j){if(j.error){toast(j.error);return}
   window.MiniAI.run({title:'기업 심층분석 AI — '+j.name,key:'deep',steps:[{label:j.name,prompt:j.prompt}],minLen:400,hint:'AI가 "## 1. 사업 현황 …" 형식으로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',

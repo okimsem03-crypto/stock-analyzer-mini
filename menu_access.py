@@ -326,7 +326,7 @@ def api_save():
 
 
 TAB_JS = r"""
-var FE={S:null,draft:null};
+var FE={S:null,draft:null,sel:0};
 function feClone(o){return JSON.parse(JSON.stringify(o))}
 function feLoad(p){api('/admin/api/feat/matrix').then(function(j){if(cur!=='fe')return;FE.S=j;FE.draft=feClone(j);feDraw(p)})}
 function feHas(a,t){return a.indexOf(t)>=0}
@@ -335,33 +335,36 @@ function feCols(){var L=FE.S.levels;return [[FE.S.guest,'비회원']].concat(L.m
 function feQuick(sel,toks,cols){var v=sel.value;sel.value='';var ids=cols.map(function(c){return c[0]});var out=[];
  if(v==='none')out=[];else if(v==='all')out=ids.slice();else if(v==='member')out=ids.slice(1);else if(v.indexOf('L')===0){var n=parseInt(v.slice(1),10);out=ids.slice(1+n-1)}
  toks.length=0;out.forEach(function(x){toks.push(x)})}
-function feDraw(p){p.innerHTML='';var cols=feCols();
- var top=el('div','c');top.appendChild(el('b',null,'🎚 기능 공개 — 메뉴 안의 기능마다 누구에게 열지 정해요'));
- top.appendChild(el('p','note','칸을 체크한 등급이 그 기능을 쓸 수 있어요. 아무도 체크하지 않으면 관리자만 써요. 관리자는 항상 모두 쓸 수 있어요. 이용자 화면은 [👁 미리보기]로 등급별로 직접 확인해 보세요. 메뉴 자체의 공개(메뉴 바에 보이기)는 각 메뉴의 첫 줄이에요. 회원 단계(이름·개수)는 [🧭 메뉴 관리]에서 바꿔요.'));
- var lk=el('div','bar');var a1=el('a',null,'📋 이용자용 등급 안내표 보기 ↗');a1.href='/plans';a1.target='_blank';a1.rel='noopener';lk.appendChild(a1);top.appendChild(lk);p.appendChild(top);
- FE.draft.menus.forEach(function(m,mi){var S=FE.S.menus[mi];var c=el('div','c');
-  var h=el('div','bar');h.appendChild(el('b',null,m.icon+' '+m.label));h.appendChild(el('span','m',m.desc||''));c.appendChild(h);
-  if(!m.shell)c.appendChild(el('p','note','이 메뉴는 아직 이용자용 화면(/m/'+m.id+')이 없어요 — 기능 등록만 되어 있어요.'));
-  var pv=el('div','bar');pv.appendChild(el('span','m','👁 미리보기:'));cols.concat([['admin','관리자']]).forEach(function(cc){if(cc[0]==='admin')return;var a=el('a','bt3',cc[1]+'으로');a.href='/m/'+m.id+'?as='+cc[0];a.target='_blank';a.rel='noopener';a.style.textDecoration='none';pv.appendChild(a)});
-  if(m.shell)c.appendChild(pv);
-  var tw=el('div');tw.style.overflowX='auto';var t=el('table');var hr=el('tr');hr.appendChild(el('th',null,'기능'));cols.forEach(function(cc){hr.appendChild(el('th',null,cc[1]))});hr.appendChild(el('th',null,'빠른 설정'));t.appendChild(hr);
-  function row(label,desc,toks,aria,note){var tr=el('tr');var td=el('td');td.appendChild(el('b',null,label));if(desc)td.appendChild(el('div','m',desc));if(note)td.appendChild(el('div','m',note));tr.appendChild(td);
-   var boxes=[];cols.forEach(function(cc){var tdc=el('td');var cb=el('input');cb.type='checkbox';cb.checked=feHas(toks,cc[0]);cb.setAttribute('aria-label',aria+' · '+cc[1]);
-    cb.onchange=function(){feSet(toks,cc[0],cb.checked)};boxes.push([cc[0],cb]);tdc.appendChild(cb);tr.appendChild(tdc)});
-   var tq=el('td');var sel=el('select');sel.setAttribute('aria-label','빠른 설정');[['','선택…'],['none','관리자만'],['all','누구나'],['member','모든 회원']].concat(FE.S.levels.map(function(x,i){return ['L'+(i+1),x.name+' 이상']})).forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];sel.appendChild(op)});
-   sel.onchange=function(){feQuick(sel,toks,cols);boxes.forEach(function(b){b[1].checked=feHas(toks,b[0])})};tq.appendChild(sel);tr.appendChild(tq);t.appendChild(tr)}
-  if(m.admin_only)row('📌 메뉴 보이기','이 메뉴는 관리자 전용으로 고정돼 있어요.',[],'메뉴 보이기');else row('📌 메뉴 보이기','메뉴 바·전체 메뉴에 나타나는 등급',m.tokens,'메뉴 보이기');
-  m.feats.forEach(function(f){row(f.label,f.desc,f.tokens,f.label,f.custom?'· 직접 정한 값':'· 기본값')});
-  tw.appendChild(t);c.appendChild(tw);
-  if(!m.feats.length)c.appendChild(el('p','note','이 메뉴는 기능별 설정이 아직 없어요.'));
-  var bar=el('div','bar');
-  bar.appendChild(bt('💾 이 메뉴 공개 설정 저장','bt',function(){var fs={};m.feats.forEach(function(f){fs[f.id]=f.tokens});
-   apiJ('/admin/api/feat/save',{menu:m.id,feats:fs,menu_tokens:m.admin_only?null:m.tokens}).then(function(j){if(j.error){toast(j.error);return}FE.S=j;FE.draft=feClone(j);toast('저장했어요');feDraw(p)})}));
-  bar.appendChild(bt('↩ 기본값으로 되돌리기','bt2',function(){if(!confirm('‘'+m.label+'’ 기능의 공개 설정을 처음 기본값으로 되돌릴까요?'))return;apiJ('/admin/api/feat/save',{menu:m.id,feats:{},reset:true}).then(function(j){if(j.error){toast(j.error);return}FE.S=j;FE.draft=feClone(j);toast('되돌렸어요');feDraw(p)})}));
-  c.appendChild(bar);
-  var warn=m.feats.filter(function(f){return !m.admin_only&&f.tokens.some(function(t){return m.tokens.indexOf(t)<0})});
-  if(warn.length)c.appendChild(el('p','note bad','⚠ 메뉴 자체가 열려 있지 않은 등급이 있어서, 그 등급에게는 기능이 열려 있어도 보이지 않아요: '+warn.map(function(f){return f.label}).join(', ')));
-  p.appendChild(c)})}
+function feDirty(mi){return JSON.stringify([FE.draft.menus[mi].tokens,FE.draft.menus[mi].feats.map(function(f){return f.tokens})])!==JSON.stringify([FE.S.menus[mi].tokens,FE.S.menus[mi].feats.map(function(f){return f.tokens})])}
+function feDraw(p){p.innerHTML='';var cols=feCols();if(FE.sel==null||FE.sel>=FE.draft.menus.length)FE.sel=0;
+ var top=el('div','c');var th=el('div','bar');th.appendChild(el('b',null,'🎚 기능 공개'));th.appendChild(el('span','m','체크한 등급이 그 기능을 써요 · 모두 비우면 관리자만 · 관리자는 항상 전부 사용'));
+ var a1=el('a','m','📋 이용자용 등급 안내표 ↗');a1.href='/plans';a1.target='_blank';a1.rel='noopener';th.appendChild(a1);top.appendChild(th);
+ var chips=el('div','bar');FE.draft.menus.forEach(function(m,mi){var on=mi===FE.sel;var c=bt(m.icon+' '+m.label+(feDirty(mi)?' ●':''),on?'bt':'bt3',function(){FE.sel=mi;feDraw(p)});chips.appendChild(c)});top.appendChild(chips);p.appendChild(top);
+ var mi=FE.sel,m=FE.draft.menus[mi];var c=el('div','c');
+ var h=el('div','bar');h.appendChild(el('b',null,m.icon+' '+m.label));var hd=el('span','m',m.desc||'');hd.title=m.desc||'';hd.style.cssText='max-width:520px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';h.appendChild(hd);
+ if(m.shell){h.appendChild(el('span','m','👁 미리보기'));cols.forEach(function(cc){var a=el('a','bt3',cc[1]);a.href='/m/'+m.id+'?as='+cc[0];a.target='_blank';a.rel='noopener';a.style.textDecoration='none';a.title=cc[1]+'으로 이용자 화면 보기';h.appendChild(a)})}
+ else h.appendChild(el('span','m','⚠ 이용자용 화면(/m/'+m.id+')이 아직 없어요'));
+ c.appendChild(h);
+ var tw=el('div');tw.style.overflowX='auto';var t=el('table');var hr=el('tr');hr.appendChild(el('th',null,'기능'));cols.forEach(function(cc){hr.appendChild(el('th',null,cc[1]))});hr.appendChild(el('th',null,'한 번에'));t.appendChild(hr);
+ function row(label,desc,toks,aria,custom){var tr=el('tr');var td=el('td');var bb=el('b',null,label);td.appendChild(bb);if(custom)td.appendChild(el('span','m',' ●'));if(desc){td.title=desc}tr.appendChild(td);
+  var boxes=[];cols.forEach(function(cc){var tdc=el('td');var cb=el('input');cb.type='checkbox';cb.checked=feHas(toks,cc[0]);cb.setAttribute('aria-label',aria+' · '+cc[1]);
+   cb.onchange=function(){feSet(toks,cc[0],cb.checked);feChips(p)};boxes.push([cc[0],cb]);tdc.appendChild(cb);tr.appendChild(tdc)});
+  var tq=el('td');var sel=el('select');sel.setAttribute('aria-label','한 번에 설정');[['','선택…'],['none','관리자만'],['all','누구나'],['member','모든 회원']].concat(FE.S.levels.map(function(x,i){return ['L'+(i+1),x.name+' 이상']})).forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];sel.appendChild(op)});
+  sel.onchange=function(){feQuick(sel,toks,cols);boxes.forEach(function(b){b[1].checked=feHas(toks,b[0])});feChips(p)};tq.appendChild(sel);tr.appendChild(tq);t.appendChild(tr)}
+ if(m.admin_only)row('📌 메뉴 보이기','이 메뉴는 관리자 전용으로 고정돼 있어요.',[],'메뉴 보이기');else row('📌 메뉴 보이기','메뉴 바·전체 메뉴에 나타나는 등급',m.tokens,'메뉴 보이기');
+ m.feats.forEach(function(f){row(f.label,f.desc,f.tokens,f.label,f.custom)});
+ tw.appendChild(t);c.appendChild(tw);
+ if(!m.feats.length)c.appendChild(el('p','note','이 메뉴는 기능별 설정이 아직 없어요.'));
+ var bar=el('div','bar');
+ bar.appendChild(bt('💾 이 메뉴 저장','bt',function(){var fs={};m.feats.forEach(function(f){fs[f.id]=f.tokens});
+  apiJ('/admin/api/feat/save',{menu:m.id,feats:fs,menu_tokens:m.admin_only?null:m.tokens}).then(function(j){if(j.error){toast(j.error);return}FE.S=j;FE.draft=feClone(j);toast('저장했어요');feDraw(p)})}));
+ bar.appendChild(bt('↩ 기본값으로','bt2',function(){if(!confirm('‘'+m.label+'’ 기능의 공개 설정을 처음 기본값으로 되돌릴까요?'))return;apiJ('/admin/api/feat/save',{menu:m.id,feats:{},reset:true}).then(function(j){if(j.error){toast(j.error);return}FE.S=j;FE.draft=feClone(j);toast('되돌렸어요');feDraw(p)})}));
+ bar.appendChild(el('span','m','● = 직접 정한 값 · 기능 이름에 마우스를 올리면 설명이 보여요'));
+ c.appendChild(bar);
+ var warn=m.feats.filter(function(f){return !m.admin_only&&f.tokens.some(function(t){return m.tokens.indexOf(t)<0})});
+ if(warn.length)c.appendChild(el('p','note bad','⚠ 메뉴가 열려 있지 않은 등급에게는 기능이 열려 있어도 보이지 않아요: '+warn.map(function(f){return f.label}).join(', ')));
+ p.appendChild(c)}
+function feChips(p){/* 체크를 바꾸면 위쪽 메뉴 칩의 ● 표시만 새로 그린다 */var bs=p.querySelectorAll('.c')[0];if(!bs)return;var bars=bs.querySelectorAll('.bar');var ch=bars[bars.length-1];if(!ch)return;var bn=ch.querySelectorAll('button');FE.draft.menus.forEach(function(m,i){if(bn[i])bn[i].textContent=m.icon+' '+m.label+(feDirty(i)?' ●':'')})}
 """
 
 
