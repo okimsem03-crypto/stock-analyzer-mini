@@ -817,13 +817,87 @@ def _stats():
     return {"total": int(r[0]), "new_today": int(r[1]), "new_7d": int(r[2]), "blocked": int(r[3]), "online": int(r[4]), "mails_24h": int(r[5])}
 
 
+_KR2 = ("co.kr", "or.kr", "go.kr", "ne.kr", "re.kr", "pe.kr", "ac.kr", "ms.kr", "hs.kr", "es.kr", "sc.kr")
+
+
+def _root_domain(host):
+    """stock.oky.kr → oky.kr (co.kr 같은 2단계 도메인은 한 칸 더). 메일 도메인 인증에 쓸 '내 도메인' 추정."""
+    h = (host or "").split(":")[0].strip().lower()
+    parts = h.split(".")
+    if len(parts) < 3 or re.match(r"^[\d.]+$", h):
+        return h
+    return ".".join(parts[-3:]) if ".".join(parts[-2:]) in _KR2 else ".".join(parts[-2:])
+
+
+def _env_set(*names):
+    return {n: bool(os.environ.get(n, "").strip()) for n in names}
+
+
+# 제공자별 설정 안내(화면은 이 내용을 그대로 그린다). {redirect}·{base}·{host} 는 서버가 채운다.
+PROVIDER_GUIDE = {
+    "naver": {
+        "links": [["애플리케이션 등록 (여기서 시작)", "https://developers.naver.com/apps/#/register"], ["내 애플리케이션 목록 (키 확인)", "https://developers.naver.com/apps/#/list"]],
+        "steps": ["위 [애플리케이션 등록] 링크를 열고 네이버 계정으로 로그인해요.",
+                  "애플리케이션 이름에 ‘종목분석 미니’(아무 이름이나 가능)를 쓰고, 사용 API에서 ‘네이버 로그인’을 골라요.",
+                  "‘제공 정보’에서 이메일 주소를 반드시 ‘필수’로 체크해요. (이메일이 회원 아이디가 되기 때문이에요)",
+                  "서비스 환경에서 ‘PC 웹’을 추가하고, 아래 [서비스 URL]·[Callback URL]을 복사해 그대로 붙여 넣어요.",
+                  "[등록하기]를 누른 뒤 앱 개요 화면의 Client ID·Client Secret을 복사해 Render 환경변수에 넣어요(아래 ‘Render에 넣을 값’)."],
+        "values": [["서비스 URL", "{base}", "https:// 로 시작, 끝에 / 없이"], ["Callback URL", "{redirect}", "한 글자라도 다르면 로그인이 안 돼요"]],
+        "tip": "처음엔 ‘개발 중’ 상태라 앱 멤버(내 계정 + [멤버관리]에 추가한 계정)만 로그인돼요. 일반 회원이 쓰게 하려면 앱 화면의 [검수 요청]을 승인받아야 해요.",
+    },
+    "google": {
+        "links": [["사용자 인증 정보 (OAuth 클라이언트 만들기)", "https://console.cloud.google.com/apis/credentials"], ["OAuth 동의 화면(브랜딩)", "https://console.cloud.google.com/auth/branding"],
+                  ["대상 (테스트 → 프로덕션 게시)", "https://console.cloud.google.com/auth/audience"]],
+        "steps": ["Google Cloud 콘솔에 로그인하고, 위쪽 프로젝트 선택 상자에서 [새 프로젝트]를 만들어요(이름 예: stock-mini).",
+                  "[OAuth 동의 화면(브랜딩)]에서 앱 이름 ‘종목분석 미니’, 사용자 지원 이메일, 개발자 연락처 이메일을 입력해요. 대상(User type)은 ‘외부’를 골라요.",
+                  "[사용자 인증 정보] → [+ 사용자 인증 정보 만들기] → ‘OAuth 클라이언트 ID’ → 애플리케이션 유형 ‘웹 애플리케이션’을 골라요.",
+                  "‘승인된 리디렉션 URI’에 아래 [승인된 리디렉션 URI]를 추가하고 [만들기]를 눌러요. (JavaScript 원본은 비워 둬도 돼요)",
+                  "나온 클라이언트 ID·클라이언트 보안 비밀번호를 복사해 Render 환경변수에 넣어요.",
+                  "[대상] 화면에서 ‘앱 게시(프로덕션으로)’를 눌러요. 테스트 상태로 두면 등록한 테스트 사용자만 로그인돼요. 쓰는 권한이 email·openid뿐이라 별도 심사 없이 게시돼요."],
+        "values": [["승인된 리디렉션 URI", "{redirect}", "한 글자라도 다르면 redirect_uri_mismatch 오류가 나요"], ["(선택) 승인된 JavaScript 원본", "{base}", "비워 둬도 돼요"], ["필요한 권한(범위)", "openid email", "기본 범위라 따로 추가하지 않아도 돼요"]],
+        "tip": "설정을 바꾼 직후에는 구글에 반영되기까지 몇 분 걸릴 수 있어요.",
+    },
+    "kakao": {
+        "links": [["카카오 개발자 콘솔 (내 애플리케이션)", "https://developers.kakao.com/console/app"], ["카카오 로그인 FAQ (공식)", "https://developers.kakao.com/docs/latest/ko/kakaologin/faq"]],
+        "steps": ["카카오 개발자 콘솔에서 [애플리케이션 추가하기]로 앱을 만들어요(앱 이름 ‘종목분석 미니’).",
+                  "[앱] → [플랫폼 키] → ‘REST API 키’를 열어 키 값을 복사해요. 이 값이 KAKAO_REST_API_KEY예요.",
+                  "[제품 설정] → [카카오 로그인]에서 ‘활성화’를 켜요(화면에 따라 [카카오 로그인] → [고급] 쪽에 있어요).",
+                  "Redirect URI에 아래 값을 등록해요. 메뉴가 안 보이면 [플랫폼 키]의 REST API 키 상세에 있는 ‘카카오 로그인 리다이렉트 URI’ 항목에 등록해요.",
+                  "[동의항목]에서 닉네임 등을 설정해요. 이메일(account_email)은 비즈 앱으로 전환·심사를 통과해야 받을 수 있어요(없어도 가입은 돼요).",
+                  "REST API 키 상세의 ‘클라이언트 시크릿’이 사용(활성) 상태면 그 코드도 KAKAO_CLIENT_SECRET에 넣어요. 사용 안 함이면 비워 둬도 돼요."],
+        "values": [["Redirect URI", "{redirect}", "한 글자라도 다르면 KOE006 오류가 나요"], ["사이트 도메인", "{host}", "플랫폼(웹) 등록란이 있으면 입력"]],
+        "tip": "이메일을 못 받으면 ‘kakao_번호@sns.local’ 내부 아이디로 가입돼요. 비즈 앱 승인 뒤 환경변수 KAKAO_REQUEST_EMAIL=1 을 추가하면 이메일을 요청해요.",
+    },
+}
+
+
+def _guide():
+    base = _base_url()
+    host = urllib.parse.urlparse(base).netloc
+    root = _root_domain(host)
+    names = ["RESEND_API_KEY", "MAIL_FROM", "SMTP_HOST", "MEMBER_OAUTH_BASE_URL", "KAKAO_REQUEST_EMAIL"] + [n for v in PROVIDERS.values() for n in v["env"]]
+    envs = _env_set(*names)
+    provs = []
+    for k, v in PROVIDERS.items():
+        g_ = PROVIDER_GUIDE[k]
+        fill = lambda t: t.replace("{base}", base).replace("{redirect}", _redirect_uri(k)).replace("{host}", host)
+        provs.append({"id": k, "label": v["label"], "ok": _configured(k), "redirect": _redirect_uri(k),
+                      "env": [{"name": v["env"][0], "set": envs[v["env"][0]], "opt": False, "hint": "발급된 ID(키)"},
+                              {"name": v["env"][1], "set": envs[v["env"][1]], "opt": k == "kakao", "hint": "발급된 비밀번호(시크릿)" + (" — 사용 안 함이면 비워도 돼요" if k == "kakao" else "")}],
+                      "links": g_["links"], "steps": g_["steps"], "tip": g_["tip"], "values": [[a, fill(b), c] for a, b, c in g_["values"]]})
+    admin_to = (C.ADMIN_EMAILS or [""])[0]
+    return {"base": base, "host": host, "root": root, "suggest_from": f"종목분석 미니 <no-reply@{root}>", "admin_email": admin_to, "env": envs, "providers": provs,
+            "oauth_base_set": envs["MEMBER_OAUTH_BASE_URL"]}
+
+
 def _state():
     mail = "resend" if C.RESEND_API_KEY else ("smtp" if C.SMTP_HOST else "none")
     return {"settings": {"on": _on(), "signup": setting_get("member_signup", "1") == "1", "verify": _verify_on(), "default_level": _default_level(), "mail_cap": _daily_cap()},
             "levels": member_levels(), "stats": _stats(), "mail": mail, "mail_from": C.MAIL_FROM if mail != "none" else "",
             "sandbox_sender": "resend.dev" in (C.MAIL_FROM or ""),
             "social": [{"id": k, "label": v["label"], "ok": _configured(k), "env": [v["env"][0]] + ([v["env"][1]] if k != "kakao" else [v["env"][1] + "(선택)"]), "redirect": _redirect_uri(k)}
-                       for k, v in PROVIDERS.items()]}
+                       for k, v in PROVIDERS.items()],
+            "guide": _guide()}
 
 
 @bp.route("/admin/api/member/state")
@@ -854,6 +928,46 @@ def adm_settings():
     C.setting_set("member_mail_cap", str(cap))
     _alog("member_settings", f"on={int(bool(d.get('on')))} signup={int(bool(d.get('signup')))} verify={int(bool(d.get('verify')))} level={lv} cap={cap}")
     return _admin_json(_state())
+
+
+_MT = {"last": 0.0, "hour": []}
+
+
+@bp.route("/admin/api/member/mailtest", methods=["POST"])
+def adm_mailtest():
+    """메일 설정이 제대로인지 지정한 주소로 시험 메일 1통을 보낸다(관리자 전용, 20초에 1번·시간당 10번)."""
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    to = str(_json_body().get("to", "")).strip()
+    if not EMAIL_RE.match(to):
+        return _admin_json({"error": "받을 메일 주소가 올바르지 않아요."}, 400)
+    now = time.time()
+    _MT["hour"] = [t for t in _MT["hour"] if now - t < 3600]
+    if now - _MT["last"] < 20 or len(_MT["hour"]) >= 10:
+        return _admin_json({"error": "시험 메일은 20초에 한 번, 시간당 10번까지만 보낼 수 있어요. 잠시 뒤 다시 눌러 주세요."}, 429)
+    _MT["last"] = now
+    _MT["hour"].append(now)
+    try:
+        _send_mail([to], "[종목분석 미니] 메일 발송 시험", "이 메일이 보이면 메일 발송 설정이 정상이에요.\n(관리자 화면 [👤 회원]의 시험 메일 버튼으로 보냈어요.)")
+    except Exception as e:
+        msg = str(e)
+        if msg == "mail_not_configured":
+            why = "메일 발송이 아직 설정되지 않았어요. Render 환경변수 RESEND_API_KEY 를 먼저 넣어 주세요."
+        elif "http 401" in msg or "http 400" in msg and "api" in msg.lower():
+            why = "Resend가 API 키를 받아들이지 않았어요. RESEND_API_KEY 값을 다시 확인해 주세요(re_ 로 시작)."
+        elif "http 403" in msg:
+            why = "Resend가 보내기를 거절했어요. 보내는 주소의 도메인이 아직 인증(Verified) 전이거나, 시험용 주소(resend.dev)로는 Resend 가입 메일에만 보낼 수 있어요. 도메인 인증과 MAIL_FROM 을 확인해 주세요."
+        elif "http 422" in msg:
+            why = "보내는 주소(MAIL_FROM) 형식이 올바르지 않아요. 예: 종목분석 미니 <no-reply@내도메인>"
+        elif "http 429" in msg:
+            why = "Resend 발송 한도에 걸렸어요. 잠시 뒤 다시 시도해 주세요."
+        else:
+            why = "메일을 보내지 못했어요(" + msg[:120] + ")."
+        _alog("member_mailtest_fail", C._mask_email(to))
+        return _admin_json({"error": why}, 502)
+    _alog("member_mailtest", C._mask_email(to))
+    return _admin_json({"ok": True, "to": to})
 
 
 @bp.route("/admin/api/member/list")
@@ -938,21 +1052,87 @@ def adm_delete():
 
 ADMIN_JS = r"""
 var MB={S:null,q:'',page:1,L:null,p:null};
+// ───── 설정 안내(메일·SNS 로그인): 단계 · 복사 버튼 · 바로가기 링크 ─────
+function mbSt(e,css){e.style.cssText=css;return e}
+function mbCopy(text,b){
+ function done(ok){var o=b.getAttribute('data-t')||b.textContent;b.setAttribute('data-t',o);b.textContent=ok?'✅ 복사됨':'⚠ 직접 복사';toast(ok?'복사했어요':'복사가 막혔어요. 글자를 직접 선택해 복사해 주세요',ok?'ok':'bad');setTimeout(function(){b.textContent=o},1600)}
+ function fb(){var ok=false;try{var ta=document.createElement('textarea');ta.value=text;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.select();ok=document.execCommand('copy');document.body.removeChild(ta)}catch(e){}done(ok)}
+ if(navigator.clipboard&&navigator.clipboard.writeText&&window.isSecureContext){navigator.clipboard.writeText(text).then(function(){done(true)},fb)}else fb()}
+function mbA(label,url){var a=el('a',null,label+' ↗');a.href=url;a.target='_blank';a.rel='noopener noreferrer';mbSt(a,'display:inline-block;margin:3px 8px 3px 0;padding:6px 11px;border-radius:8px;background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;font-weight:700;font-size:12.5px;text-decoration:none');return a}
+function mbLinks(list){var d=el('div');mbSt(d,'margin:4px 0 2px');(list||[]).forEach(function(x){d.appendChild(mbA(x[0],x[1]))});return d}
+function mbVal(label,val,note){var w=el('div');mbSt(w,'margin:7px 0');var r=el('div');mbSt(r,'display:flex;gap:8px;align-items:center;flex-wrap:wrap');var l=el('span',null,label);mbSt(l,'min-width:150px;font-size:12.5px;font-weight:700;color:#334155');r.appendChild(l);
+ var c=el('code',null,val);mbSt(c,'flex:1;min-width:200px;padding:6px 9px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;font-size:12.5px;word-break:break-all;user-select:all');r.appendChild(c);
+ var b=bt('📋 복사','bt3',function(){mbCopy(val,b)});r.appendChild(b);w.appendChild(r);
+ if(note){var n=el('div','m',note);mbSt(n,'margin:2px 0 0 2px');w.appendChild(n)}return w}
+function mbEnv(name,isSet,opt,hint){var r=el('div');mbSt(r,'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0');
+ var s=el('span',null,isSet?'✅ 설정됨':(opt?'⬜ 선택':'⬜ 아직'));mbSt(s,'min-width:78px;font-size:12px;font-weight:800;color:'+(isSet?'#15803d':(opt?'#64748b':'#b45309')));r.appendChild(s);
+ var c=el('code',null,name);mbSt(c,'padding:5px 9px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;font-size:12.5px;user-select:all');r.appendChild(c);
+ var b=bt('📋 이름 복사','bt3',function(){mbCopy(name,b)});r.appendChild(b);if(hint){r.appendChild(el('span','m',hint))}return r}
+function mbStep(n,title){var d=el('div');mbSt(d,'display:flex;gap:10px;margin:12px 0');var nn=el('span',null,String(n));mbSt(nn,'flex:0 0 26px;height:26px;border-radius:50%;background:#3151d3;color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center');d.appendChild(nn);
+ var bd=el('div');mbSt(bd,'flex:1;min-width:0');bd.appendChild(el('b',null,title));d.appendChild(bd);d._b=bd;return d}
+function mbBox(title,badge,kind,open){var d=document.createElement('details');d.open=!!open;mbSt(d,'margin:10px 0;border:1px solid #e2e8f0;border-radius:12px;padding:0 14px;background:#fff');
+ var sm=document.createElement('summary');mbSt(sm,'cursor:pointer;padding:11px 0;font-weight:800;font-size:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap');sm.appendChild(document.createTextNode(title));
+ var bg=el('span',null,badge);mbSt(bg,'font-size:12px;font-weight:800;border-radius:999px;padding:2px 10px;'+(kind==='ok'?'background:#dcfce7;color:#166534':(kind==='warn'?'background:#fef3c7;color:#92400e':'background:#fee2e2;color:#991b1b')));sm.appendChild(bg);d.appendChild(sm);
+ var bd=el('div');mbSt(bd,'padding:0 0 12px');d.appendChild(bd);d._b=bd;return d}
+function mbNote(t,kind){var n=el('div',null,t);mbSt(n,'margin:8px 0;padding:8px 11px;border-radius:9px;font-size:12.5px;line-height:1.6;'+(kind==='warn'?'background:#fffbeb;border:1px solid #fde68a;color:#92400e':'background:#f8fafc;border:1px solid #e2e8f0;color:#475569'));return n}
+function mbRenderCard(p,S){var G=S.guide,c=el('div','c');c.appendChild(el('b',null,'🧭 먼저 알아 두세요 — Render 환경변수 넣는 법'));
+ c.appendChild(el('p','note','메일·SNS 로그인 키는 보안을 위해 코드나 화면이 아니라 Render 서버의 환경변수에만 넣어요. 아래 모든 안내의 ‘Render에 넣을 값’은 같은 방법으로 넣어요.'));
+ var bx=mbBox('📌 Render 환경변수 넣는 방법 (처음 한 번만 읽으면 돼요)','1~3분','ok',false);var b=bx._b;
+ b.appendChild(mbLinks([['Render 대시보드 열기','https://dashboard.render.com/']]));
+ [['내 웹 서비스 선택','대시보드 목록에서 이 사이트의 서비스(예: stock-analyzer-mini)를 눌러요.'],['Environment 메뉴','왼쪽 메뉴의 [Environment]를 누르고 [Add Environment Variable]을 눌러요.'],
+  ['Key / Value 입력','Key 칸에는 아래의 환경변수 이름(📋 이름 복사)을, Value 칸에는 발급받은 값을 붙여 넣어요. 값 앞뒤에 따옴표·공백이 없어야 해요.'],
+  ['저장하고 다시 배포','[Save, rebuild, and deploy](또는 [Save Changes])를 누르면 1~3분 뒤 서버가 새로 떠요. 그 뒤 이 화면을 새로고침(F5)하면 ✅ 로 바뀌어요.']].forEach(function(x,i){var st=mbStep(i+1,x[0]);st._b.appendChild(el('div','m',x[1]));b.appendChild(st)});
+ b.appendChild(mbNote('⚠ 키 값은 다른 사람에게 보내거나 채팅·메일에 붙여 넣지 마세요. 이 화면은 키 값을 표시하지 않고, ‘설정됨/아직’만 보여 줘요.','warn'));
+ c.appendChild(bx);p.appendChild(c)}
+function mbMailCard(p,S){var G=S.guide,c=el('div','c');
+ var none=S.mail==='none',sand=!none&&S.sandbox_sender,okm=!none&&!sand;
+ c.appendChild(el('b',null,'✉ 메일 발송 상태 · 설정 안내 (회원가입 인증번호 메일)'));
+ var st=el('p','note',none?'❌ 메일 발송이 설정되지 않았어요. 아래 ①~⑤를 따라 하면 돼요. (설정 전에는 [이메일 인증]을 끄면 인증 없이 가입은 가능해요)':(sand?'⚠ 메일은 나가지만 보내는 주소가 시험용(resend.dev)이에요. 이 주소는 Resend 가입 메일로만 보낼 수 있어서 다른 사람 인증 메일은 실패해요. 아래 ②~④로 내 도메인을 연결하세요.':'✅ '+(S.mail==='resend'?'Resend':'SMTP')+' 로 발송 · 보내는 주소: '+S.mail_from));
+ c.appendChild(st);
+ var bx=mbBox('📖 설정 방법 단계별 안내',okm?'설정 완료':(sand?'도메인 연결 필요':'설정 필요'),okm?'ok':(sand?'warn':'bad'),!okm);var b=bx._b;
+ var s1=mbStep(1,'Resend 가입 (무료)');s1._b.appendChild(el('div','m','메일 발송 서비스예요. 무료는 하루 100통까지라 인증 메일용으로 충분해요.'));s1._b.appendChild(mbLinks([['Resend 가입하기','https://resend.com/signup']]));b.appendChild(s1);
+ var s2=mbStep(2,'내 도메인 추가 → DNS 등록 → Verified 확인');s2._b.appendChild(el('div','m','다른 사람에게도 메일을 보내려면 내 도메인 인증이 필요해요. Resend [Domains] → [Add Domain]에 아래 도메인을 입력해요.'));
+ s2._b.appendChild(mbVal('Resend에 입력할 도메인',G.root,'이 사이트 주소('+G.host+')에서 추정한 값이에요. 다른 도메인을 쓰려면 그 도메인으로 바꿔 입력하세요.'));
+ s2._b.appendChild(el('div','m','추가하면 Resend가 TXT·MX 같은 DNS 레코드 몇 줄을 보여 줘요. 그 값을 도메인을 산 곳(가비아·후이즈·Cloudflare 등)의 DNS 관리 화면에 그대로 추가하고, Resend에서 [Verify DNS Records]를 눌러 ‘Verified’가 될 때까지 기다려요(몇 분~몇 시간).'));
+ s2._b.appendChild(mbLinks([['Resend 도메인 관리','https://resend.com/domains']]));b.appendChild(s2);
+ var s3=mbStep(3,'API 키 만들기 → RESEND_API_KEY');s3._b.appendChild(el('div','m','[API Keys] → [Create API Key] → 권한 ‘Sending access’로 만들고, 화면에 한 번만 보이는 키(re_ 로 시작)를 복사해요. Render 환경변수에 아래 이름으로 넣어요.'));
+ s3._b.appendChild(mbLinks([['Resend API 키 만들기','https://resend.com/api-keys']]));s3._b.appendChild(mbEnv('RESEND_API_KEY',G.env.RESEND_API_KEY,false,'값: 방금 복사한 키'));b.appendChild(s3);
+ var s4=mbStep(4,'보내는 주소 → MAIL_FROM');s4._b.appendChild(el('div','m','도메인이 Verified가 되면, 아래 값을 Render 환경변수 MAIL_FROM의 Value로 넣어요. (no-reply 대신 다른 앞부분도 괜찮아요)'));
+ s4._b.appendChild(mbEnv('MAIL_FROM',G.env.MAIL_FROM,false,'값은 아래 줄'));s4._b.appendChild(mbVal('MAIL_FROM 값',G.suggest_from,'큰따옴표 없이 그대로 붙여 넣어요.'));b.appendChild(s4);
+ var s5=mbStep(5,'Render에 저장하고 다시 배포');s5._b.appendChild(el('div','m','위 ‘Render 환경변수 넣는 방법’대로 두 값을 넣고 저장해요. 1~3분 뒤 이 화면을 새로고침해요.'));
+ var rb=bt('🔄 상태 다시 확인','bt2',function(){mbLoad(p)});s5._b.appendChild(rb);b.appendChild(s5);
+ var s6=mbStep(6,'테스트 메일로 확인');s6._b.appendChild(el('div','m','받을 주소를 확인하고 버튼을 누르면 시험 메일 1통을 보내요(20초에 한 번).'));
+ var row=el('div','bar');var ti=el('input');ti.type='email';ti.value=G.admin_email||'';ti.placeholder='받을 메일 주소';ti.style.width='260px';row.appendChild(ti);var out=el('div','note','');
+ row.appendChild(bt('✉ 테스트 메일 보내기','bt',function(){out.textContent='보내는 중…';apiJ('/admin/api/member/mailtest',{to:ti.value}).then(function(j){if(j.error){out.textContent='❌ '+j.error;return}out.textContent='✅ '+j.to+' 로 보냈어요. 받은편지함(또는 스팸함)을 확인하세요.'})}));
+ s6._b.appendChild(row);s6._b.appendChild(out);b.appendChild(s6);
+ b.appendChild(mbNote('도움말: Render 무료 서버는 SMTP 포트를 막아서 Resend(https 방식)를 써요. 메일이 스팸함으로 가면 도메인 인증(Verified)이 됐는지, MAIL_FROM의 도메인이 인증한 도메인과 같은지 확인하세요.'));
+ c.appendChild(bx);p.appendChild(c)}
+function mbSnsCard(p,S){var G=S.guide,c=el('div','c');c.appendChild(el('b',null,'🔗 SNS 로그인 상태 · 설정 안내 (네이버·구글·카카오)'));
+ c.appendChild(el('p','note','각 서비스 개발자 센터에서 앱을 만들고 → 아래 [입력할 값]을 복사해 붙여 넣고 → 발급된 키를 Render 환경변수에 넣으면, 로그인 화면의 버튼이 자동으로 켜져요. 하나씩만 해도 돼요.'));
+ (G.providers||[]).forEach(function(x){var bx=mbBox((x.ok?'✅ ':'⬜ ')+x.label+' 로그인',x.ok?'사용 중':'설정 필요',x.ok?'ok':'bad',!x.ok);var b=bx._b;
+  b.appendChild(mbLinks(x.links));
+  x.steps.forEach(function(t,i){var st=mbStep(i+1,t);b.appendChild(st)});
+  var vb=el('div');mbSt(vb,'margin:14px 0 4px');vb.appendChild(el('b',null,'📝 개발자 센터에 입력할 값 (복사해서 그대로 붙여 넣기)'));b.appendChild(vb);
+  x.values.forEach(function(v){b.appendChild(mbVal(v[0],v[1],v[2]))});
+  var eb=el('div');mbSt(eb,'margin:14px 0 4px');eb.appendChild(el('b',null,'🔑 Render에 넣을 값 (발급된 키를 Value에 붙여 넣기)'));b.appendChild(eb);
+  x.env.forEach(function(e){b.appendChild(mbEnv(e.name,e.set,e.opt,e.hint))});
+  var lines=x.env.filter(function(e){return !e.opt}).map(function(e){return e.name+'=여기에_복사한_값'}).join('\n');
+  var cb=bt('📋 한 번에 붙여넣기용 .env 형식 복사','bt3',function(){mbCopy(lines,cb)});mbSt(cb,'margin:6px 0');b.appendChild(cb);
+  b.appendChild(el('div','m','Render [Environment]의 [Add from .env]에 붙여 넣은 뒤 ‘여기에_복사한_값’만 실제 값으로 바꿔도 돼요.'));
+  b.appendChild(mbNote('💡 '+x.tip));
+  b.appendChild(bt('🔄 상태 다시 확인','bt2',function(){mbLoad(p)}));
+  c.appendChild(bx)});
+ var ob=mbBox('⚙ 로그인 후 돌아오는 주소가 다르게 나올 때 (선택)','필요할 때만','ok',false);
+ ob._b.appendChild(el('div','m','위 Redirect URI/Callback URL의 도메인이 실제 사이트 주소와 다르면(예: onrender.com 으로 표시) 아래 환경변수를 Render에 추가하세요. 이 사이트의 정식 주소를 값으로 써요.'));
+ ob._b.appendChild(mbEnv('MEMBER_OAUTH_BASE_URL',G.oauth_base_set,true,'정식 주소 고정'));ob._b.appendChild(mbVal('MEMBER_OAUTH_BASE_URL 값',G.base,'끝에 / 없이'));c.appendChild(ob);
+ c.appendChild(mbNote('카카오는 일반 앱에서 이메일 제공 권한을 받기 어려워요. 이메일을 못 받으면 ‘kakao_번호@sns.local’ 내부 아이디로 가입돼요(비즈 앱 승인 뒤 환경변수 KAKAO_REQUEST_EMAIL=1 을 넣으면 이메일을 요청해요).'));
+ p.appendChild(c)}
 function mbLoad(p){MB.p=p;api('/admin/api/member/state').then(function(j){if(cur!=='mem')return;MB.S=j;mbDraw(p);mbList()})}
 function mbDraw(p){p.innerHTML='';var S=MB.S,s=S.settings,st=S.stats;
  var top=el('div','c');top.appendChild(el('b',null,'👤 회원 관리'));
  top.appendChild(el('p','note','이메일을 아이디로 쓰는 회원가입·로그인 기능이에요. 가입한 회원은 [🧭 메뉴 관리]에서 정한 회원 단계에 따라 메뉴가 보여요. 비밀번호는 암호화돼 저장되어 운영자도 볼 수 없어요.'));
  var g=el('div','grid');[['전체 회원',st.total],['오늘 가입',st.new_today],['최근 7일 가입',st.new_7d],['지금 접속(30분)',st.online],['차단',st.blocked],['인증메일(24h)',st.mails_24h]].forEach(function(x){var k=el('div','k');k.appendChild(el('small',null,x[0]));k.appendChild(el('b',null,String(x[1])));g.appendChild(k)});top.appendChild(g);p.appendChild(top);
- var mc=el('div','c');mc.appendChild(el('b',null,'✉ 메일 발송 상태'));
- var ms=S.mail==='none'?'❌ 메일 발송이 설정되지 않았어요(RESEND_API_KEY). 이메일 인증 가입이 동작하지 않아요. 아래 [이메일 인증]을 끄면 인증 없이 가입은 가능해요.':'✅ '+(S.mail==='resend'?'Resend':'SMTP')+' 로 발송 · 보내는 주소: '+S.mail_from;
- mc.appendChild(el('p','note',ms));
- if(S.mail!=='none'&&S.sandbox_sender)mc.appendChild(el('p','note','⚠ 지금 보내는 주소가 resend.dev(시험용)예요. 이 주소는 Resend 계정 주인의 메일로만 보낼 수 있어서 다른 사람 가입 인증 메일은 실패해요. Resend에서 내 도메인을 인증하고 Render 환경변수 MAIL_FROM 을 "종목분석 미니 <no-reply@내도메인>" 으로 설정하세요.'));
- p.appendChild(mc);
- var nc=el('div','c');nc.appendChild(el('b',null,'🔗 SNS 로그인 상태 (네이버·구글·카카오)'));
- nc.appendChild(el('p','note','각 서비스 개발자 센터에서 앱을 만들고, 아래 [Redirect URI]를 그대로 등록한 뒤, Render 환경변수에 키를 넣으면 로그인 화면의 버튼이 자동으로 켜져요. 키는 코드나 화면에 저장하지 않아요.'));
- (S.social||[]).forEach(function(x){var r=el('div','m');r.style.cssText='margin:6px 0;line-height:1.55';r.appendChild(el('b',null,(x.ok?'✅ ':'⬜ ')+x.label+(x.ok?' — 사용 중':' — 환경변수 미설정(버튼이 준비 중으로 보여요)')));r.appendChild(document.createElement('br'));r.appendChild(document.createTextNode('환경변수: '+x.env.join(' · ')));r.appendChild(document.createElement('br'));r.appendChild(document.createTextNode('Redirect URI: '+x.redirect));nc.appendChild(r)});
- nc.appendChild(el('p','note','카카오는 일반 앱에서 이메일 제공 권한을 받기 어려워요. 이메일을 못 받으면 ‘kakao_번호@sns.local’ 내부 아이디로 가입돼요(비즈 앱 승인 뒤 환경변수 KAKAO_REQUEST_EMAIL=1 을 넣으면 이메일을 요청해요).'));
- p.appendChild(nc);
+ mbRenderCard(p,S);mbMailCard(p,S);mbSnsCard(p,S);
  var sc=el('div','c');sc.appendChild(el('b',null,'⚙ 회원 설정'));var f=el('div','bar');
  function chk(label,on){var l=el('label');l.style.cssText='display:flex;gap:6px;align-items:center';var c=el('input');c.type='checkbox';c.checked=!!on;l.appendChild(c);l.appendChild(document.createTextNode(label));f.appendChild(l);return c}
  var cOn=chk('회원 기능 사용(끄면 로그인·가입 버튼이 사라져요)',s.on),cSg=chk('새 회원가입 받기',s.signup),cVf=chk('이메일 인증 사용(권장)',s.verify);
