@@ -13,10 +13,17 @@
 웹에서 관리자가 저장하는 분석은 nw_log(웹 전용)에 쌓는다 — 나중에 원본 DB 를 다시 가져와도 웹 기록이 지워지지 않는다.
 """
 import html as _html
+import ipaddress
 import json
+import os
 import re
+import socket
 import sqlite3
+import threading
 import time
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse, urljoin
 from flask import Blueprint, request
 from menu_ctx import C
 
@@ -371,7 +378,7 @@ def _market_news(cat):
             items.append({"title": title, "press": _clean(it.get("ohnm"), 30), "datetime": dt,
                           "date": f"{dt[4:6]}.{dt[6:8]} {dt[8:10]}:{dt[10:12]}" if len(dt) >= 12 else dt,
                           "url": f"https://n.news.naver.com/mnews/article/{oid}/{aid}",
-                          "snippet": (sn[:80] + "…") if len(sn) > 80 else sn})
+                          "snippet": (sn[:80] + "…") if len(sn) > 80 else sn, "sn": sn[:240]})
     except Exception as e:
         print(f"[뉴스분석] 시장 뉴스 조회 오류(무시): {e}")
         note = "지금은 네이버 금융 뉴스를 가져오지 못했어요. 잠시 뒤 [새로 불러오기]를 눌러 주세요."
@@ -424,6 +431,7 @@ def api_latest():
     if cat not in _CATS:
         cat = "main"
     items, note = _market_news(cat)
+    items = [{k: v for k, v in it.items() if k != "sn"} for it in items]          # 'sn'(조금 더 긴 발췌)은 서버 안에서만 쓴다
     ok_cls = _fok("classify")
     items, summ = _decorate(items, ok_cls)
     return _admin_json({"cat": cat, "label": _CATS[cat][1], "items": items, "summary": summ, "note": note or ("" if items else "가져온 뉴스가 없어요."),
@@ -894,6 +902,60 @@ sentiment: 이 뉴스가 각 종목에 미치는 영향의 분류 — 호재 1 /
 확실하지 않으면 빈 리스트([])로 두세요.
 """
 
+NEWS_OVERVIEW_DEFAULT = r"""당신은 20년 경력의 한국 주식시장 애널리스트입니다. 아래는 {today} 기준 '{cat}' 뉴스 {count}건의 제목·언론사·짧은 발췌입니다.
+이 뉴스들을 한꺼번에 살펴보고, 초보 투자자도 이해할 수 있게 '전체 뉴스 총평'과 투자 관점의 참고 정보를 정리해 주세요. (투자 권유가 아닌 정보 제공 목적)
+
+[사이트에서 단어 기준으로 미리 집계한 참고 값 — 틀릴 수 있으니 참고만 하세요]
+{stats}
+
+[뉴스 목록]
+{headlines}
+
+⚖️ 작성 원칙
+- 제목·발췌의 문장을 그대로 옮기지 말고 당신의 표현으로 재구성하세요. 목록에 없는 사실·수치를 지어내지 마세요.
+- 사거나 팔도록 권하는 말, '지금 해야 한다' 같은 단정 표현은 쓰지 말고 근거와 확인할 점 중심으로 설명하세요.
+- 말투는 뉴스 앵커처럼 정중한 존댓말('~습니다', '~로 보입니다')로 쓰세요.
+
+다음 구조로 작성하세요:
+
+## 🧭 오늘 뉴스 총평
+먼저 다음 한 줄로 시작하세요:
+**한 줄 요약**: (오늘 시장 분위기를 25~40자로 압축)
+이어서 시장 전반의 분위기·분위기를 만든 핵심 사건·투자자가 가장 주목할 흐름을 3~5문장으로 서술하세요.
+
+## 🔥 핵심 이슈 TOP 5
+번호 목록. 각 항목 형식: `N. **이슈명** — 무슨 일인지 · 왜 중요한지 · 영향을 받는 업종` (2~3문장)
+
+## 📈 호재 · 📉 악재 정리
+- 호재로 읽히는 흐름과 근거 / 악재·부담으로 읽히는 흐름과 근거를 나누어 불릿으로 정리하세요(같은 뉴스도 종목마다 영향이 다를 수 있음을 한 줄 덧붙이기).
+
+## 🎯 관련 종목 살펴보기
+- 뉴스에 직접 언급된 한국 상장사와, 영향을 받을 수 있는 연관 종목을 각각 '종목 — 연결되는 이유 — 확인할 포인트' 형식으로 정리하세요.
+
+## ⚠️ 리스크 · 불확실성
+- 뉴스에서 아직 확정되지 않은 부분, 확인이 필요한 전제, 투자 리스크
+
+## 💡 점검 포인트 (참고용)
+- 단기(1주 이내) / 중기(1~3개월) 관점에서 투자자가 직접 확인해 볼 체크포인트(권유·매매 지시 표현 금지)
+
+---
+[필수] 분석 마지막에 아래 JSON 블록을 반드시 포함하세요.
+반드시 한국거래소(KOSPI/KOSDAQ) **실제 상장 회사명**만 포함하세요. 기술 용어, 해외 기업, 팀명은 제외하세요.
+
+```json
+{
+  "mentioned": ["종목A", "종목B"],
+  "related":   ["종목C"],
+  "sentiment": {"종목A": 1, "종목B": -1, "종목C": 0},
+  "title_ko": ""
+}
+```
+
+※ 종목A·B·C 는 형식 예시일 뿐이니 그대로 쓰지 말고, 위 뉴스에서 실제로 식별한 회사명으로 채우세요. 확실하지 않으면 빈 리스트([])로 두세요.
+mentioned: 뉴스 목록에 직접 언급된 한국 상장사 / related: 동종업계·공급망 관점에서 간접적으로 영향을 받을 수 있는 한국 상장사
+sentiment: 오늘 뉴스가 각 종목에 미치는 영향의 분류 — 호재 1 / 중립 0 / 악재 -1 (식별한 모든 종목 포함, 분류 참고용). title_ko 는 빈 문자열("")로 두세요.
+"""
+
 GENERAL_DEFAULT = r"""당신은 경제 뉴스 에디터입니다. 아래 문서를 초보 투자자도 이해할 수 있게 요약하세요.
 
 [제목] {title}
@@ -1128,6 +1190,311 @@ def parse_general_answer(raw, title=""):
             "tags": tags, "warnings": [] if meta else ["답변 끝의 META_JSON 줄을 찾지 못했어요(요약 본문은 그대로 보여줘요)."], "mode": "general", "stocks": []}
 
 
+
+# ══════════════════════════════════════════════════════════════
+# 전체 뉴스 대시보드 · 전체 AI 총평 · URL 분석 · 관련종목 시세(그래프)
+# ══════════════════════════════════════════════════════════════
+def _overview(cat):
+    """뉴스 목록 전체를 한 번에 집계 — 호재/악재 건수, 테마, 언론사, 많이 언급된 종목. (AI 없이 단어·종목 사전 규칙)"""
+    key = ("nw_ov", EPOCH[0], cat)
+    hit = _cache_get(key)
+    if hit is not None:
+        return hit
+    items, note = _market_news(cat)
+    cnt = {"p": 0, "n": 0, "x": 0, "z": 0}
+    th_n, th_p, th_ng, press = Counter(), Counter(), Counter(), Counter()
+    stocks = {}
+    for i, it in enumerate(items):
+        c = classify(it["title"])
+        cnt[c["k"]] += 1
+        full = it["title"] + " " + (it.get("sn") or "")
+        for th in themes_of(full, 1)[:3]:
+            th_n[th] += 1
+            if c["k"] == "p":
+                th_p[th] += 1
+            elif c["k"] == "n":
+                th_ng[th] += 1
+        if it.get("press"):
+            press[it["press"]] += 1
+        for r in _db_extra(full, set(), 4):
+            e = stocks.setdefault(r["ticker"], {"ticker": r["ticker"], "name": r["name"], "market": r["market"], "sector": r["sector"], "n": 0, "pos": 0, "neg": 0, "idx": []})
+            e["n"] += 1
+            e["idx"].append(i)
+            if c["k"] == "p":
+                e["pos"] += 1
+            elif c["k"] == "n":
+                e["neg"] += 1
+    top = sorted(stocks.values(), key=lambda e: (-e["n"], -(e["pos"] - e["neg"])))[:10]
+    out = {"cat": cat, "label": _CATS[cat][1], "n": len(items), "asof": _now_kst().strftime("%Y-%m-%d %H:%M"),
+           "counts": {"호재성": cnt["p"], "악재성": cnt["n"], "혼재": cnt["x"], "중립": cnt["z"]},
+           "themes": [{"name": k, "n": v, "pos": th_p[k], "neg": th_ng[k]} for k, v in th_n.most_common(8)],
+           "press": [{"name": k, "n": v} for k, v in press.most_common(6)], "stocks": top, "note": note}
+    _cache_set(key, out, 180 if items else 20)
+    return out
+
+
+@bp.route("/admin/api/news/overview")
+def api_overview():
+    deny = _admin_deny()
+    if deny:
+        return deny
+    if not _fok("overview"):
+        return _lock("overview")
+    cat = request.args.get("cat", "main")
+    return _admin_json(_overview(cat if cat in _CATS else "main"))
+
+
+@bp.route("/admin/api/news/overview/prompt", methods=["POST"])
+def api_overview_prompt():
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    d = _json_body()
+    cat = str(d.get("cat") or "main")
+    cat = cat if cat in _CATS else "main"
+    items, note = _market_news(cat)
+    if not items:
+        return _err(note or "가져온 뉴스가 없어요. 잠시 뒤 다시 눌러 주세요.")
+    ov = _overview(cat)
+    lines = []
+    for i, it in enumerate(items, 1):
+        sn = (it.get("sn") or "").strip()
+        lines.append(f"{i}. [{it.get('press') or '-'} {it.get('date') or ''}] {it['title']}" + (f" — {sn[:160]}" if sn else ""))
+    heads = "\n".join(lines)
+    stats = "· 호재성 {p}건 · 악재성 {n}건 · 혼재 {x}건 · 중립 {z}건\n· 자주 나온 테마: {th}\n· 제목에 자주 나온 종목: {st}".format(
+        p=ov["counts"]["호재성"], n=ov["counts"]["악재성"], x=ov["counts"]["혼재"], z=ov["counts"]["중립"],
+        th=", ".join(f"{t['name']}({t['n']})" for t in ov["themes"][:6]) or "없음",
+        st=", ".join(f"{s['name']}({s['n']})" for s in ov["stocks"][:8]) or "없음")
+    body = prompt_get("news_overview")
+    p = _fill(body, {"today": _now_kst().strftime("%Y년 %m월 %d일"), "cat": _CATS[cat][1], "count": len(items), "stats": stats, "headlines": heads})
+    tk = _tk()
+    _cache_set(("nw_body", tk), heads, 1800)
+    return _admin_json({"prompt": p, "title": f"전체 뉴스 총평 · {_CATS[cat][1]}", "tk": tk, "chars": len(p), "count": len(items)})
+
+
+def _tk():
+    return os.urandom(8).hex()
+
+
+# ── URL 한 줄로 분석: 기사 주소 → 제목·출처·본문(서버가 읽어 AI 요청문 안에만 넣는다. 저장·화면 표시 없음) ──
+_URL_HITS = {}
+_URL_LOCK = threading.Lock()
+_SRC_MAP = {"yna.co.kr": "연합뉴스", "yonhapnews.co.kr": "연합뉴스", "hankyung.com": "한국경제", "mk.co.kr": "매일경제", "chosun.com": "조선일보",
+            "biz.chosun.com": "조선비즈", "joongang.co.kr": "중앙일보", "donga.com": "동아일보", "hani.co.kr": "한겨레", "sedaily.com": "서울경제",
+            "etnews.com": "전자신문", "zdnet.co.kr": "지디넷코리아", "news.naver.com": "네이버뉴스", "n.news.naver.com": "네이버뉴스",
+            "edaily.co.kr": "이데일리", "newsis.com": "뉴시스", "fnnews.com": "파이낸셜뉴스", "asiae.co.kr": "아시아경제", "mt.co.kr": "머니투데이",
+            "news1.kr": "뉴스1", "heraldcorp.com": "헤럴드경제", "biz.heraldcorp.com": "헤럴드경제"}
+_BODY_SEL = ["article#dic_area", "div#dic_area", "div#newsct_article", "div#news_read", "div.articleCont", "div.news_end", "div#articletxt",
+             "div.news_cnt_detail_wrap", "div.art_txt", "section.article-body", "div#article_body", "div.news_body", "div.article_view",
+             "div#articleBody", "div.article_txt", "div[itemprop='articleBody']", "article"]
+_MAX_HTML = 2_500_000
+
+
+def _public_host(host):
+    if not host or len(host) > 200:
+        raise ValueError("주소가 올바르지 않아요.")
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except Exception:
+        raise ValueError("주소를 찾을 수 없어요. 주소를 다시 확인해 주세요.")
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        except Exception:
+            raise ValueError("주소를 확인할 수 없어요.")
+        if not ip.is_global:
+            raise ValueError("내부망·사설 주소는 열 수 없어요.")
+
+
+def _check_url(u):
+    pr = urlparse(u)
+    if pr.scheme not in ("http", "https") or not pr.hostname:
+        raise ValueError("http:// 또는 https:// 로 시작하는 기사 주소를 넣어 주세요.")
+    if pr.port not in (None, 80, 443):
+        raise ValueError("사용할 수 없는 포트의 주소예요.")
+    if "@" in (pr.netloc or ""):
+        raise ValueError("계정 정보가 들어 있는 주소는 열 수 없어요.")
+    _public_host(pr.hostname)
+    return pr
+
+
+def _decode(raw, ctype):
+    declared = None
+    m = re.search(r"charset=[\"']?([\w\-]+)", ctype or "", re.I)
+    if m:
+        declared = m.group(1).lower()
+    if not declared:
+        m2 = re.search(rb"charset=[\"']?([\w\-]+)", raw[:4096], re.I)
+        if m2:
+            declared = m2.group(1).decode("ascii", "ignore").lower()
+    if declared in ("ks_c_5601-1987", "ksc5601", "euckr", "euc_kr", "cp949", "ms949"):
+        declared = "euc-kr"
+    for cand in (declared, "utf-8", "euc-kr", "cp949"):
+        if not cand:
+            continue
+        try:
+            return raw.decode(cand)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return raw.decode("utf-8", "replace")
+
+
+def _fetch_article(url):
+    """공개 기사 주소 → {title, source, body}. 내부망 접근 차단·리다이렉트 매 단계 검사·용량 제한."""
+    from bs4 import BeautifulSoup
+    cur = url.strip()
+    if len(cur) > 1500:
+        raise ValueError("주소가 너무 길어요.")
+    pr = _check_url(cur)
+    low = (pr.hostname or "").lower()
+    if low.endswith("youtube.com") or low.endswith("youtu.be"):
+        raise ValueError("유튜브 주소는 아직 지원하지 않아요. 기사 주소를 넣어 주세요.")
+    if low.endswith("news.google.com"):
+        raise ValueError("구글 뉴스 주소는 기사 원문 주소를 열 수 없어요. 언론사 기사 주소(또는 네이버 뉴스 주소)를 넣어 주세요.")
+    hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36",
+           "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8", "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.6"}
+    resp = None
+    for _ in range(6):
+        r = C._RAW_HTTP.get(cur, timeout=(5, 10), headers=hdr, _redirects=0)         # 본체의 단순 HTTP 클라이언트(requests 는 서버에서 멈춘 적이 있어 쓰지 않음) — 이동은 우리가 한 단계씩 검사하며 따라간다
+        if r.status_code in (301, 302, 303, 307, 308) and r.headers.get("location"):
+            cur = urljoin(cur, r.headers["location"])
+            _check_url(cur)
+            continue
+        resp = r
+        break
+    if resp is None:
+        raise ValueError("주소가 너무 많이 이동해서 열 수 없어요.")
+    if resp.status_code >= 400:
+        raise ValueError(f"기사 사이트가 열리지 않아요(HTTP {resp.status_code}). 사이트가 접근을 막았을 수 있어요.")
+    ctype = resp.headers.get("content-type", "")
+    if ctype and not re.search(r"html|xml|text", ctype, re.I):
+        raise ValueError("웹 기사 페이지가 아니에요.")
+    raw = resp.content[:_MAX_HTML]
+    html = _decode(raw, ctype)
+    soup = BeautifulSoup(html, "html.parser")
+    og = soup.select_one("meta[property='og:title']")
+    title = (og.get("content") or "").strip() if og and og.get("content") else ""
+    if not title:
+        h1 = soup.select_one("h1")
+        title = h1.get_text(strip=True) if h1 else (soup.title.get_text(strip=True) if soup.title else "")
+    title = re.sub(r"\s+", " ", title)[:200]
+    body_el = None
+    for sel in _BODY_SEL:
+        e = soup.select_one(sel)
+        if e and len(e.get_text(strip=True)) > 100:
+            body_el = e
+            break
+    if body_el is None:
+        divs = soup.find_all("div")
+        body_el = max(divs, key=lambda d: len(d.get_text(strip=True)), default=None) if divs else None
+    body = ""
+    if body_el is not None:
+        for t in body_el.find_all(["script", "style", "aside", "nav", "figure", "button", "iframe", "form"]):
+            t.decompose()
+        body = re.sub(r"\n{3,}", "\n\n", body_el.get_text(separator="\n", strip=True)).strip()
+    note = ""
+    if len(body) < 80:
+        d = soup.select_one("meta[property='og:description']") or soup.select_one("meta[name='description']")
+        if d and d.get("content"):
+            body = d["content"].strip()
+            note = "기사 본문을 읽지 못해 요약문(메타 설명)으로 분석해요."
+        else:
+            raise ValueError("본문을 읽지 못했어요. 사이트가 접근을 막았거나 로그인이 필요한 기사일 수 있어요. 본문을 직접 붙여 넣는 [🤖 AI 해석] 탭을 이용해 주세요.")
+    host = (urlparse(cur).hostname or "").lower()
+    host2 = re.sub(r"^(www|m)\.", "", host)
+    ogs = soup.select_one("meta[property='og:site_name']")
+    source = _SRC_MAP.get(host2) or (ogs.get("content").strip() if ogs and ogs.get("content") else host2)
+    return {"title": title, "source": source[:60], "body": body[:MAX_TEXT], "url": cur, "note": note}
+
+
+def _url_throttle():
+    if not _gw():
+        return False
+    ip = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote_addr or "?")[:60]
+    now = time.time()
+    with _URL_LOCK:
+        hits = [t for t in _URL_HITS.get(ip, []) if now - t < 60]
+        if len(hits) >= 8:
+            _URL_HITS[ip] = hits
+            return True
+        hits.append(now)
+        _URL_HITS[ip] = hits
+        if len(_URL_HITS) > 2000:
+            for k in list(_URL_HITS)[:1000]:
+                _URL_HITS.pop(k, None)
+    return False
+
+
+@bp.route("/admin/api/news/url", methods=["POST"])
+def api_url():
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    if _url_throttle():
+        return _err("잠시 뒤에 다시 눌러 주세요. 1분에 8번까지 읽을 수 있어요.", 429)
+    d = _json_body()
+    mode = "general" if d.get("mode") == "general" else "stock"
+    try:
+        art = _fetch_article(str(d.get("url") or ""))
+    except ValueError as e:
+        return _err(str(e))
+    except Exception as e:
+        print(f"[뉴스분석] URL 읽기 오류(무시): {type(e).__name__}: {e}")
+        return _err("기사를 읽지 못했어요. 주소를 확인하거나 잠시 뒤 다시 시도해 주세요.")
+    body = prompt_get("news_analyze" if mode == "stock" else "news_general")
+    p = _fill(body, {"source": art["source"] or "미상", "title": art["title"] or "(제목 없음)", "today": _now_kst().strftime("%Y년 %m월 %d일"), "text": art["body"]})
+    tk = _tk()
+    _cache_set(("nw_body", tk), art["body"], 1800)
+    return _admin_json({"title": art["title"], "source": art["source"], "url": art["url"], "prompt": p, "mode": mode, "tk": tk, "chars": len(art["body"]),
+                        "excerpt": re.sub(r"\s+", " ", art["body"])[:160], "note": art["note"]})
+
+
+# ── 관련종목 미니 그래프(최근 시세) ──
+def _mini_one(tk):
+    key = ("nw_mini", tk)
+    hit = _cache_get(key)
+    if hit is not None:
+        return hit
+    out = None
+    try:
+        import datetime as _dt
+        st = (_dt.datetime.now() - _dt.timedelta(days=75)).strftime("%Y-%m-%d")
+        df = C._fetch_ohlcv(tk, st)
+        if df is not None and len(df) >= 2:
+            cl = [float(x) for x in df["Close"].dropna().tolist()][-30:]
+            if len(cl) >= 2:
+                last = cl[-1]
+
+                def pct(n):
+                    return round((last / cl[-1 - n] - 1) * 100, 2) if len(cl) > n and cl[-1 - n] else None
+                out = {"closes": [round(x, 2) for x in cl], "last": round(last, 2), "chg": pct(1), "chg5": pct(5), "chg20": pct(20)}
+    except Exception as e:
+        print(f"[뉴스분석] {tk} 시세 조회 오류(무시): {type(e).__name__}")
+    _cache_set(key, out if out else {}, 600 if out else 60)
+    return out or {}
+
+
+@bp.route("/admin/api/news/mini", methods=["POST"])
+def api_mini():
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    if not _fok("overview"):
+        return _lock("overview")
+    d = _json_body()
+    tks = []
+    for t in d.get("tickers") if isinstance(d.get("tickers"), list) else []:
+        t = str(t or "").strip().upper()
+        if TICKER_RE.match(t) and t not in tks:
+            tks.append(t)
+    tks = tks[:12]
+    if not tks:
+        return _admin_json({"minis": {}})
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        res = list(ex.map(_mini_one, tks))
+    return _admin_json({"minis": {t: r for t, r in zip(tks, res) if r}})
+
+
 @bp.route("/admin/api/news/parse", methods=["POST"])
 def api_parse():
     """붙여넣은 AI 답변을 구조화해 돌려준다. 아무것도 저장하지 않는다."""
@@ -1143,7 +1510,11 @@ def api_parse():
     title = re.sub(r"\s+", " ", str(d.get("title") or "")).strip()[:200]
     if d.get("mode") == "general":
         return _admin_json(parse_general_answer(raw, title))
-    return _admin_json(parse_stock_answer(raw, title, str(d.get("article") or "")[:MAX_TEXT]))
+    article = str(d.get("article") or "")[:MAX_TEXT]
+    tk = str(d.get("tk") or "")
+    if tk and re.fullmatch(r"[0-9a-f]{16}", tk):
+        article = _cache_get(("nw_body", tk)) or article        # 서버가 읽어 둔 본문(화면으로는 돌려주지 않음) — 종목 본문 매칭에만 쓴다
+    return _admin_json(parse_stock_answer(raw, title, article))
 
 
 @bp.route("/admin/api/news/leader/prompt", methods=["POST"])
@@ -1184,7 +1555,7 @@ def api_leader_prompt():
 # ══════════════════════════════════════════════════════════════
 TAB_JS = r"""
 var NW={view:'latest',cat:'main',lead:{days:21,min:2,ans:{}},theme:{days:14},board:{q:'',page:1},pre:null,cur:null,parsed:null,parsedFor:'',res:null,css:false};
-var NWV=[['latest','📰 최신 뉴스','latest'],['stock','🔎 종목 뉴스','stock'],['cls','🏷 분류 체험','classify'],['theme','🧩 테마·이슈','themes'],['lead','📈 긍정뉴스 지속','leader'],['board','🗂 보관함','board'],['ai','🤖 AI 해석','ai']];
+var NWV=[['latest','📰 뉴스룸','latest'],['stock','🔎 종목 뉴스','stock'],['cls','🏷 분류 체험','classify'],['theme','🧩 테마·이슈','themes'],['lead','📈 긍정뉴스 지속','leader'],['board','🗂 보관함','board'],['ai','🤖 AI 해석','ai']];
 var NWCSS='.nwH{background:linear-gradient(135deg,#0f172a,#1e3a8a);color:#fff;border-radius:16px;padding:16px 18px;margin-bottom:10px}.nwH h2{margin:0;font-size:22px}.nwH p{margin:6px 0 0;font-size:13px;color:#cbd5e1;line-height:1.55}'+
 '.nwWarn{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:10px;padding:8px 12px;font-size:12.5px;line-height:1.55;margin:8px 0}.nwWarn.sm{font-size:12px;padding:6px 10px}'+
 '.nwTabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;margin-bottom:6px;-webkit-overflow-scrolling:touch}.nwTabs button{flex:0 0 auto;border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 13px;font-size:13px;cursor:pointer;white-space:nowrap}.nwTabs button.on{background:#0f172a;color:#fff;border-color:#0f172a}.nwTabs button.lk{opacity:.7}'+
@@ -1198,7 +1569,7 @@ var NWCSS='.nwH{background:linear-gradient(135deg,#0f172a,#1e3a8a);color:#fff;bo
 '.nwCard{border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px;margin:8px 0;background:#fff}.nwCard .hd{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.nwCard .nm{font-weight:900;font-size:15px}.nwCard .sc{margin-left:auto;font-weight:900;font-size:17px}.nwBar{height:8px;background:#eef2f7;border-radius:5px;overflow:hidden;margin:6px 0}.nwBar i{display:block;height:100%;border-radius:5px}'+
 '.nwSum{background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:14px;line-height:1.6}.nwH4{margin:14px 0 4px;font-size:15px;background:#0f172a;color:#fff;border-radius:8px;padding:6px 10px}.nwH5{margin:10px 0 3px;font-size:14px;border-left:4px solid #1e3a8a;padding-left:8px}.nwP{margin:4px 0;font-size:14px;line-height:1.7;overflow-wrap:anywhere}.nwLi{margin:3px 0 3px 4px;font-size:14px;line-height:1.65;padding-left:14px;text-indent:-14px;overflow-wrap:anywhere}.nwNo{margin:5px 0;font-size:14px;line-height:1.65;overflow-wrap:anywhere}.nwNo b.n{display:inline-block;min-width:22px}'+
 '.nwPv{font-size:13px;line-height:1.55;padding:8px 10px}.nwSecC{border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px;margin:8px 0}.nwSecC .t{font-weight:900;margin-bottom:4px}.nwCard .mt{font-size:12px;color:#64748b;margin-top:3px;line-height:1.5}.nwCard .sn{font-size:12px;color:#64748b;margin-top:3px;overflow-wrap:anywhere}';
-function nwCss(){if(NW.css||document.getElementById('nwCss'))return;NW.css=true;var nn='';var n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';var s=document.createElement('style');s.id='nwCss';if(nn)s.setAttribute('nonce',nn);s.textContent=NWCSS;document.head.appendChild(s)}
+function nwCss(){if(NW.css||document.getElementById('nwCss'))return;NW.css=true;var nn='';var n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';var s=document.createElement('style');s.id='nwCss';if(nn)s.setAttribute('nonce',nn);s.textContent=NWCSS;document.head.appendChild(s);nrEnv()}
 function nwSec(parent,title,desc){var s=el('div','nwS');s.appendChild(el('h3',null,title));if(desc)s.appendChild(el('p','ds',desc));parent.appendChild(s);return s}
 function nwTk(node,t){node.setAttribute('data-tk',t);node.className=(node.className?node.className+' ':'')+'tkl';node.title='눌러서 종목분석 열기';
  if(!window.GoStock){node.onclick=function(e){e.preventDefault();if(typeof window.__openTicker==='function'){window.__openTicker(t)}else{window.open('/?t='+encodeURIComponent(t),'mini_main')}}}return node}
@@ -1222,12 +1593,12 @@ function nwSections(parent,text){var cur=null,buf=[];function flush(){if(cur===n
 /* 판 전체 */
 function nwLoad(p){nwCss();p.innerHTML='';
  var hd=el('div','nwH');hd.appendChild(el('h2',null,'📰 뉴스분석'));hd.appendChild(el('p',null,'뉴스 제목을 모아 보고, 호재·악재 단어와 테마를 참고용으로 분류해 보는 곳이에요. 종목 이름을 누르면 종목분석으로 이동해요.'));p.appendChild(hd);
- p.appendChild(el('div','nwWarn','⚠ 호재성·악재성 표시는 단어를 기준으로 한 “분류 참고용” 정보이며 투자 권유가 아닙니다. 같은 뉴스도 종목마다 영향이 다를 수 있으니 원문과 공시를 직접 확인하세요. 기사 원문은 저장·복제하지 않고 제목·출처·링크만 보여줘요.'));
+ p.appendChild(el('div','nwWarn sm','⚠ 호재성·악재성 표시는 단어 기준의 분류 참고용이며 투자 권유가 아닙니다. 원문과 공시를 직접 확인하세요.'));
  var tabs=el('div','nwTabs');tabs.id='nwTabs';p.appendChild(tabs);var body=el('div');body.id='nwBody';p.appendChild(body);nwShow(NW.view)}
 function nwShow(v){NW.view=v;var tabs=$('nwTabs'),body=$('nwBody');if(!tabs||!body)return;tabs.innerHTML='';
  NWV.forEach(function(x){var ok=ftOk(x[2]);var b=el('button',(x[0]===v?'on':'')+(ok?'':' lk'),(ok?'':'🔒 ')+x[1]);b.onclick=function(){nwShow(x[0])};tabs.appendChild(b)});
  body.innerHTML='';var box=el('div');body.appendChild(box);
- var fn={latest:nwVLatest,stock:nwVStock,cls:nwVCls,theme:nwVTheme,lead:nwVLead,board:nwVBoard,ai:nwVAI}[v];if(fn)fn(box)}
+ var fn={latest:nrRoom,stock:nwVStock,cls:nwVCls,theme:nwVTheme,lead:nwVLead,board:nwVBoard,ai:nwVAI}[v];if(fn)fn(box)}
 function nwLocked(s,fid,sample){s.appendChild(el('p','note',sample));ftSec(s,fid)}
 /* 뉴스 목록(최신·종목 공통) */
 function nwItems(out,j){out.innerHTML='';if(j.error){NeedNote(out,j.error,'','note bad');return}
@@ -1241,14 +1612,184 @@ function nwItems(out,j){out.innerHTML='';if(j.error){NeedNote(out,j.error,'','no
   if(x.cls&&(x.cls.pos.length||x.cls.neg.length)){r.appendChild(el('div','sn','근거 단어: '+x.cls.pos.concat(x.cls.neg).join(', ')))}
   if(x.snippet)r.appendChild(el('div','sn',x.snippet));out.appendChild(r)});
  out.appendChild(el('p','note','출처: '+(j.source||'네이버 금융')+' · 제목을 누르면 언론사 원문으로 이동해요.'))}
-function nwVLatest(box){var s=nwSec(box,'📰 최신 뉴스 모음','네이버 금융 뉴스의 제목·언론사·시각만 모아서 보여드려요. 제목을 누르면 언론사 원문으로 이동해요(기사 전문은 저장·복제하지 않아요).');
- if(!ftOk('latest')){nwLocked(s,'latest','주요 뉴스·실시간 속보·많이 본 뉴스 제목을 모아 볼 수 있어요.');return}
- var bar=el('div','bar');var out=el('div');
- [['main','주요 뉴스'],['flash','실시간 속보'],['rank','많이 본 뉴스']].forEach(function(c){var b=el('button',c[0]===NW.cat?'bt':'bt2',c[1]);b.onclick=function(){NW.cat=c[0];nwShow('latest')};bar.appendChild(b)});
- bar.appendChild(bt('새로 불러오기','bt3',function(){nwLatest(out)}));
- bar.appendChild(adm(bt('🔄 수집 캐시 비우기','bt3',function(){apiJ('/admin/api/news/refresh',{}).then(function(){toast('캐시를 비웠어요');nwLatest(out)})})));
- s.appendChild(bar);s.appendChild(out);nwLatest(out)}
-function nwLatest(out){nwWait(out,'뉴스를 가져오는 중…');api('/admin/api/news/latest?cat='+encodeURIComponent(NW.cat)).then(function(j){nwItems(out,j)}).catch(function(){nwFail(out)})}
+/* ══ 뉴스룸(v154): 위=대시보드 · 왼쪽=뉴스 목록 · 오른쪽=분석 작업대 ══ */
+var NR={cat:'main',items:[],lat:null,ov:null,sel:-1,q:'',f:'all',th:'',res:{},minis:{},ws:'',load:0,urlv:'',imgP:null,dashP:null,dashOpen:false};
+var NRFLOW=['ai','img'];
+var NRACTS={
+ ai:function(next){if(NR.res[NR.ws])next()},
+ img:function(next){if(!NR.imgP)return;var e=$('nrImgR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});NR.imgP.gen(true).then(function(){if(NR.imgP&&NR.imgP.items&&NR.imgP.items())next()},function(){})}};
+var NRCSS='.nrRoot{display:block}.nrDash{background:#fff;border:1px solid #dbe3ee;border-radius:16px;padding:14px 16px;margin:0 0 12px;box-shadow:0 2px 10px rgba(15,23,42,.05)}'+
+'.nrDh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}.nrDh h2{margin:0;font-size:20px}.nrAs{font-size:12px;color:#64748b}'+
+'.nrBar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}.nrBar button{font:inherit;font-size:13px;border-radius:999px;padding:7px 13px;cursor:pointer;border:1px solid #cbd5e1;background:#fff;color:#0f172a}.nrBar button.on{background:#0f172a;color:#fff;border-color:#0f172a}.nrBar button.pri{background:#1e3a8a;color:#fff;border-color:#1e3a8a;font-weight:800}.nrBar .sp{flex:1}'+
+'.nrSb{display:flex;height:16px;border-radius:9px;overflow:hidden;background:#eef2f7;margin:2px 0 10px}.nrSb i{display:block;height:100%}'+
+'.nrCols{display:grid;grid-template-columns:1fr 1fr;gap:14px}.nrBox h4{margin:0 0 6px;font-size:13.5px;color:#334155}.nrRw{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px}.nrRw .nm{flex:0 0 96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;cursor:pointer;background:none;border:0;padding:0;font:inherit;font-weight:700;text-align:left;color:#0f172a}.nrRw .nm:hover{text-decoration:underline}.nrRw .tr{flex:1;height:10px;background:#eef2f7;border-radius:6px;overflow:hidden;min-width:40px}.nrRw .tr i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#60a5fa,#1e3a8a)}.nrRw .ct{flex:0 0 auto;font-size:11.5px;color:#64748b;white-space:nowrap}.nrRw.on .nm{color:#1e3a8a;text-decoration:underline}'+
+'.nrGrid{display:grid;grid-template-columns:minmax(300px,5fr) minmax(0,7fr);gap:12px;align-items:start}.nrL,.nrR{min-width:0}'+
+'.nrL{background:#fff;border:1px solid #dbe3ee;border-radius:16px;padding:10px 12px}.nrL .nrLs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px}.nrL .nrLs input{flex:1;min-width:120px}.nrL .nrLs button{font:inherit;font-size:12.5px;border-radius:999px;padding:5px 10px;cursor:pointer;border:1px solid #cbd5e1;background:#fff}.nrL .nrLs button.on{background:#0f172a;color:#fff;border-color:#0f172a}'+
+'.nrList{max-height:76vh;overflow-y:auto;-webkit-overflow-scrolling:touch}'+
+'.nrIt{display:flex;gap:8px;align-items:flex-start;padding:9px 8px;border-bottom:1px solid #eef2f7;cursor:pointer;border-radius:8px}.nrIt:hover{background:#f8fafc}.nrIt.on{background:#eff6ff;box-shadow:inset 3px 0 0 #1e3a8a}.nrIt .nrTx{flex:1;min-width:0}.nrIt .tt{font-weight:700;color:#0f172a;line-height:1.5;overflow-wrap:anywhere;font-size:14px}.nrIt .mt{font-size:11.5px;color:#64748b;margin-top:2px}'+
+'.nrOrg{flex:0 0 auto;align-self:center;border:1px solid #94a3b8;color:#1e3a8a;background:#fff;border-radius:8px;padding:5px 9px;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap}.nrOrg:hover{background:#1e3a8a;color:#fff;border-color:#1e3a8a}'+
+'.nrR{position:sticky;top:8px;max-height:calc(100vh - 16px);overflow-y:auto}'+
+'.nrU{background:#fff;border:1px solid #dbe3ee;border-radius:16px;padding:10px 12px;margin-bottom:10px}.nrU .nrUr{display:flex;gap:6px;flex-wrap:wrap}.nrU input{flex:1;min-width:160px}.nrU .hp{font-size:11.5px;color:#64748b;margin-top:5px;line-height:1.5}'+
+'.nrNc{background:#fff;border:1px solid #bfdbfe;border-left:5px solid #1e3a8a;border-radius:14px;padding:12px 14px;margin-bottom:10px}.nrNc h3{margin:6px 0 4px;font-size:17px;line-height:1.5;overflow-wrap:anywhere}.nrNc .mt{font-size:12px;color:#64748b}.nrNc .bar{margin-top:8px}'+
+'.nrEm{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:14px;padding:22px 16px;color:#475569;font-size:13.5px;line-height:1.75;text-align:center}'+
+'.nrSg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:6px 0 10px}.nrSc{border:1px solid #e5e7eb;border-radius:12px;padding:9px 11px;background:#fff}.nrSh{display:flex;gap:5px;align-items:center;flex-wrap:wrap}.nrSh .nm{font-size:15px}.nrSc .mt{font-size:11.5px;color:#64748b;margin:2px 0}.nrSc .sn{font-size:12px;color:#475569;margin-top:4px;line-height:1.5;overflow-wrap:anywhere}'+
+'.nrMn{display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;min-height:34px}.nrMn canvas{width:110px;height:34px;flex:0 0 auto}.nrMn .px{font-weight:800;color:#0f172a}.nrMn .up{color:#dc2626;font-weight:800}.nrMn .dn{color:#2563eb;font-weight:800}'+
+'.nrRh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.nrRh h3{margin:0;flex:1;font-size:16px;min-width:140px}.nrImg{margin-top:8px}'+
+'@media(max-width:900px){.nrGrid{grid-template-columns:1fr}.nrR{position:static;max-height:none;overflow:visible}.nrCols{grid-template-columns:1fr}.nrList{max-height:60vh}}';
+function nrEnv(){if(document.getElementById('nrCss'))return;var nn='';var n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';var s=document.createElement('style');s.id='nrCss';if(nn)s.setAttribute('nonce',nn);s.textContent=NRCSS;document.head.appendChild(s)}
+/* 원문 읽기: 화면 오른쪽 절반 창 (네이버 기사는 액자(iframe)로 못 담아서 별도 창) */
+function nwReader(url,ev){if(ev&&(ev.ctrlKey||ev.shiftKey||ev.metaKey||ev.button===1))return true;
+ var aw=(window.screen&&screen.availWidth)||1280,ah=(window.screen&&screen.availHeight)||800;var w=Math.max(520,Math.min(960,Math.round(aw/2)));var l=((screen.availLeft)||0)+aw-w,t=(screen.availTop)||0;
+ var f='popup=yes,width='+w+',height='+ah+',left='+l+',top='+t+',scrollbars=yes,resizable=yes';var wnd=null;try{wnd=window.open('','nwReader',f)}catch(e){wnd=null}
+ if(!wnd){return true}
+ try{wnd.opener=null}catch(e){}try{wnd.location.href=url;wnd.focus()}catch(e){return true}return false}
+function nrOrig(url){var a=el('a','nrOrg','원문 ↗');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.title='화면 오른쪽에 원문 창을 열어요(Ctrl+클릭: 새 탭)';
+ a.onclick=function(e){e.stopPropagation();if(!nwReader(url,e))e.preventDefault()};return a}
+/* 시세 미니 그래프 */
+function nrSpark(cv,cl){var w=110,h=34,dp=window.devicePixelRatio||1;cv.width=w*dp;cv.height=h*dp;var c=cv.getContext('2d');c.scale(dp,dp);var mn=Math.min.apply(null,cl),mx=Math.max.apply(null,cl),rg=mx-mn||1,up=cl[cl.length-1]>=cl[0],col=up?'#dc2626':'#2563eb';
+ c.beginPath();cl.forEach(function(v,i){var x=2+(w-4)*i/(cl.length-1),y=h-3-(h-6)*(v-mn)/rg;if(i)c.lineTo(x,y);else c.moveTo(x,y)});c.lineWidth=2;c.lineJoin='round';c.strokeStyle=col;c.stroke();c.lineTo(w-2,h);c.lineTo(2,h);c.closePath();c.globalAlpha=.12;c.fillStyle=col;c.fill()}
+function nrPaintMinis(){var bs=document.querySelectorAll('[data-mn]');for(var i=0;i<bs.length;i++){var b=bs[i];if(b.getAttribute('data-done')==='1')continue;var m=NR.minis[b.getAttribute('data-mn')];
+ if(m===undefined||m===null){if(!b.firstChild)b.textContent='시세 불러오는 중…';continue}
+ b.setAttribute('data-done','1');b.innerHTML='';if(!m||!m.closes){b.textContent='시세 정보 없음';continue}
+ var cv=document.createElement('canvas');b.appendChild(cv);nrSpark(cv,m.closes);var t=el('div');t.appendChild(el('div','px',nwNum(m.last)+'원'));
+ var ch=el('div',m.chg>0?'up':(m.chg<0?'dn':''),'전일 '+(m.chg==null?'-':(m.chg>0?'+':'')+m.chg+'%')+(m.chg20==null?'':' · 20일 '+(m.chg20>0?'+':'')+m.chg20+'%'));t.appendChild(ch);b.appendChild(t)}}
+function nrFetchMinis(tks){if(!ftOk('overview')){nrPaintMinis();return Promise.resolve()}var need=[];tks.forEach(function(t){if(NR.minis[t]===undefined&&need.indexOf(t)<0)need.push(t)});need=need.slice(0,12);
+ if(!need.length){nrPaintMinis();return Promise.resolve()}
+ need.forEach(function(t){NR.minis[t]=null});nrPaintMinis();
+ return apiJ('/admin/api/news/mini',{tickers:need}).then(function(j){var m=(j&&j.minis)||{};need.forEach(function(t){NR.minis[t]=m[t]||false});nrPaintMinis()}).catch(function(){need.forEach(function(t){NR.minis[t]=false});nrPaintMinis()})}
+function nrStockCards(parent,stocks){var g=el('div','nrSg');var tks=[];
+ stocks.slice(0,12).forEach(function(s){var c=el('div','nrSc');var h=el('div','nrSh');h.appendChild(nwTk(el('b','nm',s.name||s.ticker),s.ticker));h.appendChild(nwSent(s.senti));h.appendChild(nwChip(s.mentioned?'a':'z',s.mentioned?'직접 언급':'연관'));c.appendChild(h);
+  c.appendChild(el('div','mt',s.ticker+(s.market?' · '+s.market:'')+(s.sector?' · '+s.sector:'')));var mn=el('div','nrMn');mn.setAttribute('data-mn',s.ticker);c.appendChild(mn);
+  if(s.reason)c.appendChild(el('div','sn',s.reason));g.appendChild(c);tks.push(s.ticker)});
+ parent.appendChild(g);setTimeout(function(){nrFetchMinis(tks)},0)}
+/* 한 줄 요약·본문 줄 뽑기(이미지용) */
+function nrSum(t){var m=/\*\*한 줄 요약\*\*\s*[:：]\s*(.+)/.exec(t||'');if(m)return m[1].replace(/\*\*/g,'').trim();var ls=String(t||'').split(/\r?\n/).map(function(s){return s.trim()}).filter(function(s){return s&&!/^#/.test(s)});return ls[0]?ls[0].replace(/\*\*/g,''):''}
+function nrLines(t,max){var out=[];String(t||'').split(/\r?\n/).forEach(function(s){s=s.trim();if(!s||/^#/.test(s)||/한 줄 요약/.test(s)||/^```/.test(s))return;s=s.replace(/\*\*/g,'').replace(/^[-•*]\s+/,'• ');if(out.length<max&&s.length>3)out.push(s)});return out}
+/* 판 */
+function nrRoom(box){nrEnv();
+ var s0=el('div','nwS');s0.appendChild(el('h3',null,'📰 뉴스룸'));s0.appendChild(el('p','ds','위쪽은 오늘의 뉴스 대시보드, 왼쪽은 뉴스 목록, 오른쪽은 분석 작업대예요. 뉴스를 누르면 오른쪽에서 AI 분석·관련 종목을 보고, [원문 ↗]을 누르면 화면 오른쪽 창에 기사 원문이 열려요.'));
+ if(!ftOk('latest')){box.appendChild(s0);nwLocked(s0,'latest','주요 뉴스·실시간 속보·많이 본 뉴스 제목을 모아 볼 수 있어요.');return}
+ var root=el('div','nrRoot');box.appendChild(root);var d=el('div','nrDash');d.id='nrDash';root.appendChild(d);
+ var g=el('div','nrGrid');var L=el('div','nrL');L.id='nrL';var R=el('div','nrR');R.id='nrR';g.appendChild(L);g.appendChild(R);root.appendChild(g);
+ root.appendChild(el('div','nwWarn sm','호재성·악재성은 단어를 기준으로 한 분류 참고용이며 투자 권유가 아닙니다. AI 분석도 틀릴 수 있으니 원문과 공시를 직접 확인하세요. 기사 원문은 저장·복제하지 않고, 분석을 위해 서버가 읽은 본문은 화면에 다시 보여주지 않아요.'));
+ nrLoad()}
+function nrLoad(){var my=++NR.load;var L=$('nrL'),d=$('nrDash');if(!L||!d)return;nwWait(L,'뉴스를 가져오는 중…');
+ var a=api('/admin/api/news/latest?cat='+encodeURIComponent(NR.cat));var b=ftOk('overview')?api('/admin/api/news/overview?cat='+encodeURIComponent(NR.cat)).catch(function(){return null}):Promise.resolve(null);
+ Promise.all([a,b]).then(function(r){if(my!==NR.load)return;var j=r[0];if(j.error){L.innerHTML='';NeedNote(L,j.error,'','note bad');return}
+  NR.lat=j;NR.items=j.items||[];NR.ov=(r[1]&&!r[1].error)?r[1]:null;NR.sel=-1;if(NR.ws.indexOf('n:')===0)NR.ws='';
+  nrDash();nrFeed();nrWs()}).catch(function(){if(my===NR.load)nwFail(L)})}
+function nrDash(){var d=$('nrDash');if(!d)return;d.innerHTML='';
+ var h=el('div','nrDh');h.appendChild(el('h2',null,'📰 오늘의 뉴스 대시보드'));h.appendChild(el('span','nrAs',(NR.lat?NR.lat.label:'')+' '+NR.items.length+'건'+((NR.ov&&NR.ov.asof)?' · '+NR.ov.asof+' 기준':'')));d.appendChild(h);
+ var bar=el('div','nrBar');[['main','주요 뉴스'],['flash','실시간 속보'],['rank','많이 본 뉴스']].forEach(function(c){var b=el('button',c[0]===NR.cat?'on':'',c[1]);b.onclick=function(){if(NR.cat===c[0])return;NR.cat=c[0];NR.q='';NR.f='all';NR.th='';if(NR.ws.indexOf('ov:')===0)NR.ws='';nrLoad()};bar.appendChild(b)});
+ bar.appendChild(el('span','sp'));
+ var hasOv=!!NR.res['ov:'+NR.cat];var ba=el('button','pri',hasOv?'🤖 전체 AI 총평 보기':'🤖 전체 AI 총평');ba.onclick=function(){if(hasOv){NR.sel=-1;NR.ws='ov:'+NR.cat;nrList();nrWs();return}nrOverall()};bar.appendChild(ba);
+ var bi=el('button',null,'🖼 대시보드 이미지');bi.onclick=function(){if(!ftOk('overview')){lockDlg('overview');return}NR.dashOpen=!NR.dashOpen;nrDashImg()};bar.appendChild(bi);
+ var br=el('button',null,'🔄 새로고침');br.onclick=function(){nrLoad()};bar.appendChild(br);
+ bar.appendChild(adm(bt('🔄 수집 캐시 비우기','bt3',function(){apiJ('/admin/api/news/refresh',{}).then(function(){toast('캐시를 비웠어요');nrLoad()})})));d.appendChild(bar);
+ var cn=NR.ov?NR.ov.counts:(NR.lat&&NR.lat.summary?NR.lat.summary:null);
+ var tl=el('div','nwTiles');var tl0=[['뉴스',NR.items.length+'건']];if(cn){tl0.push(['호재성',cn['호재성']+'건'],['악재성',cn['악재성']+'건'],['혼재',cn['혼재']+'건'],['중립',cn['중립']+'건'])}
+ tl0.forEach(function(x){var t=el('div','nwTile');t.appendChild(el('div','l',x[0]));t.appendChild(el('div','v',x[1]));tl.appendChild(t)});d.appendChild(tl);
+ if(cn){var tot=(cn['호재성']+cn['악재성']+cn['혼재']+cn['중립'])||1;var sb=el('div','nrSb');sb.title='호재성 · 악재성 · 혼재 · 중립 비중';[['호재성','#ef4444'],['악재성','#3b82f6'],['혼재','#f59e0b'],['중립','#cbd5e1']].forEach(function(x){var i=el('i');i.style.width=(cn[x[0]]*100/tot)+'%';i.style.background=x[1];sb.appendChild(i)});d.appendChild(sb)}
+ if(NR.ov){var cols=el('div','nrCols');var b1=el('div','nrBox');b1.appendChild(el('h4',null,'🧩 자주 나온 테마 (누르면 목록이 걸러져요)'));
+  var mx=Math.max.apply(null,NR.ov.themes.map(function(t){return t.n}).concat([1]));
+  if(!NR.ov.themes.length)b1.appendChild(el('p','note','뚜렷한 테마 키워드가 아직 없어요.'));
+  NR.ov.themes.forEach(function(t){var r=el('div','nrRw'+(NR.th===t.name?' on':''));var nm=el('button','nm',t.name);nm.onclick=function(){NR.th=NR.th===t.name?'':t.name;nrFeedBar();nrList();nrDash()};r.appendChild(nm);var tr=el('div','tr');var i=el('i');i.style.width=Math.max(8,t.n*100/mx)+'%';tr.appendChild(i);r.appendChild(tr);r.appendChild(el('span','ct',t.n+'건'+(t.pos||t.neg?' · 호재 '+t.pos+' / 악재 '+t.neg:'')));b1.appendChild(r)});cols.appendChild(b1);
+  var b2=el('div','nrBox');b2.appendChild(el('h4',null,'📌 제목에 자주 나온 종목 · 최근 시세'));
+  if(!NR.ov.stocks.length)b2.appendChild(el('p','note','제목에서 종목 이름이 확인된 뉴스가 아직 없어요.'));
+  var tks=[];NR.ov.stocks.slice(0,6).forEach(function(s){var c=el('div','nrSc');var hh=el('div','nrSh');hh.appendChild(nwTk(el('b','nm',s.name),s.ticker));hh.appendChild(el('span','m',s.n+'건 · 호재 '+s.pos+' / 악재 '+s.neg));c.appendChild(hh);var mn=el('div','nrMn');mn.setAttribute('data-mn',s.ticker);c.appendChild(mn);b2.appendChild(c);tks.push(s.ticker)});cols.appendChild(b2);d.appendChild(cols);nrFetchMinis(tks)}
+ else if(!ftOk('overview')){var lk=el('div','nrBox');nwLocked(lk,'overview','예) 호재·악재 건수, 자주 나온 테마, 제목에 많이 나온 종목과 최근 시세 그래프를 한눈에 볼 수 있어요.');d.appendChild(lk)}
+ else d.appendChild(el('p','note','대시보드 집계를 불러오지 못했어요. [새로고침]을 눌러 주세요.'));
+ var ib=el('div','nrImg');ib.id='nrImgD';d.appendChild(ib);if(NR.dashOpen)nrDashImg(true)}
+/* 대시보드 이미지 */
+function nrDashStocks(){var res=NR.res['ov:'+NR.cat];if(res&&res.j.stocks&&res.j.stocks.length)return res.j.stocks.slice(0,10);
+ return ((NR.ov&&NR.ov.stocks)||[]).slice(0,8).map(function(s){return {ticker:s.ticker,name:s.name,market:s.market,sector:s.sector,senti:s.pos>s.neg?1:(s.neg>s.pos?-1:0),mentioned:true,reason:'제목에 '+s.n+'번 나왔어요(호재성 '+s.pos+' · 악재성 '+s.neg+')'}})}
+function nrDashImg(keep){var b=$('nrImgD');if(!b)return;if(!NR.dashOpen){b.innerHTML='';NR.dashP=null;return}
+ if(!window.ImgKit||!window.NwImg){b.textContent='이미지 도우미를 불러오지 못했어요. 새로고침해 주세요.';return}
+ var gen=function(scale){if(!NR.ov)return Promise.reject(new Error('대시보드 집계가 아직 없어요. 새로고침 후 다시 눌러 주세요.'));var stocks=nrDashStocks();var res=NR.res['ov:'+NR.cat];
+  return nrFetchMinis(stocks.map(function(s){return s.ticker})).then(function(){return window.NwImg.dash({ov:NR.ov,label:NR.lat?NR.lat.label:'',stocks:stocks,minis:NR.minis,ai:res?{summary:nrSum(res.j.ai_text),lines:nrLines(res.j.ai_text,8)}:null},scale)})};
+ NR.dashP=nrImgMount(b,{name:'뉴스대시보드',ticker:window.ImgKit.dateDir(),perStock:false,gen:gen})}
+function nrImgMount(box,o){var K=window.ImgKit;if(!MEMBER_MODE&&K&&K.panel)return K.panel(box,{menu:'news',name:o.name,ticker:o.ticker,perStock:o.perStock,onDone:o.onDone,gen:o.gen});
+ box.innerHTML='';var row=el('div','bar'),view=el('div','nrSg'),st=el('div','m');var S={items:null};
+ var go=bt('🖼 이미지 만들기','bt',function(){go.disabled=true;go.textContent='⏳ 그리는 중…';view.innerHTML='';st.textContent='';
+  Promise.resolve(K&&K.fonts?K.fonts():0).then(function(){return o.gen(2)}).then(function(items){S.items=items;items.forEach(function(it){var c=el('div','nrSc');c.appendChild(el('b',null,K.CIRC[it.idx-1]+' '+it.label));
+   var pw=Math.min(720,it.canvas.width),sm=document.createElement('canvas');sm.width=pw;sm.height=Math.round(it.canvas.height*pw/it.canvas.width);sm.getContext('2d').drawImage(it.canvas,0,0,sm.width,sm.height);
+   var im=new Image();im.alt=it.label;im.src=sm.toDataURL('image/png');im.className='nrPv';im.style.width='100%';im.style.height='auto';c.appendChild(im);
+   c.appendChild(bt('💾 이미지 내려받기','bt2',function(){it.canvas.toBlob(function(bl){if(!bl){toast('이미지를 만들지 못했어요');return}var a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download=K.fileName(it.idx,o.name,o.ticker);document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},4000)},'image/png')}));view.appendChild(c)});
+   st.textContent='이미지를 만들었어요. [이미지 내려받기]로 내 기기에 저장하세요.';go.textContent='🔄 다시 만들기'}).catch(function(e){st.textContent='이미지를 만들지 못했어요: '+(e&&e.message||e);go.textContent='🖼 이미지 만들기'}).then(function(){go.disabled=false})});
+ row.appendChild(go);box.appendChild(row);box.appendChild(st);box.appendChild(view);return {gen:function(){go.click();return Promise.resolve()},items:function(){return S.items},refresh:function(){}}}
+/* 왼쪽: 뉴스 목록 */
+function nrFeed(){var L=$('nrL');if(!L)return;L.innerHTML='';var bar=el('div');bar.id='nrFb';L.appendChild(bar);var ls=el('div','nrList');ls.id='nrList';L.appendChild(ls);nrFeedBar();nrList()}
+function nrFeedBar(){var b=$('nrFb');if(!b)return;var had=document.activeElement&&document.activeElement.id==='nrQ';b.innerHTML='';var s=el('div','nrLs');
+ var inp=el('input','nwIn');inp.id='nrQ';inp.type='text';inp.placeholder='제목·언론사 검색';inp.maxLength=40;inp.value=NR.q;inp.setAttribute('aria-label','뉴스 검색');inp.oninput=function(){NR.q=inp.value;nrList()};s.appendChild(inp);b.appendChild(s);
+ var hasCls=NR.items.some(function(x){return x.cls});
+ if(hasCls){var s2=el('div','nrLs');[['all','전체'],['p','호재'],['n','악재'],['x','혼재'],['z','중립']].forEach(function(f){var c=el('button',NR.f===f[0]?'on':'',f[1]);c.onclick=function(){NR.f=f[0];nrFeedBar();nrList()};s2.appendChild(c)});b.appendChild(s2)}
+ if(NR.th){var s3=el('div','nrLs');var c=el('button','on','테마: '+NR.th+' ✕');c.onclick=function(){NR.th='';nrFeedBar();nrList();nrDash()};s3.appendChild(c);b.appendChild(s3)}
+ if(had)inp.focus()}
+function nrFilt(){var q=NR.q.trim().toLowerCase();return NR.items.map(function(x,i){return {x:x,i:i}}).filter(function(o){var x=o.x;if(NR.f!=='all'&&(!x.cls||x.cls.k!==NR.f))return false;if(NR.th&&(!x.cls||(x.cls.themes||[]).indexOf(NR.th)<0))return false;if(q&&((x.title||'')+' '+(x.press||'')).toLowerCase().indexOf(q)<0)return false;return true})}
+function nrList(){var ls=$('nrList');if(!ls)return;ls.innerHTML='';var rows=nrFilt();
+ if(!NR.items.length){NeedNote(ls,NR.lat&&NR.lat.note,'가져온 뉴스가 없어요.');return}
+ if(!rows.length){ls.appendChild(el('p','note','조건에 맞는 뉴스가 없어요.'));return}
+ rows.forEach(function(o){var x=o.x,r=el('div','nrIt'+(o.i===NR.sel?' on':''));r.tabIndex=0;r.setAttribute('role','button');r.setAttribute('data-i',o.i);
+  var tx=el('div','nrTx');var h=el('div');if(x.cls){h.appendChild(nwChip(x.cls.k,x.cls.label))}h.appendChild(el('span','tt',x.title));tx.appendChild(h);
+  tx.appendChild(el('div','mt',[x.press,x.date].filter(Boolean).join(' · ')+(NR.res['n:'+x.url]?' · ✅ AI 분석함':'')));r.appendChild(tx);if(x.url)r.appendChild(nrOrig(x.url));
+  r.onclick=function(){nrSelect(o.i)};r.onkeydown=function(e){if(e.target===r&&(e.key==='Enter'||e.key===' ')){e.preventDefault();nrSelect(o.i)}};ls.appendChild(r)});
+ ls.appendChild(el('p','note','출처: '+((NR.lat&&NR.lat.source)||'네이버 금융')+' · 뉴스를 누르면 오른쪽에서 분석해요.'))}
+function nrSelect(i){NR.sel=i;var x=NR.items[i];NR.ws=(x&&x.url&&NR.res['n:'+x.url])?'n:'+x.url:'';nrList();nrWs();
+ if(window.matchMedia&&matchMedia('(max-width:900px)').matches){var r=$('nrR');if(r&&r.scrollIntoView)r.scrollIntoView({behavior:'smooth',block:'start'})}}
+/* 오른쪽: 작업대 */
+function nrUrlBar(R){var s=el('div','nrU');var row=el('div','nrUr');var inp=el('input','nwIn');inp.id='nrUrl';inp.type='text';inp.placeholder='기사 주소(URL)만 붙여 넣어도 AI 분석을 만들어요';inp.maxLength=1500;inp.value=NR.urlv;inp.setAttribute('aria-label','기사 주소');inp.oninput=function(){NR.urlv=inp.value};
+ var go=bt('🔗 URL로 AI 분석','bt',function(){nrUrl(inp.value)});inp.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();nrUrl(inp.value)}};row.appendChild(inp);row.appendChild(go);s.appendChild(row);
+ s.appendChild(el('div','hp','네이버 뉴스·언론사 기사 주소를 지원해요(유튜브·구글 뉴스 주소는 아직 안 돼요). 서버가 기사를 읽어 AI 요청문을 만들어 주고, 본문은 저장하거나 화면에 보여주지 않아요.'));
+ if(!ftOk('url')){var lk=el('div');nwLocked(lk,'url','예) 기사 주소만 붙여 넣으면 AI 요청문이 만들어져요.');s.appendChild(lk)}R.appendChild(s)}
+function nrNewsCard(R,x){var c=el('div','nrNc');var h=el('div');if(x.cls){h.appendChild(nwChip(x.cls.k,x.cls.label));(x.cls.themes||[]).forEach(function(t){h.appendChild(nwChip('t',t))})}c.appendChild(h);c.appendChild(el('h3',null,x.title));
+ c.appendChild(el('div','mt',[x.press,x.date].filter(Boolean).join(' · ')));if(x.cls&&(x.cls.pos.length||x.cls.neg.length))c.appendChild(el('div','mt','근거 단어: '+x.cls.pos.concat(x.cls.neg).join(', ')));
+ var has=!!NR.res['n:'+x.url];var bar=el('div','bar');bar.appendChild(bt(has?'🔄 AI 다시 분석':'🤖 이 뉴스 AI 분석','bt',function(){nrStartNews(x)}));
+ if(x.url){var o=nrOrig(x.url);o.className='nrOrg';o.textContent='📖 원문 읽기 ↗';bar.appendChild(o);bar.appendChild(bt('주소 복사','bt3',function(){copyTxt(x.url)}))}c.appendChild(bar);
+ var cand=[];if(NR.ov&&NR.ov.cat===NR.cat){NR.ov.stocks.forEach(function(s){if((s.idx||[]).indexOf(NR.sel)>=0)cand.push({ticker:s.ticker,name:s.name,market:s.market,sector:s.sector,senti:(x.cls&&x.cls.k==='p')?1:((x.cls&&x.cls.k==='n')?-1:0),mentioned:true,reason:'제목에서 종목 이름이 확인돼요(AI 분석 전의 참고 후보).'})})}
+ if(cand.length&&!has){c.appendChild(el('div','mt','🔎 제목에서 찾은 관련 종목 후보'));nrStockCards(c,cand)}R.appendChild(c)}
+function nrWs(){var R=$('nrR');if(!R)return;R.innerHTML='';nrUrlBar(R);var rs=NR.res[NR.ws];var x=NR.sel>=0?NR.items[NR.sel]:null;
+ if(x)nrNewsCard(R,x);
+ if(rs)nrResult(R,rs);
+ else if(!x){var e=el('div','nrEm');e.appendChild(el('div',null,'👈 뉴스 목록에서 뉴스를 누르면 여기에서 분석해요.'));e.appendChild(el('div',null,'① 뉴스 선택 → ② [🤖 AI 분석] → ③ 관련 종목·시세 그래프·이미지'));e.appendChild(el('div',null,'위쪽 [🤖 전체 AI 총평]으로 오늘 뉴스 전체의 흐름을 볼 수도 있어요.'));R.appendChild(e)}}
+function nrResult(R,rs){var j=rs.j,ctx=rs.ctx;var c=el('div','nwS nrRes');var h=el('div','nrRh');h.appendChild(el('h3',null,'🤖 '+ctx.label));
+ h.appendChild(bt('🔄 다시 분석','bt3',function(){if(ctx.kind==='ov')nrOverall();else if(ctx.kind==='url')nrUrl(ctx.url);else{var x=NR.items[NR.sel];if(x)nrStartNews(x);else if(ctx.url)nrUrl(ctx.url)}}));c.appendChild(h);
+ c.appendChild(el('p','ds','AI 답변을 정리한 화면이에요. 호재/악재 표시는 AI 또는 단어 규칙의 분류 참고 값이며 투자 권유가 아니에요.'));
+ if(ctx.note)c.appendChild(el('p','note',ctx.note));
+ var sm=nrSum(j.ai_text);if(sm){var b0=el('div','nwSum');b0.appendChild(el('b',null,'📝 한 줄 요약 — '));b0.appendChild(document.createTextNode(sm));c.appendChild(b0)}
+ if(ctx.url){var ol=el('div','mt','원문: ');ol.appendChild(nrOrig(ctx.url));c.appendChild(ol)}
+ if(j.stocks&&j.stocks.length){c.appendChild(el('h4','nwH4','📊 관련 종목 '+j.stocks.length+'개 · 최근 30일 시세'));nrStockCards(c,j.stocks)}else c.appendChild(el('p','note','확인된 종목이 없어요.'));
+ (j.warnings||[]).forEach(function(w){c.appendChild(el('p','note bad','⚠ '+w))});
+ var body=el('div');nwMd(body,String(j.ai_text||'').split(/\r?\n/).filter(function(l){return !/^\*\*한 줄 요약\*\*/.test(l)}).join('\n'));c.appendChild(body);
+ var ab=el('div','bar');ab.appendChild(bt('분석문 복사','bt2',function(){copyTxt(j.ai_text)}));
+ ab.appendChild(adm(bt('💾 보관함에 저장 (관리자)','bt',function(){apiJ('/admin/api/news/save',{title:j.title_ko||ctx.title||'',source:ctx.source||'',excerpt:ctx.excerpt||'',ai_text:j.ai_text,stocks:j.stocks,kind:'stock'}).then(function(z){if(z.error){toast(z.error);return}toast('보관함에 저장했어요')})})));
+ var bi=el('button','bt3','🖼 이미지 만들기');if(MEMBER_MODE)ab.appendChild(bi);c.appendChild(ab);var ib=el('div','nrImg');ib.id='nrImgR';c.appendChild(ib);R.appendChild(c);
+ NR.imgP=null;function mount(){if(!ftOk('overview')){lockDlg('overview');return}if(!window.ImgKit||!window.NwImg){ib.textContent='이미지 도우미를 불러오지 못했어요. 새로고침해 주세요.';return}
+  var nm=(ctx.title||'뉴스').replace(/\s+/g,' ').slice(0,18),id=ctx.kind==='ov'?window.ImgKit.dateDir():(String(ctx.url||'').replace(/\D/g,'').slice(-8)||window.ImgKit.dateDir());
+  NR.imgP=nrImgMount(ib,{name:ctx.kind==='ov'?'뉴스총평':nm,ticker:id,perStock:ctx.kind!=='ov',onDone:function(){},gen:function(scale){var tks=(j.stocks||[]).map(function(s){return s.ticker});
+   return nrFetchMinis(tks).then(function(){return window.NwImg.res({title:j.title_ko||ctx.title,source:ctx.source,kind:ctx.kind,label:ctx.label,summary:sm,lines:nrLines(j.ai_text,7),stocks:j.stocks||[],minis:NR.minis,cls:ctx.cls||null},scale)})}})}
+ bi.onclick=function(){if(NR.imgP){NR.imgP.gen(false);return}mount();if(NR.imgP&&NR.imgP.gen)NR.imgP.gen(false)};
+ if(!MEMBER_MODE&&ftOk('overview'))setTimeout(function(){if($('nrImgR')===ib&&!NR.imgP)mount()},30)}
+/* 분석 시작 */
+function nrPv(j){var x=el('div','nwPv');x.textContent='종목 '+j.stocks.length+'개 정리됨'+(j.stocks.length?': '+j.stocks.slice(0,6).map(function(s){return s.name}).join(', ')+(j.stocks.length>6?' 외':''):'')+' · 분석문 '+j.ai_text.length.toLocaleString()+'자';(j.warnings||[]).forEach(function(w){x.appendChild(el('div','m','⚠ '+w))});return x}
+function nrAI(ctx){if(!ftOk('ai')){lockDlg('ai');return}if(!window.MiniAI){toast('AI 도우미를 불러오지 못했어요. 새로고침해 주세요.');return}
+ var parsed=null,pfor='';function parse(t){if(parsed&&pfor===t)return Promise.resolve(parsed);return apiJ('/admin/api/news/parse',{mode:'stock',text:t,title:ctx.title||'',tk:ctx.tk||'',article:''}).then(function(j){if(!j.error){parsed=j;pfor=t}return j})}
+ window.MiniAI.run({title:'뉴스 AI — '+ctx.label,key:'news',steps:[{label:ctx.label,prompt:ctx.prompt}],minLen:200,hint:'AI 답변 끝의 ```json 블록까지 통째로 복사해 이 탭으로 돌아오세요.',
+  preview:function(t){return parse(t).then(function(j){if(j.error)return {text:j.error,canApply:false};return {node:nrPv(j),canApply:true,strict:!(j.warnings&&j.warnings.length)}}).catch(function(){return {text:'답변을 읽는 중 오류가 났어요. 다시 시도해 주세요.',canApply:false}})},
+  apply:function(t){return parse(t).then(function(j){if(j.error)return {message:'읽지 못했어요: '+j.error};
+   var key=ctx.key;NR.res[key]={j:j,ctx:ctx,at:Date.now()};NR.ws=key;if(ctx.kind!=='news')NR.sel=-1;
+   setTimeout(function(){nrList();nrWs();if(ctx.kind==='ov')nrDash();if(!MEMBER_MODE&&window.MiniFlow)window.MiniFlow.run('news',NRFLOW,NRACTS,'ai')},80);
+   return {message:'정리해서 화면에 보여줬어요(서버에는 저장하지 않아요).'}})}})}
+function nrOverall(){if(!ftOk('ai')){lockDlg('ai');return}apiJ('/admin/api/news/overview/prompt',{cat:NR.cat}).then(function(j){if(j.error){toast(j.error);return}
+ nrAI({key:'ov:'+NR.cat,kind:'ov',title:j.title,source:'네이버 금융',url:'',tk:j.tk,prompt:j.prompt,label:j.title})})}
+function nrUrl(u){u=String(u||'').trim();if(!ftOk('url')){lockDlg('url');return}if(!/^https?:\/\//i.test(u)){toast('http:// 또는 https:// 로 시작하는 기사 주소를 붙여 넣어 주세요');return}
+ toast('기사를 읽는 중…');apiJ('/admin/api/news/url',{url:u,mode:'stock'}).then(function(j){if(j.error||!j.prompt){if(!j.feature)toast(j.error||'기사를 읽지 못했어요');return}
+  var ctx={key:'u:'+j.url,kind:'url',title:j.title,source:j.source,url:j.url,tk:j.tk,prompt:j.prompt,label:'URL 분석 · '+(j.title||j.url).slice(0,40),note:j.note||'',excerpt:j.excerpt||''};nrAI(ctx)})}
+function nrStartNews(x){if(!ftOk('ai')){lockDlg('ai');return}if(!x||!x.url){toast('원문 주소가 없는 뉴스예요');return}toast('기사 본문을 읽는 중…');
+ var mk=function(j,note){nrAI({key:'n:'+x.url,kind:'news',title:x.title,source:x.press||j.source||'',url:x.url,tk:j.tk||'',prompt:j.prompt,label:'뉴스 분석 · '+x.title.slice(0,40),note:note||j.note||'',excerpt:j.excerpt||'',cls:x.cls||null})};
+ apiJ('/admin/api/news/url',{url:x.url,mode:'stock'}).then(function(j){if(j.prompt){mk(j);return}
+  if(j.feature||/1분에/.test(j.error||'')){if(j.error)toast(j.error);return}
+  apiJ('/admin/api/news/prompt',{mode:'stock',title:x.title,source:x.press||'',text:x.title+'\n'+(x.snippet||x.title)+'\n(기사 본문을 읽지 못해 제목·발췌만으로 분석해요)'}).then(function(k){if(k.error){toast(k.error);return}mk(k,'기사 본문을 읽지 못해 제목·발췌만으로 분석했어요. 정확하지 않을 수 있어요.')})})}
+
 /* 종목 뉴스 */
 function nwVStock(box){var s=nwSec(box,'🔎 종목 뉴스 조회','종목 이름이나 6자리 코드를 넣으면 최근 2주 안의 관련 뉴스 제목을 모아 보여드려요. 같은 사건을 다룬 기사는 대표 1건과 관련 기사 수로 묶여요.');
  if(!ftOk('stock')){nwLocked(s,'stock','예) 삼성전자 → 최근 2주 뉴스 제목과 호재성·악재성 분류');return}
@@ -1388,6 +1929,56 @@ function nwDrawRes(){var b=$('nwRes');if(!b)return;b.innerHTML='';var j=NW.res;i
 """
 
 
+IMG_JS = r"""
+(function(){
+var K=window.ImgKit;if(!K||window.NwImg)return;
+var T=K.text,RR=K.rr,N=K.n;
+var INK='#0f172a',MUT='#64748b',UP='#dc2626',DN='#2563eb',GOLD='#d6b25e';
+var SC={p:'#ef4444',n:'#3b82f6',x:'#f59e0b',z:'#cbd5e1'};
+function today(){var x=new Date(),z=function(n){return ('0'+n).slice(-2)};return x.getFullYear()+'.'+z(x.getMonth()+1)+'.'+z(x.getDate())}
+function shadow(c,x,y,w,h,r){c.save();c.shadowColor='rgba(15,23,42,.14)';c.shadowBlur=22;c.shadowOffsetY=6;RR(c,x,y,w,h,r||24);c.fillStyle='#fff';c.fill();c.restore()}
+function head(c,W,kicker,title,sub){var g=c.createLinearGradient(0,0,W,260);g.addColorStop(0,'#0a1228');g.addColorStop(.6,'#16275a');g.addColorStop(1,'#1e3a8a');c.fillStyle=g;c.fillRect(0,0,W,250);
+ T(c,kicker,W/2,64,{s:20,w:800,c:GOLD,a:'center',ls:6});T(c,title,W/2,132,{s:52,w:900,c:'#fff',a:'center',max:W-120});T(c,sub,W/2,186,{s:24,w:600,c:'#bfdbfe',a:'center',max:W-120});T(c,today()+' 기준 · 공개 뉴스 제목 자동 집계(참고용)',W/2,226,{s:19,w:600,c:'rgba(255,255,255,.7)',a:'center'})}
+function foot(c,W,y){c.fillStyle='rgba(100,116,139,.35)';c.fillRect(60,y,W-120,2);T(c,'호재성·악재성은 단어 기준의 분류 참고 값이며 투자 권유가 아니에요. AI 해석은 틀릴 수 있어요.',W/2,y+40,{s:18,w:600,c:MUT,a:'center',max:W-120});T(c,'투자 전 원문 기사와 DART·KIND 공시를 꼭 확인하세요',W/2,y+70,{s:18,w:700,c:'#92400e',a:'center',max:W-120})}
+function title2(c,y,h,t,sub){shadow(c,40,y,1000,h,24);c.fillStyle=GOLD;RR(c,66,y+26,6,30,3);c.fill();T(c,t,86,y+50,{s:26,w:900,c:INK});if(sub)T(c,sub,1014,y+49,{s:16,w:500,c:'#94a3b8',a:'right'})}
+function spark(c,x,y,w,h,cl){if(!cl||cl.length<2){T(c,'시세 없음',x+w/2,y+h/2+6,{s:16,w:600,c:'#94a3b8',a:'center'});return}
+ var mn=Math.min.apply(null,cl),mx=Math.max.apply(null,cl),rg=mx-mn||1,col=cl[cl.length-1]>=cl[0]?UP:DN;c.save();c.beginPath();cl.forEach(function(v,i){var px=x+w*i/(cl.length-1),py=y+h-(v-mn)/rg*h;if(i)c.lineTo(px,py);else c.moveTo(px,py)});c.lineWidth=3;c.lineJoin='round';c.strokeStyle=col;c.stroke();c.lineTo(x+w,y+h);c.lineTo(x,y+h);c.closePath();c.globalAlpha=.1;c.fillStyle=col;c.fill();c.restore()}
+function wrapLines(lines,maxW,font,maxN){var tm=K.make(10,10,1).c,out=[];lines.forEach(function(s){K.wrap(tm,s,maxW,font).forEach(function(l){out.push(l)})});if(out.length>maxN){out=out.slice(0,maxN);out[maxN-1]=out[maxN-1].replace(/.{0,2}$/,'')+'…'}return out}
+function sentLabel(s){return s>0?['호재',SC.p]:(s<0?['악재',SC.n]:['중립','#94a3b8'])}
+/* 종목 줄(이름·분류·그래프·시세·이유) */
+function stockRows(c,y,stocks,minis){var yy=y;stocks.forEach(function(s,i){var rh=s.reason?98:76;if(i%2===0){c.fillStyle='#f8fafc';c.fillRect(56,yy-4,968,rh)}
+ T(c,s.name||s.ticker,76,yy+30,{s:25,w:800,c:INK,max:230});T(c,s.ticker+(s.market?' · '+s.market:'')+(s.sector?' · '+s.sector:''),76,yy+54,{s:15,w:600,c:'#94a3b8',max:230});
+ var sl=sentLabel(s.senti);RR(c,330,yy+10,64,30,15);c.fillStyle=sl[1];c.fill();T(c,sl[0],362,yy+32,{s:17,w:800,c:'#fff',a:'center'});T(c,s.mentioned?'직접 언급':'연관',362,yy+58,{s:14,w:700,c:MUT,a:'center'});
+ var m=minis&&minis[s.ticker];spark(c,420,yy+8,300,52,m&&m.closes);
+ if(m&&m.last!=null){T(c,N(m.last)+'원',1004,yy+30,{s:22,w:800,c:INK,a:'right'});var ch=m.chg;T(c,'전일 '+(ch==null?'-':(ch>0?'+':'')+ch+'%')+(m.chg20==null?'':' · 20일 '+(m.chg20>0?'+':'')+m.chg20+'%'),1004,yy+54,{s:16,w:800,c:ch>0?UP:(ch<0?DN:MUT),a:'right',max:270})}
+ if(s.reason)T(c,s.reason,76,yy+86,{s:16,w:500,c:'#475569',max:920});yy+=rh+8});return yy}
+function stocksH(stocks){var h=0;stocks.forEach(function(s){h+=(s.reason?98:76)+8});return h}
+function dash(D,scale){var W=1080,ov=D.ov,cn=ov.counts,tot=(cn['호재성']+cn['악재성']+cn['혼재']+cn['중립'])||1;
+ var th=(ov.themes||[]).slice(0,6),st=(ov.stocks||[]).slice(0,8),ai=D.ai;var alines=ai?wrapLines([ai.summary].concat(ai.lines||[]).filter(Boolean),920,'600 21px '+K.FONT,10):[];
+ var H=250+40+170+30+130+30+(th.length?80+th.length*54:0)+(th.length?30:0)+(st.length?80+st.length*54:0)+(st.length?30:0)+(ai?(80+alines.length*34+30):0)+150;
+ var m=K.make(W,H,scale),c=m.c;c.fillStyle='#f4f1ec';c.fillRect(0,0,W,H);head(c,W,'MARKET NEWS BRIEF','뉴스 대시보드',(D.label||'주요 뉴스')+' · '+ov.n+'건 · '+ov.asof);
+ var y=290,cw=(W-80-4*14)/5;[['뉴스',ov.n,INK],['호재성',cn['호재성'],UP],['악재성',cn['악재성'],DN],['혼재',cn['혼재'],'#d97706'],['중립',cn['중립'],MUT]].forEach(function(s,i){var x=40+i*(cw+14);shadow(c,x,y,cw,170,22);T(c,s[0],x+cw/2,y+50,{s:22,w:800,c:MUT,a:'center'});T(c,String(s[1]),x+cw/2,y+122,{s:64,w:900,c:s[2],a:'center'})});y+=200;
+ shadow(c,40,y,1000,130,24);T(c,'호재·악재 비중',70,y+42,{s:22,w:800,c:INK});var bx=70,bw=940,xx=bx;[['호재성',SC.p],['악재성',SC.n],['혼재',SC.x],['중립',SC.z]].forEach(function(s){var w=bw*cn[s[0]]/tot;if(w<=0)return;c.fillStyle=s[1];c.fillRect(xx,y+58,w,30);if(w>56)T(c,s[0]+' '+Math.round(cn[s[0]]*100/tot)+'%',xx+w/2,y+80,{s:16,w:800,c:s[0]==='중립'?'#334155':'#fff',a:'center'});xx+=w});
+ T(c,'제목의 단어 기준 분류(참고용)',70,y+116,{s:15,w:600,c:'#94a3b8'});y+=160;
+ if(th.length){var h1=80+th.length*54;title2(c,y,h1,'🧩 자주 나온 테마','기사 수');var mx=Math.max.apply(null,th.map(function(t){return t.n}).concat([1]));th.forEach(function(t,i){var yy=y+88+i*54;T(c,t.name,70,yy+18,{s:21,w:700,c:'#334155',max:300});RR(c,380,yy,360,24,12);c.fillStyle='#eef2f7';c.fill();RR(c,380,yy,Math.max(24,360*t.n/mx),24,12);var g=c.createLinearGradient(380,0,740,0);g.addColorStop(0,'#60a5fa');g.addColorStop(1,'#1e3a8a');c.fillStyle=g;c.fill();T(c,t.n+'건',1010,yy+20,{s:22,w:900,c:INK,a:'right'});T(c,'호재 '+t.pos+' / 악재 '+t.neg,930,yy+20,{s:15,w:700,c:MUT,a:'right'})});y+=h1+30}
+ if(st.length){var h2=80+st.length*54;title2(c,y,h2,'📌 제목에 자주 나온 종목','언급 횟수');var mx2=Math.max.apply(null,st.map(function(t){return t.n}).concat([1]));st.forEach(function(t,i){var yy=y+88+i*54;T(c,t.name,70,yy+18,{s:21,w:800,c:INK,max:230});T(c,t.ticker,70,yy+38,{s:13,w:600,c:'#94a3b8'});RR(c,330,yy,400,24,12);c.fillStyle='#eef2f7';c.fill();RR(c,330,yy,Math.max(24,400*t.n/mx2),24,12);c.fillStyle='#6366f1';c.fill();T(c,t.n+'건',1010,yy+20,{s:22,w:900,c:INK,a:'right'});T(c,'호재 '+t.pos+' / 악재 '+t.neg,930,yy+20,{s:15,w:700,c:MUT,a:'right'})});y+=h2+30}
+ if(ai){var h3=80+alines.length*34+30;title2(c,y,h3,'🤖 AI 총평','AI가 정리한 참고 의견');alines.forEach(function(l,i){T(c,l,70,y+92+i*34,{s:21,w:i===0?800:500,c:i===0?INK:'#334155'})});y+=h3+30}
+ foot(c,W,y);return m.cv}
+function related(D,scale){var W=1080,st=(D.stocks||[]).slice(0,10);var H=250+40+90+Math.max(1,stocksH(st))+40+150;var m=K.make(W,H,scale),c=m.c;c.fillStyle='#f4f1ec';c.fillRect(0,0,W,H);head(c,W,'RELATED STOCKS','뉴스 관련 종목',(D.label||'주요 뉴스')+' · '+st.length+'종목 · 최근 30일 시세');
+ var y=290,hh=90+Math.max(1,stocksH(st))+10;title2(c,y,hh,'관련 종목 · 시세 그래프','최근 30거래일 종가');if(!st.length)T(c,'확인된 종목이 없어요',86,y+130,{s:22,w:600,c:MUT});else stockRows(c,y+78,st,D.minis);y+=hh+30;foot(c,W,y);return m.cv}
+function res(D,scale){var W=1080,st=(D.stocks||[]).slice(0,8);var lines=wrapLines([D.summary].concat(D.lines||[]).filter(Boolean),920,'600 21px '+K.FONT,10);var tl=wrapLines([D.title||'뉴스'],900,'900 34px '+K.FONT,3);
+ var H=250+40+(80+tl.length*46)+30+(80+lines.length*34+30)+30+(st.length?(90+stocksH(st)+10)+30:0)+150;var m=K.make(W,H,scale),c=m.c;c.fillStyle='#f4f1ec';c.fillRect(0,0,W,H);
+ head(c,W,D.kind==='ov'?'MARKET NEWS · AI VIEW':'NEWS ANALYSIS',D.kind==='ov'?'오늘 뉴스 AI 총평':'뉴스 분석 카드',(D.source||'')+(D.kind==='ov'?'':' · AI 해석(참고용)'));
+ var y=290,h1=80+tl.length*46;shadow(c,40,y,1000,h1,24);c.fillStyle=GOLD;RR(c,66,y+26,6,30,3);c.fill();T(c,D.kind==='ov'?'분석 대상':'기사 제목',86,y+50,{s:22,w:800,c:MUT});tl.forEach(function(l,i){T(c,l,70,y+98+i*46-10,{s:32,w:900,c:INK})});y+=h1+30;
+ var h2=80+lines.length*34+30;title2(c,y,h2,'🤖 AI 해석 요약','참고용');lines.forEach(function(l,i){T(c,l,70,y+92+i*34,{s:21,w:i===0?800:500,c:i===0?INK:'#334155'})});y+=h2+30;
+ if(st.length){var h3=90+stocksH(st)+10;title2(c,y,h3,'📊 관련 종목 · 시세 그래프','최근 30거래일 종가');stockRows(c,y+78,st,D.minis);y+=h3+30}
+ foot(c,W,y);return m.cv}
+window.NwImg={dash:function(D,scale){var it=[{idx:1,label:'뉴스 대시보드',canvas:dash(D,scale)}];if((D.stocks||[]).length)it.push({idx:2,label:'관련 종목 시세',canvas:related(D,scale)});return it},
+ res:function(D,scale){return [{idx:1,label:D.kind==='ov'?'AI 총평 카드':'뉴스 분석 카드',canvas:res(D,scale)}]}};
+})();
+"""
+
+
 def register():
     C.register_table_hook(_ensure_tables)
     C.register_menu({"id": "news", "label": "뉴스분석", "icon": "📰", "public_path": "/m/news", "admin_path": "/admin#nw",
@@ -1396,6 +1987,10 @@ def register():
         "title": "뉴스분석 AI 프롬프트(증권 뉴스)", "default": NEWS_DEFAULT, "required": ["{text}"], "must_have": ["```json"],
         "vars": "{source}=출처 · {title}=제목 · {today}=분석일 · {text}=뉴스 본문(필수)",
         "desc": "뉴스분석에서 AI에게 보내는 요청문. 마지막의 ```json 블록(mentioned/related/sentiment/title_ko)이 있어야 종목·호재/악재 분류를 자동으로 읽어요."})
+    C.register_prompt("news_overview", {
+        "title": "뉴스분석 AI 프롬프트(전체 뉴스 총평)", "default": NEWS_OVERVIEW_DEFAULT, "required": ["{headlines}"], "must_have": ["```json"],
+        "vars": "{today}=분석일 · {cat}=뉴스 구분 · {count}=뉴스 건수 · {stats}=사이트 집계 참고값 · {headlines}=뉴스 목록(필수)",
+        "desc": "뉴스 목록 전체를 AI가 총평하는 요청문. 마지막의 ```json 블록(mentioned/related/sentiment)이 있어야 관련종목 표·그래프를 자동으로 만들어요."})
     C.register_prompt("news_general", {
         "title": "뉴스분석 AI 프롬프트(일반 문서 요약)", "default": GENERAL_DEFAULT, "required": ["{text}"], "must_have": ["META_JSON"],
         "vars": "{source}=출처 · {title}=제목 · {text}=문서 본문(필수)", "desc": "수출입동향·보고서 같은 일반 문서를 쉬운 글로 요약할 때 쓰는 요청문. 마지막 META_JSON 줄을 유지해야 제목·태그를 읽어요."})
@@ -1406,7 +2001,7 @@ def register():
         "title": "긍정뉴스 지속종목 AI 프롬프트(종목 코멘트)", "default": SENTI_STOCK_DEFAULT, "required": ["{news_lines}"], "must_have": ["[뉴스 흐름 요약]"],
         "vars": "{name} {ticker} {market} {direct_pos_days} {direct_neg_days} {pos_ratio} {swept_pos_count} {perf_txt} {first_pos_date} {news_lines}=헤드라인(필수)",
         "desc": "한 종목의 뉴스 흐름을 AI가 코멘트하는 요청문. [섹션명] 형식을 유지해야 화면에 카드로 나뉘어 보여요."})
-    C.register_admin_tab("nw", "📰 뉴스분석", TAB_JS, "nwLoad", menu="news")
+    C.register_admin_tab("nw", "📰 뉴스분석", TAB_JS + "\n" + IMG_JS, "nwLoad", menu="news")
     C.register_feature(MENU, "latest", "최신 뉴스 모음", "네이버 금융 주요 뉴스·속보·많이 본 뉴스의 제목·언론사·링크 모아보기", default="public",
                        endpoints=["/admin/api/news/latest"])
     C.register_feature(MENU, "stock", "종목 뉴스 조회", "종목 이름·코드로 최근 2주 뉴스 제목 조회", default="public", endpoints=["/admin/api/news/stock"])
@@ -1417,5 +2012,12 @@ def register():
     C.register_feature(MENU, "board", "분석 기록 보관함", "저장된 뉴스 분석의 제목·출처·AI 분석문 열람과 검색", default="L2",
                        endpoints=["/admin/api/news/log/list", "/admin/api/news/log/detail"])
     C.register_feature(MENU, "ai", "AI 뉴스 해석(수동)", "뉴스를 붙여 넣어 AI 프롬프트를 만들고, 받은 답을 종목·분류 표로 정리", default="L2", kind="ai",
-                       endpoints=["/admin/api/news/prompt", "/admin/api/news/parse", "/admin/api/news/leader/prompt"])
+                       endpoints=["/admin/api/news/prompt", "/admin/api/news/parse", "/admin/api/news/leader/prompt", "/admin/api/news/overview/prompt"])
+    C.register_feature(MENU, "overview", "전체 뉴스 대시보드·관련종목 그래프", "뉴스 전체의 호재·악재 건수, 자주 나온 테마·종목을 한눈에 보는 대시보드(이미지 만들기 포함)와 관련종목 시세 그래프", default="member",
+                       endpoints=["/admin/api/news/overview", "/admin/api/news/mini"])
+    C.register_feature(MENU, "url", "기사 주소(URL)로 AI 분석", "기사 주소만 넣으면 본문을 읽어 AI 요청문을 만들어 줘요(뉴스를 클릭해 분석할 때도 사용)", default="L2", kind="ai",
+                       endpoints=["/admin/api/news/url"])
+    C.register_flow("news", "📰 뉴스분석", "① 뉴스를 누르거나 [전체 AI 총평]·URL 분석을 시작(직접 시작)", [
+        {"id": "ai", "label": "② AI 분석", "desc": "시작하면 AI 요청문 창을 자동으로 열어요. 답변을 복사해 돌아오면 관련종목 표·그래프가 만들어져요."},
+        {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 분석이 끝나면 대시보드·관련종목 이미지를 자동으로 그려요."}])
     return bp
