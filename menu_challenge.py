@@ -36,6 +36,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, request
 
 from menu_ctx import C
+import menu_blog as B
 
 bp = Blueprint("challenge", __name__)
 
@@ -65,6 +66,8 @@ DEEP_MIN = 20                              # 이보다 덜 빠진 종목은 재�
 WORKERS = 6
 BASE = "https://m.stock.naver.com"
 KEY_LAST = "challenge_scan_last"
+KEY_AI = "challenge_ai_last"               # 마지막으로 저장한 AI 분석 {date, at, label, text, tickers}
+BLOG_SECS = ("stats", "axes", "top", "ai", "list", "notes")
 
 _LOCK = threading.Lock()
 _ST = {"running": False, "phase": "", "total": 0, "done": 0, "ok": 0, "fail": 0, "skip": 0, "cand": 0, "cur": "", "started": 0.0, "ended": 0.0,
@@ -1397,6 +1400,9 @@ CH_DEFAULT = """아래는 오늘({today}) 국내 증시({market_label})에서 '5
 
 ## ⚠ 유의사항
 이 글은 공개된 시세·수급·재무 데이터를 정리한 참고 자료이며 투자 권유가 아닙니다. 낙폭이 크고 회복 신호가 보여도 이후 주가는 오를 수도 내릴 수도 있고 원금 손실이 생길 수 있습니다. 투자 판단과 책임은 투자자 본인에게 있습니다.
+
+[블로그 제목 후보]
+- 위 내용을 블로그에 올릴 때 쓸 제목 3개를 한 줄씩 '- '로 쓰세요. 낙폭·회복 신호 같은 사실 중심으로 쓰고, 매수 권유·수익 보장·"급등" 같은 표현은 쓰지 마세요.
 """
 
 _ST_LBL = {"ok": "회복 확인", "weak": "일부", "no": "미흡", "na": "자료 없음"}
@@ -1455,6 +1461,185 @@ def api_prompt():
 
 
 # ══════════════════════════════════════════════════════════════
+# 관리자 전용 — AI 분석 저장 · 블로그 글 만들기 (어떤 기능에도 등록하지 않음 → 회원 화면에서는 404)
+# 흐름: 낙폭회복 리스트 → AI 분석(수동: 프롬프트 복사 → 답변 붙여넣기) → 대시보드 이미지(브라우저 캔버스) → 블로그 글(HTML)
+# ══════════════════════════════════════════════════════════════
+def _ai_get():
+    try:
+        v = setting_get(KEY_AI, "")
+        d = json.loads(v) if v else {}
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+@bp.route("/admin/api/challenge/ai", methods=["GET"])
+def api_ai_get():
+    """마지막으로 저장한 AI 분석. 오늘 날짜가 아니면 stale=true(오래된 분석이라 새로 받도록 안내)."""
+    deny = _admin_deny()
+    if deny:
+        return deny
+    d = _ai_get()
+    text = str(d.get("text") or "")
+    if not text.strip():
+        return _admin_json({"ok": True, "found": False})
+    day = str(d.get("date") or "")
+    return _admin_json({"ok": True, "found": True, "text": text, "label": str(d.get("label") or ""), "date": day, "at": str(d.get("at") or ""),
+                        "tickers": [t for t in (d.get("tickers") or []) if isinstance(t, str)][:60], "stale": day != _today()})
+
+
+@bp.route("/admin/api/challenge/ai", methods=["POST"])
+def api_ai_save():
+    """관리자 전용 — AI 답변을 저장한다(블로그 글·이미지가 이 글을 가져다 쓴다). 서버가 AI를 부르지는 않는다."""
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    b = _json_body() or {}
+    text = str(b.get("text") or "").replace("\x00", "").strip()[:20000]
+    if len(text) < 100:
+        return _admin_json({"error": "AI 답변(100자 이상)이 필요해요."}, 400)
+    tks = [t for t in (str(x).strip().upper() for x in (b.get("tickers") or []) if isinstance(x, str)) if TICKER_RE.match(t)][:60]
+    now = _now_kst()
+    rec = {"date": now.strftime("%Y-%m-%d"), "at": now.strftime("%Y-%m-%d %H:%M:%S"), "label": _s(b.get("label"), 80), "text": text, "tickers": tks}
+    setting_set(KEY_AI, json.dumps(rec, ensure_ascii=False))
+    _alog("challenge_ai_save", "len=%d tickers=%d" % (len(text), len(tks)))
+    return _admin_json({"ok": True, "date": rec["date"], "at": rec["at"], "len": len(text)})
+
+
+_ST_EMO = {"ok": "&#9989;", "weak": "&#128312;", "no": "&#10060;", "na": "&#9898;"}
+_ST_NAME = {"ok": "회복 확인", "weak": "일부", "no": "미흡", "na": "자료 없음"}
+_TITLE_BLOCK = re.compile(r"^[ \t]*\[블로그\s*제목\s*후보[^\]]*\][ \t]*\n(?:[ \t]*(?:[-•*·]|\d+[.)])[ \t]*.+\n?)*", re.M)
+
+
+def _split_ai(text):
+    """AI 답변 → (블로그 제목 후보 블록을 뺀 본문, 제목 후보 목록)."""
+    text = str(text or "").replace("\r", "")
+    titles = B.extract_titles(text)
+    return _TITLE_BLOCK.sub("", text).strip(), titles
+
+
+def _pct(v, d=1):
+    return "-" if v is None else "%+.*f%%" % (d, v)
+
+
+def _pick_rows(d, b):
+    """블로그 글에 쓸 종목: 화면에 보이던 종목(tickers)이 있으면 그대로(위험 제외 설정 존중), 없으면 기본 기준으로 고른다."""
+    cfg = get_cfg()
+    tks = [t for t in (str(x).strip().upper() for x in (b.get("tickers") or []) if isinstance(x, str)) if TICKER_RE.match(t)]
+    if tks:
+        return [d["by"][t] for t in dict.fromkeys(tks) if t in d["by"] and d["by"][t]["cand"] and not (cfg["exclude_risk"] and t in d["risk"])][:30]
+    sel, _m = _select(d, cfg["markets"], cfg["drop_pct"], cfg["min_axes"], 30, cfg["exclude_risk"])
+    return sel
+
+
+def _blog_build(items, meta, ai_text, inc, title, n):
+    today = _now_kst().strftime("%Y-%m-%d")
+    cnt = len(items)
+    asof = str(meta.get("price_asof") or "-")
+    avg_dd = sum(i["dd"] for i in items) / cnt if cnt else 0
+    avg_sc = round(sum(i["ch_score"] for i in items) / cnt) if cnt else 0
+    sa = sum(1 for i in items if i["grade"] in ("S", "A"))
+    all3 = sum(1 for i in items if i["axes"] >= 3)
+    okc = {k: sum(1 for i in items if i[k + "_st"] == "ok") for k in ("fin", "flow", "theme")}
+    ai_body, titles = _split_ai(ai_text) if (ai_text or "").strip() else ("", [])
+    auto_title = "📉 낙폭 큰 종목 중 회복 신호 %d선 (%s) | 재무·수급·테마 점검 | 3축 모두 확인 %d개" % (cnt, today, all3)
+    title = title or (titles[0] if titles else auto_title)
+    names = [i["name"] for i in items[:15]]
+    tags, tag_html = B.hashtags(names, today, extra=["낙폭과대주", "낙폭회복", "회복신호", "도전주"])
+    E = B.E
+    h = [B.seo_box(auto_title, "52주 고점에서 크게 떨어진 종목 가운데 재무·수급·테마가 다시 살아나는 신호가 있는지 점검해 정리했어요. 매수 추천이 아닌 참고 정보예요.",
+                   ["낙폭과대주", "낙폭회복", "회복신호", "재무개선", "수급전환"] + names[:3]),
+         B.head_box("★ DROP & RECOVERY · %s" % today, '낙폭 큰 종목의 <span style="color:%s;">회복 신호 %d선</span>' % (B.GOLD, cnt), "52주 고점 대비 낙폭 · 재무 · 수급 · 테마 점검 · 시세 기준일 %s" % E(asof))]
+    if inc.get("stats"):
+        def cell(label, val, c):
+            return ('<td align="center" style="padding:10px 4px;background-color:#f8faff;border:1px solid #e5e7eb;"><div style="font-size:11px;color:#6b7280;margin-bottom:3px;">%s</div>'
+                    '<div style="font-size:19px;font-weight:900;color:%s;">%s</div></td>' % (label, c, val))
+        h.append('<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:14px 0;' + B.FONT + '"><tr>'
+                 + cell("&#128201; 후보", "%d개" % cnt, "#111827") + cell("평균 낙폭", _pct(avg_dd), "#2563eb") + cell("평균 점수", "%d점" % avg_sc, "#4f46e5")
+                 + cell("S·A급", "%d개" % sa, "#dc2626") + cell("&#128185; 재무", "%d개" % okc["fin"], "#16a34a") + cell("&#128176; 수급", "%d개" % okc["flow"], "#16a34a")
+                 + cell("&#128293; 테마", "%d개" % okc["theme"], "#16a34a") + "</tr></table>")
+    if inc.get("axes") and cnt:
+        rows = ""
+        for k, lab in (("fin", "&#128185; 재무"), ("flow", "&#128176; 수급"), ("theme", "&#128293; 테마")):
+            c = {s: sum(1 for i in items if i[k + "_st"] == s) for s in ("ok", "weak", "no", "na")}
+            rows += ('<tr><td width="18%%" style="padding:6px 4px;font-size:13px;font-weight:800;color:#111827;">%s</td><td width="42%%" style="padding:6px 4px;">%s</td>'
+                     '<td style="padding:6px 4px;font-size:12px;color:#475569;">회복 확인 <b>%d</b> · 일부 %d · 미흡 %d · 자료 없음 %d</td></tr>'
+                     % (lab, B.bar(round(c["ok"] * 100 / cnt), "#4f46e5"), c["ok"], c["weak"], c["no"], c["na"]))
+        h.append(B.side_title("&#128300; 재무·수급·테마 회복 신호 현황", "#4f46e5") + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;' + B.FONT + '">' + rows + "</table>")
+    if inc.get("top") and cnt:
+        trs = ""
+        for i in items[:10]:
+            c = B.tone(i["ch_score"])
+            trs += ('<tr><td width="25%%" style="padding:5px 4px;font-size:13px;font-weight:800;color:#111827;">%s</td><td width="48%%" style="padding:5px 4px;">%s</td>'
+                    '<td width="15%%" align="right" style="padding:5px 4px;font-size:12.5px;font-weight:800;color:#2563eb;">%s</td>'
+                    '<td width="12%%" align="right" style="padding:5px 4px;font-size:13px;font-weight:900;color:%s;">%d</td></tr>' % (E(i["name"]), B.bar(i["ch_score"], c), _pct(i["dd"]), c, i["ch_score"]))
+        h.append(B.side_title("&#127942; 회복 점수 TOP 10", "#d97706") + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;' + B.FONT + '">' + trs + "</table>")
+    if inc.get("ai") and ai_body:
+        h.append(B.side_title("&#129302; AI 분석", "#0d1b3e"))
+        h.append(B.ai_to_html(ai_body))
+    if inc.get("list") and cnt:
+        trs = ""
+        for k, i in enumerate(items[:n], 1):
+            sc = B.tone(i["ch_score"])
+            trs += ('<tr><td align="center" style="padding:6px 3px;border-bottom:1px solid #eef2f7;font-size:12px;color:#64748b;">%d</td>'
+                    '<td style="padding:6px 3px;border-bottom:1px solid #eef2f7;font-size:13px;font-weight:800;color:#111827;">%s<div style="font-size:11px;font-weight:400;color:#94a3b8;">%s %s</div></td>'
+                    '<td align="right" style="padding:6px 3px;border-bottom:1px solid #eef2f7;font-size:13px;font-weight:900;color:%s;">%d<span style="font-size:11px;color:#64748b;"> %s</span></td>'
+                    '<td align="right" style="padding:6px 3px;border-bottom:1px solid #eef2f7;font-size:13px;font-weight:800;color:#2563eb;">%s</td>'
+                    '<td align="right" style="padding:6px 3px;border-bottom:1px solid #eef2f7;font-size:12.5px;color:#c62828;">%s</td>'
+                    '<td align="center" style="padding:6px 3px;border-bottom:1px solid #eef2f7;font-size:14px;">%s%s%s</td></tr>'
+                    % (k, E(i["name"]), E(i["ticker"]), E(i["market"]), sc, i["ch_score"], E(i["grade"]), _pct(i["dd"]), _pct(i["rebound"]) if i["rebound"] is not None else "-",
+                       _ST_EMO.get(i["fin_st"], ""), _ST_EMO.get(i["flow_st"], ""), _ST_EMO.get(i["theme_st"], "")))
+        head = "".join('<th style="padding:7px 3px;font-size:12px;color:#475569;background-color:#f1f5f9;border-bottom:2px solid #e2e8f0;">%s</th>' % x for x in ("#", "종목", "점수", "낙폭", "저점 대비", "재무·수급·테마"))
+        h.append(B.side_title("&#128203; 낙폭 회복 후보 TOP %d" % min(n, cnt), "#2563eb") + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;' + B.FONT + '"><tr>' + head + "</tr>" + trs + "</table>")
+        h.append('<p style="font-size:11.5px;color:#9ca3af;margin:6px 0 0;">낙폭은 52주 고점 대비, 저점 대비는 고점 이후 최저가 대비 반등폭이에요. &#9989; 회복 확인 · &#128312; 일부 · &#10060; 미흡 · &#9898; 자료 없음. 회복 점수는 신호가 몇 가지 확인되는지 보여 줄 뿐 오른다는 뜻이 아니에요.</p>')
+    if inc.get("notes") and cnt:
+        blocks = ""
+        for i in items[:5]:
+            ns = i.get("notes") or {}
+            lines = "".join('<div style="font-size:12.5px;color:#374151;line-height:1.8;">&#9642; <b>%s</b> (%s): %s</div>' % (lab, _ST_NAME.get(i[k + "_st"], ""), E("; ".join((ns.get(k) or [])[:3]) or "표시할 근거가 없어요"))
+                            for k, lab in (("fin", "재무"), ("flow", "수급"), ("theme", "테마")))
+            blocks += ('<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:10px 0;' + B.FONT + '"><tr><td bgcolor="#f8faff" style="background-color:#f8faff;padding:11px 14px;border:1px solid #e5e7eb;border-left:5px solid #4f46e5;">'
+                       '<div style="font-size:14px;font-weight:900;color:#111827;margin-bottom:4px;">%s <span style="font-size:11.5px;font-weight:600;color:#94a3b8;">%s · 낙폭 %s · %d점</span></div>%s</td></tr></table>' % (E(i["name"]), E(i["ticker"]), _pct(i["dd"]), i["ch_score"], lines))
+        h.append(B.side_title("&#128270; 회복 근거 (상위 5종목)", "#0891b2") + blocks)
+    h.append('<table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #d97706;border-collapse:collapse;margin:14px 0 4px;' + B.FONT + '"><tr><td bgcolor="#fffbeb" style="background-color:#fffbeb;padding:12px 16px;">'
+             '<div style="font-size:13px;font-weight:900;color:#92400e;">&#9888;&#65039; 많이 떨어진 종목은 더 떨어질 수 있어요</div><div style="font-size:12.5px;color:#92400e;line-height:1.85;margin-top:4px;">'
+             '고점 대비 낙폭이 크면 싸 보이지만, 실적 악화·업황 부진·공시 같은 이유가 있을 수 있고 회복 신호가 나타난 뒤에도 다시 내려갈 수 있습니다(떨어지는 칼날). '
+             '수급은 &lsquo;순매수 수량×종가&rsquo;로 추정한 근사치이며, 재무는 네이버 증권 요약이라 최신 공시와 차이가 있을 수 있어요. 반드시 공시 원문으로 직접 확인해 주세요.</div></td></tr></table>')
+    h.append(B.risk_box())
+    h.append(B.engage_box())
+    h.append(tag_html)
+    body = "".join(h)
+    return {"html": body, "title": title, "titles": titles, "tags": tags, "size": len(body), "ok_size": len(body) < 400000}
+
+
+@bp.route("/admin/api/challenge/blog", methods=["POST"])
+def api_blog():
+    """관리자 전용 — 화면에 보이던 종목과 저장한 AI 분석으로 블로그용 HTML 글을 만든다(서버가 글을 올리지는 않아요)."""
+    deny = _admin_deny()
+    if deny:
+        return deny
+    d = _load()
+    if not d["rows"]:
+        return _admin_json({"error": "낙폭 스캔 결과가 없어요. 먼저 [🔎 낙폭 스캔]을 실행하세요."}, 404)
+    b = _json_body() or {}
+    rows = _pick_rows(d, b)
+    if not rows:
+        return _admin_json({"error": "조건에 맞는 종목이 없어요."}, 404)
+    inc = b.get("inc")
+    inc = {k: bool((inc or {}).get(k, True)) for k in BLOG_SECS} if isinstance(inc, dict) else {k: True for k in BLOG_SECS}
+    try:
+        n = max(5, min(30, int(b.get("n") or 20)))
+    except Exception:
+        n = 20
+    ai = str(b.get("ai") or "")[:20000]
+    out = _blog_build([_pub(r) for r in rows], d["meta"], ai, inc, _s(b.get("title"), 150), n)
+    pseudo = "D" + _now_kst().strftime("%y%m%d")
+    logs, warn = B.dup_info(pseudo, "challenge")
+    out.update({"ticker": pseudo, "name": "도전주 낙폭회복 " + _today(), "dups": logs, "dup_warn": warn})
+    return _admin_json(out)
+
+
+# ══════════════════════════════════════════════════════════════
 # 관리자 전용 — 기준 저장 · 점검 (어떤 기능에도 등록하지 않음 → 회원 화면에서는 404)
 # ══════════════════════════════════════════════════════════════
 @bp.route("/admin/api/challenge/cfg", methods=["POST"])
@@ -1502,8 +1687,8 @@ def api_reload():
 TAB_JS = r"""
 var CH={sec:'list',css:false,cfg:null,tbl:null,ex:{},open:{},
  ld:{market:'all',drop:'30',axes:'1',top:'60',sortk:'ch_score',view:'card',data:null,seq:0,sort:{col:'ch_score',asc:false},inited:false,sel:{},busy:false,refs:{},was:false,tm:0,job:null},
- sv:{list:null,cur:null,seq:0},tr:{days:'30',limit:'60',data:null,seq:0},ai:{text:''}};
-var CH_SECS=[['list','📉 낙폭 회복 후보','list'],['saved','📂 보관함','saved'],['track','📈 성과 기록','track'],['ai','🤖 AI 해설','ai'],['guide','📘 기준 설명','guide']];
+ sv:{list:null,cur:null,seq:0},tr:{days:'30',limit:'60',data:null,seq:0},ai:{text:'',date:'',old:null},flag:{img:false,blog:false},_chain:0,imgPanel:null,blogPanel:null};
+var CH_SECS=[['list','① 📉 낙폭 회복 후보','list'],['ai','② 🤖 AI 분석','ai'],['img','③ 🖼 대시보드 이미지','img'],['blog','④ 📝 블로그 쓰기','blog'],['saved','📂 보관함','saved'],['track','📈 성과 기록','track'],['guide','📘 기준 설명','guide']];
 var CH_ST={ok:['✅','회복 확인','#15803d','#dcfce7'],weak:['🔸','일부 회복','#b45309','#fffbeb'],no:['❌','미흡','#64748b','#f1f5f9'],na:['⚪','자료 없음','#94a3b8','#f8fafc']};
 var CH_SIG={'낙폭회복':['📉','#eef2ff','#4338ca','52주 고점 대비 크게 떨어진 종목 중 회복 신호를 점검한 목록'],'재무개선':['💹','#fef2f2','#dc2626','최근 분기 영업이익이 전 분기보다 나아졌어요'],'흑자전환':['🔄','#fef2f2','#b91c1c','최근 분기에 영업이익이 흑자로 돌아섰어요'],
  '재무양호':['🏦','#f0f9ff','#0369a1','영업이익 흑자이고 부채비율이 200% 이하예요'],'수급전환':['🔁','#ccfbf1','#0f766e','이전에는 순매도·중립이었는데 최근 5일은 순매수로 전환'],'쌍끌이':['🟢','#dcfce7','#15803d','외국인과 기관이 5일 동안 함께 순매수'],
@@ -1532,6 +1717,10 @@ var CH_CSS='.chHd{padding:14px 16px}.chHd h2{margin:0 0 4px;font-size:18px}.chSt
 '.chAx{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px}.chAxH{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;font-weight:800;color:#0f172a;margin-bottom:4px}'+
 '.chAx ul{margin:4px 0 0 16px;padding:0}.chAx li{font-size:11.5px;color:#475569;line-height:1.5}.chLg{font-size:11px;color:#64748b;margin-top:2px}.chLg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 3px 0 6px;vertical-align:-1px}'+
 '.chPg{height:10px;border-radius:6px;background:#e2e8f0;overflow:hidden;margin:6px 0}.chPg>div{height:100%;background:#4338ca;width:0}'+
+'.chStp{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}.chStp button{flex:1 1 170px;display:flex;align-items:center;gap:10px;text-align:left;border:1.5px solid #c7d2fe;background:#fff;color:#312e81;border-radius:14px;padding:9px 12px;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;line-height:1.35}'+
+'.chStp button small{display:block;font-weight:600;font-size:11.5px;color:#64748b}.chStp .n{width:26px;height:26px;border-radius:50%;background:#c7d2fe;color:#312e81;display:flex;align-items:center;justify-content:center;font-weight:900;flex:0 0 auto}'+
+'.chStp .done{border-color:#86efac;background:#f0fdf4}.chStp .done .n{background:#16a34a;color:#fff}.chStp .cur{border-color:#4f46e5;box-shadow:0 0 0 3px rgba(79,70,229,.18)}'+
+'.chPan{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;margin-top:10px}.chImgG{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:8px}'+
 '@media(max-width:520px){.chT{font-size:12px}.chT td,.chT th{padding:6px 6px}.chTile .v{font-size:19px}.chHd{padding:12px}.chL select{min-width:84px}.chCards{grid-template-columns:1fr}}';
 function chCss(){if(CH.css)return;CH.css=true;var nn='';var n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';
  var s=document.createElement('style');if(nn)s.setAttribute('nonce',nn);s.textContent=CH_CSS;document.head.appendChild(s)}
@@ -1637,16 +1826,40 @@ function chExpBar(parent){var r=el('div','bar');r.appendChild(ft(bt('📄 표 �
 
 /* ── 위쪽 틀 ── */
 function chLoad(p){chCss();p.innerHTML='';
- var hd=el('div','c chHd');hd.appendChild(el('h2',null,'🎯 도전주 — 낙폭 회복 후보'));hd.appendChild(el('div','m','52주 고점 대비 크게 떨어진 종목 가운데, 재무·수급·테마가 다시 살아나고 있는 종목을 그래프와 함께 보여 줘요. 종목을 추천하는 화면이 아니라 회복 신호가 보이는 낙폭 종목 목록(정보)이에요. 많이 떨어진 종목은 더 떨어질 수도 있어요. 투자 권유가 아니며 판단과 책임은 이용자 본인에게 있어요.'));
+ var hd=el('div','c chHd');hd.appendChild(el('h2',null,'🎯 도전주 — 낙폭 회복 후보'));hd.appendChild(el('div','m',(MEMBER_MODE?'① 낙폭 회복 후보 → ② AI 분석 → ③ 대시보드 이미지. ':'① 낙폭 회복 후보 → ② AI 분석 → ③ 대시보드 이미지 → ④ 블로그 쓰기. ')+'52주 고점 대비 크게 떨어진 종목 가운데, 재무·수급·테마가 다시 살아나고 있는 종목을 그래프와 함께 보여 줘요. 종목을 추천하는 화면이 아니라 회복 신호가 보이는 낙폭 종목 목록(정보)이에요. 많이 떨어진 종목은 더 떨어질 수도 있어요. 투자 권유가 아니며 판단과 책임은 이용자 본인에게 있어요.'));
  var sb=el('div');sb.id='chSum';hd.appendChild(sb);p.appendChild(hd);
- var nv=el('div','chNav');nv.id='chNav';p.appendChild(nv);var bd=el('div');bd.id='chBody';p.appendChild(bd);
+ var sp=el('div','chStp');sp.id='chSteps';p.appendChild(sp);var nv=el('div','chNav');nv.id='chNav';p.appendChild(nv);var bd=el('div');bd.id='chBody';p.appendChild(bd);
  p.appendChild(el('p','note','※ 낙폭·가격은 관리자가 마지막으로 스캔한 일봉 기준이고(오늘보다 앞설 수 있어요), 수급은 최근 20거래일 ‘순매수 수량×종가’ 근사치, 재무는 네이버 증권 분기·연간 요약이에요. 회복 점수는 신호가 몇 가지 확인되는지 보여 줄 뿐 오른다는 뜻이 아니며, 이후 주가는 오를 수도 내릴 수도 있어요. 이 화면은 정보 제공용이며 특정 종목의 매수·매도 권유가 아닙니다. 투자 판단과 책임은 이용자 본인에게 있습니다.'));
  var ad=el('div','c');ad.id='chAdm';p.appendChild(adm(ad));
- chNavDraw();chShow();if(!MEMBER_MODE){chAdmLoad();chPoll(true)}}
-function chNavDraw(){var n=$('chNav');if(!n)return;n.innerHTML='';CH_SECS.forEach(function(s){var b=el('button',CH.sec===s[0]?'chOn':'',(ftOk(s[2])?'':'🔒 ')+s[1]);b.type='button';b.onclick=function(){chGo(s[0])};n.appendChild(b)})}
+ if(MEMBER_MODE&&CH.sec==='blog')CH.sec='list';chNavDraw();chShow();chSteps();if(!MEMBER_MODE){chAdmLoad();chPoll(true);chAiLoad()}}
+function chNavDraw(){var n=$('chNav');if(!n)return;n.innerHTML='';CH_SECS.forEach(function(s){if(MEMBER_MODE&&s[0]==='blog')return;var b=el('button',CH.sec===s[0]?'chOn':'',(ftOk(s[2])?'':'🔒 ')+s[1]);b.type='button';b.onclick=function(){chGo(s[0])};n.appendChild(b)})}
+/* ── 단계 바(① 낙폭회복 리스트 → ② AI 분석 → ③ 대시보드 이미지 → ④ 블로그 쓰기) + 자동/수동 진행([⚙ 설정]의 단계 진행 방식) ── */
+var CHFLOW=['ai','img','blog'];
+function chItems(){var j=CH.ld.data;return (j&&j.items)||[]}
+function chPickItems(){var all=chItems(),sel=CH.ld.sel||{};var a=all.filter(function(x){return sel[x.ticker]});return (a.length?a:all).slice(0,30)}
+function chDate(){var d=new Date(),z=function(n){return ('0'+n).slice(-2)};return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
+function chListQ(){var S=CH.ld;return S.inited?{markets:S.market==='all'?'KOSPI,KOSDAQ':S.market,drop:S.drop,axes:S.axes,top:S.top}:{}}
+/* 목록이 아직 없으면(이미지·블로그 탭을 먼저 연 경우) 지금 기준으로 한 번 불러온다 */
+function chEnsureP(){if(chItems().length)return Promise.resolve(chPickItems());
+ return api('/admin/api/challenge/list?'+chQ(chListQ())).then(function(j){if(j.error)throw new Error(j.error);if(j.empty)throw new Error(j.msg||'낙폭 스캔 결과가 없어요. 관리자가 [🔎 낙폭 스캔]을 실행하면 보여요.');chListSet(j);if(!chItems().length)throw new Error('조건에 맞는 종목이 없어요.');return chPickItems()})}
+function chSteps(){var sp=$('chSteps');if(!sp)return;sp.innerHTML='';var n=chItems().length,has=n>0,ai=!!(CH.ai.text&&CH.ai.text.trim());
+ var defs=[['낙폭회복 리스트',has?(n+'종목 · 완료'):'조회하세요','list',has],['AI 분석',ai?'완료 · 다시 만들기':'눌러서 시작','ai',ai],[MEMBER_MODE?'요약 이미지':'대시보드 이미지',CH.flag.img?'만들었어요':'눌러서 만들기','img',CH.flag.img]];
+ if(!MEMBER_MODE)defs.push(['블로그 쓰기',CH.flag.blog?'글 만들었어요':'눌러서 만들기','blog',CH.flag.blog]);
+ var first=-1;defs.forEach(function(d,i){if(first<0&&!d[3])first=i});
+ defs.forEach(function(d,i){var b=el('button',(d[3]?'done':'')+(i===first?' cur':''));b.type='button';b.setAttribute('data-noconfirm','1');b.appendChild(el('span','n',d[3]?'✓':String(i+1)));var t=el('span');t.appendChild(document.createTextNode(d[0]));t.appendChild(el('small',null,d[1]));b.appendChild(t);b.onclick=function(){chStepRun(d[2])};sp.appendChild(b)})}
+function chStepRun(id){
+ if(id==='list'){chGo('list');return}
+ if(!chItems().length&&CH.sec==='list'){toast('먼저 ① 낙폭 회복 후보를 조회해 주세요');return}
+ if(id==='ai'){if(!ftOk('ai')){lockDlg('ai');return}chGo('ai');chAiRun();return}
+ if(id==='img'){if(!ftOk('img')){lockDlg('img');return}if(MEMBER_MODE){chGo('img');if(CH.memGo&&!CH.memGo.disabled)CH.memGo.click();return}if(window.MiniFlow)MiniFlow.go('challenge',CHFLOW,CHACTS,'img');else{chGo('img')}return}
+ if(id==='blog'){if(MEMBER_MODE)return;if(window.MiniFlow)MiniFlow.go('challenge',CHFLOW,CHACTS,'blog');else{chGo('blog')}}}
+var CHACTS={
+ ai:function(next){if(!chItems().length)return;if((CH.ai.text||'').trim()){next();return}if(!ftOk('ai'))return;chGo('ai');chAiRun()},
+ img:function(next){chEnsureP().then(function(){chGo('img');if(!CH.imgPanel)return;return CH.imgPanel.gen(true).then(function(){if(CH.imgPanel&&CH.imgPanel.items())next()})}).catch(function(){})},
+ blog:function(){chEnsureP().then(function(){chGo('blog');if(CH.blogPanel)CH.blogPanel.rebuild()}).catch(function(){})}};
 function chGo(sec){CH.sec=sec;chNavDraw();chShow()}
 function chShow(){var b=$('chBody');if(!b)return;b.innerHTML='';var box=el('div');b.appendChild(box);
- var m={list:chSecList,saved:chSecSaved,track:chSecTrack,ai:chSecAi,guide:chSecGuide}[CH.sec],fid=CH_SECS.filter(function(s){return s[0]===CH.sec})[0][2];
+ var m={list:chSecList,saved:chSecSaved,track:chSecTrack,ai:chSecAi,img:chSecImg,blog:chSecBlog,guide:chSecGuide}[CH.sec],fid=CH_SECS.filter(function(s){return s[0]===CH.sec})[0][2];
  if(!ftOk(fid)){var f=FEATS&&FEATS[fid];chPlace(box,fid,'🔒 '+(f?f.label:'잠긴 기능'));return}m(box)}
 function chStatus(j){var b=$('chSum');if(!b)return;b.innerHTML='';if(!j||j.empty||!j.meta)return;var m=j.meta,st=el('div','chSt');
  st.appendChild(el('span','chCh a','🔎 스캔 '+(m.scan_at||'알 수 없음')));st.appendChild(el('span','chCh','시세 기준일 '+(m.price_asof||'-')));st.appendChild(el('span','chCh','스캔 '+chN(m.universe)+'종목 · 낙폭 20%↑ '+chN(m.cand)+'종목'));
@@ -1670,7 +1883,8 @@ function chScanDraw(s){var c=$('chScanCard');if(!c)return;c.innerHTML='';var job
 function chScanStart(){apiJ('/admin/api/challenge/scan/start',{limit:Number(CH.scanSel||(CH.cfg&&CH.cfg.scan_limit)||400),skip_today:CH.scanSkip!==false}).then(function(r){if(r.error){toast(r.error);return}if(r.ok===false){toast(r.error||'시작하지 못했어요');return}toast('낙폭 스캔을 시작했어요');CH.ld.was=true;chPoll(true)}).catch(function(){toast('시작하지 못했어요.')})}
 function chPoll(now){var S=CH.ld;if(S.tm){clearTimeout(S.tm);S.tm=0}
  var go=function(){S.tm=0;if(!$('chScanCard')&&!$('chAdm'))return;api('/admin/api/challenge/scan/status').then(function(s){if(s.error)return;CH.stat=s;var run=s.job&&s.job.running;chScanDraw(s);
-  if(run){S.was=true;S.tm=setTimeout(go,2000)}else if(S.was){S.was=false;toast(s.job&&s.job.error?'스캔이 끝나지 않았어요':'낙폭 스캔이 끝났어요');S.data=null;CH.ex={};if(CH.sec==='list'){S.inited=S.inited;chListGo(false)}chAdmLoad()}}).catch(function(){})};
+  if(run){S.was=true;S.tm=setTimeout(go,2000)}else if(S.was){S.was=false;var bad=!!(s.job&&s.job.error);toast(bad?'스캔이 끝나지 않았어요':'낙폭 스캔이 끝났어요');S.data=null;CH.ex={};if(!bad){CH.ai.text='';CH.ai.date='';CH.flag={img:false,blog:false};CH._chain=1}chSteps();
+   if(CH.sec==='list'){chListGo(false)}else if(!bad){chEnsureP().catch(function(){})}chAdmLoad()}}).catch(function(){})};
  if(now)go();else S.tm=setTimeout(go,2000)}
 
 /* ── 후보 목록(기능 'list') + 그래프·상세(기능 'detail') ── */
@@ -1693,7 +1907,8 @@ function chListGo(first){var S=CH.ld,out=$('chOut');if(!out)return;var my=++S.se
 function chListSet(j){var S=CH.ld;S.data=j;CH.ex={};CH.open={};
  if(!S.inited&&j.q){S.inited=true;S.market=j.q.markets.length===2?'all':j.q.markets[0];S.drop=String(j.q.drop);S.axes=String(j.q.axes);S.top=String(Math.min(200,j.q.top));CH.cfg=j.cfg;
   var ok=function(sel,v){if(sel){sel.value=v;if(sel.value!==v){var op=el('option',null,v);op.value=v;sel.appendChild(op);sel.value=v}}};ok(S.refs.market,S.market);ok(S.refs.drop,S.drop);ok(S.refs.axes,S.axes);ok(S.refs.top,S.top)}
- var o=$('chOut');if(o)chListDraw()}
+ var o=$('chOut');if(o)chListDraw();chSteps();
+ if(CH._chain&&j.items&&j.items.length){CH._chain=0;if(!MEMBER_MODE&&window.MiniFlow)MiniFlow.run('challenge',CHFLOW,CHACTS)}}
 function chSorted(items){var s=CH.ld.sort,col=s.col;var a=items.map(function(it,i){return [it,i]});
  a.sort(function(x,y){var u=x[0][col],v=y[0][col];if(u==null||u==='')u=s.asc?Infinity:-Infinity;if(v==null||v==='')v=s.asc?Infinity:-Infinity;var d=u<v?-1:(u>v?1:0);if(d===0)return x[1]-y[1];return s.asc?d:-d});return a.map(function(z){return z[0]})}
 function chSortBy(col){var s=CH.ld.sort;if(s.col===col)s.asc=!s.asc;else{s.col=col;s.asc=(col==='dd')}chListDraw()}
@@ -1810,7 +2025,8 @@ function chTrackDraw(out){var j=CH.tr.data;out.innerHTML='';if(!j)return;if(j.em
   {h:'저장가(원)',raw:function(r){return r.pick_price},num:1,disp:function(r,v){return chN(v)}},{h:'현재가(원)',raw:function(r){return r.cur_price},num:1,disp:function(r,v){return chN(v)}},{h:'등락률(%)',raw:function(r){return r.ret},num:1,disp:function(r,v){return chPct(v)}}],j.recent,'저장일 대비 최근 스캔 가격');chExpBar(out)}
 
 /* ── AI 해설 프롬프트(기능 'ai') — 수동 AI 도우미 ── */
-function chSecAi(box){box.appendChild(el('p','note','후보 목록에서 체크한 종목(없으면 현재 조건의 상위 20종목)의 낙폭·재무·수급·테마 데이터를 담은 프롬프트를 만들어, 사용하는 AI(제미나이·챗GPT·클로드 등)에 붙여 넣을 수 있게 해요. AI가 답하면 복사해서 이 창으로 돌아오면 아래에 보여 줘요. AI 답변은 참고용이며 틀릴 수 있어요.'));
+function chAiLoad(){api('/admin/api/challenge/ai').then(function(r){if(!r||r.error||!r.found)return;if(r.stale){CH.ai.old=r;if($('chAiOut'))chAiDraw();return}if(!(CH.ai.text||'').trim()){CH.ai.text=r.text;CH.ai.date=r.date}chSteps();if($('chAiOut'))chAiDraw()}).catch(function(){})}
+function chSecAi(box){box.appendChild(el('p','note',MEMBER_MODE?'후보 목록에서 체크한 종목(없으면 현재 조건의 상위 20종목)의 낙폭·재무·수급·테마 데이터를 담은 프롬프트를 만들어, 사용하는 AI(제미나이·챗GPT·클로드 등)에 붙여 넣을 수 있게 해요. AI가 답하면 복사해서 이 창으로 돌아오면 아래에 보여 줘요(이 화면에서만 보관돼요). AI 답변은 참고용이며 틀릴 수 있어요.':'후보 목록에서 체크한 종목(없으면 현재 조건의 상위 20종목)의 낙폭·재무·수급·테마 데이터를 담은 프롬프트를 만들어 AI(제미나이·챗GPT·클로드 등)에 붙여 넣어요. AI 답변을 복사하고 이 창으로 돌아오면 읽어 와서 저장하고, 다음 단계(대시보드 이미지 → 블로그 글)로 이어져요. AI 답변은 참고용이며 틀릴 수 있어요.'));
  var n=chSelCount();box.appendChild(el('p','note','대상: '+(n?'후보 목록에서 선택한 '+Math.min(n,30)+'종목(최대 30개)':'현재 조건(시장·낙폭·회복 축)의 회복 점수 상위 20종목')));
  var bar=el('div','bar');bar.appendChild(ft(bt('🤖 AI 프롬프트 만들기','bt',chAiRun),'ai'));box.appendChild(bar);var out=el('div');out.id='chAiOut';box.appendChild(out);chAiDraw()}
 function chAiRun(){if(!window.MiniAI){toast('AI 도우미를 불러오지 못했어요. 새로고침해 주세요.');return}var S=CH.ld;
@@ -1818,16 +2034,144 @@ function chAiRun(){if(!window.MiniAI){toast('AI 도우미를 불러오지 못했
  api('/admin/api/challenge/prompt?'+chQ({tickers:tk,markets:S.market==='all'?'KOSPI,KOSDAQ':S.market,drop:S.drop,axes:S.axes,top:20})).then(function(j){if(j.error){toast(j.error);return}if(j.empty){toast(j.msg);return}
   window.MiniAI.run({title:'낙폭 회복 AI 해설 — '+j.label,key:'challenge',steps:[{label:j.label,prompt:j.prompt}],minLen:150,hint:'AI가 "## 📉 낙폭 종목의 공통 특징 …" 형식으로 답하면 답변 전체를 복사하고 이 창으로 돌아오세요.',
    preview:function(t){var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString('ko-KR')+'자 — '+t.slice(0,240)+(t.length>240?' …':'');return {node:x,canApply:t.trim().length>=100,strict:true}},
-   apply:function(t){CH.ai.text=String(t||'').slice(0,20000);chAiDraw();return Promise.resolve({message:'AI 해설을 아래 화면에 보여 줬어요.'})}})})}
-function chAiDraw(){var out=$('chAiOut');if(!out)return;out.innerHTML='';var t=CH.ai.text;if(!t){out.appendChild(el('p','note','아직 AI 해설이 없어요. [AI 프롬프트 만들기]를 눌러 보세요.'));return}
+   apply:function(t){CH.ai.text=String(t||'').slice(0,20000);CH.ai.date='';CH.flag.img=false;CH.flag.blog=false;
+    if(MEMBER_MODE){chAiDraw();chSteps();return Promise.resolve({message:'AI 해설을 아래 화면에 보여 줬어요(이 화면에서만 보관돼요).'})}
+    var tks=chPickItems().map(function(x){return x.ticker});
+    return apiJ('/admin/api/challenge/ai',{text:CH.ai.text,label:j.label,tickers:tks}).then(function(z){var ok=!z.error;if(ok)CH.ai.date=z.date;chAiDraw();chSteps();
+     if(ok)setTimeout(function(){if(window.MiniFlow)MiniFlow.run('challenge',CHFLOW,CHACTS,'ai')},60);
+     return {message:ok?'AI 분석을 저장했어요. 다음 단계(이미지 → 블로그 글)로 이어져요.':'읽었지만 저장하지 못했어요: '+z.error}}).catch(function(){chAiDraw();chSteps();return {message:'읽었지만 저장하지 못했어요(네트워크).'}})}})})}
+function chAiDraw(){var out=$('chAiOut');if(!out)return;out.innerHTML='';var t=CH.ai.text;if(!t){out.appendChild(el('p','note','아직 AI 분석이 없어요. [AI 프롬프트 만들기]를 눌러 보세요.'));
+  var o=CH.ai.old;if(o&&!MEMBER_MODE){var r0=el('div','bar');r0.appendChild(el('span','m','지난 AI 분석이 저장돼 있어요('+(o.date||'')+'). 지금 목록과 맞지 않을 수 있어요.'));r0.appendChild(bt('지난 분석 불러오기','bt3',function(){CH.ai.text=o.text;CH.ai.date=o.date;CH.ai.old=null;CH.flag.img=false;CH.flag.blog=false;chAiDraw();chSteps()}));out.appendChild(r0)}return}
  var box=el('div','chAiOut');t.split('\n').forEach(function(l){var m;var s=l.replace(/\*\*/g,'');if((m=/^##\s+(.*)$/.exec(s))){box.appendChild(el('span','h2',m[1]))}else if((m=/^###\s+(.*)$/.exec(s))){box.appendChild(el('span','h3',m[1]))}else{box.appendChild(document.createTextNode(s));box.appendChild(document.createElement('br'))}});out.appendChild(box);
- var r=el('div','bar');r.appendChild(bt('📋 해설 복사하기','bt3',function(){var ok=window.MiniAI&&window.MiniAI.copy?window.MiniAI.copy(CH.ai.text):false;toast(ok?'복사했어요':'복사가 막혔어요')}));r.appendChild(bt('✖ 지우기','bt3',function(){CH.ai.text='';chAiDraw()}));out.appendChild(r);
+ var r=el('div','bar');r.appendChild(bt('📋 해설 복사하기','bt3',function(){var ok=window.MiniAI&&window.MiniAI.copy?window.MiniAI.copy(CH.ai.text):false;toast(ok?'복사했어요':'복사가 막혔어요')}));r.appendChild(bt('✖ 지우기','bt3',function(){CH.ai.text='';CH.ai.date='';chAiDraw();chSteps()}));out.appendChild(r);
+ if(CH.ai.date&&!MEMBER_MODE)out.appendChild(el('p','note','💾 저장돼 있어요('+CH.ai.date+') — 대시보드 이미지·블로그 글에 쓰여요. [지우기]는 이 화면에서만 지우고 저장본은 남아요.'));
  out.appendChild(el('p','note','⚠ AI가 만든 참고 글이에요. 숫자와 내용이 틀릴 수 있고, 특정 종목의 매수·매도 권유가 아니에요.'))}
+
+/* ── ③ 대시보드 이미지(기능 'img') — 브라우저 캔버스로 그려 저장(서버 호출 없음) ── */
+function chImgMeta(){var j=CH.ld.data||{};return {asof:j.meta&&j.meta.price_asof,drop:j.q&&j.q.drop}}
+function chImgBuild(scale){return chEnsureP().then(function(items){if(!window.ChImg)throw new Error('이미지 도구(menu_img.py)가 올라가지 않았어요.');return window.ChImg.build(items,CH.ai.text||'',chDate(),scale,chImgMeta())})}
+function chSecImg(box){box.appendChild(el('p','note',MEMBER_MODE?'후보 목록의 낙폭·회복 점수·재무/수급/테마 판정을 한 장의 대시보드 이미지로 만들어 내려받아요. 만든 뒤 [이미지 내려받기]로 내 기기에 저장하세요. 참고 자료이며 투자 권유가 아니에요.':'① 대시보드(요약·3축 현황·TOP 10) · ② 종목별 가격 그래프(그래프 상세 기능이 열려 있을 때) · ③ AI 분석 요약(AI 분석이 있을 때)을 이미지로 그려요. 저장 폴더·자동/수동 저장은 [⚙ 저장 설정]에서 정해요. 이 이미지를 블로그 글 위쪽에 올려 쓰세요.'));
+ var ib=el('div','chPan');box.appendChild(ib);
+ if(!window.ImgKit){ib.appendChild(el('p','note bad','이미지 도구(menu_img.py)가 올라가지 않았어요.'));return}
+ if(MEMBER_MODE){chImgMember(ib);return}
+ CH.imgPanel=ImgKit.panel(ib,{menu:'challenge',name:'낙폭회복',ticker:chStamp(),perStock:false,onDone:function(){CH.flag.img=true;chSteps()},gen:function(scale){return chImgBuild(scale)}});
+ if(CH.flag.img)CH.imgPanel.gen(false)}
+function chImgMember(ib){var K=window.ImgKit,row=el('div','bar'),view=el('div','chImgG'),st=el('div','m');
+ var go=bt('🖼 이미지 만들기','bt',function(){go.disabled=true;go.textContent='⏳ 그리는 중…';view.innerHTML='';st.textContent='';
+  Promise.resolve(K.fonts()).then(function(){return chImgBuild(2)}).then(function(items){items.forEach(function(it){var c=el('div','c');c.appendChild(el('b',null,K.CIRC[it.idx-1]+' '+it.label));
+    var pw=Math.min(720,it.canvas.width),sm=document.createElement('canvas');sm.width=pw;sm.height=Math.round(it.canvas.height*pw/it.canvas.width);sm.getContext('2d').drawImage(it.canvas,0,0,sm.width,sm.height);
+    var im=new Image();im.alt=it.label;im.src=sm.toDataURL('image/png');im.style.cssText='width:100%;height:auto;display:block;border-radius:8px;margin:6px 0';c.appendChild(im);
+    c.appendChild(bt('💾 이미지 내려받기','bt2',function(){it.canvas.toBlob(function(bl){if(!bl){toast('이미지를 만들지 못했어요');return}chDl(bl,K.fileName(it.idx,'낙폭회복',chStamp()))},'image/png')}));view.appendChild(c)});
+   st.textContent='이미지를 만들었어요. 각 이미지의 [이미지 내려받기]로 내 기기에 저장하세요.';go.textContent='🔄 다시 만들기';CH.flag.img=true;chSteps()})
+  .catch(function(e){st.textContent='이미지를 만들지 못했어요: '+(e&&e.message||e);go.textContent='🖼 이미지 만들기'}).then(function(){go.disabled=false})});
+ CH.memGo=go;row.appendChild(go);ib.appendChild(row);ib.appendChild(st);ib.appendChild(view)}
+
+/* ── ④ 블로그 쓰기(관리자 전용, 서버가 HTML 글을 만들고 복사해서 붙여 넣는 방식) ── */
+function chSecBlog(box){if(MEMBER_MODE)return;
+ box.appendChild(el('p','note','낙폭 회복 후보 + AI 분석으로 블로그용 글(HTML)을 만들어요. 글은 자동으로 올라가지 않고, [복사하고 블로그 열기]로 복사한 뒤 블로그 글쓰기 화면에 붙여 넣는 방식이에요. ③에서 저장한 대시보드 이미지는 글 위쪽에 직접 올려 주세요.'));
+ var bx=el('div','chPan');box.appendChild(bx);
+ if(!window.BlogKit){bx.appendChild(el('p','note bad','블로그 도구(menu_blog.py)가 올라가지 않았어요.'));CH.blogPanel=null;return}
+ var secs=[['stats','요약통계'],['axes','3축 현황'],['top','점수TOP'],['ai','AI분석'],['list','후보표'],['notes','회복 근거']];
+ CH.blogPanel=window.BlogKit.panel(bx,{idp:'ch',key:'challenge',kind:'challenge',ticker:'D'+chStamp().slice(2),name:'도전주 낙폭회복 '+chDate(),sections:secs,dup_warn:'',onBuilt:function(){CH.flag.blog=true;chSteps()},
+  build:function(inc,title){return chEnsureP().then(function(items){return apiJ('/admin/api/challenge/blog',{tickers:items.map(function(x){return x.ticker}),ai:CH.ai.text||'',inc:inc,title:title,n:20})}).catch(function(e){return {error:(e&&e.message)||'만들지 못했어요'}})}});
+ if(CH.flag.blog)CH.blogPanel.rebuild()}
+
+(function(){
+var K=window.ImgKit;if(!K||window.ChImg)return;
+var T=K.text,N=K.n,RR=K.rr;
+var NAVY0='#0a1228',NAVY1='#16275a',GOLD='#d6b25e',PAPER='#f4f0e6',INK='#0f172a',MUT='#64748b',UP='#e11d48',DN='#2563eb',IND='#4f46e5';
+var STC={ok:['#4f46e5','#ffffff'],weak:['#f59e0b','#ffffff'],no:['#e2e8f0','#64748b'],na:['#f1f5f9','#94a3b8']};
+var STM={ok:'✓',weak:'△',no:'✕',na:'-'};
+var STN={ok:'회복 확인',weak:'일부',no:'미흡',na:'자료 없음'};
+function gcol(g){return g==='S'?'#4f46e5':(g==='A'?'#0891b2':'#64748b')}
+function pc(v,d){if(v==null||isNaN(v))return '-';return (v>0?'+':'')+Number(v).toFixed(d==null?1:d)+'%'}
+function band(c,W,kick,title,sub){var g=c.createLinearGradient(0,0,0,210);g.addColorStop(0,NAVY0);g.addColorStop(1,NAVY1);c.fillStyle=g;c.fillRect(0,0,W,210);c.fillStyle=GOLD;c.fillRect(0,0,W,8);
+ var rg=c.createRadialGradient(W-100,40,10,W-100,40,300);rg.addColorStop(0,'rgba(214,178,94,.35)');rg.addColorStop(1,'rgba(214,178,94,0)');c.fillStyle=rg;c.fillRect(0,0,W,210);
+ T(c,kick,W/2,60,{s:20,w:800,c:GOLD,a:'center',ls:5});T(c,title,W/2,132,{s:56,w:900,c:'#fff',a:'center',max:W-120});T(c,sub,W/2,178,{s:21,w:600,c:'#cbd5e1',a:'center',max:W-120})}
+function card(c,x,y,w,h,r){c.save();c.shadowColor='rgba(15,23,42,.14)';c.shadowBlur=22;c.shadowOffsetY=6;RR(c,x,y,w,h,r||24);c.fillStyle='#fff';c.fill();c.restore()}
+function foot(c,W,y,note){c.fillStyle='rgba(100,116,139,.35)';c.fillRect(60,y,W-120,2);var k=0;
+ if(note){T(c,note,W/2,y+38,{s:19,w:700,c:'#92400e',a:'center',max:W-120});k=34}
+ T(c,'낙폭이 큰 종목은 더 떨어질 수 있어요(떨어지는 칼날). 공개 데이터를 정리한 참고 자료이며 투자 권유가 아닙니다.',W/2,y+38+k,{s:19,w:600,c:MUT,a:'center',max:W-120});
+ T(c,'모든 투자 판단과 책임은 투자자 본인에게 있어요 · 출처 네이버증권 · stock.oky.kr',W/2,y+72+k,{s:19,w:700,c:'#94a3b8',a:'center',max:W-120})}
+function badge(c,x,y,w,h,lab,st){var m=STC[st]||STC.na;RR(c,x,y,w,h,10);c.fillStyle=m[0];c.fill();T(c,lab,x+w/2,y+h*0.40,{s:15,w:800,c:m[1],a:'center'});T(c,STM[st]||'-',x+w/2,y+h*0.84,{s:22,w:900,c:m[1],a:'center'})}
+function cnt(items,k){var o={ok:0,weak:0,no:0,na:0};items.forEach(function(i){var s=i[k+'_st'];o[s in o?s:'na']++});return o}
+
+function dash(items,date,scale,meta){var n=Math.min(10,items.length),RH=90,W=1080;
+ var tH=100,aH=280,tbH=56+n*RH+16,H=210+30+tH+30+aH+30+tbH+30+118,m=K.make(W,H,scale),c=m.c;c.fillStyle=PAPER;c.fillRect(0,0,W,H);
+ var drop=meta&&meta.drop?meta.drop:30;
+ band(c,W,'DROP & RECOVERY','낙폭 회복 후보 '+items.length+'선',date+' · 52주 고점 대비 -'+drop+'% 이상 · 재무·수급·테마 점검'+(meta&&meta.asof?' · 시세 기준일 '+meta.asof:''));
+ var cnt0=items.length,avgDd=cnt0?items.reduce(function(s,i){return s+(i.dd||0)},0)/cnt0:0,avgSc=cnt0?Math.round(items.reduce(function(s,i){return s+i.ch_score},0)/cnt0):0,sa=items.filter(function(i){return i.grade==='S'||i.grade==='A'}).length,a3=items.filter(function(i){return i.axes>=3}).length;
+ var tl=[['후보',cnt0+'종목',INK],['평균 낙폭',pc(avgDd),DN],['평균 점수',avgSc+'점',IND],['S·A급',sa+'개','#dc2626'],['3축 모두 확인',a3+'개','#16a34a']],tw=(W-100-16*4)/5,y1=240;
+ tl.forEach(function(t,i){var x=50+i*(tw+16);card(c,x,y1,tw,tH,18);T(c,t[0],x+tw/2,y1+36,{s:20,w:700,c:MUT,a:'center'});T(c,t[1],x+tw/2,y1+80,{s:34,w:900,c:t[2],a:'center',max:tw-16})});
+ var y2=y1+tH+30;card(c,50,y2,W-100,aH,24);c.fillStyle=GOLD;RR(c,76,y2+26,6,30,3);c.fill();T(c,'재무·수급·테마 회복 신호 현황',96,y2+50,{s:26,w:900,c:INK});T(c,'후보 '+cnt0+'종목 기준',W-76,y2+49,{s:16,w:500,c:'#94a3b8',a:'right'});
+ var bx=250,bw=W-100-200-26,keys=[['fin','재무'],['flow','수급'],['theme','테마']];
+ keys.forEach(function(k,r){var y=y2+84+r*52,o=cnt(items,k[0]);T(c,k[1],96,y+27,{s:24,w:800,c:INK});var x=bx;
+  ['ok','weak','no','na'].forEach(function(s){var w=cnt0?bw*o[s]/cnt0:0;if(w<=0)return;c.fillStyle=STC[s][0];c.fillRect(x,y,w,36);if(w>=34)T(c,String(o[s]),x+w/2,y+26,{s:20,w:800,c:STC[s][1],a:'center'});x+=w});
+  T(c,'회복 확인 '+o.ok,W-76,y+27,{s:19,w:800,c:IND,a:'right'})});
+ var lx=bx,ly=y2+aH-26;['ok','weak','no','na'].forEach(function(s){c.fillStyle=STC[s][0];RR(c,lx,ly-14,18,18,5);c.fill();T(c,STN[s],lx+26,ly+1,{s:17,w:700,c:MUT});lx+=26+STN[s].length*18+34});
+ var y3=y2+aH+30;card(c,50,y3,W-100,tbH,24);
+ [['종목',150,'left'],['점수',500,'right'],['낙폭 (반등=저점 대비)',760,'right'],['재무',820,'center'],['수급',886,'center'],['테마',952,'center']].forEach(function(h){T(c,h[0],h[1],y3+40,{s:19,w:800,c:'#475569',a:h[2]})});c.fillStyle='#e2e8f0';c.fillRect(74,y3+54,W-148,2);
+ items.slice(0,n).forEach(function(it,i){var y=y3+60+i*RH;if(i%2===0){c.fillStyle='rgba(241,245,249,.7)';RR(c,66,y+2,W-132,RH-6,14);c.fill()}
+  var cx=106,cy=y+RH/2-3;c.beginPath();c.arc(cx,cy,24,0,Math.PI*2);if(i<3){var gg=c.createLinearGradient(cx-24,cy-24,cx+24,cy+24);gg.addColorStop(0,GOLD);gg.addColorStop(1,'#f6e7b4');c.fillStyle=gg}else c.fillStyle='#e2e8f0';c.fill();T(c,String(i+1),cx,cy+9,{s:26,w:900,c:i<3?'#5b4208':'#334155',a:'center'});
+  T(c,it.name,150,y+42,{s:30,w:900,c:INK,max:230});T(c,it.ticker+(it.market?' · '+it.market:''),150,y+70,{s:18,w:600,c:MUT,max:230});
+  T(c,String(it.ch_score),470,y+52,{s:38,w:900,c:gcol(it.grade),a:'right'});RR(c,482,y+22,40,30,8);c.fillStyle=gcol(it.grade);c.fill();T(c,it.grade,502,y+44,{s:21,w:900,c:'#fff',a:'center'});
+  var d=it.dd==null?0:Math.min(1,Math.abs(it.dd)/70);RR(c,560,y+60,200,10,5);c.fillStyle='#e2e8f0';c.fill();if(d>0){RR(c,560+200*(1-d),y+60,Math.max(10,200*d),10,5);c.fillStyle=DN;c.fill()}
+  T(c,pc(it.dd),760,y+50,{s:28,w:900,c:DN,a:'right'});if(it.rebound!=null)T(c,'반등 '+pc(it.rebound),560,y+44,{s:16,w:600,c:MUT});
+  badge(c,790,y+14,60,56,'재무',it.fin_st);badge(c,856,y+14,60,56,'수급',it.flow_st);badge(c,922,y+14,60,56,'테마',it.theme_st)});
+ foot(c,W,H-118+8,'');return m.cv}
+
+function charts(items,date,scale){var list=items.filter(function(i){return i.chart&&i.chart.c&&i.chart.c.length>=2}).slice(0,6);if(!list.length)return null;
+ var W=1080,CW=480,CHh=340,rows=Math.ceil(list.length/2),H=210+40+rows*(CHh+22)+140,m=K.make(W,H,scale),c=m.c;c.fillStyle=PAPER;c.fillRect(0,0,W,H);
+ band(c,W,'PRICE vs 52W HIGH','종목별 가격 그래프',date+' · 고점에서 얼마나 빠졌고 지금 어디쯤인지');
+ list.forEach(function(it,k){var x=50+(k%2)*(CW+20),y=250+Math.floor(k/2)*(CHh+22);card(c,x,y,CW,CHh,22);
+  T(c,it.name,x+24,y+46,{s:30,w:900,c:INK,max:260});T(c,it.ticker+(it.market?' · '+it.market:''),x+24,y+74,{s:17,w:600,c:MUT});
+  T(c,String(it.ch_score),x+CW-70,y+54,{s:36,w:900,c:gcol(it.grade),a:'right'});RR(c,x+CW-62,y+26,40,30,8);c.fillStyle=gcol(it.grade);c.fill();T(c,it.grade,x+CW-42,y+48,{s:21,w:900,c:'#fff',a:'center'});
+  var ch=it.chart,n=ch.c.length,L=x+24,R=x+CW-120,Tp=y+106,Bt=y+240,hi=it.hi52||Math.max.apply(null,ch.c),vals=ch.c.slice();(ch.m||[]).forEach(function(v){if(v!=null)vals.push(v)});
+  var mx=Math.max.apply(null,vals.concat([hi])),mn=Math.min.apply(null,vals);if(mx===mn){mx+=1;mn-=1}
+  var X=function(i){return L+(R-L)*i/(n-1)},Y=function(v){return Tp+(Bt-Tp)*(1-(v-mn)/(mx-mn))};
+  c.save();c.setLineDash([6,5]);c.strokeStyle='#fca5a5';c.lineWidth=2;c.beginPath();c.moveTo(L,Y(hi));c.lineTo(R,Y(hi));c.stroke();c.restore();
+  c.beginPath();c.moveTo(X(0),Bt);ch.c.forEach(function(v,i){c.lineTo(X(i),Y(v))});c.lineTo(X(n-1),Bt);c.closePath();c.fillStyle='rgba(199,210,254,.5)';c.fill();
+  if(ch.m){c.save();c.setLineDash([8,6]);c.strokeStyle='#f59e0b';c.lineWidth=2;c.beginPath();var pen=false;ch.m.forEach(function(v,i){if(v==null){pen=false;return}if(pen)c.lineTo(X(i),Y(v));else{c.moveTo(X(i),Y(v));pen=true}});c.stroke();c.restore()}
+  c.strokeStyle='#334155';c.lineWidth=3;c.lineJoin='round';c.beginPath();ch.c.forEach(function(v,i){if(i)c.lineTo(X(i),Y(v));else c.moveTo(X(i),Y(v))});c.stroke();
+  function dot(i,col){c.beginPath();c.arc(X(i),Y(ch.c[i]),6,0,Math.PI*2);c.fillStyle=col;c.fill()}
+  dot(ch.hi,'#dc2626');if(ch.lo!==ch.hi&&ch.lo<n-1)dot(ch.lo,'#2563eb');dot(n-1,'#0f172a');
+  T(c,'고점',Math.max(L+20,Math.min(X(ch.hi),R-20)),Math.max(Tp-4,Y(ch.c[ch.hi])-12),{s:15,w:800,c:'#dc2626',a:'center'});
+  c.fillStyle='#dc2626';c.fillRect(R+14,Math.min(Y(hi),Y(ch.c[n-1])),3,Math.abs(Y(ch.c[n-1])-Y(hi)));
+  T(c,pc(it.dd),R+24,(Y(hi)+Y(ch.c[n-1]))/2+8,{s:24,w:900,c:'#dc2626'});T(c,N(it.price)+'원',R+24,Math.max(Tp+10,Y(ch.c[n-1])-12),{s:16,w:600,c:INK});
+  T(c,(ch.d0||'').slice(2),L,y+262,{s:14,w:600,c:'#94a3b8'});T(c,(ch.d1||'').slice(2),R,y+262,{s:14,w:600,c:'#94a3b8',a:'right'});T(c,'┅ 20일선',(L+R)/2,y+262,{s:14,w:600,c:'#f59e0b',a:'center'});
+  badge(c,x+24,y+274,56,52,'재무',it.fin_st);badge(c,x+86,y+274,56,52,'수급',it.flow_st);badge(c,x+148,y+274,56,52,'테마',it.theme_st);
+  if(it.rebound!=null)T(c,'저점 대비 '+pc(it.rebound),x+CW-24,y+314,{s:19,w:700,c:MUT,a:'right'})});
+ foot(c,W,H-130,'');return m.cv}
+
+function clean(s){return String(s||'').replace(/\*\*/g,'').replace(/^[\s\-•·*]+/,'').trim()}
+function aiParse(text){var out={common:[],picks:[]},sec='',cur=null;
+ String(text||'').replace(/\r/g,'').split('\n').forEach(function(raw){var l=raw.trim();if(!l)return;var m;
+  if((m=/^##\s+(.*)$/.exec(l))&&l.indexOf('###')!==0){sec=/공통/.test(m[1])?'common':(/두드러진|회복 신호/.test(m[1])&&!/읽는 법/.test(m[1])?'picks':'x');cur=null;return}
+  if(/^\[블로그/.test(l)){sec='x';return}
+  if(sec==='common'){var t=clean(l.replace(/^###\s*/,''));if(t)out.common.push(t);return}
+  if(sec==='picks'){if(/^###\s+/.test(l)){cur={h:clean(l.replace(/^###\s*/,'')),t:''};out.picks.push(cur);return}
+   if(/^[-•·*]\s*\**\s*함께 확인/.test(l)||/^[-•·*]\s*함께 확인/.test(l))return;
+   var q=clean(l);if(/^[-•·*]/.test(l)){var p=q.split(/\s[—–]\s|\s-\s/);cur={h:p[0],t:p.slice(1).join(' · ')};out.picks.push(cur)}else if(cur){cur.t+=(cur.t?' ':'')+q}}});
+ if(!out.common.length&&!out.picks.length){String(text||'').split('\n').map(clean).filter(function(x){return x&&!/^#/.test(x)&&!/^\[/.test(x)}).slice(0,6).forEach(function(x){out.common.push(x)})}
+ out.picks=out.picks.filter(function(p){return p.h}).slice(0,5);out.common=out.common.slice(0,5);return out}
+function aiCard(text,date,scale){var P=aiParse(text);if(!P.common.length&&!P.picks.length)return null;var W=1080,mc=K.make(10,10,1).c,F600='600 22px '+K.FONT,F800='800 26px '+K.FONT;
+ var cm=P.common.map(function(t){return K.wrap(mc,t,880,F600).slice(0,3)}),pk=P.picks.map(function(p){return {h:p.h,l:K.wrap(mc,p.t,880,F600).slice(0,3)}});
+ var h1=cm.length?(80+cm.reduce(function(s,l){return s+l.length*30+12},0)+16):0,h2=pk.length?(80+pk.reduce(function(s,p){return s+40+p.l.length*30+16},0)+10):0,H=210+40+(h1?h1+24:0)+(h2?h2+24:0)+150,m=K.make(W,H,scale),c=m.c;
+ c.fillStyle=PAPER;c.fillRect(0,0,W,H);band(c,W,'AI ANALYSIS','AI 분석 요약',date+' · AI가 정리한 참고 글(사실·수익을 보장하지 않아요)');var y=250;
+ if(h1){card(c,50,y,W-100,h1,24);c.fillStyle=DN;RR(c,76,y+26,6,30,3);c.fill();T(c,'📉 낙폭 종목의 공통 특징',96,y+50,{s:26,w:900,c:INK});var yy=y+92;cm.forEach(function(ls){c.beginPath();c.arc(84,yy-7,5,0,Math.PI*2);c.fillStyle=IND;c.fill();ls.forEach(function(l,k){T(c,l,100,yy+k*30,{s:22,w:600,c:'#334155',max:900})});yy+=ls.length*30+12});y+=h1+24}
+ if(h2){card(c,50,y,W-100,h2,24);c.fillStyle=UP;RR(c,76,y+26,6,30,3);c.fill();T(c,'🔍 회복 신호가 두드러진 종목',96,y+50,{s:26,w:900,c:INK});var y4=y+92;pk.forEach(function(p){T(c,p.h,90,y4+4,{s:26,w:900,c:'#312e81',max:900});p.l.forEach(function(l,k){T(c,l,90,y4+38+k*30,{s:22,w:600,c:'#334155',max:900})});y4+=40+p.l.length*30+16});}
+ foot(c,W,H-140,'AI가 정리한 의견이며 사실·수익을 보장하지 않아요 · 반드시 직접 확인하세요');return m.cv}
+
+window.ChImg={build:function(items,ai,date,scale,meta){var its=(items||[]).slice().sort(function(a,b){return (b.ch_score-a.ch_score)||((b.axes||0)-(a.axes||0))});
+ var out=[{idx:1,label:'낙폭 회복 대시보드',canvas:dash(its,date,scale,meta||{})}];var g=charts(its,date,scale);if(g)out.push({idx:out.length+1,label:'종목별 가격 그래프',canvas:g});
+ if(ai&&String(ai).trim()){var a=aiCard(ai,date,scale);if(a)out.push({idx:out.length+1,label:'AI 분석 요약',canvas:a})}return out}};
+})();
 
 /* ── 기준 설명(기능 'guide', 서버 호출 없음) ── */
 function chSecGuide(box){var g=el('div','chGd');
  function H(t){g.appendChild(el('h4',null,t))}function P(t){g.appendChild(el('p',null,t))}function UL(a){var u=el('ul');a.forEach(function(x){u.appendChild(el('li',null,x))});g.appendChild(u)}
  H('이 메뉴는 무엇을 보여 주나요?');P('52주(약 1년) 최고가에서 많이 떨어진 종목 가운데, 주가만 눌린 것이 아니라 재무·수급·테마가 다시 살아나는 모습이 있는지 점검해서 그래프와 함께 보여 줘요. “이 종목을 사라”는 뜻이 아니라, 떨어진 종목 중에서 회복 신호가 몇 가지나 확인되는지를 정리한 정보예요. 이미 많이 떨어진 종목은 이유가 있어서일 수 있고 더 떨어질 수도 있어요(떨어지는 칼날).');
+ H('진행 순서 — 리스트 → AI 분석 → 대시보드 이미지 → 블로그 쓰기');UL(['① 낙폭 회복 후보: 관리자가 낙폭 스캔을 마치면 목록이 새로 뜨고 위쪽 단계 바가 ①을 완료로 표시해요.','② AI 분석: 목록의 낙폭·재무·수급·테마 데이터를 담은 프롬프트를 내 AI에 붙여 넣고, AI 답변을 복사해 오면 읽어 와요(서버가 AI를 부르지 않아요). 관리자는 답변이 서버에 저장돼요.','③ 대시보드 이미지: 요약 타일·3축 현황·TOP 10 표, 종목별 가격 그래프, AI 분석 요약을 이미지로 그려 저장해요.','④ 블로그 쓰기(관리자): 목록과 AI 분석으로 블로그용 글(HTML)을 만들어요. 복사해서 블로그 글쓰기 화면에 붙여 넣고, ③ 이미지는 직접 올려요.','관리자는 [⚙ 설정]의 ‘단계 진행 방식’에서 ②~④를 스캔 직후 자동으로 이어 갈지(자동) 하나씩 직접 누를지(수동) 고를 수 있어요.']);
  H('① 낙폭 — 어떻게 고르나요?');P('최근 252거래일의 고가 중 가장 높은 값을 52주 고점으로 보고, 현재가가 그 값보다 몇 % 낮은지로 계산해요. 기본은 -30% 이상 떨어진 종목이고(-20~-60% 선택), 동전주(1,000원 미만)·시총 미달(코스피 300억·코스닥 200억 미만)·상장폐지 위험 종목은 처음부터 빼요. 수급·재무는 낙폭 -20% 이상 종목만 받아 와요.');
  H('② 회복 신호 3축');var tb=chTblBuild(['축','✅ 회복 확인','🔸 일부 회복'],['','','']);
  [['💹 재무(분기 영업이익)','4가지 중 3개 이상: 최근 분기 영업이익 흑자 · 전 분기보다 증가 · 매출이 전년 동기(없으면 전 분기)보다 증가 · 부채비율 200% 이하. 단 4분기 연속 적자이거나 부채비율 300% 초과면 ❌','2개 충족'],
@@ -1873,6 +2217,10 @@ def register():
         "vars": "{items_text}=낙폭·회복 신호 종목 목록(필수) · {today}=오늘 날짜 · {market_label}=시장 이름 · {count}=종목 수",
         "desc": "도전주 화면의 [AI 프롬프트 만들기]가 AI에게 보내는 요청문. 매수·매도 권유를 하지 않도록 쓰는 것이 원칙이에요."})
     C.register_admin_tab("ch", "🎯 도전주", TAB_JS, "chLoad", menu=MENU)
+    C.register_flow(MENU, "🎯 도전주", "① 낙폭 스캔(직접 시작)", [
+        {"id": "ai", "label": "② AI 분석", "desc": "스캔이 끝나 낙폭 회복 목록이 뜨면 AI 요청문 창을 자동으로 열어요. AI 답변을 복사해 돌아오면 저장되고 다음 단계로 이어져요(오늘 저장한 AI 분석이 있으면 건너뛰어요)."},
+        {"id": "img", "label": "③ 대시보드 이미지", "desc": "AI 단계가 끝나면 블로그용 대시보드 이미지를 자동으로 그려요(저장은 [⚙ 저장 설정]의 자동/수동 설정을 따라요)."},
+        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요. 글은 자동으로 올라가지 않고 복사해서 붙여 넣어요."}])
     # ── 기능별 공개: 추천형에 가까워 법적 검토 전에는 모두 관리자만(default admin). 관리자가 [🎚 기능 공개]에서 하나씩 연다. ──
     F = C.register_feature
     F(MENU, "list", "후보 목록 보기", "52주 고점 대비 낙폭과 재무·수급·테마 회복 판정(✅🔸❌⚪), 회복 점수·등급·신호. 이 기능이 열려 있어야 목록이 나와요(주소: 목록).", default="admin",
@@ -1886,7 +2234,9 @@ def register():
     F(MENU, "guide", "기준 설명", "낙폭 기준·3축 판정·회복 점수·그래프 읽는 법 해설(서버 호출 없음).", default="admin", endpoints=[])
     F(MENU, "ai", "AI 해설 프롬프트", "선택한 종목 데이터로 AI 프롬프트를 만들고 답변을 붙여 보기(수동 — 서버가 AI를 부르지 않아요).", default="admin",
       endpoints=["/admin/api/challenge/prompt"], kind="action")
+    F(MENU, "img", "요약 이미지 내려받기", "낙폭 회복 후보를 대시보드·가격 그래프·AI 분석 요약 이미지로 그려 내려받아요(그래프 이미지는 '그래프·상세 수치'가 열려 있어야 포함).", default="admin", endpoints=[], kind="tool")
     F(MENU, "exp", "표·이미지 내려받기", "지금 보는 표를 CSV 파일이나 PNG 이미지로 내려받기", default="admin", endpoints=[], kind="action")
+    # AI 분석 저장·불러오기(ai GET/POST)·블로그 글 만들기(blog)는 관리자 업무 → 어떤 기능에도 넣지 않았다(회원은 AI 답변을 이 화면에만 보관).
     # 낙폭 스캔(scan/start·status·stop)·결과 저장(save)·보관함 삭제(saved/delete)·성과 기록 삭제(track/delete)·기준 저장(cfg)·점검(diag, reload)은
     # 관리자 업무 → 어떤 기능에도 넣지 않았다(회원 화면에서는 404).
     return bp
