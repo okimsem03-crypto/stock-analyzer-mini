@@ -1162,8 +1162,14 @@ function dyOpen(date,live){DY.date=date;if(live!=null)DY.live=live;var m=$('dyMa
   if(DY.ai[DY.date]==null&&DY.date){api('/admin/api/daily/ai?date='+encodeURIComponent(DY.date)).then(function(a){DY.ai[DY.date]=a.found?a.result:'';DY.picks[DY.date]=a.found?(a.picks||[]):[];DY.mc=a.found?(a.market_context||''):'';if(cur==='dy')dyMainDraw()}).catch(function(){DY.ai[DY.date]='';dyMainDraw()})}
   dyMainDraw()})}
 function dySteps(){var sp=$('dySteps');if(!sp)return;sp.innerHTML='';var has=DY.rows.length>0,ai=((DY.ai[DY.date]||'').trim().length>0),done=[has,ai,DY.flag.img||DY.flag.blog];var cur2=-1;for(var i=0;i<3;i++){if(!done[i]){cur2=i;break}}
- [['오늘의 후보',has?(DY.rows.length+'종목 · 완료'):'스캔하세요','1'],['AI 추천주',ai?'저장됨 · 다시 만들기':'눌러서 시작','2'],[MEMBER_MODE?'요약 이미지':'이미지 · 블로그 글',(DY.flag.img||DY.flag.blog)?'진행 중/완료':'눌러서 만들기','3']].forEach(function(a,i){var b=el('button',(done[i]?'done':'')+(i===cur2?' cur':''));b.appendChild(el('span','n',done[i]?'✓':a[2]));var t=el('span');t.appendChild(document.createTextNode(a[0]));t.appendChild(el('small',null,a[1]));b.appendChild(t);
-  b.onclick=function(){var e=$('dys'+(i+1));if(e)e.scrollIntoView({behavior:'smooth',block:'start'})};sp.appendChild(b)})}
+ [['오늘의 후보',has?(DY.rows.length+'종목 · 완료'):'스캔하세요','1'],['AI 추천주',ai?'저장됨 · 다시 만들기':'눌러서 시작','2'],[MEMBER_MODE?'요약 이미지':'이미지 · 블로그 글',(DY.flag.img||DY.flag.blog)?'진행 중/완료':'눌러서 만들기','3']].forEach(function(a,i){var b=el('button',(done[i]?'done':'')+(i===cur2?' cur':''));b.setAttribute('data-noconfirm','1');b.appendChild(el('span','n',done[i]?'✓':a[2]));var t=el('span');t.appendChild(document.createTextNode(a[0]));t.appendChild(el('small',null,a[1]));b.appendChild(t);
+  b.onclick=function(){var e=$('dys'+(i+1));if(e)e.scrollIntoView({behavior:'smooth',block:'start'});dyStepRun(i)};sp.appendChild(b)})}
+function dyStepRun(i){/* 단계 줄을 누르면 그 단계 작업을 바로 실행 */
+ if(i===0){if(MEMBER_MODE||DY.rows.length)return;var g=$('dyGo');if(g&&!g.disabled)g.click();return}
+ if(!DY.rows.length){toast('먼저 ① 오늘의 후보를 만드세요');return}
+ if(i===1){if(!ftOk('prompt')){lockDlg('prompt');return}dyAIRun();return}
+ if(MEMBER_MODE){if(!ftOk('img')){lockDlg('img');return}if(DY.memGo&&!DY.memGo.disabled)DY.memGo.click();return}
+ if(DY.imgPanel)DY.imgPanel.gen(true);if(DY.blogPanel)DY.blogPanel.rebuild()}
 function dyFiltered(){var f=DY.f,q=f.q.trim().toLowerCase();var a=DY.rows.filter(function(r){if(f.dip){if(!(r.day_pct<0&&r.dip>=60))return false}else if(r.score<f.min)return false;if(q&&(r.name.toLowerCase().indexOf(q)<0&&r.ticker.indexOf(q)<0))return false;return true});
  var k=f.sort;a.sort(function(x,y){if(k==='dip')return y.dip-x.dip;if(k==='pct')return (y.day_pct||0)-(x.day_pct||0);if(k==='since')return (y.since||-99)-(x.since||-99);return y.score-x.score});return a}
 function dyMainDraw(){var m=$('dyMain');if(!m)return;m.innerHTML='';dySteps();
@@ -1230,15 +1236,15 @@ function dyImgMember(ib,rows){var K=window.ImgKit,row=el('div','bar'),view=dySty
     c.appendChild(bt('💾 이미지 내려받기','bt2',function(){it.canvas.toBlob(function(bl){if(!bl){toast('이미지를 만들지 못했어요');return}var a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download=K.fileName(it.idx,'오늘추천',(DY.date||'').replace(/-/g,''));document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},4000)},'image/png')}));view.appendChild(c)});
    st.textContent='이미지를 만들었어요. 각 이미지의 [이미지 내려받기]로 내 기기에 저장하세요.';go.textContent='🔄 다시 만들기';DY.flag.img=true;dySteps()})
    .catch(function(e){st.textContent='이미지를 만들지 못했어요: '+(e&&e.message||e);go.textContent='🖼 이미지 만들기'}).then(function(){go.disabled=false})});
- row.appendChild(go);ib.appendChild(row);ib.appendChild(st);ib.appendChild(view)}
+ DY.memGo=go;row.appendChild(go);ib.appendChild(row);ib.appendChild(st);ib.appendChild(view)}
 function dyOut(b){var rows=DY.rows;
  if(MEMBER_MODE){if(!ftOk('img')){b.appendChild(el('p','note','후보 TOP 10 표와 AI 정리 카드를 이미지로 만들어 내려받는 기능이에요.'));ftSec(b,'img');return}
   b.appendChild(el('p','note','① 후보 TOP 10 표 이미지 · ② AI 정리 카드 이미지(AI 정리 결과가 열려 있을 때). 만든 뒤 [이미지 내려받기]로 저장하세요. 참고 자료이며 투자 권유가 아니에요.'));var ib0=el('div');b.appendChild(ib0);dyImgMember(ib0,rows);return}
  b.appendChild(el('p','note','① 추천 TOP 10 표 이미지 · ② AI 추천주 카드 이미지(AI 답변이 있을 때). 저장 폴더·자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));var ib=el('div');b.appendChild(ib);
- ImgKit.panel(ib,{menu:'daily',name:'오늘추천',ticker:(DY.date||'').replace(/-/g,''),onDone:function(){DY.flag.img=true;dySteps()},gen:function(scale){if(!rows.length)return Promise.reject(new Error('후보가 없어요. 먼저 스캔하세요.'));return Promise.resolve(window.DyImg.build(rows.slice().sort(function(a,b){return b.score-a.score}),DY.picks[DY.date]||[],DY.date,scale,DY.excl))}});
+ DY.imgPanel=ImgKit.panel(ib,{menu:'daily',name:'오늘추천',ticker:(DY.date||'').replace(/-/g,''),onDone:function(){DY.flag.img=true;dySteps()},gen:function(scale){if(!rows.length)return Promise.reject(new Error('후보가 없어요. 먼저 스캔하세요.'));return Promise.resolve(window.DyImg.build(rows.slice().sort(function(a,b){return b.score-a.score}),DY.picks[DY.date]||[],DY.date,scale,DY.excl))}});
  b.appendChild(el('div','m','📝 블로그 글 (🌟 오늘의 추천 주식 N선)'));var bx=el('div');b.appendChild(bx);
  var secs=[['stats','요약통계'],['market','시장환경'],['top','점수TOP'],['ai','AI추천결과'],['list','추천목록'],['dip','음봉강세'],['track','지난성과']];
- window.BlogKit.panel(bx,{idp:'dy',key:'daily',kind:'daily',ticker:'D'+DY.date.replace(/-/g,'').slice(2),name:'오늘추천 '+DY.date,sections:secs,dup_warn:'',onBuilt:function(){DY.flag.blog=true;dySteps()},
+ DY.blogPanel=window.BlogKit.panel(bx,{idp:'dy',key:'daily',kind:'daily',ticker:'D'+DY.date.replace(/-/g,'').slice(2),name:'오늘추천 '+DY.date,sections:secs,dup_warn:'',onBuilt:function(){DY.flag.blog=true;dySteps()},
   build:function(inc,title){return apiJ('/admin/api/daily/blog',{date:DY.date,ai:DY.ai[DY.date]||'',inc:inc,title:title,n:30})}})}
 function dyTrack(b){if(!ftOk('track')){dyLockBox(b,'track','AI 정리 이후 성과 기록');return}var c=el('div');c.appendChild(el('p','note','AI가 추천한 종목의 추천가 대비 현재 수익률이에요. 호흡(단기 7일·중기 30일·장기 90일)이 지나면 그 시점 가격으로 승/패(±1% 기준)를 확정하고, 확정된 건이 5건 이상 쌓이면 다음 AI 요청문의 오답노트에 자동 반영돼요. 원본 프로그램의 기록도 함께 보여줘요.'));
  var body=el('div');c.appendChild(body);body.appendChild(el('div','m','⏳ 현재가를 불러오는 중…'));b.appendChild(c);

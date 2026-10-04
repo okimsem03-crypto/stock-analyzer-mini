@@ -1037,7 +1037,7 @@ function dlStepper(sm,ls){var S=el('div','dlSteps');S.id='dlSteps';var has=sm.to
   ['3','블로그 글',has?'HTML 만들기':'스크리닝 먼저',false,'dlS4']];
  items.forEach(function(x){var b=el('div','dlStp'+(x[3]?' done':'')+(!has&&x[0]!=='1'?' off':''));b.setAttribute('role','button');b.tabIndex=0;
   b.appendChild(el('span','n',x[3]?'✓':x[0]));var t=el('div');t.appendChild(el('b',null,x[1]));t.appendChild(el('small',null,x[2]));b.appendChild(t);
-  function go(){dlGo(x[4]);if(x[4]==='dlS3'&&DL.imgPanel&&!DL.imgPanel.items()&&DL.rows.length)DL.imgPanel.gen(false)}
+  function go(){dlGo(x[4]);dlStepRun(x[4])}
   b.onclick=go;b.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}};S.appendChild(b)});return S}
 function dlDraw(){var p=DL.p;if(!p||cur!=='dl')return;var sy=window.pageYOffset||0;p.innerHTML='';var d=DL.meta,sm=DL.sum,ls=d.last_scan||{};
  var H=el('div','dlH');H.appendChild(el('h3',null,'🚫 거래정지·상장폐지 위험 종목'));
@@ -1064,15 +1064,20 @@ function dlDraw(){var p=DL.p;if(!p||cur!=='dl')return;var sy=window.pageYOffset|
  var c4=dlStepCard(3,'블로그 글','네이버 블로그용 HTML — “확정 아님” 표현과 위험 안내가 자동으로 들어가요','dlS4');
  var adv=el('div','dlSub');adv.id='dlAdvBox';adv.appendChild(el('b',null,'💡 투자 주의 조언 (선택) — 글에 함께 들어가요'));c4.appendChild(adv);
  var bs=el('div','dlSub');bs.appendChild(el('b',null,'📝 글 만들기'));var bx=el('div');bs.appendChild(bx);c4.appendChild(bs);p.appendChild(c4);dlAdvDraw(adv);
- window.BlogKit.panel(bx,{idp:'dl',key:'caution',kind:'caution',ticker:'D'+(d.today||'').replace(/-/g,'').slice(2),name:'투자주의 '+(d.today||''),sections:[['stats','요약통계'],['danger','위험종목표'],['warn','경계종목표'],['diff','신규진입·졸업'],['pub','공개종목'],['advice','AI조언'],['rules','스크리닝기준']],dup_warn:'',
+ DL.blogPanel=window.BlogKit.panel(bx,{idp:'dl',key:'caution',kind:'caution',ticker:'D'+(d.today||'').replace(/-/g,'').slice(2),name:'투자주의 '+(d.today||''),sections:[['stats','요약통계'],['danger','위험종목표'],['warn','경계종목표'],['diff','신규진입·졸업'],['pub','공개종목'],['advice','AI조언'],['rules','스크리닝기준']],dup_warn:'',
   build:function(inc,title){return apiJ('/admin/api/delist/blog',{inc:inc,title:title})}});
  /* 참고 */
  var cD=dlCard('🆕 신규 진입 · 🎓 졸업','직전 스크리닝 대비 변화 — 스크리닝이 끝날 때마다 결과가 자동으로 저장돼 다음 번과 비교해요');cD.id='dlDiffBox';p.appendChild(cD);dlDiffDraw(cD);
  var cR=dlCard('⚙️ 스크리닝 기준 (고급)',(DL.crit&&DL.crit.updated_at?'기준 갱신 '+DL.crit.updated_at+' · ':'')+((DL.crit&&DL.crit.source_note)||''));cR.id='dlCritBox';p.appendChild(cR);dlCritDraw(cR);
  dlWatch(true);if(DL._drawn)window.scrollTo(0,sy);DL._drawn=true}
+function dlStepRun(id){/* 단계 줄을 누르면 그 단계 작업을 바로 실행 */
+ if(id==='dlS1'){dlScan(true);return}
+ if(!DL.rows.length){toast('먼저 ① 스크리닝을 실행하세요');return}
+ if(id==='dlS3'){if(DL.imgPanel)DL.imgPanel.gen(true);return}
+ if(id==='dlS4'){if(DL.blogPanel)DL.blogPanel.rebuild()}}
 function dlGo(id){var e=$(id);if(e)e.scrollIntoView({behavior:'smooth',block:'start'})}
 /* ── 스크리닝 ── */
-function dlScan(){if(!confirm('네이버에서 전 종목(코스피·코스닥) 시세 목록을 받아 기준에 맞는 종목을 가려냅니다(보통 10~40초). 계속할까요?'))return;
+function dlScan(now){if(!now&&!confirm('네이버에서 전 종목(코스피·코스닥) 시세 목록을 받아 기준에 맞는 종목을 가려냅니다(보통 10~40초). 계속할까요?'))return;
  apiJ('/admin/api/delist/scan',{}).then(function(j){if(j.error){toast(j.error);return}toast('스크리닝을 시작했어요');DL._wasRunning=true;dlWatch()})}
 function dlWatch(quiet){if(DL.timer)clearInterval(DL.timer);
  function tick(){if(cur!=='dl'||!$('dlSt')){clearInterval(DL.timer);DL.timer=null;return}

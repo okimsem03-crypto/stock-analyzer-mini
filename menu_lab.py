@@ -902,7 +902,7 @@ function drawSteps(){var h=document.getElementById('labSteps');if(!h)return;h.in
   {t:'블로그에 쓰기',sub:d[4]?'복사·열기 완료':(d[3]?'복사하고 블로그 열기':'글을 먼저 만드세요'),go:function(){scrollTo2('labS4');if(LAB.blogPanel)LAB.blogPanel.copyOpen()}}];
  var done=[d[0],ai>=1,d[2],d[3],d[4]],cur=-1;for(var i=0;i<done.length;i++){if(!done[i]){cur=i;break}}
  var cnt=0;done.forEach(function(v){if(v)cnt++});var key=LAB.tk+'|';if(LAB._pk===key&&cnt>LAB._pc){setTimeout(function(){scrollTo2('labSteps')},650)}LAB._pk=key;LAB._pc=cnt;   /* 단계가 하나 끝나면 위쪽 작업 순서 줄로 자동 이동 */
- acts.forEach(function(a,i){var b=el('button','stp'+(done[i]?' done':'')+(i===cur?' cur':'')+((i===4&&!d[3])?' off':''));var n=el('span','n',done[i]?'✓':String(i+1));b.appendChild(n);var t=el('span');t.appendChild(document.createTextNode(a.t));var sm=el('small',null,a.sub);t.appendChild(sm);b.appendChild(t);b.onclick=a.go;h.appendChild(b)});
+ acts.forEach(function(a,i){var b=el('button','stp'+(done[i]?' done':'')+(i===cur?' cur':'')+((i===4&&!d[3])?' off':''));b.setAttribute('data-noconfirm','1');var n=el('span','n',done[i]?'✓':String(i+1));b.appendChild(n);var t=el('span');t.appendChild(document.createTextNode(a.t));var sm=el('small',null,a.sub);t.appendChild(sm);b.appendChild(t);b.onclick=a.go;h.appendChild(b)});
  var nl=document.getElementById('labNext');if(nl)nl.textContent=cur<0?'✅ 모든 단계를 마쳤어요. 올린 글은 아래에서 작성 기록을 남기세요.':'▶ 지금 할 일: '+(cur+1)+'. '+acts[cur].t}
 function draw(){var c=card();if(!c)return;var x=LAB.x;head(c,x);
  var sp=el('div','steps');sp.id='labSteps';c.appendChild(sp);var nl=el('div','nextline');nl.id='labNext';c.appendChild(nl);
