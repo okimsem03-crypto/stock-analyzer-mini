@@ -142,7 +142,7 @@ def api_urls_save():
 # ══════════════════════════════════════════════════════════════
 # 작성 이력 (표 이름은 v139 의 lab_blog_log 를 그대로 쓴다 — 이미 쌓인 기록 유지)
 # ══════════════════════════════════════════════════════════════
-KINDS = {"stock": "종목분석", "deepdive": "심층분석", "daily": "오늘추천", "caution": "투자주의"}
+KINDS = {"stock": "종목분석", "deepdive": "심층분석", "daily": "오늘추천", "caution": "투자주의", "news": "뉴스분석"}
 
 
 def _ensure_table(c, use_pg):
@@ -545,7 +545,7 @@ def hashtags(names, date_str, extra=()):
     base = ["주식투자", "재테크", "주식분석", "기술적분석", "국내주식"]
     ex = [re.sub(r"\s", "", n or "") for n in names] + [re.sub(r"[년월일\s.\-]", "", date_str)]
     tags = [t for t in dict.fromkeys(list(extra) + ex + base) if t]
-    return tags, '<div style="margin-top:14px;padding:10px 0;border-top:1px solid #e5e7eb;font-size:11px;color:#6b7280;line-height:2.2;">' + " ".join("#" + t for t in tags) + "</div>"
+    return tags, '<div style="margin-top:14px;padding:10px 0;border-top:1px solid #e5e7eb;font-size:11px;color:#6b7280;line-height:2.2;">' + " ".join("#" + E(t) for t in tags) + "</div>"
 
 
 def date_korean(now):
@@ -575,7 +575,7 @@ K.copyHtml=function(html){var plain=html.replace(/<[^>]+>/g,' ').replace(/&nbsp;
  try{var ta=document.createElement('textarea');ta.value=' ';ta.setAttribute('readonly','');ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.focus();ta.select();var done=false;
   var h=function(e){try{e.clipboardData.setData('text/html',html);e.clipboardData.setData('text/plain',plain);e.preventDefault();done=true}catch(x){}};
   document.addEventListener('copy',h,true);var r=false;try{r=document.execCommand('copy')}catch(x){}document.removeEventListener('copy',h,true);document.body.removeChild(ta);ok=!!(r&&done)}catch(e){}
- if(!ok){try{if(navigator.clipboard&&window.ClipboardItem){navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})})]);ok=true}}catch(e){}}
+ if(!ok){try{if(navigator.clipboard&&window.ClipboardItem){navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})})]).catch(function(){});ok=true}}catch(e){}}
  return ok};
 K.save=function(name,title,html){var b=new Blob(['<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>'+String(title||'').replace(/</g,'')+'</title></head><body style="max-width:860px;margin:0 auto;padding:20px">'+html+'</body></html>'],{type:'text/html'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500)};
 function bt(txt,primary,fn){var b=el('button',null,txt);sty(b,'font:inherit;font-size:13px;font-weight:700;border-radius:10px;padding:8px 14px;cursor:pointer;margin:0 6px 6px 0;border:1.5px solid '+(primary?'#312e81':'#c7d2fe')+';background:'+(primary?'#312e81':'#fff')+';color:'+(primary?'#fff':'#312e81'));b.onclick=fn;return b}

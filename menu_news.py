@@ -26,6 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, urljoin
 from flask import Blueprint, request
 from menu_ctx import C
+import menu_blog as B
 
 bp = Blueprint("news", __name__)
 
@@ -1495,6 +1496,122 @@ def api_mini():
     return _admin_json({"minis": {t: r for t, r in zip(tks, res) if r}})
 
 
+# ══════════════════════════════════════════════════════════════
+# 블로그 글 만들기(관리자 전용 — 어떤 기능에도 등록하지 않음 → 회원 화면에서는 404)
+#   AI 분석문 + 관련 종목(호재/악재 참고 표시·30일 시세) 을 네이버 블로그 붙여넣기용 HTML 로 만든다.
+#   기사 원문은 담지 않는다(출처 이름과 원문 링크만). 화면에서 보내 준 분석문·종목만 쓰고 서버에 저장하지 않는다.
+# ══════════════════════════════════════════════════════════════
+BLOG_SECS = (("summary", "한 줄 요약"), ("stocks", "관련 종목·시세"), ("ai", "AI 분석 본문"), ("src", "출처·원문 링크"))
+_FENCE = re.compile(r"```.*?```", re.S)
+
+
+def _blog_clean(text):
+    t = _FENCE.sub("", str(text or "")[:40000])
+    return "\n".join(l for l in t.replace("\r", "").split("\n") if not re.match(r"^\s*\*\*한 줄 요약\*\*", l)).strip()
+
+
+def _blog_sum(text):
+    m = re.search(r"\*\*한 줄 요약\*\*\s*[:：]\s*(.+)", str(text or ""))
+    return re.sub(r"\*\*", "", m.group(1)).strip()[:200] if m else ""
+
+
+def build_news_blog(d):
+    E = B.E
+    now = _now_kst()
+    date_k = B.date_korean(now)
+    kind = str(d.get("kind") or "news")
+    if kind not in ("news", "url", "ov"):
+        kind = "news"
+    inc = d.get("inc") if isinstance(d.get("inc"), dict) else {}
+    inc = {k: bool(inc.get(k, True)) for k, _ in BLOG_SECS}
+    ai_raw = str(d.get("ai_text") or "")[:40000]
+    ai = _blog_clean(ai_raw)
+    sm = _blog_sum(ai_raw)
+    ntitle = str(d.get("news_title") or "").strip()[:150]
+    source = str(d.get("source") or "").strip()[:40]
+    url = str(d.get("url") or "").strip()
+    url = url if re.match(r"^https?://[^\s<>\"'\\]{4,400}$", url) else ""
+    stocks = [x for x in (_norm_stock(s) for s in (d.get("stocks") if isinstance(d.get("stocks"), list) else [])[:12]) if x]
+    titles = B.extract_titles(ai_raw)
+    title = str(d.get("title") or "").strip()[:150]
+    if not title:
+        if titles:
+            title = titles[0]
+        elif kind == "ov":
+            title = f"오늘의 주요 뉴스 AI 총평 — 호재·악재 흐름 정리 ({date_k})"
+        else:
+            title = f"{ntitle or '뉴스'} — 뉴스 AI 분석·관련 종목 ({date_k})"
+    names = [s["name"] for s in stocks if s["name"]][:4]
+    kw = (["뉴스 분석", "주식 뉴스", "관련주"] + [n + " 뉴스" for n in names[:3]] + [s["ticker"] for s in stocks[:2]])[:8]
+    tags, tag_html = B.hashtags(names, date_k, extra=["뉴스분석", "주식뉴스", "관련주", "호재악재"])
+    h = [B.seo_box(title, ("오늘 뉴스 전체의 흐름과 자주 나온 종목을 AI로 정리했습니다." if kind == "ov" else "뉴스 한 건을 AI로 풀어 읽고 관련 종목을 정리했습니다.") + f" (기준 {date_k})", kw)]
+    sub = f"{E(source or '네이버 금융')} · {date_k}" + (f"<br>관련 종목 {len(stocks)}개" if stocks else "")
+    h.append(B.head_box("NEWS BRIEF", E((ntitle or title)[:150]), sub))
+    if inc["summary"] and sm:
+        h.append(f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border-collapse:collapse;{B.FONT}"><tr><td bgcolor="#eff6ff" style="background-color:#eff6ff;border-left:6px solid #1e3a8a;padding:14px 18px;">'
+                 f'<div style="font-size:12px;font-weight:800;color:#1e3a8a;margin-bottom:4px;">&#128221; 한 줄 요약</div><div style="font-size:16px;font-weight:800;color:#0f172a;line-height:1.7;">{E(sm)}</div></td></tr></table>')
+    h.append(B.engage_box())
+    if inc["stocks"] and stocks:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            ms = list(ex.map(_mini_one, [s["ticker"] for s in stocks]))
+        rows = ""
+        for s, m_ in zip(stocks, ms):
+            m_ = m_ or {}
+            sv = s["senti"]
+            chip = ("#f0fdf4", "#15803d", "호재 분류") if sv > 0 else (("#fef2f2", "#b91c1c", "악재 분류") if sv < 0 else ("#f3f4f6", "#4b5563", "중립"))
+            ch = m_.get("chg")
+            c20 = m_.get("chg20")
+            px = (f"{m_['last']:,.0f}원" if m_.get("last") else "-")
+            chg = "-" if ch is None else f'<span style="color:{B.updown(ch)}">{ch:+.2f}%</span>'
+            ch20 = "-" if c20 is None else f'<span style="color:{B.updown(c20)}">{c20:+.2f}%</span>'
+            rows += (f'<tr><td style="padding:8px 6px;border-bottom:1px solid #f0f0f0;font-size:13.5px;font-weight:800;color:{B.NAVY};">{E(s["name"] or s["ticker"])}'
+                     f'<div style="font-size:11px;font-weight:400;color:#94a3b8;">{E(s["ticker"])}{" · " + E(s["market"]) if s["market"] else ""}{" · " + E(s["sector"]) if s["sector"] else ""}</div></td>'
+                     f'<td align="center" style="padding:8px 4px;border-bottom:1px solid #f0f0f0;"><span style="background-color:{chip[0]};color:{chip[1]};font-size:11px;font-weight:800;padding:2px 7px;">{chip[2]}</span>'
+                     f'<div style="font-size:11px;color:#94a3b8;margin-top:2px;">{"직접 언급" if s["mentioned"] else "연관"}</div></td>'
+                     f'<td align="right" style="padding:8px 6px;border-bottom:1px solid #f0f0f0;font-size:13px;">{px}</td>'
+                     f'<td align="right" style="padding:8px 6px;border-bottom:1px solid #f0f0f0;font-size:13px;">{chg}</td>'
+                     f'<td align="right" style="padding:8px 6px;border-bottom:1px solid #f0f0f0;font-size:13px;">{ch20}</td></tr>')
+        th = "".join(f'<td align="{a}" style="padding:8px 6px;background-color:#eef2ff;font-size:12px;font-weight:700;color:#312e81;border-bottom:1px solid #c7d2fe;">{t}</td>'
+                     for t, a in (("종목", "left"), ("분류(참고)", "center"), ("현재가", "right"), ("전일", "right"), ("20일", "right")))
+        h.append(B.side_title("&#128202; 관련 종목 <span style=\"font-size:12px;font-weight:700;color:#94a3b8;\">(뉴스에서 식별 · 시세는 최근 종가 기준)</span>", "#1e3a8a"))
+        h.append('<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;' + B.FONT + '"><tr>' + th + "</tr>" + rows + "</table>")
+        h.append('<p style="font-size:11.5px;color:#9ca3af;margin:4px 0 0;">호재·악재 분류는 AI 또는 단어 규칙의 참고 값이며, 특정 종목을 권유하는 내용이 아닙니다. 뉴스에 언급됐다고 주가가 오르거나 내리는 것은 아닙니다.</p>')
+    if inc["ai"] and ai:
+        secs = B.split_sections(ai)
+        used = False
+        for num in sorted(k for k in secs if k > 0):
+            ttl, body = secs[num]
+            if body.strip():
+                h.append(B.section_card("&#128240;", ttl or f"분석 {num}", "", body, "#1e3a8a", "#f5f8ff"))
+                used = True
+        pre = secs.get(0, ("", ""))[1].strip()
+        if pre or not used:
+            h.append(B.ai_to_html(pre if used else ai))
+    if inc["src"] and (url or source):
+        lk = (f'<a href="{E(url)}" target="_blank" style="color:#1d4ed8;font-weight:700;">기사 원문 보기</a>' if url else "")
+        h.append(f'<p style="font-size:12px;color:#6b7280;margin:14px 0 0;">&#128279; 출처: {E(source or "네이버 금융")}{" · " + lk if lk else ""} · 기사 내용은 저작권이 언론사에 있어 원문을 싣지 않고 링크로만 안내합니다. 공시는 DART·KIND에서 직접 확인하세요.</p>')
+    h.append(B.risk_box())
+    h.append(tag_html)
+    body = "".join(h)
+    return {"html": body, "title": title, "titles": titles, "tags": tags, "size": len(body), "ok_size": len(body) < 400000}
+
+
+@bp.route("/admin/api/news/blog", methods=["POST"])
+def api_blog():
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    d = _json_body() or {}
+    if len(str(d.get("ai_text") or "").strip()) < 30:
+        return _admin_json({"error": "먼저 AI 분석을 끝내야 블로그 글을 만들 수 있어요."}, 400)
+    b = build_news_blog(d)
+    t = str(d.get("ticker") or "").strip().upper()
+    if B.LOG_TICKER_RE.match(t):
+        logs, warn = B.dup_info(t, "news")
+        b.update({"dups": logs, "dup_warn": warn})
+    return _admin_json(b)
+
+
 @bp.route("/admin/api/news/parse", methods=["POST"])
 def api_parse():
     """붙여넣은 AI 답변을 구조화해 돌려준다. 아무것도 저장하지 않는다."""
@@ -1614,10 +1731,11 @@ function nwItems(out,j){out.innerHTML='';if(j.error){NeedNote(out,j.error,'','no
  out.appendChild(el('p','note','출처: '+(j.source||'네이버 금융')+' · 제목을 누르면 언론사 원문으로 이동해요.'))}
 /* ══ 뉴스룸(v154): 위=대시보드 · 왼쪽=뉴스 목록 · 오른쪽=분석 작업대 ══ */
 var NR={cat:'main',items:[],lat:null,ov:null,sel:-1,q:'',f:'all',th:'',res:{},minis:{},ws:'',load:0,urlv:'',imgP:null,dashP:null,dashOpen:false};
-var NRFLOW=['ai','img'];
+var NRFLOW=['ai','img','blog'];
 var NRACTS={
  ai:function(next){if(NR.res[NR.ws])next()},
- img:function(next){if(!NR.imgP)return;var e=$('nrImgR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});NR.imgP.gen(true).then(function(){if(NR.imgP&&NR.imgP.items&&NR.imgP.items())next()},function(){})}};
+ img:function(next){if(!NR.imgP)return;var e=$('nrImgR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});NR.imgP.gen(true).then(function(){if(NR.imgP&&NR.imgP.items&&NR.imgP.items())next()},function(){})},
+ blog:function(){if(MEMBER_MODE||!NR.blogP)return;var e=$('nrBlogR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});NR.blogP.rebuild()}};
 var NRCSS='.nrRoot{display:block}.nrDash{background:#fff;border:1px solid #dbe3ee;border-radius:16px;padding:14px 16px;margin:0 0 12px;box-shadow:0 2px 10px rgba(15,23,42,.05)}'+
 '.nrDh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}.nrDh h2{margin:0;font-size:20px}.nrAs{font-size:12px;color:#64748b}'+
 '.nrBar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}.nrBar button{font:inherit;font-size:13px;border-radius:999px;padding:7px 13px;cursor:pointer;border:1px solid #cbd5e1;background:#fff;color:#0f172a}.nrBar button.on{background:#0f172a;color:#fff;border-color:#0f172a}.nrBar button.pri{background:#1e3a8a;color:#fff;border-color:#1e3a8a;font-weight:800}.nrBar .sp{flex:1}'+
@@ -1635,6 +1753,8 @@ var NRCSS='.nrRoot{display:block}.nrDash{background:#fff;border:1px solid #dbe3e
 '.nrSg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:6px 0 10px}.nrSc{border:1px solid #e5e7eb;border-radius:12px;padding:9px 11px;background:#fff}.nrSh{display:flex;gap:5px;align-items:center;flex-wrap:wrap}.nrSh .nm{font-size:15px}.nrSc .mt{font-size:11.5px;color:#64748b;margin:2px 0}.nrSc .sn{font-size:12px;color:#475569;margin-top:4px;line-height:1.5;overflow-wrap:anywhere}'+
 '.nrMn{display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;min-height:34px}.nrMn canvas{width:110px;height:34px;flex:0 0 auto}.nrMn .px{font-weight:800;color:#0f172a}.nrMn .up{color:#dc2626;font-weight:800}.nrMn .dn{color:#2563eb;font-weight:800}'+
 '.nrRh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.nrRh h3{margin:0;flex:1;font-size:16px;min-width:140px}.nrImg{margin-top:8px}'+
+'.nrStp{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}.nrStp button{flex:1 1 128px;display:flex;align-items:center;gap:8px;text-align:left;border:1.5px solid #bfdbfe;background:#fff;color:#1e3a8a;border-radius:12px;padding:7px 10px;font:inherit;font-size:13px;font-weight:800;cursor:pointer;line-height:1.35}.nrStp button small{display:block;font-weight:600;font-size:11px;color:#64748b}.nrStp .n{width:24px;height:24px;border-radius:50%;background:#bfdbfe;color:#1e3a8a;display:flex;align-items:center;justify-content:center;font-weight:900;flex:0 0 auto}.nrStp .done{border-color:#86efac;background:#f0fdf4}.nrStp .done .n{background:#16a34a;color:#fff}.nrStp .cur{border-color:#1e3a8a;box-shadow:0 0 0 3px rgba(30,58,138,.16)}'+
+'.nrBlog{margin-top:10px;scroll-margin-top:60px}'+
 '@media(max-width:900px){.nrGrid{grid-template-columns:1fr}.nrR{position:static;max-height:none;overflow:visible}.nrCols{grid-template-columns:1fr}.nrList{max-height:60vh}}';
 function nrEnv(){if(document.getElementById('nrCss'))return;var nn='';var n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';var s=document.createElement('style');s.id='nrCss';if(nn)s.setAttribute('nonce',nn);s.textContent=NRCSS;document.head.appendChild(s)}
 /* 원문 읽기: 화면 오른쪽 절반 창 (네이버 기사는 액자(iframe)로 못 담아서 별도 창) */
@@ -1747,12 +1867,13 @@ function nrNewsCard(R,x){var c=el('div','nrNc');var h=el('div');if(x.cls){h.appe
  if(x.url){var o=nrOrig(x.url);o.className='nrOrg';o.textContent='📖 원문 읽기 ↗';bar.appendChild(o);bar.appendChild(bt('주소 복사','bt3',function(){copyTxt(x.url)}))}c.appendChild(bar);
  var cand=[];if(NR.ov&&NR.ov.cat===NR.cat){NR.ov.stocks.forEach(function(s){if((s.idx||[]).indexOf(NR.sel)>=0)cand.push({ticker:s.ticker,name:s.name,market:s.market,sector:s.sector,senti:(x.cls&&x.cls.k==='p')?1:((x.cls&&x.cls.k==='n')?-1:0),mentioned:true,reason:'제목에서 종목 이름이 확인돼요(AI 분석 전의 참고 후보).'})})}
  if(cand.length&&!has){c.appendChild(el('div','mt','🔎 제목에서 찾은 관련 종목 후보'));nrStockCards(c,cand)}R.appendChild(c)}
-function nrWs(){var R=$('nrR');if(!R)return;R.innerHTML='';nrUrlBar(R);var rs=NR.res[NR.ws];var x=NR.sel>=0?NR.items[NR.sel]:null;
+function nrWs(){var R=$('nrR');if(!R)return;R.innerHTML='';nrUrlBar(R);var sp0=el('div','nrStp');sp0.id='nrSteps';R.appendChild(sp0);var rs=NR.res[NR.ws];var x=NR.sel>=0?NR.items[NR.sel]:null;
  if(x)nrNewsCard(R,x);
  if(rs)nrResult(R,rs);
- else if(!x){var e=el('div','nrEm');e.appendChild(el('div',null,'👈 뉴스 목록에서 뉴스를 누르면 여기에서 분석해요.'));e.appendChild(el('div',null,'① 뉴스 선택 → ② [🤖 AI 분석] → ③ 관련 종목·시세 그래프·이미지'));e.appendChild(el('div',null,'위쪽 [🤖 전체 AI 총평]으로 오늘 뉴스 전체의 흐름을 볼 수도 있어요.'));R.appendChild(e)}}
+ else if(!x){var e=el('div','nrEm');e.appendChild(el('div',null,'👈 뉴스 목록에서 뉴스를 누르면 여기에서 분석해요.'));e.appendChild(el('div',null,'① 뉴스 선택 → ② [🤖 AI 분석] → ③ 관련 종목·시세 그래프·이미지'));e.appendChild(el('div',null,'위쪽 [🤖 전체 AI 총평]으로 오늘 뉴스 전체의 흐름을 볼 수도 있어요.'));R.appendChild(e)}
+ nrSteps()}
 function nrResult(R,rs){var j=rs.j,ctx=rs.ctx;var c=el('div','nwS nrRes');var h=el('div','nrRh');h.appendChild(el('h3',null,'🤖 '+ctx.label));
- h.appendChild(bt('🔄 다시 분석','bt3',function(){if(ctx.kind==='ov')nrOverall();else if(ctx.kind==='url')nrUrl(ctx.url);else{var x=NR.items[NR.sel];if(x)nrStartNews(x);else if(ctx.url)nrUrl(ctx.url)}}));c.appendChild(h);
+ h.appendChild(bt('🔄 다시 분석','bt3',function(){nrRedo(ctx)}));c.appendChild(h);
  c.appendChild(el('p','ds','AI 답변을 정리한 화면이에요. 호재/악재 표시는 AI 또는 단어 규칙의 분류 참고 값이며 투자 권유가 아니에요.'));
  if(ctx.note)c.appendChild(el('p','note',ctx.note));
  var sm=nrSum(j.ai_text);if(sm){var b0=el('div','nwSum');b0.appendChild(el('b',null,'📝 한 줄 요약 — '));b0.appendChild(document.createTextNode(sm));c.appendChild(b0)}
@@ -1762,13 +1883,39 @@ function nrResult(R,rs){var j=rs.j,ctx=rs.ctx;var c=el('div','nwS nrRes');var h=
  var body=el('div');nwMd(body,String(j.ai_text||'').split(/\r?\n/).filter(function(l){return !/^\*\*한 줄 요약\*\*/.test(l)}).join('\n'));c.appendChild(body);
  var ab=el('div','bar');ab.appendChild(bt('분석문 복사','bt2',function(){copyTxt(j.ai_text)}));
  ab.appendChild(adm(bt('💾 보관함에 저장 (관리자)','bt',function(){apiJ('/admin/api/news/save',{title:j.title_ko||ctx.title||'',source:ctx.source||'',excerpt:ctx.excerpt||'',ai_text:j.ai_text,stocks:j.stocks,kind:'stock'}).then(function(z){if(z.error){toast(z.error);return}toast('보관함에 저장했어요')})})));
- var bi=el('button','bt3','🖼 이미지 만들기');if(MEMBER_MODE)ab.appendChild(bi);c.appendChild(ab);var ib=el('div','nrImg');ib.id='nrImgR';c.appendChild(ib);R.appendChild(c);
+ var bi=el('button','bt3','🖼 이미지 만들기');if(MEMBER_MODE)ab.appendChild(bi);c.appendChild(ab);var ib=el('div','nrImg');ib.id='nrImgR';c.appendChild(ib);nrBlogMount(c,rs,j,ctx);R.appendChild(c);
  NR.imgP=null;function mount(){if(!ftOk('overview')){lockDlg('overview');return}if(!window.ImgKit||!window.NwImg){ib.textContent='이미지 도우미를 불러오지 못했어요. 새로고침해 주세요.';return}
   var nm=(ctx.title||'뉴스').replace(/\s+/g,' ').slice(0,18),id=ctx.kind==='ov'?window.ImgKit.dateDir():(String(ctx.url||'').replace(/\D/g,'').slice(-8)||window.ImgKit.dateDir());
-  NR.imgP=nrImgMount(ib,{name:ctx.kind==='ov'?'뉴스총평':nm,ticker:id,perStock:ctx.kind!=='ov',onDone:function(){},gen:function(scale){var tks=(j.stocks||[]).map(function(s){return s.ticker});
+  NR.imgP=nrImgMount(ib,{name:ctx.kind==='ov'?'뉴스총평':nm,ticker:id,perStock:ctx.kind!=='ov',onDone:function(){rs.img=true;nrSteps()},gen:function(scale){var tks=(j.stocks||[]).map(function(s){return s.ticker});
    return nrFetchMinis(tks).then(function(){return window.NwImg.res({title:j.title_ko||ctx.title,source:ctx.source,kind:ctx.kind,label:ctx.label,summary:sm,lines:nrLines(j.ai_text,7),stocks:j.stocks||[],minis:NR.minis,cls:ctx.cls||null},scale)})}})}
- bi.onclick=function(){if(NR.imgP){NR.imgP.gen(false);return}mount();if(NR.imgP&&NR.imgP.gen)NR.imgP.gen(false)};
+ bi.onclick=function(){if(NR.imgP){NR.imgP.gen(false);return}mount();if(NR.imgP&&NR.imgP.gen)NR.imgP.gen(false)};NR.imgGo=function(){bi.onclick()};
  if(!MEMBER_MODE&&ftOk('overview'))setTimeout(function(){if($('nrImgR')===ib&&!NR.imgP)mount()},30)}
+/* 차례(단계) 메뉴 — 뉴스 고르기 → AI 분석 → 이미지 → (관리자) 블로그 글 만들기 → 복사하고 블로그 쓰기 */
+function nrRedo(ctx){if(ctx.kind==='ov')nrOverall();else if(ctx.kind==='url')nrUrl(ctx.url);else{var x=NR.items[NR.sel];if(x)nrStartNews(x);else if(ctx.url)nrUrl(ctx.url)}}
+function nrSteps(){var sp=$('nrSteps');if(!sp)return;sp.innerHTML='';var rs=NR.res[NR.ws],x=NR.sel>=0?NR.items[NR.sel]:null;
+ var ai=!!rs,img=!!(rs&&(rs.img||(NR.imgP&&NR.imgP.items&&NR.imgP.items()))),bl=!!(rs&&rs.blog),cp=!!(rs&&rs.copied),done=[!!(rs||x),ai,img,bl,cp],cur2=-1;
+ var L=[['뉴스 고르기',rs||x?'선택됨':'목록에서 뉴스를 눌러요','1'],['AI 분석',ai?'완료 · 다시 분석':'눌러서 시작','2'],[MEMBER_MODE?'이미지 만들기·저장':'이미지 만들기·저장',img?'완료 · 다시 만들기':(ai?'눌러서 만들기':'분석 뒤에 해요'),'3']];
+ if(!MEMBER_MODE){L.push(['블로그 글 만들기',bl?'완료 · 다시 만들기':(ai?'눌러서 만들기':'분석 뒤에 해요'),'4']);L.push(['복사하고 블로그 쓰기',cp?'복사함 · 다시 복사':(bl?'눌러서 복사하고 열기':'글을 만든 뒤 눌러요'),'5'])}
+ for(var i=0;i<L.length;i++){if(!done[i]){cur2=i;break}}
+ L.forEach(function(a,i){var b=el('button',(done[i]?'done':'')+(i===cur2?' cur':''));b.type='button';b.setAttribute('data-noconfirm','1');b.appendChild(el('span','n',done[i]?'✓':a[2]));var t=el('span');t.appendChild(document.createTextNode(a[0]));t.appendChild(el('small',null,a[1]));b.appendChild(t);b.onclick=function(){nrStepRun(i)};sp.appendChild(b)})}
+function nrStepRun(i){var rs=NR.res[NR.ws],x=NR.sel>=0?NR.items[NR.sel]:null;
+ if(i===0){var L=$('nrL');if(L&&L.scrollIntoView)L.scrollIntoView({behavior:'smooth',block:'start'});if(!x&&!rs)toast('왼쪽 목록에서 분석할 뉴스를 눌러 주세요');return}
+ if(i===1){if(rs){nrRedo(rs.ctx);return}if(x){nrStartNews(x);return}toast('먼저 뉴스를 고르거나 위쪽 [전체 AI 총평]·URL 분석으로 시작하세요');return}
+ if(!rs){toast('먼저 AI 분석을 끝내 주세요');return}
+ if(i===2){var e=$('nrImgR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});if(!MEMBER_MODE&&window.MiniFlow)window.MiniFlow.go('news',NRFLOW,NRACTS,'img');else if(NR.imgGo)NR.imgGo();return}
+ if(MEMBER_MODE)return;
+ if(i===3){if(window.MiniFlow)window.MiniFlow.go('news',NRFLOW,NRACTS,'blog');return}
+ if(i===4){var b=$('nrBlogR');if(b&&b.scrollIntoView)b.scrollIntoView({behavior:'smooth',block:'nearest'});if(!NR.blogP){toast('블로그 구역을 불러오지 못했어요');return}
+  if(!NR.blogP.built()){toast('먼저 블로그 글을 만들어요. 다 만들어지면 이 단계를 한 번 더 눌러 복사하세요.');NR.blogP.rebuild();return}NR.blogP.copyOpen()}}
+/* 블로그 글 쓰기 구역(관리자) — 서버가 AI 분석문·관련 종목을 블로그용 HTML 로 만든다 */
+function nrBlogMount(c,rs,j,ctx){NR.blogP=null;if(MEMBER_MODE||!window.BlogKit)return;
+ var bs=el('div','nwS nrBlog');bs.id='nrBlogR';bs.appendChild(el('h4','nwH4','📝 블로그 글 쓰기 (관리자만 보여요)'));
+ bs.appendChild(el('p','note','AI 분석문과 관련 종목(호재·악재 분류는 참고 표시)·최근 시세를 네이버 블로그용 글로 만들어요. 만든 뒤 [복사하고 블로그 열기]를 누르고 붙여넣기만 하면 돼요. 기사 원문은 싣지 않고 출처 링크만 넣어요.'));
+ var bx=el('div');bs.appendChild(bx);c.appendChild(bs);var d=new Date(),z=function(n){return ('0'+n).slice(-2)},st=(j.stocks||[]),one=(ctx.kind!=='ov'&&st.length)?st[0]:null;
+ var tk=one?one.ticker:('D'+String(d.getFullYear()).slice(2)+z(d.getMonth()+1)+z(d.getDate()));
+ NR.blogP=window.BlogKit.panel(bx,{idp:'nrb',key:'news',kind:'news',ticker:tk,name:one?one.name:'뉴스분석',sections:[['summary','한 줄 요약'],['stocks','관련 종목·시세'],['ai','AI 분석 본문'],['src','출처·원문 링크']],
+  build:function(inc,title){return apiJ('/admin/api/news/blog',{ticker:tk,title:title,news_title:j.title_ko||ctx.title||'',source:ctx.source||'',url:ctx.url||'',kind:ctx.kind,ai_text:j.ai_text,stocks:st,inc:inc})},
+  onBuilt:function(){rs.blog=true;rs.copied=false;nrSteps()},onCopied:function(){rs.copied=true;nrSteps()}})}
 /* 분석 시작 */
 function nrPv(j){var x=el('div','nwPv');x.textContent='종목 '+j.stocks.length+'개 정리됨'+(j.stocks.length?': '+j.stocks.slice(0,6).map(function(s){return s.name}).join(', ')+(j.stocks.length>6?' 외':''):'')+' · 분석문 '+j.ai_text.length.toLocaleString()+'자';(j.warnings||[]).forEach(function(w){x.appendChild(el('div','m','⚠ '+w))});return x}
 function nrAI(ctx){if(!ftOk('ai')){lockDlg('ai');return}if(!window.MiniAI){toast('AI 도우미를 불러오지 못했어요. 새로고침해 주세요.');return}
@@ -2019,5 +2166,6 @@ def register():
                        endpoints=["/admin/api/news/url"])
     C.register_flow("news", "📰 뉴스분석", "① 뉴스를 누르거나 [전체 AI 총평]·URL 분석을 시작(직접 시작)", [
         {"id": "ai", "label": "② AI 분석", "desc": "시작하면 AI 요청문 창을 자동으로 열어요. 답변을 복사해 돌아오면 관련종목 표·그래프가 만들어져요."},
-        {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 분석이 끝나면 대시보드·관련종목 이미지를 자동으로 그려요."}])
+        {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 분석이 끝나면 대시보드·관련종목 이미지를 자동으로 그려요."},
+        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요(관리자 화면). 복사하고 블로그 열기는 직접 눌러요."}])
     return bp

@@ -949,18 +949,21 @@ function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML
  if(!MEMBER_MODE){var c9=dpSec(b,'blog','📝 블로그 글 쓰기','원본 방식 HTML'+((d.delisting&&d.delisting.level&&d.delisting.level!=='none')?' · ⚠ 위험 경고 자동 포함':''),'#16a34a');navAdd('blog','📝 글');var bx=el('div');c9.appendChild(bx);
  var secs=[['profile','기업현황'],['fin','5개년재무'],['score','체력진단'],['valu','밸류에이션'],['peers','PEER'],['check','체크리스트'],['supply','수급'],['disc','공시·뉴스'],['ai','AI분석'],['terms','용어풀이']];
  DP.blogPanel=window.BlogKit.panel(bx,{idp:'dp',key:'deepdive',kind:'deepdive',ticker:d.ticker,name:d.name,sections:secs,dup_warn:d.dup_warn,
-  build:function(inc,title){return apiJ('/admin/api/deep/blog',{ticker:d.ticker,peers:DP.peers[d.ticker]||[],ai:DP.ai[d.ticker]||'',inc:inc,title:title})},onBuilt:function(){DP.st.blog=true;dpSteps()},onLogged:function(z){d.dup_warn=z.dup_warn}})}
+  build:function(inc,title){return apiJ('/admin/api/deep/blog',{ticker:d.ticker,peers:DP.peers[d.ticker]||[],ai:DP.ai[d.ticker]||'',inc:inc,title:title})},onBuilt:function(){DP.st.blog=true;DP.st.copied=false;dpSteps()},onCopied:function(){DP.st.copied=true;dpSteps()},onLogged:function(z){d.dup_warn=z.dup_warn}})}
  if(DP._chain&&!MEMBER_MODE){DP._chain=0;MiniFlow.run('deep',DPFLOW,DPACTS)}}
 /* 단계 자동 진행([⚙ 설정] 의 단계 진행 방식): 분석이 열리면 AI → 이미지 → 블로그 글 순서로 설정대로 이어 간다 */
 function dpGo2(id){var e=$('dps_'+id);if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'})}
-function dpSteps(){var sp=$('dpSteps'),d=DP.d;if(!sp||!d)return;sp.innerHTML='';var ai=!!(DP.ai[d.ticker]||'').trim(),done=[true,ai,!!DP.st.img,!!DP.st.blog],cur2=-1;
- var L=[['분석 열기','불러옴 · 완료','1'],[MEMBER_MODE?'AI 요청문':'AI 정성 분석',ai?'글 있음 · 다시 만들기':'눌러서 시작','2'],[MEMBER_MODE?'요약 이미지':'이미지 만들기',done[2]?'완료 · 다시 만들기':'눌러서 만들기','3']];if(!MEMBER_MODE)L.push(['블로그 글 쓰기',done[3]?'완료 · 다시 만들기':'눌러서 만들기','4']);
+function dpSteps(){var sp=$('dpSteps'),d=DP.d;if(!sp||!d)return;sp.innerHTML='';var ai=!!(DP.ai[d.ticker]||'').trim(),done=[true,ai,!!DP.st.img,!!DP.st.blog,!!DP.st.copied],cur2=-1;
+ var L=[['분석 열기','불러옴 · 완료','1'],[MEMBER_MODE?'AI 요청문':'AI 정성 분석',ai?'글 있음 · 다시 만들기':'눌러서 시작','2'],[MEMBER_MODE?'요약 이미지':'이미지 만들기',done[2]?'완료 · 다시 만들기':'눌러서 만들기','3']];if(!MEMBER_MODE){L.push(['블로그 글 만들기',done[3]?'완료 · 다시 만들기':'눌러서 만들기','4']);L.push(['복사하고 블로그 쓰기',done[4]?'복사함 · 다시 복사':(done[3]?'눌러서 복사하고 열기':'글을 만든 뒤 눌러요'),'5'])}
  for(var i=0;i<L.length;i++){if(!done[i]){cur2=i;break}}
  L.forEach(function(a,i){var b=el('button',(done[i]?'done':'')+(i===cur2?' cur':''));b.setAttribute('data-noconfirm','1');b.appendChild(el('span','n',done[i]?'✓':a[2]));var t=el('span');t.appendChild(document.createTextNode(a[0]));t.appendChild(el('small',null,a[1]));b.appendChild(t);b.onclick=function(){dpStepRun(i)};sp.appendChild(b)})}
 function dpStepRun(i){var d=DP.d;if(!d)return;
  if(i===0){dpGo2('ax');return}
  if(i===1){dpGo2('ai');if(MEMBER_MODE&&(d.locked||[]).indexOf('ai')>=0){lockDlg('ai');return}dpAI(d);return}
  if(MEMBER_MODE){dpGo2('img');return}
+ if(i===4){dpGo2('blog');if(!DP.blogPanel){toast('블로그 구역을 불러오지 못했어요.');return}
+  if(!DP.blogPanel.built()){toast('먼저 블로그 글을 만들어요. 다 만들어지면 이 단계를 한 번 더 눌러 복사하세요.');DP.blogPanel.rebuild();return}
+  DP.blogPanel.copyOpen();return}
  MiniFlow.go('deep',DPFLOW,DPACTS,i===2?'img':'blog')}
 var DPFLOW=['ai','img','blog'];
 var DPACTS={
