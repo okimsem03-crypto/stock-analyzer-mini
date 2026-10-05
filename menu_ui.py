@@ -154,7 +154,7 @@ function helperVer(){return ownAttr()||topAttr()}
 function helperHas(){return !!helperVer()}
 function helperOn(){return helperHas()&&lsGet('mini_ai_helper')!=='0'}
 // 메뉴 화면은 메인 화면 안의 탭(iframe)으로 열리는데, 도우미는 맨 바깥 화면에만 붙어요 → 작업을 바깥 화면에 맡겼다가 결과를 다시 받아요(메인 화면의 중계)
-function helperPost(job){try{if(ownAttr())window.postMessage({miniHelper:'job',id:job.id,prompt:job.prompt,host:job.host},location.origin);else window.top.postMessage({miniRelay:'job',id:job.id,prompt:job.prompt,host:job.host},location.origin)}catch(e){}}
+function helperPost(job){try{if(ownAttr())window.postMessage({miniHelper:'job',id:job.id,prompt:job.prompt,host:job.host,open:job.open||''},location.origin);else window.top.postMessage({miniRelay:'job',id:job.id,prompt:job.prompt,host:job.host,open:job.open||''},location.origin)}catch(e){}}
 function newJob(){var a='abcdefghijklmnopqrstuvwxyz0123456789',o='';for(var i=0;i<12;i++)o+=a.charAt(Math.floor(Math.random()*a.length));return o}
 function openUrl(u){var a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();document.body.removeChild(a)}
 function ensureStyle(){if(document.getElementById('ma-style-flag'))return;var f=el('span');f.id='ma-style-flag';f.style.display='none';document.body.appendChild(f);
@@ -163,13 +163,23 @@ function ensureStyle(){if(document.getElementById('ma-style-flag'))return;var f=
  var s=document.createElement('style');if(nn)s.setAttribute('nonce',nn);s.textContent=window.__MA_CSS__;document.head.appendChild(s)}
 var cfgSite=null;
 function siteDefault(){var s=lsGet('mini_ai_site');if(s&&SITES[s])return s;return (cfgSite&&SITES[cfgSite])?cfgSite:'gemini'}
-fetch('/api/ui/config',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){cfgSite=j.ai_site}).catch(function(){});
+var cfgMode=null;
+var cfgP=fetch('/api/ui/config',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){cfgSite=j.ai_site;cfgMode=j.run_mode||'auto';return j}).catch(function(){return {}});
+// [v171] 관리자 로그인 + 서버 AI 키가 있는지(있으면 창 없이 서버가 AI를 대신 실행)
+var admP=null,admAt=0;
+function admInfo(){var now=Date.now();if(admP&&now-admAt<30000)return admP;admAt=now;
+ admP=fetch('/admin/api/whoami',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():{admin:false}}).then(function(w){if(!w||!w.admin)return {admin:false};
+  return fetch('/admin/api/ai/status',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():{}}).then(function(a){return {admin:true,csrf:w.csrf||'',server:!!a.server,provider:a.provider||'',mode:a.mode||'auto'}})}).catch(function(){return {admin:false}});return admP}
+function resolveMode(opt){return cfgP.then(function(){var m=lsGet('mini_ai_run')||cfgMode||'auto';if(opt&&opt.noAuto)m='manual';if(m==='manual')return {m:'manual'};
+  if(m==='auto')return admInfo().then(function(a){return (a.admin&&a.server&&lsGet('mini_ai_server')!=='0')?{m:'server',a:a}:{m:'browser'}});return {m:'browser'}})}
+var PROVN={gemini:'Gemini',anthropic:'Claude',openai:'OpenAI'};
 
 // opt: {title, steps:[{label, prompt}], minLen, hint, preview:function(text)->Promise<{ok,node|text,canApply}>, apply:function(text,step)->Promise<{message}>, autoApply, onClose}
 function run(opt){
  ensureStyle();
  var steps=(opt.steps||[]).filter(function(s){return s&&s.prompt});if(!steps.length)return;
  var cur=0,notice='',site=siteDefault(),armed=false,seen={},lastText='',busy=false,closed=false,doneSet={},curJob=null,gotMsg=false,hTm=null;
+ var autoOn=false,needClick=false,srvRun=0,retried={},lastMsg=null,aLive=null,runMode='manual',runInfo=null,autoNote='';
  var minLen=opt.minLen||60;
  var ov=el('div','ma-ov'),box=el('div','ma-box');ov.setAttribute('tabindex','-1');ov.appendChild(box);
  var h=el('div','ma-h');h.appendChild(el('b',null,opt.title||'AI로 분석하기'));var x=el('button','ma-x','✕');x.onclick=close;h.appendChild(x);box.appendChild(h);
@@ -180,10 +190,16 @@ function run(opt){
  function onKey(e){if(e.key==='Escape')close()}document.addEventListener('keydown',onKey);
  function drawDots(){dots.innerHTML='';if(steps.length<2)return;steps.forEach(function(s,i){var d=el('span','ma-dot'+(doneSet[i]?' done':(i===cur?' on':'')),(doneSet[i]?'✓ ':'')+(s.label||('프롬프트 '+(i+1))));dots.appendChild(d)})}
  var live,ta,pvBox,applyBtn,autoCb;
- function setLive(msg,kind,pulse){if(!live)return;live.className='ma-live'+(kind?' '+kind:'');live.innerHTML='';if(pulse)live.appendChild(el('span','ma-pulse'));live.appendChild(el('span',null,msg))}
+ function setLive(msg,kind,pulse){lastMsg={m:msg,k:kind,p:pulse};if(live){live.className='ma-live'+(kind?' '+kind:'');live.innerHTML='';if(pulse)live.appendChild(el('span','ma-pulse'));live.appendChild(el('span',null,msg))}
+  if(aLive&&autoOn){aLive.className='ma-live'+(kind?' '+kind:'');aLive.innerHTML='';if(pulse)aLive.appendChild(el('span','ma-pulse'));aLive.appendChild(el('span',null,msg))}}
  function draw(){
   drawDots();body.innerHTML='';var s=steps[cur];
   if(notice){body.appendChild(el('div','ma-live ok',notice));notice=''}
+  aLive=null;
+  if(autoOn){var ab=el('div','ma-step cur');var at=el('div');at.appendChild(el('span','ma-sn','🤖'));at.appendChild(el('span','ma-st','완전 자동 진행 중'+(steps.length>1?' ('+(cur+1)+'/'+steps.length+' · '+(s.label||'')+')':'')));ab.appendChild(at);
+   ab.appendChild(el('div','ma-d',autoNote||''));aLive=el('div','ma-live ok');ab.appendChild(aLive);
+   var ar=el('div','ma-row');var tm2=el('button','ma-btn','✋ 직접 진행하기');tm2.onclick=function(){toManual()};ar.appendChild(tm2);ab.appendChild(ar);body.appendChild(ab)}
+  var showS1=!autoOn||needClick,showS2=!autoOn,showS3=!autoOn;
   // 1) AI 열기
   var s1=el('div','ma-step'+(armed?'':' cur'));var t1=el('div');t1.appendChild(el('span','ma-sn','1'));t1.appendChild(el('span','ma-st','프롬프트 복사하고 AI 열기'));s1.appendChild(t1);
   var chips=el('div','ma-chips');Object.keys(SITES).forEach(function(k){var c=el('button','ma-chip'+(k===site?' on':''),SITES[k].i+' '+SITES[k].n);c.onclick=function(){site=k;lsSet('mini_ai_site',k);draw()};chips.appendChild(c)});s1.appendChild(chips);
@@ -196,12 +212,12 @@ function run(opt){
    var hr=el('button','ma-btn','🔄 다시 확인');hr.onclick=function(){if(helperHas()){draw()}else{hr.textContent='아직 감지 안 됨 — 새로고침이 필요해요'}};hn.appendChild(hr);hn.appendChild(document.createTextNode(' '));
    var ha=el('a',null,'설치·점검 방법');ha.href='/ai-helper';ha.target='_blank';ha.rel='noopener';hn.appendChild(ha);s1.appendChild(hn)}
   s1.appendChild(el('div','ma-d',helperOn()?SITES[site].n+' 새 탭이 열리면 도우미가 프롬프트 입력 → 전송 → 답변 복사까지 알아서 하고, 끝나면 탭을 닫으며 답변을 이 창으로 보내 줘요. 위쪽 🤖 띠에서 진행 상황을 볼 수 있어요.':(SITES[site].q&&encodeURIComponent(s.prompt).length<=PREFILL_MAX*3?SITES[site].n+'가 열리면 질문이 자동으로 입력됩니다. 입력이 비어 있으면 입력칸에 Ctrl+V 하세요.':SITES[site].n+'가 열리면 입력칸에 Ctrl+V(붙여넣기) 한 번만 하세요. 프롬프트는 이미 복사되어 있습니다.')));
-  body.appendChild(s1);
+  if(showS1)body.appendChild(s1);
   // 2) 답변 복사
   var s2=el('div','ma-step'+(armed?' cur':''));var t2=el('div');t2.appendChild(el('span','ma-sn','2'));t2.appendChild(el('span','ma-st','AI 답변을 복사하고 이 창으로 돌아오기'));s2.appendChild(t2);
   s2.appendChild(el('div','ma-d',opt.hint||'답변이 끝나면 답변 아래의 복사 버튼(또는 전체 선택 후 Ctrl+C)을 누르고 이 탭으로 돌아오세요. 돌아오는 순간 자동으로 읽어옵니다.'));
-  live=el('div','ma-live');s2.appendChild(live);setLive(armed?'AI 답변을 기다리는 중… 복사하고 이 탭으로 돌아오세요.':'위 버튼을 누르면 자동 감지가 시작됩니다.',null,armed);
-  var r2=el('div','ma-row');var pull=el('button','ma-btn','📥 클립보드에서 가져오기');pull.onclick=function(){pullClip(true)};r2.appendChild(pull);s2.appendChild(r2);body.appendChild(s2);
+  live=el('div','ma-live');s2.appendChild(live);if(!autoOn)setLive(armed?'AI 답변을 기다리는 중… 복사하고 이 탭으로 돌아오세요.':'위 버튼을 누르면 자동 감지가 시작됩니다.',null,armed);
+  var r2=el('div','ma-row');var pull=el('button','ma-btn','📥 클립보드에서 가져오기');pull.onclick=function(){pullClip(true)};r2.appendChild(pull);s2.appendChild(r2);if(showS2)body.appendChild(s2);
   // 3) 확인·적용
   var s3=el('div','ma-step');var t3=el('div');t3.appendChild(el('span','ma-sn','3'));t3.appendChild(el('span','ma-st','내용 확인하고 저장'));s3.appendChild(t3);
   ta=el('textarea','ma-ta');ta.placeholder='여기에 AI 답변이 자동으로 들어옵니다. 안 들어오면 이 칸을 누르고 Ctrl+V 하세요.';ta.value=lastText;
@@ -210,16 +226,42 @@ function run(opt){
   var pv=el('button','ma-btn','미리보기');pv.onclick=function(){preview(ta.value)};r3.appendChild(pv);
   applyBtn=el('button','ma-btn p','저장');applyBtn.setAttribute('data-noconfirm','1');applyBtn.disabled=true;applyBtn.onclick=function(){doApply()};r3.appendChild(applyBtn);s3.appendChild(r3);
   if(opt.apply){var sw=el('label','ma-sw');autoCb=el('input');autoCb.type='checkbox';var _av=lsGet('mini_ai_auto_'+(opt.key||'x'));autoCb.checked=(_av===null)?true:(_av==='1')||!!opt.autoApply;autoCb.onchange=function(){lsSet('mini_ai_auto_'+(opt.key||'x'),autoCb.checked?'1':'0')};sw.appendChild(autoCb);sw.appendChild(el('span',null,'답변을 읽으면 확인 없이 바로 저장 (저장되면 "✅ 저장 완료"로 바뀌어요)'));s3.appendChild(sw)}
-  body.appendChild(s3);if(lastText)preview(lastText,true)}
- function openAI(s){var ok=copyText(s.prompt);var S=SITES[site],u=S.u,viaHelper=false;
-  if(helperOn()){curJob=newJob();var hostN='';try{hostN=new URL(S.u).hostname}catch(e){}helperPost({id:curJob,prompt:s.prompt,host:hostN});gotMsg=false;clearTimeout(hTm);
+  if(showS3)body.appendChild(s3);if(lastText)preview(lastText,true);
+  if(autoOn&&lastMsg)setLive(lastMsg.m,lastMsg.k,lastMsg.p)}
+ function openAI(s,auto){var ok=copyText(s.prompt);var S=SITES[site],u=S.u,viaHelper=false,blocked=false;
+  var hv=helperVer(),hOpen=helperOn()&&hv&&verGE(hv,'1.5.0');
+  if(helperOn()){curJob=newJob();var hostN='';try{hostN=new URL(S.u).hostname}catch(e){}
    var pl='';try{if(s.prompt.length<=24000)pl='&p='+btoa(unescape(encodeURIComponent(s.prompt))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(e){pl=''}
-   var w=null;try{w=window.open(S.u+'#miniai='+curJob+pl,'_blank')}catch(e){w=null}
-   if(w){viaHelper=true;var jb=curJob;hTm=setTimeout(function(){if(!gotMsg&&!closed&&curJob===jb)setLive('⚠ 20초가 지나도 도우미 응답이 없어요. 프롬프트는 복사돼 있으니 '+S.n+' 입력칸에 Ctrl+V 해서 이어가세요. 도우미가 동작하게 하려면: ① 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’ ② 같은 곳의 ‘사용자 스크립트 허용’ 켜기 ③ 열려 있는 AI 탭을 새로고침 ④ 이 화면도 새로고침 후 다시 시도.','bad')},20000)}else{curJob=null;openUrl(S.u)}}
-  else{if(S.q){var enc=encodeURIComponent(s.prompt);if(enc.length<=PREFILL_MAX*3)u=S.q+enc}openUrl(u)}
-  armed=true;seen[norm(s.prompt)]=1;draw();
+   var tabUrl=S.u+'#miniai='+curJob+pl;
+   helperPost({id:curJob,prompt:s.prompt,host:hostN,open:hOpen?tabUrl:''});gotMsg=false;clearTimeout(hTm);
+   var w=null;if(hOpen)w=true;else{try{w=window.open(tabUrl,'_blank')}catch(e){w=null}}
+   if(w){viaHelper=true;var jb=curJob;hTm=setTimeout(function(){if(!gotMsg&&!closed&&curJob===jb)setLive('⚠ 20초가 지나도 도우미 응답이 없어요. 프롬프트는 복사돼 있으니 '+S.n+' 입력칸에 Ctrl+V 해서 이어가세요. 도우미가 동작하게 하려면: ① 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’ ② 같은 곳의 ‘사용자 스크립트 허용’ 켜기 ③ 열려 있는 AI 탭을 새로고침 ④ 이 화면도 새로고침 후 다시 시도.','bad')},20000)}else{curJob=null;blocked=!tryOpen(u)}}
+  else{var pre=false;if(S.q){var enc=encodeURIComponent(s.prompt);if(enc.length<=PREFILL_MAX*3){u=S.q+enc;pre=true}}
+   if(auto&&!ok&&!pre){blocked=true}else blocked=!tryOpen(u)}
+  if(blocked&&auto){needClick=true;armed=false;draw();setLive('⚠ 브라우저가 새 탭 열기(또는 복사)를 막았어요. 아래 버튼을 한 번만 눌러 주세요 — 그다음부터는 자동이에요. (주소창 오른쪽 ‘팝업 차단됨’ 아이콘 → 이 사이트 항상 허용 → 다음부터는 누를 필요도 없어요)','bad');return}
+  needClick=false;armed=true;seen[norm(s.prompt)]=1;draw();
   if(viaHelper)setLive('🤖 도우미가 '+S.n+' 탭에서 진행 중이에요 — 입력·전송·답변 복사가 끝나면 자동으로 돌아와요. (안 되면 직접 Ctrl+V)','ok',true);
+  else if(auto)setLive(ok||pre?'📋 '+S.n+'가 열렸어요 — 답변이 끝나면 복사 버튼만 누르고 이 탭으로 돌아오세요. 나머지(읽기·저장·다음 단계)는 자동이에요.':'복사가 막혔어요. 아래 [프롬프트 보기]에서 직접 복사해 주세요.',ok||pre?'ok':'bad',ok||pre);
   else setLive(ok?'📋 프롬프트 복사 완료 — '+S.n+'에서 답변을 받은 뒤 복사하고 돌아오세요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',ok?'ok':'bad',ok)}
+ function tryOpen(u){var w=null;try{w=window.open('about:blank','_blank');if(w){try{w.opener=null}catch(e){}w.location.href=u;return true}}catch(e){}return false}
+ // ── [v171] 완전 자동: 서버 AI(관리자+API 키) → 창 없이 실행 / 아니면 AI 사이트를 자동으로 열어 진행 ──
+ function toManual(){srvRun++;autoOn=false;needClick=false;draw();if(!armed)setLive('직접 진행 모드예요. 위 버튼을 누르면 자동 감지가 시작됩니다.',null,false)}
+ function postJ(u,o){return fetch(u,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':(runInfo&&runInfo.csrf)||''},body:JSON.stringify(o||{})}).then(function(r){return r.json().catch(function(){return {}}).then(function(j){if(!r.ok&&!j.error)j.error='HTTP '+r.status;return j})})}
+ function runServer(s,extra){var tok=++srvRun;var pn=PROVN[runInfo&&runInfo.provider]||'AI';autoNote='서버가 '+pn+'로 직접 분석해요. 새 창·복사·붙여넣기 없이 끝까지 자동으로 진행돼요(보통 20~90초).';armed=false;draw();
+  var t0=Date.now();setLive('🤖 '+pn+'가 분석 중이에요…','ok',true);
+  postJ('/admin/api/ai/start',{prompt:s.prompt+(extra||''),max_tokens:opt.maxTokens||12000}).then(function(j){if(tok!==srvRun||closed)return;if(!j.job)throw new Error(j.error||'시작하지 못했어요');poll(j.job,tok,t0,0)}).catch(function(e){if(tok!==srvRun||closed)return;srvFail(String((e&&e.message)||e),s)})}
+ function poll(id,tok,t0,n){setTimeout(function(){if(tok!==srvRun||closed)return;
+   fetch('/admin/api/job/'+id,{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(tok!==srvRun||closed)return;
+    if(j.status==='running'){setLive('🤖 '+(PROVN[runInfo&&runInfo.provider]||'AI')+'가 분석 중이에요… '+Math.round((Date.now()-t0)/1000)+'초','ok',true);if(n>200)return srvFail('응답이 너무 오래 걸려요',steps[cur]);return poll(id,tok,t0,n+1)}
+    if(j.status==='done'&&j.result&&j.result.text){lastRaw=j.result.text;onText(String(j.result.text).trim(),false,true);return}
+    srvFail((j.errors&&j.errors[0])||j.error||'AI 응답 실패',steps[cur])}).catch(function(){if(tok!==srvRun||closed)return;if(n>200)srvFail('응답을 받지 못했어요',steps[cur]);else poll(id,tok,t0,n+1)})},n===0?1500:2500)}
+ var lastRaw='';
+ function srvFail(msg,s){srvRun++;
+  // 서버 AI가 안 되면 AI 사이트를 자동으로 열어 이어가기(브라우저 자동)
+  runMode='browser';autoNote='서버 AI가 안 돼서(' + String(msg).slice(0,80) + ') AI 사이트를 자동으로 열어 진행해요.';setLive('⚠ 서버 AI 실패 — AI 사이트로 자동 전환합니다…','bad');openAI(s||steps[cur],true)}
+ function startAuto(){if(closed||!autoOn)return;var s=steps[cur];retried[cur]=retried[cur]||0;
+  if(runMode==='server')runServer(s);else{autoNote=(helperOn()?'도우미가 AI 사이트에서 입력·전송·답변 복사까지 자동으로 해요.':'AI 사이트가 자동으로 열려요. 답변이 끝나면 복사 버튼만 누르고 이 탭으로 돌아오세요 — 읽기·저장·다음 단계는 자동이에요.');openAI(s,true)}}
+ function bootAuto(){resolveMode(opt).then(function(r){if(closed)return;runMode=r.m;runInfo=r.a||null;if(r.m==='manual'){if(autoOn){autoOn=false;draw()}return}autoOn=true;startAuto()})}
  function onMsg(e){if(closed||(e.source!==window&&e.source!==window.top)||e.origin!==location.origin)return;var d=e.data;if(!d||!d.miniHelper||!curJob||d.id!==curJob)return;gotMsg=true;clearTimeout(hTm);
   if(d.miniHelper==='status'){if(armed)setLive('🤖 '+d.msg,'ok',true);return}
   if(d.miniHelper==='result'){if(d.error){setLive('🤖 자동 진행이 멈췄어요('+d.error+'). 프롬프트는 복사돼 있어요 — AI 입력칸에 Ctrl+V 하고 직접 이어가세요.','bad');return}
@@ -247,8 +289,16 @@ function run(opt){
  function onVis(){if(document.visibilityState==='visible'){hinted=false;onBack()}}
  var wTm=setInterval(function(){if(closed){clearInterval(wTm);return}if(!armed||busy||lastText||document.visibilityState!=='visible')return;takeFocus();pullClip(false,0,true)},1000);
  window.addEventListener('focus',onBack);document.addEventListener('visibilitychange',onVis);window.addEventListener('pageshow',onBack);document.addEventListener('pointerdown',onPtr,true);
- function onText(t,fromPaste){if(!t)return;t=stripPrompt(t);lastText=t;if(ta){ta.value=t;ta.classList.remove('glow')}seen[norm(t)]=1;setLive('✅ 답변을 읽어왔어요. 아래 내용을 확인하세요.','ok');
-  preview(t,true).then(function(r){if(r&&r.canApply&&r.strict!==false&&opt.apply&&autoCb&&autoCb.checked)doApply()})}
+ function onText(t,fromPaste,fromSrv){if(!t)return;t=stripPrompt(t);lastText=t;if(ta){ta.value=t;ta.classList.remove('glow')}seen[norm(t)]=1;setLive(autoOn?'✅ 답변을 받았어요 — 확인하고 저장하는 중…':'✅ 답변을 읽어왔어요. 아래 내용을 확인하세요.','ok',autoOn);
+  preview(t,true).then(function(r){
+   if(closed)return;
+   if(r&&r.canApply&&opt.apply){if(autoOn||(r.strict!==false&&autoCb&&autoCb.checked))doApply();return}
+   if(autoOn)autoFail(r,fromSrv)})}
+ // 답변 형식이 안 맞을 때: 서버 AI면 한 번 더 요청, 그래도 안 되면(또는 브라우저 방식이면) 직접 확인하도록 넘김
+ function autoFail(r,fromSrv){var why=(r&&r.text)||'답변 형식을 읽지 못했어요.';
+  if(fromSrv&&runMode==='server'&&!retried[cur]){retried[cur]=1;lastText='';setLive('⚠ '+why+' — 서버 AI에 형식을 다시 지켜 달라고 한 번 더 요청해요…','bad',true);
+   runServer(steps[cur],'\n\n[주의] 직전 응답은 위에서 요구한 출력 형식을 지키지 못했습니다. 설명·사과 없이, 요구한 형식 그대로만 다시 출력하세요.');return}
+  autoOn=false;needClick=false;notice='⚠ 자동 저장을 못 했어요 — '+why+' 내용을 확인하고 [저장]을 눌러 주세요.';draw()}
  function preview(t,quiet){if(!opt.preview){if(applyBtn)applyBtn.disabled=!t;return Promise.resolve({canApply:!!t})}
   if(!t||!t.trim()){if(!quiet)setLive('답변 내용이 비어 있어요.','bad');return Promise.resolve(null)}
   return Promise.resolve(opt.preview(t,steps[cur])).then(function(r){r=r||{};pvBox.innerHTML='';if(r.node){var w=el('div','ma-pv');w.appendChild(r.node);pvBox.appendChild(w)}else if(r.text){pvBox.appendChild(el('div','ma-live'+(r.canApply?' ok':' bad'),r.text))}
@@ -258,17 +308,21 @@ function run(opt){
    var msg=r.message||'저장했어요.';
    if(applyBtn){applyBtn.textContent='✅ 저장 완료';applyBtn.classList.add('okd')}if(ta)ta.readOnly=true;setLive('✅ '+msg,'ok');
    setTimeout(function(){busy=false;if(closed)return;
-    if(cur<steps.length-1){cur++;armed=false;lastText='';notice='✅ '+msg+' — 이제 아래 '+(steps[cur].label||'다음')+' 단계를 진행하세요.';draw()}
+    if(cur<steps.length-1){cur++;armed=false;lastText='';if(autoOn){notice='✅ '+msg;draw();startAuto()}else{notice='✅ '+msg+' — 이제 아래 '+(steps[cur].label||'다음')+' 단계를 진행하세요.';draw()}}
+    else if(autoOn&&opt.autoClose!==false){close()}
     else{drawDots();body.innerHTML='';var d=el('div','ma-step done');d.appendChild(el('div','ma-st','🎉 '+msg));var b=el('button','ma-btn p','닫기');b.style.marginTop='12px';b.onclick=close;d.appendChild(b);body.appendChild(d);armed=false}},1200)})
   .catch(function(){busy=false;if(applyBtn){applyBtn.disabled=false;applyBtn.textContent='저장'}setLive('저장 중 오류가 났어요. 다시 [저장]을 눌러 주세요.','bad')})}
+ autoOn=!opt.noAuto&&((lsGet('mini_ai_run')||cfgMode||'auto')!=='manual');autoNote='AI 실행 방식을 확인하는 중…';lastMsg={m:'🤖 자동 진행을 준비하고 있어요…',k:'ok',p:true};
  draw();
+ if(!opt.noAuto)bootAuto();
  return {close:close};
 }
 function verGE(a,b){var x=String(a||'0').split('.'),y=String(b).split('.');for(var i=0;i<3;i++){var p=parseInt(x[i]||0,10),q=parseInt(y[i]||0,10);if(p!==q)return p>q}return true}
 // 블로그 글쓰기 화면에 넣을 내용(제목·상단 이미지·본문)을 도우미에게 맡긴다. 돌려주는 값: sent | off | none(도우미 없음) | old(옛 버전) | err
 function blogSend(job){try{if(lsGet('mini_blog_paste')==='0')return 'off';var v=helperVer();if(!v)return 'none';if(!verGE(v,'1.4.0'))return 'old';
- var id=newJob(),m={id:id,title:job.title||'',html:job.html||'',img:job.img||''};
- if(ownAttr())window.postMessage({miniHelper:'blogjob',id:m.id,title:m.title,html:m.html,img:m.img},location.origin);else window.top.postMessage({miniRelay:'blogjob',id:m.id,title:m.title,html:m.html,img:m.img},location.origin);return 'sent'}catch(e){return 'err'}}
+ var op=(verGE(v,'1.5.0')&&job.open&&/^https:\/\/([a-z0-9-]+\.)?blog\.naver\.com\//.test(String(job.open)))?String(job.open):'';
+ var id=newJob(),m={id:id,title:job.title||'',html:job.html||'',img:job.img||'',open:op};
+ if(ownAttr())window.postMessage({miniHelper:'blogjob',id:m.id,title:m.title,html:m.html,img:m.img,open:m.open},location.origin);else window.top.postMessage({miniRelay:'blogjob',id:m.id,title:m.title,html:m.html,img:m.img,open:m.open},location.origin);return op?'sentopen':'sent'}catch(e){return 'err'}}
 window.MiniAI={run:run,copy:copyText,sites:SITES,blogSend:blogSend,helperVer:helperVer};
 // 점수 오해 방지: '체력지표'가 기업 평가점수가 아님을 알리는 짧은 안내 + 자세히 보기 창
 var SCORE_TXT={deep:{calc:'수익성 25% + 안정성 20% + 성장성 20% + 거버넌스 15% + 밸류에이션 20% 를 합친 값(0~100)이에요. 각 축은 공개된 5개년 재무·시세 숫자를 정해진 규칙으로 점수화해요.'},
@@ -387,7 +441,7 @@ def _js_str(s):
 HELPER_JS = r"""// ==UserScript==
 // @name         종목분석 미니 · AI 도우미
 // @namespace    __ORIGIN__
-// @version      1.4.0
+// @version      1.5.0
 // @updateURL    __ORIGIN__/assets/mini-ai-helper.user.js
 // @downloadURL  __ORIGIN__/assets/mini-ai-helper.user.js
 // @description  종목분석 미니에서 [AI 열기]를 누르면 AI 사이트에서 프롬프트 입력 → 전송 → 답변 복사 → 탭 닫기까지 자동으로 해 주고, 블로그 글쓰기 화면이 열리면 제목·상단 이미지·본문을 자동으로 넣어 줍니다(발행은 직접).
@@ -403,15 +457,16 @@ HELPER_JS = r"""// ==UserScript==
 // @grant        GM_deleteValue
 // @grant        GM_addValueChangeListener
 // @grant        GM_setClipboard
+// @grant        GM_openInTab
 // @run-at       document-start
 // ==/UserScript==
-/* 종목분석 미니 AI 도우미 v1.4.0
+/* 종목분석 미니 AI 도우미 v1.5.0
  * · 종목분석 미니 화면에서 보낸 작업(프롬프트)만 처리합니다. 다른 경로로 열린 AI 화면은 건드리지 않아요.
  * · 이 스크립트는 사용자의 브라우저 안에서만 동작하며, 로그인 정보·대화 내용을 어디로도 보내지 않습니다.
  * · AI 사이트 화면이 개편되면 자동 진행이 멈출 수 있어요. 그때는 프롬프트가 복사돼 있으니 직접 붙여넣으면 됩니다. */
 (function () {
   'use strict';
-  var ORIGIN = '__ORIGIN__', VER = '1.4.0';
+  var ORIGIN = '__ORIGIN__', VER = '1.5.0';
   function gget(k) { try { return Promise.resolve(GM_getValue(k, null)); } catch (e) { return Promise.resolve(null); } }
   function gset(k, v) { try { return Promise.resolve(GM_setValue(k, v)); } catch (e) { return Promise.resolve(); } }
   function gdel(k) { try { return Promise.resolve(GM_deleteValue(k)); } catch (e) { return Promise.resolve(); } }
@@ -428,11 +483,20 @@ HELPER_JS = r"""// ==UserScript==
       var d = e.data;
       if (d && d.miniHelper === 'blogjob' && d.id && d.html) {   /* 블로그 글쓰기 화면에 넣을 내용(제목·상단 이미지·본문) */
         gset('blogjob', { id: String(d.id), title: String(d.title || ''), html: String(d.html), img: String(d.img || ''), ts: Date.now() });
+        try {   /* v1.5.0: 블로그 글쓰기 탭도 도우미가 직접 열어요(팝업 차단 없음). 네이버 블로그 주소만 허용 */
+          var bu = String(d.open || '');
+          if (bu && /^https:\/\/([a-z0-9-]+\.)?blog\.naver\.com\//.test(bu)) GM_openInTab(bu, { active: true, insert: true, setParent: true });
+        } catch (e) {}
         return;
       }
       if (!d || d.miniHelper !== 'job' || !d.id || !d.prompt) return;
       gdel('result'); gdel('status');
       gset('job', { id: String(d.id), prompt: String(d.prompt), host: String(d.host || ''), ts: Date.now() });
+      /* v1.5.0: 클릭 없이(자동 진행 중에도) AI 탭을 직접 열어요 — 브라우저 팝업 차단을 받지 않아요. 주소는 AI 사이트(https)만 허용 */
+      try {
+        var ou = String(d.open || '');
+        if (ou && /^https:\/\/(gemini\.google\.com|chatgpt\.com|claude\.ai|www\.perplexity\.ai)\//.test(ou)) GM_openInTab(ou, { active: true, insert: true, setParent: true });
+      } catch (e) {}
     });
     try {
       GM_addValueChangeListener('result', function (n, o, v, remote) {
@@ -924,13 +988,15 @@ def helper_page():
         '<li>아래 <b>[도우미 설치]</b> 버튼을 누르면 Tampermonkey 설치 화면이 떠요 → [설치].</li>'
         '<li>크롬 <code>chrome://extensions</code> → Tampermonkey [세부정보] → <b>‘사이트 액세스’를 ‘모든 사이트에서’</b>로 바꿔요(‘클릭 시’나 특정 사이트면 제미나이 등에서 동작하지 않아요).</li>'
         '<li>이 사이트를 새로고침한 뒤, AI 창에서 [AI 열기]를 눌러 보세요. 새로 열린 AI 화면 위쪽에 🤖 안내 띠가 나오면 성공이에요.</li></ol>'
+        '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:12px 14px;margin:6px 0 14px;font-size:13.5px;line-height:1.8">'
+        '<b>🤖 완전 자동 진행 (v1.5.0~)</b><br>이제 AI 분석 버튼을 누르면 창에서 또 누를 필요 없이 <b>AI 탭이 저절로 열리고</b>(팝업 차단을 받지 않아요) 입력·전송·답변 복사·저장·다음 단계까지 이어져요. 관리자 로그인 상태에서 서버에 AI API 키가 있으면 도우미 없이도 서버가 직접 분석해 줘요. 이 기능은 도우미를 <b>다시 설치(업데이트)</b>해야 켜져요.</div>'
         '<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:12px;padding:12px 14px;margin:6px 0 14px;font-size:13.5px;line-height:1.8">'
         '<b>✍ 블로그 자동 입력 (v1.4.0~)</b><br>글 만들기 뒤 [복사하고 블로그 열기]를 누르면, 열린 <b>네이버 글쓰기 화면</b>에 도우미가 <b>제목 → 본문 맨 위 대표 이미지 → 본문</b>을 자동으로 넣어요. <b>발행은 직접</b> 눌러요. 안 들어가면 안내 띠가 뜨고, 복사돼 있으니 본문을 눌러 Ctrl+V 하면 돼요. 끄려면 브라우저 콘솔에서 <code>localStorage.setItem(\'mini_blog_paste\',\'0\')</code>. 이 기능은 도우미를 <b>다시 설치(업데이트)</b>해야 켜져요.</div>'
         '<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:12px 14px;margin:6px 0 14px;font-size:13.5px;line-height:1.8">'
         '<b>🔧 설치했는데 자동으로 안 될 때 (순서대로 확인)</b><br>'
         '① 위 ‘설치 여부’가 ✅ 로 나오는지 — 안 나오면 이 화면을 새로고침(Ctrl+F5)<br>'
         '② Tampermonkey [세부정보]에서 <b>사용자 스크립트 허용 ON</b>, <b>사이트 액세스 = 모든 사이트에서</b><br>'
-        '③ Tampermonkey 대시보드에서 ‘종목분석 미니 · AI 도우미’가 <b>켜짐</b>(파란 스위치)인지, 버전이 <b>1.4.0</b>인지 — 아니면 아래 [도우미 설치]를 다시 눌러 ‘업데이트/재설치’<br>'
+        '③ Tampermonkey 대시보드에서 ‘종목분석 미니 · AI 도우미’가 <b>켜짐</b>(파란 스위치)인지, 버전이 <b>1.5.0</b>인지 — 아니면 아래 [도우미 설치]를 다시 눌러 ‘업데이트/재설치’<br>'
         '④ AI 사이트(제미나이 등)에 <b>로그인</b>된 상태인지, 이미 열려 있던 AI 탭은 새로고침<br>'
         '⑤ 그래도 안 되면: [AI 열기] 때 프롬프트는 이미 복사돼 있으니 AI 입력칸에 Ctrl+V → 전송 → 답변 복사 후 이 창으로 돌아오면 기존 방식으로 가져와요.</div>'
         '<p><a class="mu-btn" href="/assets/mini-ai-helper.user.js" style="display:inline-block;padding:10px 18px;border-radius:12px;background:#2457d6;color:#fff;font-weight:700;text-decoration:none">⬇ 도우미 설치</a></p>'
@@ -941,7 +1007,7 @@ def helper_page():
         '</div></div>'
     )
     script = ("function ahChk(last){var s=document.documentElement.getAttribute('data-mini-helper');var e=document.getElementById('ahState');"
-              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<4);e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.4.0)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
+              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5);e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.0)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
               "ahChk(false);setTimeout(function(){ahChk(false)},300);setTimeout(function(){ahChk(true)},1200);")
     resp = C.app.make_response(page("AI 도우미", body, icon="🤖", subtitle="AI 입력·전송·답변 복사를 자동으로 해 주는 선택 도구", script=script))
     resp.headers["Cache-Control"] = "no-cache"
@@ -950,7 +1016,7 @@ def helper_page():
 
 @bp.route("/api/ui/config")
 def ui_config():
-    resp = jsonify({"ai_site": ai_site(), "ai_sites": {k: v["name"] for k, v in AI_SITES.items()}})
+    resp = jsonify({"ai_site": ai_site(), "run_mode": (C.setting_get("ai_run_mode") if C.setting_get("ai_run_mode") in ("auto", "browser", "manual") else "auto"), "ai_sites": {k: v["name"] for k, v in AI_SITES.items()}})
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
