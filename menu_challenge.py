@@ -1703,7 +1703,7 @@ var CH_CSS='.chHd{padding:14px 16px}.chHd h2{margin:0 0 4px;font-size:18px}.chSt
 '.chNav button.chOn{background:#4338ca;border-color:#4338ca;color:#fff}'+
 '.chW{overflow-x:auto;-webkit-overflow-scrolling:touch}.chT{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff}.chT th{background:#eef2ff;white-space:nowrap}.chT th.chSrt{cursor:pointer}.chT td{word-break:keep-all;vertical-align:middle}'+
 '.chT td.r,.chT th.r{text-align:right;white-space:nowrap}.chT tr.chDt td{background:#f8fafc}.chT .nm{font-weight:800;color:#0f172a}.chT .sb{font-size:11px;color:#94a3b8;margin-top:1px}.chT tr.chSelR td{background:#f5f3ff}'+
-'.chUp{color:#dc2626;font-weight:700}.chDn{color:#2563eb;font-weight:700}.chZ{color:#94a3b8}.chSc{font-size:16px;font-weight:900;color:#0f172a}'+
+'.chUp{color:#e11d48;font-weight:700}.chDn{color:#2563eb;font-weight:700}.chZ{color:#94a3b8}.chSc{font-size:16px;font-weight:900;color:#0f172a}'+
 '.chGr{display:inline-block;color:#fff;font-size:10.5px;font-weight:900;padding:2px 7px;border-radius:5px;margin-left:4px}'+
 '.chSg{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 6px;border-radius:5px;margin:0 3px 3px 0;white-space:nowrap}'+
 '.chBd{display:inline-block;font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;margin:0 4px 3px 0;white-space:nowrap;border:1px solid #e2e8f0}'+
@@ -1762,7 +1762,7 @@ function chPriceSvg(it){var c=it.chart;if(!c||!c.c||c.c.length<2)return null;var
  chSe(s,'circle',{cx:hx,cy:hy,r:'3.6',fill:'#dc2626'});chSe(s,'text',{x:Math.max(26,Math.min(hx,W-R-30)),y:Math.max(10,hy-6),'font-size':'10','text-anchor':'middle',fill:'#dc2626','font-weight':'700'},'고점 '+(c.dh||'').slice(5));
  if(c.lo!==c.hi&&c.lo<n-1){chSe(s,'circle',{cx:lx,cy:ly,r:'3.6',fill:'#2563eb'});chSe(s,'text',{x:Math.max(16,Math.min(lx,W-R-16)),y:Math.min(H-B-3,ly+13),'font-size':'10','text-anchor':'middle',fill:'#2563eb','font-weight':'700'},'저점')}
  chSe(s,'circle',{cx:ex,cy:ey,r:'3.6',fill:'#0f172a'});chSe(s,'line',{x1:W-R+4,x2:W-R+4,y1:Y(hi),y2:ey,stroke:'#dc2626','stroke-width':'1.5'});
- chSe(s,'text',{x:W-R+9,y:(Y(hi)+ey)/2+3,'font-size':'11','font-weight':'800',fill:'#dc2626'},chPct(it.dd,1));
+ chSe(s,'text',{x:W-R+9,y:(Y(hi)+ey)/2+3,'font-size':'11','font-weight':'800',fill:'#2563eb'},chPct(it.dd,1));
  chSe(s,'text',{x:W-R+9,y:Math.max(12,ey-5),'font-size':'10',fill:'#0f172a'},chN(it.price)+'원');
  chSe(s,'text',{x:L,y:H-6,'font-size':'10',fill:'#94a3b8'},(c.d0||'').slice(2));chSe(s,'text',{x:W-R,y:H-6,'font-size':'10','text-anchor':'end',fill:'#94a3b8'},(c.d1||'').slice(2));
  chSe(s,'text',{x:W-R-4,y:T-4,'font-size':'10','text-anchor':'end',fill:'#f59e0b'},'┅ 20일선');return s}
@@ -1781,7 +1781,7 @@ function chFlowSvg(it){var f=it.flow;if(!f||!f.length)return null;var W=340,H=13
 function chThemeSvg(it){var th=it.themes;if(!th||!th.length)return null;var W=340,rh=24,T=6,H=T+rh*th.length+6,s=chSv(W,H),cx=200,mx=3;th.forEach(function(t){if(t.rate!=null)mx=Math.max(mx,Math.abs(t.rate))});
  chSe(s,'line',{x1:cx,x2:cx,y1:T-2,y2:H-4,stroke:'#cbd5e1'});
  th.forEach(function(t,i){var y=T+rh*i,nm=String(t.name||'');if(nm.length>11)nm=nm.slice(0,10)+'…';chSe(s,'text',{x:4,y:y+15,'font-size':'11',fill:'#334155','font-weight':i===0?'800':'500'},nm);
-  var r=t.rate==null?0:t.rate,w=Math.abs(r)/mx*(W-cx-48);chSe(s,'rect',{x:r>=0?cx:cx-w,y:y+4,width:Math.max(w,1),height:14,fill:r>=0?'#dc2626':'#2563eb',opacity:'0.8'});
+  var r=t.rate==null?0:t.rate,w=Math.abs(r)/mx*(W-cx-48);chSe(s,'rect',{x:r>=0?cx:cx-w,y:y+4,width:Math.max(w,1),height:14,fill:r>=0?'#e11d48':'#2563eb',opacity:'0.8'});
   chSe(s,'text',{x:W-4,y:y+15,'font-size':'11','text-anchor':'end',fill:'#0f172a','font-weight':'800'},t.rate==null?'-':chPct(t.rate,2))});
  return s}
 function chSparkSvg(h){if(!h||h.length<2)return null;var W=340,H=46,L=6,R=40,T=8,B=14,n=h.length,mx=0,mn=0;h.forEach(function(p){mx=Math.max(mx,p[1]);mn=Math.min(mn,p[1])});if(mx===mn){mx+=1;mn-=1}
@@ -2149,7 +2149,7 @@ function charts(items,date,scale){var list=items.filter(function(i){return i.cha
   dot(ch.hi,'#dc2626');if(ch.lo!==ch.hi&&ch.lo<n-1)dot(ch.lo,'#2563eb');dot(n-1,'#0f172a');
   T(c,'고점',Math.max(L+20,Math.min(X(ch.hi),R-20)),Math.max(Tp-4,Y(ch.c[ch.hi])-12),{s:15,w:800,c:'#dc2626',a:'center'});
   c.fillStyle='#dc2626';c.fillRect(R+14,Math.min(Y(hi),Y(ch.c[n-1])),3,Math.abs(Y(ch.c[n-1])-Y(hi)));
-  T(c,pc(it.dd),R+24,(Y(hi)+Y(ch.c[n-1]))/2+8,{s:24,w:900,c:'#dc2626'});T(c,N(it.price)+'원',R+24,Math.max(Tp+10,Y(ch.c[n-1])-12),{s:16,w:600,c:INK});
+  T(c,pc(it.dd),R+24,(Y(hi)+Y(ch.c[n-1]))/2+8,{s:24,w:900,c:'#2563eb'});T(c,N(it.price)+'원',R+24,Math.max(Tp+10,Y(ch.c[n-1])-12),{s:16,w:600,c:INK});
   T(c,(ch.d0||'').slice(2),L,y+262,{s:14,w:600,c:'#94a3b8'});T(c,(ch.d1||'').slice(2),R,y+262,{s:14,w:600,c:'#94a3b8',a:'right'});T(c,'┅ 20일선',(L+R)/2,y+262,{s:14,w:600,c:'#f59e0b',a:'center'});
   badge(c,x+24,y+274,56,52,'재무',it.fin_st);badge(c,x+86,y+274,56,52,'수급',it.flow_st);badge(c,x+148,y+274,56,52,'테마',it.theme_st);
   if(it.rebound!=null)T(c,'저점 대비 '+pc(it.rebound),x+CW-24,y+314,{s:19,w:700,c:MUT,a:'right'})});

@@ -8,7 +8,7 @@ TOKENS = """
 :root{
   --navy:#0f2342; --navy2:#1a3763; --gold:#b98a2e;
   --ac:#2457d6; --ac2:#1b45b8; --acs:#eef3ff;
-  --up:#e5384d; --down:#2f6bf2;
+  --up:#e11d48; --down:#2563eb;
   --bg:#f5f6f9; --card:#ffffff; --border:#e4e7ee; --line2:#eef0f5;
   --text:#141b2b; --text2:#475266; --muted:#7a8497;
   --good:#16a34a; --warn:#d97706; --bad:#e5384d;

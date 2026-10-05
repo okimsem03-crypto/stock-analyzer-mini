@@ -934,7 +934,7 @@ def _list_table(rows, top=40):
     for i, r in enumerate(rows[:top], 1):
         sc = r["score"]
         pill = f'<span style="background-color:{"#dc2626" if sc >= 70 else "#ea580c" if sc >= 60 else "#16a34a" if sc >= 50 else "#6b7280"};color:#ffffff;font-weight:900;font-size:12px;padding:2px 8px;border-radius:10px;">{sc}</span>'
-        al = {"정배열": "#15803d", "역배열": "#dc2626"}.get(r["align"], "#6b7280")
+        al = {"정배열": "#c62828", "역배열": "#1565c0"}.get(r["align"], "#6b7280")
         nm = f'<a href="https://finance.naver.com/item/main.naver?code={E(r["ticker"])}" target="_blank" style="color:#111827;text-decoration:none;font-weight:800;">{E(r["name"])}</a><br><span style="font-size:10.5px;color:#9ca3af;">{E(r["ticker"])}</span>'
         cells = [str(i), nm, pill, _n(r["price"], 0), _pct(r["day_pct"]), _n(r["per"]), _n(r["pbr"], 2), _n(r["rsi"]),
                  f'<span style="color:{al};font-weight:700;">{E(r["align"] or "-")}</span>', _sig_html(r["flags"]) or "-"]
@@ -1031,7 +1031,7 @@ def build_blog(date, rows, ai_text="", inc=None, title="", n=30, macro=None):
             return (f'<td align="center" style="padding:10px 4px;background-color:#f8faff;border:1px solid #e5e7eb;"><div style="font-size:11px;color:#6b7280;margin-bottom:3px;">{label}</div>'
                     f'<div style="font-size:19px;font-weight:900;color:{c};">{val}</div></td>')
         h.append('<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:14px 0;' + B.FONT + '"><tr>'
-                 + cell("평균점수", f"{avg}점", "#2563eb") + cell("&#128293; 70점↑", f"{s70}개", "#dc2626") + cell("&#128064; 60점↑", f"{s60}개", "#ea580c") + cell("&#128200; 정배열", f"{align}개", "#16a34a")
+                 + cell("평균점수", f"{avg}점", "#2563eb") + cell("&#128293; 70점↑", f"{s70}개", "#dc2626") + cell("&#128064; 60점↑", f"{s60}개", "#ea580c") + cell("&#128200; 정배열", f"{align}개", "#c62828")
                  + cell("&#9650; 상승", f"{up}개", "#dc2626") + cell("&#9660; 하락", f"{dn}개", "#2563eb") + cell("&#129302; AI추천", f"{len(aip)}개", "#d97706") + "</tr></table>")
     if inc.get("market"):
         mc = macro if macro is not None else macro_snapshot()
@@ -1287,7 +1287,7 @@ function foot(c,W,y,note){c.fillStyle='rgba(100,116,139,.35)';c.fillRect(60,y,W-
 function top(rows,date,scale,excl){var n=Math.min(10,rows.length),RH=94,W=1080,H=210+30+110+30+56+n*RH+30+(excl?150:118),m=K.make(W,H,scale),c=m.c;c.fillStyle=PAPER;c.fillRect(0,0,W,H);
  band(c,W,'DAILY STOCK PICK','오늘의 추천 TOP '+n,date+' · 시가총액 상위 종목 기술적 분석 자동 선별');
  var avg=rows.length?Math.round(rows.reduce(function(s,r){return s+r.score},0)/rows.length):0,s70=rows.filter(function(r){return r.score>=70}).length,al=rows.filter(function(r){return r.align==='정배열'}).length,up=rows.filter(function(r){return (r.day_pct||0)>0}).length;
- var tl=[['후보',rows.length+'종목',INK],['평균점수',avg+'점','#2563eb'],['70점↑',s70+'개','#dc2626'],['정배열',al+'개','#16a34a'],['상승',up+'개',UP]],tw=(W-100-16*4)/5;
+ var tl=[['후보',rows.length+'종목',INK],['평균점수',avg+'점','#2563eb'],['70점↑',s70+'개','#dc2626'],['정배열',al+'개',UP],['상승',up+'개',UP]],tw=(W-100-16*4)/5;
  tl.forEach(function(t,i){var x=50+i*(tw+16),y=240;c.save();c.shadowColor='rgba(15,23,42,.12)';c.shadowBlur=16;c.shadowOffsetY=4;RR(c,x,y,tw,100,18);c.fillStyle='#fff';c.fill();c.restore();T(c,t[0],x+tw/2,y+36,{s:20,w:700,c:MUT,a:'center'});T(c,t[1],x+tw/2,y+80,{s:34,w:900,c:t[2],a:'center',max:tw-16})});
  var y0=380;c.save();c.shadowColor='rgba(15,23,42,.14)';c.shadowBlur=22;c.shadowOffsetY=6;RR(c,50,y0,W-100,56+n*RH+12,24);c.fillStyle='#fff';c.fill();c.restore();
  [['종목',150,'left'],['점수',640,'right'],['등락',750,'right'],['RSI',836,'right'],['신호',870,'left']].forEach(function(h){T(c,h[0],h[1],y0+40,{s:20,w:800,c:'#475569',a:h[2]})});c.fillStyle='#e2e8f0';c.fillRect(74,y0+54,W-148,2);

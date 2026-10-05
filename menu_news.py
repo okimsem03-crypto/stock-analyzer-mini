@@ -1558,7 +1558,7 @@ def build_news_blog(d):
         for s, m_ in zip(stocks, ms):
             m_ = m_ or {}
             sv = s["senti"]
-            chip = ("#f0fdf4", "#15803d", "호재 분류") if sv > 0 else (("#fef2f2", "#b91c1c", "악재 분류") if sv < 0 else ("#f3f4f6", "#4b5563", "중립"))
+            chip = ("#fef2f2", "#c62828", "호재 분류") if sv > 0 else (("#eff6ff", "#1565c0", "악재 분류") if sv < 0 else ("#f3f4f6", "#4b5563", "중립"))
             ch = m_.get("chg")
             c20 = m_.get("chg20")
             px = (f"{m_['last']:,.0f}원" if m_.get("last") else "-")
@@ -1755,7 +1755,7 @@ var NRCSS='.nrRoot{display:block}.nrDash{background:#fff;border:1px solid #dbe3e
 '.nrNc{background:#fff;border:1px solid #bfdbfe;border-left:5px solid #1e3a8a;border-radius:14px;padding:12px 14px;margin-bottom:10px}.nrNc h3{margin:6px 0 4px;font-size:17px;line-height:1.5;overflow-wrap:anywhere}.nrNc .mt{font-size:12px;color:#64748b}.nrNc .bar{margin-top:8px}'+
 '.nrEm{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:14px;padding:22px 16px;color:#475569;font-size:13.5px;line-height:1.75;text-align:center}'+
 '.nrSg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin:6px 0 10px}.nrSc{border:1px solid #e5e7eb;border-radius:12px;padding:9px 11px;background:#fff}.nrSh{display:flex;gap:5px;align-items:center;flex-wrap:wrap}.nrSh .nm{font-size:15px}.nrSc .mt{font-size:11.5px;color:#64748b;margin:2px 0}.nrSc .sn{font-size:12px;color:#475569;margin-top:4px;line-height:1.5;overflow-wrap:anywhere}'+
-'.nrMn{display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;min-height:34px}.nrMn canvas{width:110px;height:34px;flex:0 0 auto}.nrMn .px{font-weight:800;color:#0f172a}.nrMn .up{color:#dc2626;font-weight:800}.nrMn .dn{color:#2563eb;font-weight:800}'+
+'.nrMn{display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;min-height:34px}.nrMn canvas{width:110px;height:34px;flex:0 0 auto}.nrMn .px{font-weight:800;color:#0f172a}.nrMn .up{color:#e11d48;font-weight:800}.nrMn .dn{color:#2563eb;font-weight:800}'+
 '.nrRh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.nrRh h3{margin:0;flex:1;font-size:16px;min-width:140px}.nrImg{margin-top:8px}'+
 '.nrStp{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}.nrStp button{flex:1 1 128px;display:flex;align-items:center;gap:8px;text-align:left;border:1.5px solid #bfdbfe;background:#fff;color:#1e3a8a;border-radius:12px;padding:7px 10px;font:inherit;font-size:13px;font-weight:800;cursor:pointer;line-height:1.35}.nrStp button small{display:block;font-weight:600;font-size:11px;color:#64748b}.nrStp .n{width:24px;height:24px;border-radius:50%;background:#bfdbfe;color:#1e3a8a;display:flex;align-items:center;justify-content:center;font-weight:900;flex:0 0 auto}.nrStp .done{border-color:#86efac;background:#f0fdf4}.nrStp .done .n{background:#16a34a;color:#fff}.nrStp .cur{border-color:#1e3a8a;box-shadow:0 0 0 3px rgba(30,58,138,.16)}'+
 '.nrBlog{margin-top:10px;scroll-margin-top:60px}'+
@@ -2086,7 +2086,7 @@ IMG_JS = r"""
 (function(){
 var K=window.ImgKit;if(!K||window.NwImg)return;
 var T=K.text,RR=K.rr,N=K.n;
-var INK='#0f172a',MUT='#64748b',UP='#dc2626',DN='#2563eb',GOLD='#d6b25e';
+var INK='#0f172a',MUT='#64748b',UP='#e11d48',DN='#2563eb',GOLD='#d6b25e';
 var SC={p:'#ef4444',n:'#3b82f6',x:'#f59e0b',z:'#cbd5e1'};
 function today(){var x=new Date(),z=function(n){return ('0'+n).slice(-2)};return x.getFullYear()+'.'+z(x.getMonth()+1)+'.'+z(x.getDate())}
 function shadow(c,x,y,w,h,r){c.save();c.shadowColor='rgba(15,23,42,.14)';c.shadowBlur=22;c.shadowOffsetY=6;RR(c,x,y,w,h,r||24);c.fillStyle='#fff';c.fill();c.restore()}

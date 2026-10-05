@@ -676,7 +676,7 @@ def build_deep_blog(d, ai_text="", inc=None, title=""):
             h.append(_tbl(["기간", "외국인(억)", "기관(억)", "개인(억)"], rows))
     if inc.get("disc") and (d.get("disc") or d.get("news")):
         h.append(B.side_title("📄 최근 공시·뉴스 <span style=\"font-size:12px;font-weight:700;color:#94a3b8;\">(제목 기준)</span>", "#b45309"))
-        col = {"risk": ("#fef2f2", "#b91c1c", "주의"), "pos": ("#f0fdf4", "#15803d", "호재성"), "info": ("#f9fafb", "#6b7280", "참고")}
+        col = {"risk": ("#fff7ed", "#c2410c", "주의"), "pos": ("#fef2f2", "#c62828", "호재성"), "info": ("#f9fafb", "#6b7280", "참고")}
         rows = "".join(f'<tr><td width="13%" style="padding:6px;font-size:12px;color:#6b7280;border-bottom:1px solid #f0f0f0;">{E(x["date"][5:])}</td><td width="16%" align="center" style="padding:6px 4px;border-bottom:1px solid #f0f0f0;">'
                        f'<span style="background-color:{col[x["level"]][0]};color:{col[x["level"]][1]};font-size:11px;font-weight:800;padding:2px 6px;">{col[x["level"]][2]}·{E(x["tag"])}</span></td><td style="padding:6px;font-size:13px;color:{B.TXT};border-bottom:1px solid #f0f0f0;">{E(x["title"])}</td></tr>' for x in (d.get("disc") or [])[:6])
         if rows:

@@ -690,7 +690,7 @@ def build_blog(x, ai_text="", inc=None, title="", pub_ai=""):
     if inc.get("disc") and x.get("disc"):
         h.append(_h("&#128196; 최근 공시 체크", "#374151"))
         rows = []
-        colors = {"risk": ("#fef2f2", "#b91c1c", "주의"), "pos": ("#f0fdf4", "#15803d", "호재성"), "info": ("#f9fafb", "#6b7280", "참고")}
+        colors = {"risk": ("#fff7ed", "#c2410c", "주의"), "pos": ("#fef2f2", "#c62828", "호재성"), "info": ("#f9fafb", "#6b7280", "참고")}
         for d in x["disc"][:8]:
             bg, fg, lb = colors[d["level"]]
             rows.append(f'<tr><td width="14%" style="padding:7px 6px;font-size:12px;color:#6b7280;border-bottom:1px solid #f0f0f0;">{E(d["date"][5:])}</td>'
@@ -808,7 +808,7 @@ var css='#labCard{margin:0 0 20px;border:1.5px solid #c7d2fe;border-radius:16px;
 '#labCard .ax{display:grid;grid-template-columns:62px 38px 1fr;gap:8px;align-items:center;margin:6px 0;font-size:13px}#labCard .ax .bar{height:10px;background:#e5e7eb;border-radius:6px;overflow:hidden}#labCard .ax .bar i{display:block;height:100%}'+
 '#labCard .axn{font-size:11.5px;color:#6b7280;margin:-2px 0 4px 108px}#labCard .big{font-size:34px;font-weight:900;line-height:1}'+
 '#labCard table{width:100%;border-collapse:collapse;font-size:12.5px}#labCard th{background:#eef2ff;color:#312e81;padding:6px;text-align:center;font-weight:700}#labCard td{padding:6px;border-bottom:1px solid #eef0f6;text-align:center}#labCard td.l{text-align:left}'+
-'#labCard .up{color:#c62828}#labCard .dn{color:#1565c0}#labCard .tag{font-size:11px;font-weight:800;padding:1px 7px;border-radius:6px;white-space:nowrap}#labCard .t-risk{background:#fef2f2;color:#b91c1c}#labCard .t-pos{background:#f0fdf4;color:#15803d}#labCard .t-info{background:#f3f4f6;color:#6b7280}'+
+'#labCard .up{color:#e11d48}#labCard .dn{color:#2563eb}#labCard .tag{font-size:11px;font-weight:800;padding:1px 7px;border-radius:6px;white-space:nowrap}#labCard .t-risk{background:#fff7ed;color:#c2410c}#labCard .t-pos{background:#fef2f2;color:#c62828}#labCard .t-info{background:#f3f4f6;color:#6b7280}'+
 '#labCard .warn{background:#fff7ed;border:1.5px solid #fdba74;color:#9a3412;border-radius:10px;padding:9px 12px;font-size:12.5px;line-height:1.6;margin:8px 0}#labCard .note{font-size:12px;color:#6b7280;line-height:1.6}'+
 '#labCard textarea,#labCard input[type=text]{width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1.5px solid #d1d5db;border-radius:9px;padding:8px}#labCard textarea{min-height:110px}#labCard iframe{width:100%;height:520px;border:1.5px solid #d1d5db;border-radius:10px;background:#fff}'+
 '#labCard label.ck{font-size:12.5px;margin-right:12px;white-space:nowrap}'+
