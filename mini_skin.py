@@ -28,6 +28,14 @@ a{color:var(--ac)}
 #admBar{background:var(--navy)!important; color:#e6ecf7!important; font-size:12px!important; padding:5px 16px!important; gap:8px!important; min-height:28px}
 #admBar button{background:rgba(255,255,255,.14)!important; border-radius:6px!important; padding:3px 9px!important; font-size:11.5px!important}
 #admBar a{font-size:12px}
+#admBar{flex-wrap:nowrap!important; overflow:hidden}
+.admWho{font-size:12px; white-space:nowrap; flex:0 0 auto}
+.admQk{display:flex; gap:4px; align-items:center; overflow-x:auto; scrollbar-width:none; min-width:0; flex:1 1 auto}
+.admQk::-webkit-scrollbar{display:none}
+#admBar .admIc{display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,.12)!important; color:#e6ecf7; border:0; border-radius:999px!important; padding:3px 11px 3px 8px!important; font-size:11.5px!important; cursor:pointer; white-space:nowrap; flex:0 0 auto; font-family:inherit}
+#admBar .admIc:hover{background:rgba(255,255,255,.28)!important}
+#admBar .admIc .ic{font-size:14px; line-height:1}
+#admBar .admView{white-space:nowrap; flex:0 0 auto}
 .topbar{position:static!important; background:#fff; padding:0 16px; height:56px; min-height:56px; gap:10px; flex-wrap:nowrap;
   border-bottom:1px solid var(--border); box-shadow:none; align-items:center}
 .brandBlock{flex:0 0 auto; flex-direction:row; align-items:baseline; gap:8px}
@@ -39,6 +47,7 @@ a{color:var(--ac)}
 .searchInput{background:#f1f3f8 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%237a8497' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='M11 11l3.5 3.5'/%3E%3C/svg%3E") no-repeat 12px 50%;
   color:var(--text); border:1px solid transparent; border-radius:10px; padding:9px 14px 9px 36px; font-size:13.5px; height:38px}
 .searchInput::placeholder{color:#8f98aa}
+.searchInput{box-shadow:none}
 .searchInput:focus{background-color:#fff; border-color:var(--ac); box-shadow:0 0 0 3px rgba(36,87,214,.14)}
 .searchDrop{border:1px solid var(--border); border-radius:12px; box-shadow:0 16px 40px -12px rgba(15,35,66,.28)}
 .searchItem{padding:9px 14px; font-size:13px}
@@ -98,7 +107,7 @@ body.hasSb .mmIn{display:block; max-width:none; padding:10px 10px 28px; margin:0
 .tabHost{background:var(--bg)}
 .tabHost iframe{background:var(--bg)}
 .tabMsg{background:var(--navy); border-radius:8px; font-size:12.5px; top:70px; padding:7px 14px}
-.empty{padding:60px 16px 36px; font-size:13px; line-height:1.8}
+.empty{padding:28px 16px 24px; font-size:13px; line-height:1.7}
 .empty .big{font-size:30px; margin-bottom:10px; opacity:.85}
 .sloganLead{font-size:20px; font-weight:800; color:var(--navy); letter-spacing:-.03em; margin-bottom:6px}
 .wakeNote{background:#fffaf0; border:1px solid #f3e3bd; border-radius:10px; font-size:11.5px; padding:9px 12px}
@@ -176,19 +185,33 @@ body.hasSb .mmIn{display:block; max-width:none; padding:10px 10px 28px; margin:0
 }
 @media (max-width:760px){
   #chrome{position:static}
-  .topbar{height:auto; min-height:0; flex-wrap:wrap; padding:9px 12px 10px; gap:8px}
-  .brandBlock{flex:1 1 auto; min-width:0; order:1}
+  /* [v172] 작은 화면: 위쪽 띠를 한 줄씩만 — 관리자 띠(아이콘만) + 상단 바(☰ · 로고 · 검색 · 도움말 한 줄) */
+  #admBar{padding:4px 8px!important; gap:6px!important}
+  #admBar .admIc .lb{display:none}
+  #admBar .admIc{padding:4px 8px!important}
+  #admBar .admIc .ic{font-size:16px}
+  #admBar .admView{padding:4px 8px!important; font-size:11px!important}
+  .topbar{height:52px; min-height:52px; flex-wrap:nowrap; padding:0 10px!important; gap:6px}
+  .brandBlock{flex:0 0 auto; min-width:0; order:1}
+  .brand{font-size:0!important}
+  .brand:before{content:"📈"; font-size:20px}
   body.hasSb #sbBtn{order:0}
-  .tbActs{order:2; margin-left:0; gap:0}
+  .tbActs{order:3; margin-left:0; gap:0; flex:0 0 auto}
   .tbActs .refreshBtn.opt, .tbActs .blogBtn{display:none}
-  .searchWrap{order:3; flex:1 1 100%; max-width:none; width:100%; margin:0}
-  .searchInput{height:44px; font-size:16px; border-radius:12px; background-color:#f1f3f8}
+  .tbActs .refreshBtn .lb{display:none}
+  .tbActs .refreshBtn{padding:6px 8px}
+  #memBtn{font-size:0!important; padding:6px 8px}
+  #memBtn:before{content:"👤"; font-size:16px}
+  .brand .verTag{display:none!important}
+  .brandBlock{display:flex}
+  .searchWrap{order:2; flex:1 1 auto; min-width:0; max-width:none; width:auto; margin:0}
+  .searchInput{height:38px; font-size:15px; border-radius:10px; background-color:#f1f3f8}
   .searchItem{min-height:48px}
   .wrap{padding:12px 12px 70px}
   body.hasSb #mainMenuBar{top:0}
   .heroName{font-size:17px}
   .card{padding:13px 13px}
-  .empty{padding:36px 12px 24px}
+  .empty{padding:18px 12px 18px}
 }
 """
 
@@ -298,6 +321,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ac);box-
   #mbar{padding:9px 12px;gap:2px 4px}
   #mbar b{flex:1 1 100%;font-size:14px}
   .w{padding:12px 12px 48px}
+}
+
+/* ═══ v172 여백 정리 — 위쪽 띠·카드를 얇게, 본문이 먼저 보이게 ═══ */
+body.emb .w{padding:8px 12px 28px}
+#accbar{padding:5px 10px!important;margin:0 0 6px!important;font-size:12.5px;gap:4px 8px!important;flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none}
+#accbar::-webkit-scrollbar{display:none}
+#accbar>*{flex:0 0 auto;white-space:nowrap}
+.c{margin:8px 0}
+@media (max-width:760px){
+  #accbar .accm{display:none}
+  body.emb .w{padding:6px 8px 24px}
+  .c{padding:10px 11px}
 }
 """
 

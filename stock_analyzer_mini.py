@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v172 — ① 관리자 바로가기 아이콘: 관리자로 로그인하면 맨 위 띠에 🛠 관리자·📊 현황·🧭 메뉴·🎚 공개 관리·👤 회원·✍ 블로그·⚙ 설정·📦 가져오기·🤖 AI 도우미(/ai-helper) 아이콘이 한 줄로 나와요(좁은 화면은 아이콘만). ② 여백 정리: 위쪽 띠가 겹겹이 쌓여 본문이 아래로 밀리던 문제를 해결 — 휴대폰은 상단 바를 한 줄(☰·로고·검색·도움말)로, 관리자 띠·공개 범위 띠·5단계 막대는 얇게(안내문은 ⓘ로 접음), 메뉴 첫머리 설명은 한 줄(눌러서 펼침), 탭 버튼은 가로로 밀어 보기. 첫 화면 위쪽 빈 공간도 줄였어요. ③ AI 창 멈춤 방지: 도우미가 20초 안에 응답하지 않거나 4분 넘게 멈추면 자동으로 ‘직접 진행’ 화면(복사하면 자동 읽기)으로 바뀌고, [📥 답변 가져오기] 버튼을 추가했어요.
 ✨ v171 — 🤖 AI 완전 자동: 모든 메뉴의 [AI 분석]을 누르면 더는 창에서 버튼을 또 누르지 않아요. ① 관리자 로그인 + 서버 AI 키(GEMINI/ANTHROPIC/OPENAI)가 있으면 서버가 창·복사·붙여넣기 없이 직접 분석 → 읽기 → 저장 → 다음 단계(이미지·글·블로그 열기)까지 자동(형식이 어긋나면 서버 AI에 1회 자동 재요청, 서버 오류 시 AI 사이트 자동 열기로 전환). ② 키가 없거나 일반 이용자는 AI 사이트(설정한 AI)가 자동으로 열리고 도우미(v1.5.0)가 있으면 입력·전송·답변 복사·탭 닫기·저장까지 자동. 도우미 v1.5.0은 AI 탭·블로그 글쓰기 탭을 직접 열어 팝업 차단을 받지 않아요(다시 설치 필요). 브라우저가 새 탭을 막으면 ‘한 번만 누르라’는 안내가 떠요. [⚙ 설정 → AI 설정]에 ‘AI 분석 실행 방식’(완전 자동/브라우저 자동/수동) 추가. 서버 AI는 관리자만(일반 이용자 호출 차단).
 ✨ v170 — 🎨 숫자 색 통일: 상승·플러스·호재·정배열은 빨강(#e11d48), 하락·마이너스·악재·역배열은 파랑(#2563eb)으로 전 메뉴(화면·이미지·블로그 글) 정리. 도전주 낙폭·이미지의 음수 막대·라벨이 빨강으로 나오던 곳을 파랑으로, 뉴스분석·랩·관리자 화면의 서로 다른 빨강/파랑 톤을 한 값으로, 오늘추천 정배열(초록)·뉴스 호재(초록)·종목 호재성 칩(초록)을 빨강으로. '주의' 칩은 빨강과 헷갈리지 않게 주황으로.
 ✨ v169 — ✍ 블로그 자동 입력: AI 도우미(v1.4.0, 다시 설치 필요)가 [복사하고 블로그 열기] 뒤 열린 네이버 글쓰기 화면에 '제목 → 본문 맨 위 대표 이미지(방금 만든 ① 메인 그림) → 본문'을 자동으로 넣어요(발행은 직접). 팝업('작성 중인 글') 자동 닫기, 안 들어가면 안내 띠 + [구조 복사]로 원인 파악. 모든 메뉴의 블로그 단계·⚡ 한 번에 이어서 에 공통 적용. 설치 안내 페이지(/ai-helper)에 안내 추가.
@@ -353,7 +354,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v171"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v172"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4456,8 +4457,7 @@ function wbItems(){var out=[];var seenT={};
 function accBar(){var b=$('accbar');if(!b)return;b.innerHTML='';if(MEMBER_MODE||!WB){b.style.display='none';return}
  var it=WB.items.filter(function(i){return i.tab===cur})[0];if(!it){b.style.display='none';return}b.style.display='flex';
  b.appendChild(el('b',null,it.icon+' '+it.label));var bg=el('span','accb r'+(it.rank===0?'0':(it.rank>=99?'x':'m')),(it.rank===0?'🌐 ':(it.rank>=99?'🔒 ':'🟢 '))+it.badge+(it.on||it.admin_only?'':' (숨김)'));b.appendChild(bg);
- b.appendChild(el('span','m',it.feats?('기능 '+it.feats+'개 · 누구나 '+it.cnt.all+' · 회원 '+it.cnt.member+' · 관리자 전용 '+it.cnt.admin):'기능별 공개 설정 없음'));
- b.appendChild(el('span','m','· 관리자는 모든 기능(블로그 쓰기 포함)을 바로 실행해 볼 수 있어요'));
+ var cm=el('span','m accm',it.feats?('기능 '+it.feats+'개 · 누구나 '+it.cnt.all+' · 회원 '+it.cnt.member+' · 관리자 전용 '+it.cnt.admin):'기능별 공개 설정 없음');cm.title='관리자는 모든 기능(블로그 쓰기 포함)을 바로 실행해 볼 수 있어요';b.appendChild(cm);
  var go=bt('🎚 공개 설정','bt3',function(){var mi=-1;try{if(FE.S)FE.S.menus.forEach(function(m,i){if(m.id===it.id)mi=i})}catch(e){}if(typeof FE!=='undefined'&&mi>=0)FE.sel=mi;if(typeof PB!=='undefined')PB.sub='fe';cur='pb';nav();load()});b.appendChild(go);
  var sel=el('select');sel.setAttribute('aria-label','이용자 화면 미리보기');[['','👁 이용자 화면 미리보기…'],['guest','비회원으로'],].concat((WB.levels||[]).map(function(x){return [x.id,x.name+'으로']})).forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];sel.appendChild(op)});
  sel.onchange=function(){if(!sel.value)return;window.open(it.public_path+'?as='+sel.value,'mini_admin_view');sel.value=''};b.appendChild(sel)}
@@ -4760,6 +4760,15 @@ FB.CSS='.fbx{margin:10px 0 4px}.fbx .fbRow{display:flex;gap:8px;flex-wrap:wrap}.
 +'.fbx .stp.done{border-color:#86efac;background:#f0fdf4}.fbx .stp.done .n{background:#16a34a;color:#fff}.fbx .stp.cur{border-color:#312e81;box-shadow:0 0 0 3px rgba(49,46,129,.16)}.fbx .stp.cur .n{background:#312e81;color:#fff}.fbx .stp.off{opacity:.55}'
 +'.fbx .fbGo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}.fbx .fbAll{font:inherit;font-size:13.5px;font-weight:800;color:#fff;background:linear-gradient(90deg,#312e81,#16a34a);border:0;border-radius:11px;padding:9px 16px;cursor:pointer}.fbx .fbAll:disabled{opacity:.55;cursor:default}'
 +'.fbx .fbNext{font-size:12.5px;font-weight:700;color:#312e81}.fbx .fbNote{font-size:11.5px;color:#6b7280;margin-top:4px;line-height:1.5}';
+/* [v172] 여백 줄이기 — 5단계 막대·소개 글을 한 화면에 더 많은 내용이 보이게 압축(좁은 화면은 가로로 밀어 보는 한 줄) */
+FB.CSS+='.fbx{margin:6px 0 2px}.fbx .fbRow{gap:6px}.fbx .stp{padding:6px 10px;gap:7px;border-radius:10px;font-size:12.5px;flex:1 1 130px;min-width:120px}.fbx .stp .n{flex:0 0 22px;height:22px;font-size:12px}'
++'.fbx .fbGo{margin-top:6px;gap:8px}.fbx .fbAll{padding:6px 13px;font-size:13px}.fbx .fbNote{display:none;margin-top:4px}.fbx.noteOn .fbNote{display:block}.fbx .fbI{border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:999px;width:24px;height:24px;font-size:12px;cursor:pointer;padding:0;line-height:1}'
++'@media(max-width:760px){.fbx .fbRow{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}.fbx .fbRow::-webkit-scrollbar{display:none}.fbx .stp{flex:0 0 auto;min-width:0;padding:5px 9px}.fbx .stp small{display:none}.fbx .fbNext{font-size:12px}}'
+/* 메뉴 첫머리의 긴 설명은 한 줄만 — 눌러서 펼치기 */
++'.thHd>.m,.mkHd>.m,.flHd>.m,.chHd>.m,.dlH>p,.nwH>p,#dyHead>.sub{cursor:pointer;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}.hdOpen{-webkit-line-clamp:unset!important}'
++'.thHd,.mkHd,.flHd,.chHd{padding:9px 14px!important;margin:6px 0!important}.thHd>h2,.mkHd>h2,.flHd>h2,.chHd>h2,.nwH>h2{font-size:17px!important;margin:0 0 3px!important;line-height:1.3}.dlH>h3{margin:0 0 3px}'
++'.thNav,.mkNav,.flNav,.chNav{margin:8px 0 6px!important}@media(max-width:760px){.thHd>h2,.mkHd>h2,.flHd>h2,.chHd>h2,.nwH>h2{font-size:15.5px!important}.thNav,.mkNav,.flNav,.chNav,.dpNav{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.thNav>*,.mkNav>*,.flNav>*,.chNav>*,.dpNav>*{flex:0 0 auto}}';
+document.addEventListener('click',function(e){var t=e.target&&e.target.closest&&e.target.closest('.thHd>.m,.mkHd>.m,.flHd>.m,.chHd>.m,.dlH>p,.nwH>p,#dyHead>.sub');if(t)t.classList.toggle('hdOpen')});
 FB.draw=function(host,o){if(!host)return;
  if(!FB.css){FB.css=true;var nn='',n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';var st=document.createElement('style');if(nn)st.setAttribute('nonce',nn);st.textContent=FB.CSS;document.head.appendChild(st)}
  host.innerHTML='';host.className='fbx';var steps=(o.steps||[]).filter(function(x){return !x.hide}),cur=-1;
@@ -4771,7 +4780,7 @@ FB.draw=function(host,o){if(!host)return;
  var g=document.createElement('div');g.className='fbGo';
  if(o.runAll&&!M.member()){var all=document.createElement('button');all.type='button';all.className='fbAll';all.setAttribute('data-noconfirm','1');all.textContent=o.allLabel||'⚡ 블로그까지 한 번에 이어서';all.onclick=function(){o.runAll()};g.appendChild(all)}
  var nx=document.createElement('span');nx.className='fbNext';nx.textContent=cur<0?'✅ 모든 단계를 마쳤어요.':'▶ 지금 할 일: '+(cur+1)+'. '+steps[cur].t;g.appendChild(nx);host.appendChild(g);
- if(o.note){var nt=document.createElement('div');nt.className='fbNote';nt.textContent=o.note;host.appendChild(nt)}};
+ if(o.note){var nt=document.createElement('div');nt.className='fbNote';nt.textContent=o.note;var ib=document.createElement('button');ib.type='button';ib.className='fbI';ib.textContent='ⓘ';ib.title='이 버튼들이 하는 일 보기';ib.setAttribute('data-noconfirm','1');ib.onclick=function(){host.classList.toggle('noteOn')};g.appendChild(ib);host.appendChild(nt)}};
 window.FlowBar=FB;
 window.MiniFlow=M})();
 """
@@ -6800,7 +6809,7 @@ HTML_TEMPLATE = r"""
   <div class="tbActs">
   <button class="refreshBtn opt" onclick="resetAll()" title="검색·결과·AI 칸을 모두 비우고 첫 화면으로 돌아갑니다">↺ 초기화</button>
   <button class="refreshBtn opt" onclick="refreshTickers()" title="종목 목록을 새로 받아옵니다">🔄 종목목록</button>
-  <a class="refreshBtn" href="/help" target="_blank" rel="noopener" style="text-decoration:none;">❓ 도움말</a>
+  <a class="refreshBtn" href="/help" target="_blank" rel="noopener" style="text-decoration:none;" title="도움말">❓<span class="lb"> 도움말</span></a>
   <a class="refreshBtn" id="memBtn" href="/member" style="text-decoration:none;display:none;" title="이메일로 회원가입·로그인">👤 로그인·가입</a>
   {% if kakao_url %}
   <a class="refreshBtn" href="{{ kakao_url }}" target="_blank" rel="noopener"
@@ -8802,16 +8811,29 @@ var MiniTabs = (function(){
     MiniTabs.restoreOpen(); MiniTabs.refresh(); MiniTabs.fit();
     if(isAdm){
       bar.style.display = 'flex';
-      var t = document.createElement('b');
-      t.textContent = '👑 관리자로 로그인됨';
+      var t = document.createElement('b'); t.className = 'admWho';
+      t.textContent = '👑 관리자'; t.title = '관리자로 로그인됨 — 🔒 표시 메뉴는 일반 이용자에게 보이지 않아요. 메뉴를 누르면 이 화면 안의 탭으로 열려요.';
       bar.appendChild(t);
-      var d = document.createElement('span'); d.style.opacity = '.75';
-      d.textContent = '— 🔒 표시 메뉴는 일반 이용자에게 보이지 않아요. 메뉴를 누르면 이 화면 안의 탭으로 열려요.';
-      bar.appendChild(d);
-      var c2 = document.createElement('a'); c2.href = '/admin#mm'; c2.textContent = '🧭 메뉴 관리';
-      c2.style.cssText = 'color:#93c5fd;margin-left:auto;text-decoration:none'; c2.onclick = function(e){ e.preventDefault(); return openAdminWin('#mm'); }; bar.appendChild(c2);
-      var b = document.createElement('button'); b.textContent = '일반 이용자 화면으로 보기';
-      b.style.cssText = 'background:#334155;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer';
+      // [v172] 관리자 바로가기 아이콘 — 관리자가 자주 쓰는 화면을 한 번에(아이콘만 보이는 좁은 화면에서는 이름이 말풍선으로 나와요)
+      var qk = document.createElement('div'); qk.className = 'admQk'; qk.setAttribute('role', 'toolbar'); qk.setAttribute('aria-label', '관리자 바로가기');
+      function qi(ic, lb, tip, fn){
+        var a = document.createElement('button'); a.type = 'button'; a.className = 'admIc'; a.title = tip; a.setAttribute('aria-label', lb); a.setAttribute('data-noconfirm', '1');
+        var i1 = document.createElement('span'); i1.className = 'ic'; i1.textContent = ic; a.appendChild(i1);
+        var i2 = document.createElement('span'); i2.className = 'lb'; i2.textContent = lb; a.appendChild(i2);
+        a.onclick = function(e){ e.preventDefault(); fn(); }; qk.appendChild(a);
+      }
+      qi('🛠', '관리자', '관리자 화면(모든 설정) 열기  [Ctrl+Shift+A]', function(){ openAdminWin(''); });
+      qi('📊', '현황', '방문·분석 현황 요약', function(){ openAdminWin('#sum'); });
+      qi('🧭', '메뉴', '메뉴 순서·이름·표시 관리', function(){ openAdminWin('#mm'); });
+      qi('🎚', '공개 관리', '메뉴·기능을 누구에게 열지 · 회원 단계 · 순서', function(){ openAdminWin('#pb'); });
+      qi('👤', '회원', '회원 목록·관리', function(){ openAdminWin('#mem'); });
+      qi('✍', '블로그', '메뉴별 블로그 주소 설정', function(){ openAdminWin('#bu'); });
+      qi('⚙', '설정', 'AI 실행 방식 · 자동화 · 보안 설정', function(){ openAdminWin('#mn'); });
+      qi('📦', '가져오기', '데이터 가져오기', function(){ openAdminWin('#im'); });
+      qi('🤖', 'AI 도우미', 'AI 도우미 설치·업데이트·점검 안내 (새 탭)', function(){ try{ window.open('/ai-helper', '_blank', 'noopener'); }catch(e){} });
+      bar.appendChild(qk);
+      var b = document.createElement('button'); b.textContent = '👁 이용자 화면'; b.className = 'admView'; b.title = '일반 이용자가 보는 모습으로 보기';
+      b.style.cssText = 'margin-left:auto;background:#334155;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer';
       b.onclick = function(){ setPreview(true); }; bar.appendChild(b);
     } else if(adm && adm.admin && PREVIEW){
       bar.style.display = 'flex';
