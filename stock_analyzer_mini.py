@@ -214,7 +214,8 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
-✨ v166 — 🎨 전체 리디자인(공통 스킨 mini_skin.py): 얇은 흰색 상단 바(로고·검색·계정) + 왼쪽 사이드바 메뉴(분류별 접기, 좁은 화면은 ☰ 서랍), 컴팩트한 카드·표·버튼, 관리자 콘솔도 왼쪽 사이드바. 메뉴 분류를 종목·리서치(심층·뉴스·거래정지) / 시장·수급(시장수급·네이버테마·수급분석) / 추천·AI(오늘추천·도전주)로 재배치. 🐛 관리자 로그인이 오래 쉬어 풀렸을 때 AI가 ‘정회원 이상’이라고 거부하던 문구를 ‘관리자 로그인이 풀렸어요’로 바로잡고, 메인 화면을 열어 둔 동안 4분마다 로그인을 자동 연장.
+✨ v167 — 🔗 블로그까지 한 번에: 모든 메뉴(종목분석·심층분석·오늘추천·도전주·거래정지/상폐·시장수급·네이버테마·뉴스분석·수급분석)가 같은 5단계 막대(분석 → AI → 이미지 → 글 → 블로그에 쓰기)와 [⚡ 블로그까지 한 번에 이어서] 버튼을 써요. 자동 설정이면 블로그 복사·열기까지 이어지고(붙여 넣기 Ctrl+V만 직접), 설정 화면에 '모든 메뉴 한 번에 맞추기'·'완전 자동' 추가, 브라우저가 복사·새 창을 막으면 안내. 수급분석에 이미지·블로그 글 신설, 거래정지/상폐에 AI 조언 단계 추가. 🏷 네이버 테마 수집 보강(여러 경로·실패 사유 표시)·전 종목 수급 수집(개인·외국인·기관·기타법인 추정)·테마 보드(테마→종목→주체별 수급)·종목 클릭 시 종목분석/심층분석 선택 팝업·네이버 이동 ↗ 아이콘.
+✨ v166 — 🎨 전체 리디자인(공통 스킨 mini_skin.py): 얇은 흰색 상단 바(로고·검색·계정) + 왼쪽 사이드바 메뉴(분류별 접기, 좁은 화면은 ☰ 서랍), 컴팩트한 카드·표·버튼, 관리자 콘솔도 왼쪽 사이드바. 메뉴 분류를 종목·리서치(심층·뉴스·거래정지) / 시장·수급(시장수급·네이버테마·수급분석) / 추천·AI(오늘추천·도전주)로 재배치. 🐛 관리자 로그인이 오래 쉬어 풀렸을 때 AI가 ‘정회원 이상’이라고 거부하던 문구를 ‘관리자 로그인이 풀렸어요’로 바로잡고, 메인 화면을 열어 둔 동안 4분마다 로그인을 자동 연장. 또 관리자로 로그인돼 있으면 ‘👁 비회원/회원으로 보기’ 미리보기 중에도 모든 기능(AI 분석 등)이 실제로 동작하도록 변경(미리보기는 화면 표시만 그 등급 기준).
 ✨ v165 — 새 메뉴 [📊 시장수급]·[🏷 네이버테마]: 수급분석 화면의 ‘수급·테마 가져오기’ 상자를 두 메뉴로 나눠 옮김. 시장수급은 개인·외국인·기관에 금융투자·보험·투신·사모·은행·연기금·기타법인 등 세부 주체(KRX 표 붙여넣기)까지 일별 흐름·연속 일수·종목 상위·AI 해설·이미지·블로그 글로, 네이버테마는 테마 순위·연속 강세·테마 안 종목·테마별 수급·일별 추이·AI·이미지·블로그 글로 제공.
 ✨ v164 — AI 도우미 1.3.0: 프롬프트를 AI 탭 주소(#miniai=…&p=…)에 함께 실어 보내 저장소 전달이 안 돼도 자동 진행되게 보완(Tampermonkey 스크립트 재설치 필요). [복사된 프롬프트로 진행]은 엉뚱한 클립보드 내용이 AI에 전송되지 않도록 클릭 확인용으로 유지.
 ✨ v163 — 블로그 글 보완: 표 안의 표(점수 막대)가 네이버 편집기에서 칸을 늘려 깨지던 문제를 글자 막대로 교체, 표 칸 너비 고정, 종목명에 네이버 증권 링크(표·근거·AI 글), 복사 설정이 꺼져 있어도 [📋 복사 → 블로그 열기] 버튼 표시.
@@ -348,7 +349,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v166"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v167"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4413,12 +4414,12 @@ textarea{border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-size:12.5px
 var CSRF="{{ csrf }}";var cur='sum';var EXT={};
 try{if(window.self!==window.top){document.body.classList.add('emb');if(!/embed=full/.test(location.search))document.body.classList.add('one')}}catch(e){}
 var TABS=[['sum','요약'],['pr','✍ 프롬프트'],['mn','⚙ 메뉴·설정'],['cmt','댓글'],['ovw','기업개요'],['log','보안 기록']];
-var MEMBER_MODE=false,FEATS=null,MENU_ID='';
+var MEMBER_MODE=false,FEATS=null,MENU_ID='',ADMIN_REAL=false;
 function $(i){return document.getElementById(i)}
 function el(t,cls,txt){var e=document.createElement(t);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
 var LASTBTN=null,_tt=null;document.addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('button'):null;if(b)LASTBTN=b},true);
 /* 🎚 [v148] 기능별 등급 잠금 — 관리자 화면에서는 아무 일도 하지 않고, 회원 화면(/m/메뉴)에서만 잠긴 기능을 막는다 */
-function ftOk(fid){return !MEMBER_MODE||!FEATS||!FEATS[fid]||FEATS[fid].ok}
+function ftOk(fid){return ADMIN_REAL||!MEMBER_MODE||!FEATS||!FEATS[fid]||FEATS[fid].ok}
 function lockDlg(fid){var f=(FEATS||{})[fid]||{label:fid,need:''};var nx=encodeURIComponent('/m/'+MENU_ID);
  var ov=el('div','cfOv'),bx=el('div','cfBox');bx.appendChild(el('div','cfH','🔒 '+f.label));var b=el('div','cfB');
  b.appendChild(el('div',null,f.need==='관리자 전용(아직 공개 전)'?'이 기능은 아직 일반 이용자에게 공개되지 않았어요.':'이 기능은 '+f.need+'부터 쓸 수 있어요.'));
@@ -4577,7 +4578,18 @@ function mnLoad(p){api('/admin/api/settings').then(function(d){if(cur!=='mn')ret
  var cs=el('input');cs.type='checkbox';cs.checked=d.delist_include_caution==='1';var r4=el('div','bar');r4.appendChild(cs);r4.appendChild(el('span',null,'동전주(1,000원 미만)도 후보에 넣기 — 목록이 많이 길어져요'));s.appendChild(r4);
  s.appendChild(bt('💾 스캔 설정 저장','bt',function(){apiJ('/admin/api/settings',{delist_stale_days:String(days.value),delist_include_caution:cs.checked?'1':'0'}).then(function(j){if(j.error)toast(j.error);else toast('저장했어요')})})); var fc=el('div','c');fc.appendChild(el('b',null,'⚡ 단계 진행 방식 (원스톱)'));
  fc.appendChild(el('p','note','메뉴마다 첫 단계(스캔·스크리닝·분석 열기)를 시작하면, 뒤 단계를 어떻게 이어 갈지 단계별로 정해요. 자동 = 앞 단계가 끝나면 이 단계를 알아서 실행 · 수동 = 이 단계에서 멈추고 직접 눌러요(직접 끝내면 그 뒤 단계는 다시 자동으로 이어져요). AI 단계는 AI 답변을 복사해 붙여 넣는 일이 있어, 자동이면 요청문 창을 자동으로 열어 줘요. 관리자 화면에서만 적용되고 회원 화면은 늘 직접 눌러요.'));
- var fsel={};(d.flows||[]).forEach(function(f){var bx=el('div','c');bx.appendChild(el('b',null,f.label));bx.appendChild(el('div','note','시작: '+f.start));
+ var fsel={};
+ /* [v167] 모든 메뉴 공통: 단계 종류(AI·이미지·글·블로그 복사/열기)별로 한 번에 맞춘다 */
+ if((d.flows||[]).length){var gbx=el('div','c');gbx.appendChild(el('b',null,'🌐 모든 메뉴 한 번에 맞추기'));
+  gbx.appendChild(el('div','note','메뉴마다 따로 정하지 않고 같은 단계를 모든 메뉴에 한꺼번에 적용해요. 블로그 [복사·열기]까지 자동으로 두면 → AI 분석 → 이미지 → 글 → 블로그 복사·열기까지 끝까지 이어져요(블로그 글쓰기 창에 붙여 넣기 Ctrl+V 는 브라우저 보안상 직접 해야 해요). 각 메뉴 화면의 [⚡ 블로그까지 한 번에] 버튼은 이 설정과 상관없이 끝까지 이어 줘요.'));
+  var GK=[['ai','AI 분석'],['img','이미지 만들기'],['blog','글 만들기'],['post','블로그 복사·열기']],gsel={};
+  GK.forEach(function(g){var r=el('div','bar');r.appendChild(el('span',null,g[1]));var cnt=0,au=0;(d.flows||[]).forEach(function(f){f.steps.forEach(function(st){if(st.id===g[0]){cnt++;if((d['flow_'+f.menu+'_'+st.id]||st.default)==='auto')au++}})});
+   var x=mkSel([['auto','⚡ 자동'],['manual','✋ 수동']],au*2>=cnt?'auto':'manual');gsel[g[0]]=x;r.appendChild(x);r.appendChild(el('span','m',' '+cnt+'개 메뉴 중 현재 자동 '+au+'개'));gbx.appendChild(r)});
+  function gApply(vals){Object.keys(fsel).forEach(function(k){var id=k.split('_').slice(2).join('_');if(vals[id])fsel[k].value=vals[id]})}
+  gbx.appendChild(bt('⚡ 전체 메뉴에 적용','bt',function(){var v={};Object.keys(gsel).forEach(function(k){v[k]=gsel[k].value});gApply(v);var o={};Object.keys(fsel).forEach(function(k){o[k]=fsel[k].value});apiJ('/admin/api/settings',o).then(function(j){if(j.error)toast(j.error);else{if(window.MiniFlow)MiniFlow.reset();toast('모든 메뉴에 적용하고 저장했어요');mnLoad(p)}})}));
+  gbx.appendChild(bt('🚀 블로그까지 완전 자동으로(전부 자동)','bt2',function(){var v={ai:'auto',img:'auto',blog:'auto',post:'auto'};Object.keys(gsel).forEach(function(k){gsel[k].value='auto'});gApply(v);var o={};Object.keys(fsel).forEach(function(k){o[k]=fsel[k].value});apiJ('/admin/api/settings',o).then(function(j){if(j.error)toast(j.error);else{if(window.MiniFlow)MiniFlow.reset();toast('모든 메뉴를 완전 자동으로 저장했어요');mnLoad(p)}})}));
+  fc.appendChild(gbx)}
+ (d.flows||[]).forEach(function(f){var bx=el('div','c');bx.appendChild(el('b',null,f.label));bx.appendChild(el('div','note','시작: '+f.start));
   f.steps.forEach(function(st){var r=el('div','bar');var nm=el('span',null,st.label);r.appendChild(nm);var x=mkSel([['auto','⚡ 자동'],['manual','✋ 수동']],d['flow_'+f.menu+'_'+st.id]||st.default);fsel['flow_'+f.menu+'_'+st.id]=x;r.appendChild(x);bx.appendChild(r);if(st.desc)bx.appendChild(el('div','note',st.desc))});fc.appendChild(bx)});
  if(!(d.flows||[]).length)fc.appendChild(el('p','note','단계 흐름이 있는 메뉴가 아직 없어요.'));
  else{var fb=bt('💾 단계 진행 방식 저장','bt',function(){var o={};Object.keys(fsel).forEach(function(k){o[k]=fsel[k].value});apiJ('/admin/api/settings',o).then(function(j){if(j.error)toast(j.error);else{if(window.MiniFlow)MiniFlow.reset();toast('저장했어요')}})});fc.appendChild(fb);
@@ -4696,17 +4708,40 @@ def flow_modes():
 
 
 FLOW_JS = r"""
-(function(){if(window.MiniFlow)return;var M={modes:null};
+(function(){if(window.MiniFlow)return;var M={modes:null,fz:{}};
 M.member=function(){return typeof MEMBER_MODE!=='undefined'&&MEMBER_MODE};
 M.load=function(cb){if(M.modes){cb();return}
  fetch('/admin/api/flow/modes',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(j){M.modes=(j&&j.modes)||{}}).catch(function(){M.modes={}}).then(cb)};
-M.auto=function(menu,id){return !M.member()&&!(M.modes&&M.modes[menu+'.'+id]==='manual')};
+M.forced=function(menu){var t=M.fz[menu];if(t&&Date.now()-t<1800000)return true;if(t)delete M.fz[menu];return false};
+M.auto=function(menu,id){return !M.member()&&(M.forced(menu)||!(M.modes&&M.modes[menu+'.'+id]==='manual'))};
 /* from 다음 단계부터 차례로 실행한다. 단계 함수는 끝나면 next() 를 부르고, 수동 단계를 만나면 거기서 멈춘다(직접 끝내면 그 뒤는 다시 이어진다). */
 M.run=function(menu,ids,acts,from){if(M.member())return;M.load(function(){var i=from?ids.indexOf(from)+1:0;
- function step(){if(i>=ids.length)return;var id=ids[i++];if(!acts[id]||!M.auto(menu,id))return;try{acts[id](step)}catch(e){}}step()})};
+ function step(){if(i>=ids.length){delete M.fz[menu];return}var id=ids[i++];if(!acts[id]||!M.auto(menu,id))return;try{acts[id](step)}catch(e){}}step()})};
 /* 이용자가 단계를 직접 눌렀을 때: 그 단계를 실행하고 끝나면 뒤 단계를 자동 설정대로 이어 간다. */
 M.go=function(menu,ids,acts,id){if(!acts[id])return;try{acts[id](function(){M.run(menu,ids,acts,id)})}catch(e){}};
 M.reset=function(){M.modes=null};
+/* [v167] '블로그까지 한 번에' 연속 실행 — 자동/수동 설정과 상관없이 단계를 차례로 끝까지 잇는다(이미 끝난 단계는 각 단계 함수가 건너뛴다). 회원 화면은 쓰지 않는다. */
+M.force=function(menu,ids,acts,from){if(M.member())return;M.fz[menu]=Date.now();M.run(menu,ids,acts,from)};
+/* [v167] 모든 메뉴가 같이 쓰는 5단계 막대(분석 열기 → AI 분석 → 이미지 만들기 → 글 만들기 → 블로그에 쓰기). o:{steps:[{t,sub,done,go,off}],runAll:fn,note:'…'} */
+var FB={css:false};
+FB.CSS='.fbx{margin:10px 0 4px}.fbx .fbRow{display:flex;gap:8px;flex-wrap:wrap}.fbx .stp{display:flex;align-items:center;gap:8px;flex:1 1 150px;min-width:140px;text-align:left;border:1.5px solid #c7d2fe;background:#fff;color:#312e81;border-radius:12px;padding:9px 12px;cursor:pointer;font:inherit;font-size:13px;font-weight:700;line-height:1.3}'
++'.fbx .stp .n{flex:0 0 26px;height:26px;border-radius:50%;background:#e0e7ff;color:#312e81;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900}.fbx .stp small{display:block;font-size:11px;font-weight:600;color:#6b7280}'
++'.fbx .stp.done{border-color:#86efac;background:#f0fdf4}.fbx .stp.done .n{background:#16a34a;color:#fff}.fbx .stp.cur{border-color:#312e81;box-shadow:0 0 0 3px rgba(49,46,129,.16)}.fbx .stp.cur .n{background:#312e81;color:#fff}.fbx .stp.off{opacity:.55}'
++'.fbx .fbGo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}.fbx .fbAll{font:inherit;font-size:13.5px;font-weight:800;color:#fff;background:linear-gradient(90deg,#312e81,#16a34a);border:0;border-radius:11px;padding:9px 16px;cursor:pointer}.fbx .fbAll:disabled{opacity:.55;cursor:default}'
++'.fbx .fbNext{font-size:12.5px;font-weight:700;color:#312e81}.fbx .fbNote{font-size:11.5px;color:#6b7280;margin-top:4px;line-height:1.5}';
+FB.draw=function(host,o){if(!host)return;
+ if(!FB.css){FB.css=true;var nn='',n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';var st=document.createElement('style');if(nn)st.setAttribute('nonce',nn);st.textContent=FB.CSS;document.head.appendChild(st)}
+ host.innerHTML='';host.className='fbx';var steps=(o.steps||[]).filter(function(x){return !x.hide}),cur=-1;
+ for(var i=0;i<steps.length;i++){if(!steps[i].done){cur=i;break}}
+ var row=document.createElement('div');row.className='fbRow';
+ steps.forEach(function(a,i){var b=document.createElement('button');b.type='button';b.className='stp'+(a.done?' done':'')+(i===cur?' cur':'')+(a.off?' off':'');b.setAttribute('data-noconfirm','1');
+  var nn2=document.createElement('span');nn2.className='n';nn2.textContent=a.done?'✓':String(i+1);b.appendChild(nn2);var t=document.createElement('span');t.appendChild(document.createTextNode(a.t));var sm=document.createElement('small');sm.textContent=a.sub||'';t.appendChild(sm);b.appendChild(t);b.onclick=function(){if(a.go)a.go()};row.appendChild(b)});
+ host.appendChild(row);
+ var g=document.createElement('div');g.className='fbGo';
+ if(o.runAll&&!M.member()){var all=document.createElement('button');all.type='button';all.className='fbAll';all.setAttribute('data-noconfirm','1');all.textContent=o.allLabel||'⚡ 블로그까지 한 번에 이어서';all.onclick=function(){o.runAll()};g.appendChild(all)}
+ var nx=document.createElement('span');nx.className='fbNext';nx.textContent=cur<0?'✅ 모든 단계를 마쳤어요.':'▶ 지금 할 일: '+(cur+1)+'. '+steps[cur].t;g.appendChild(nx);host.appendChild(g);
+ if(o.note){var nt=document.createElement('div');nt.className='fbNote';nt.textContent=o.note;host.appendChild(nt)}};
+window.FlowBar=FB;
 window.MiniFlow=M})();
 """
 ADMIN_LIB_JS.append(FLOW_JS)
@@ -4990,6 +5025,9 @@ def menu_visible_token(menu_id, tok):
 
 
 def feature_ok(menu, fid, tok=None):
+    # [v166] 관리자로 로그인된 요청은 '미리보기(?as=)' 중이어도 실제 사용은 항상 허용한다(화면 표시용으로 등급을 직접 넘긴 경우만 등급대로 판단).
+    if tok is None and admin_viewer():
+        return True
     tok = tok or viewer_token()
     return tok == "admin" or tok in feature_policy(menu, fid)
 
@@ -5040,6 +5078,8 @@ def _gateway_gate(write=False):
         return _admin_json({"error": "이 기능은 회원 화면에서 쓸 수 없어요."}, 404)
     if write and not _same_origin():
         return _admin_json({"error": "잘못된 요청이에요(다른 사이트에서 보낸 요청)."}, 403)
+    if admin_viewer():       # [v166] 로그인한 관리자는 모든 기능 통과(미리보기 중이어도)
+        return None
     tok = viewer_token()
     if tok != "admin" and not _gw_rate_ok():
         return _admin_json({"error": "요청이 너무 많아요. 잠시 후 다시 해 주세요."}, 429)
@@ -7121,8 +7161,11 @@ window.addEventListener('load', ()=>pushAds(document.getElementById('emptyState'
 // 🐛 [v119] 스크립트 전체가 준비된 뒤(DOMContentLoaded)에 실행 — 바로 실행하면 아래쪽에 선언된
 // 변수(_CLIENT_CACHE 등)가 아직 없어 공유 링크로 들어와도 분석이 시작되지 않았다.
 window.addEventListener('DOMContentLoaded', function(){
-  const t = new URLSearchParams(location.search).get('t');
-  if(t) analyze(t);
+  const qs = new URLSearchParams(location.search), t = qs.get('t');
+  if(t){
+    if(qs.get('m') === 'deep'){ try{ if(window.MiniTabs && MiniTabs.openDeep && MiniTabs.openDeep(t)) return; }catch(e){} }
+    analyze(t);
+  }
 });
 
 function showToast(msg){
@@ -8554,9 +8597,9 @@ var MiniTabs = (function(){
     if(!M[id]) addExtra({ id: id, label: lbl, icon: '', url: au });
     return open(id);
   }
-  function openStock(tk){
+  function openStock(tk, only){
     tk = String(tk || '').trim().toUpperCase(); if(!tk) return false;
-    if(M.deep){
+    if(M.deep && !only){
       try{ localStorage.setItem('mini_deep_ticker', tk); }catch(e){}
       var had = !!T.deep; open('deep', true);
       if(had){ try{ var w = T.deep.f.contentWindow; if(w && w.__openTicker) w.__openTicker(tk); }catch(e){} }

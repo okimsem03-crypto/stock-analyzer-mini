@@ -1106,7 +1106,7 @@ def api_blog():
 # 관리자 화면 탭 (JS)
 # ══════════════════════════════════════════════════════════════
 TAB_JS = r"""
-var DY={st:null,date:'',rows:[],src:'',dates:[],excl:0,prev:'',f:{min:0,dip:false,q:'',sort:'score'},view:'table',live:false,ai:{},picks:{},mc:'',_poll:null,flag:{img:false,blog:false},lk:[]};
+var DY={st:null,date:'',rows:[],src:'',dates:[],excl:0,prev:'',f:{min:0,dip:false,q:'',sort:'score'},view:'table',live:false,ai:{},picks:{},mc:'',_poll:null,flag:{img:false,blog:false,posted:false},lk:[]};
 function dyDetail(){return ftOk('detail')&&DY.lk.indexOf('detail')<0}
 function dyLockBox(box,fid,txt){var c=el('div','c');c.appendChild(el('span','m',txt));box.appendChild(c);return ftSec(c,fid)}
 var DYCSS='.dyH{background:linear-gradient(135deg,#0a1228 0%,#16275a 62%,#243a73 100%);color:#fff;border-radius:18px;padding:20px 22px;position:relative;overflow:hidden;margin-bottom:12px;box-shadow:0 14px 36px -16px rgba(10,18,40,.7)}'+
@@ -1157,26 +1157,37 @@ function dyPoll(){clearInterval(DY._poll);var g=$('dyGo');if(g)g.disabled=true;D
    if(!s.running){clearInterval(DY._poll);var g2=$('dyGo');if(g2)g2.disabled=false;if(s.error){pg.appendChild(el('div',null,'⚠ '+s.error))}else if(s.scan_date){toast('스캔 완료 — '+s.saved+'종목을 저장했어요');
     api('/admin/api/daily/state').then(function(j){DY.st=j;DY.dates=j.dates;DY.date=s.scan_date;dyHeadDraw();DY._chain=1;dyOpen(s.scan_date)})}}})},1500)}
 function dyOpen(date,live){DY.date=date;if(live!=null)DY.live=live;var m=$('dyMain');if(m&&!DY.rows.length)m.innerHTML='<div class="c">⏳ 불러오는 중…</div>';
- api('/admin/api/daily/list?date='+encodeURIComponent(date)+(DY.live?'&live=1':'')).then(function(j){if(cur!=='dy')return;DY.rows=j.rows||[];DY.lk=j.locked||[];DY.src=j.src;DY.dates=j.dates||DY.dates;DY.excl=j.excluded||0;DY.prev=j.prev_date||'';DY.date=j.date;DY.flag={img:false,blog:false};dySelSync();
+ api('/admin/api/daily/list?date='+encodeURIComponent(date)+(DY.live?'&live=1':'')).then(function(j){if(cur!=='dy')return;DY.rows=j.rows||[];DY.lk=j.locked||[];DY.src=j.src;DY.dates=j.dates||DY.dates;DY.excl=j.excluded||0;DY.prev=j.prev_date||'';DY.date=j.date;DY.flag={img:false,blog:false,posted:false};dySelSync();
   if(DY.ai[DY.date]==null&&DY.date&&!ftOk('ai')){DY.ai[DY.date]='';DY.picks[DY.date]=[]}
   if(DY.ai[DY.date]==null&&DY.date){api('/admin/api/daily/ai?date='+encodeURIComponent(DY.date)).then(function(a){DY.ai[DY.date]=a.found?a.result:'';DY.picks[DY.date]=a.found?(a.picks||[]):[];DY.mc=a.found?(a.market_context||''):'';if(cur==='dy')dyMainDraw()}).catch(function(){DY.ai[DY.date]='';dyMainDraw()})}
   dyMainDraw();if(DY._chain){DY._chain=0;MiniFlow.run('daily',DYFLOW,DYACTS)}})}
-function dySteps(){var sp=$('dySteps');if(!sp)return;sp.innerHTML='';var has=DY.rows.length>0,ai=((DY.ai[DY.date]||'').trim().length>0),done=[has,ai,DY.flag.img||DY.flag.blog];var cur2=-1;for(var i=0;i<3;i++){if(!done[i]){cur2=i;break}}
- [['오늘의 후보',has?(DY.rows.length+'종목 · 완료'):'스캔하세요','1'],['AI 추천주',ai?'저장됨 · 다시 만들기':'눌러서 시작','2'],[MEMBER_MODE?'요약 이미지':'이미지 · 블로그 글',(DY.flag.img||DY.flag.blog)?'진행 중/완료':'눌러서 만들기','3']].forEach(function(a,i){var b=el('button',(done[i]?'done':'')+(i===cur2?' cur':''));b.setAttribute('data-noconfirm','1');b.appendChild(el('span','n',done[i]?'✓':a[2]));var t=el('span');t.appendChild(document.createTextNode(a[0]));t.appendChild(el('small',null,a[1]));b.appendChild(t);
-  b.onclick=function(){var e=$('dys'+(i+1));if(e)e.scrollIntoView({behavior:'smooth',block:'start'});dyStepRun(i)};sp.appendChild(b)})}
-/* 단계 자동 진행([⚙ 설정] 의 단계 진행 방식): 스캔이 끝나면 AI 요청문 → 이미지 → 블로그 글 순서로 설정대로 이어 간다 */
-var DYFLOW=['ai','img','blog'];
+function dySteps(){var sp=$('dySteps');if(!sp)return;var has=DY.rows.length>0,ai=((DY.ai[DY.date]||'').trim().length>0),F=DY.flag;
+ var steps=[{t:'오늘의 후보',sub:has?(DY.rows.length+'종목 · 완료'):'스캔하세요',done:has,go:function(){dyGo2('dys1');dyStepRun('list')}},
+  {t:'AI 추천주',sub:ai?'저장됨 · 다시 만들기':'눌러서 시작',done:ai,go:function(){dyGo2('dys2');dyStepRun('ai')}},
+  {t:MEMBER_MODE?'요약 이미지':'이미지 만들기',sub:F.img?'만들었어요 · 다시 만들기':'눌러서 만들기',done:F.img,go:function(){dyGo2('dys3');dyStepRun('img')}},
+  {t:'글 만들기',sub:F.blog?'완료 · 다시 만들기':'눌러서 만들기',done:F.blog,hide:MEMBER_MODE,go:function(){dyGo2('dys3');dyStepRun('blog')}},
+  {t:'블로그에 쓰기',sub:F.posted?'복사·열기 완료':(F.blog?'복사하고 블로그 열기':'글을 먼저 만드세요'),done:F.posted,off:!F.blog,hide:MEMBER_MODE,go:function(){dyGo2('dys3');dyStepRun('post')}}];
+ window.FlowBar.draw(sp,{steps:steps,runAll:MEMBER_MODE?null:function(){dyStepRun('all')},note:MEMBER_MODE?'':'[⚡ 블로그까지 한 번에]는 AI 추천주 → 이미지 → 글 → 블로그 복사·열기를 설정과 상관없이 끝까지 이어요. 단계별 자동/수동은 [⚙ 설정]에서 바꿔요. 블로그 글쓰기 화면에 붙여 넣기(Ctrl+V)만 직접 하면 돼요.'})}
+/* 단계 자동 진행([⚙ 설정] 의 단계 진행 방식): 스캔이 끝나면 AI 요청문 → 이미지 → 블로그 글 → 블로그 복사·열기 순서로 설정대로 이어 간다 */
+var DYFLOW=['ai','img','blog','post'];
 var DYACTS={
  ai:function(next){if(!DY.rows.length)return;if((DY.ai[DY.date]||'').trim()){next();return}if(!ftOk('prompt'))return;dyGo2('dys2');dyAIRun()},
- img:function(next){if(!DY.rows.length||!DY.imgPanel)return;dyGo2('dys3');DY.imgPanel.gen(true).then(function(){if(DY.imgPanel&&DY.imgPanel.items())next()},function(){})},
- blog:function(){if(!DY.rows.length||!DY.blogPanel)return;dyGo2('dys3');DY.blogPanel.rebuild()}};
+ img:function(next){if(!DY.rows.length||!DY.imgPanel)return;if(DY.flag.img){next();return}dyGo2('dys3');DY.imgPanel.gen(true).then(function(){if(DY.imgPanel&&DY.imgPanel.items())next()},function(){})},
+ blog:function(next){if(!DY.rows.length||!DY.blogPanel)return;if(DY.flag.blog&&DY.blogPanel.built()){next();return}dyGo2('dys3');DY.blogPanel.rebuild().then(function(j){if(j&&!j.error)next()})},
+ post:function(next){if(dyPostGo(true))next()}};
+function dyPostGo(auto){var P=DY.blogPanel;if(!P)return false;if(P.built()){P.copyOpen(auto);return true}
+ if(!DY.flag.blog){if(!auto)toast('먼저 ④ 글 만들기를 해 주세요');return false}
+ P.rebuild().then(function(j){if(j)P.copyOpen(auto)});return true}
 function dyGo2(id){var e=$(id);if(e)e.scrollIntoView({behavior:'smooth',block:'start'})}
-function dyStepRun(i){/* 단계 줄을 누르면 그 단계 작업을 바로 실행(이어지는 단계는 설정대로) */
- if(i===0){if(MEMBER_MODE||DY.rows.length)return;var g=$('dyGo');if(g&&!g.disabled)g.click();return}
+function dyStepRun(id){/* 단계 줄을 누르면 그 단계 작업을 바로 실행(이어지는 단계는 설정대로) */
+ if(id==='list'){if(MEMBER_MODE||DY.rows.length)return;var g=$('dyGo');if(g&&!g.disabled)g.click();return}
  if(!DY.rows.length){toast('먼저 ① 오늘의 후보를 만드세요');return}
- if(i===1){if(!ftOk('prompt')){lockDlg('prompt');return}dyAIRun();return}
- if(MEMBER_MODE){if(!ftOk('img')){lockDlg('img');return}if(DY.memGo&&!DY.memGo.disabled)DY.memGo.click();return}
- MiniFlow.go('daily',DYFLOW,DYACTS,'img')}
+ if(id==='ai'){if(!ftOk('prompt')){lockDlg('prompt');return}dyAIRun();return}
+ if(MEMBER_MODE){if(id==='img'){if(!ftOk('img')){lockDlg('img');return}if(DY.memGo&&!DY.memGo.disabled)DY.memGo.click()}return}
+ if(id==='img'){DY.flag.img=false;MiniFlow.go('daily',DYFLOW,DYACTS,'img');return}
+ if(id==='blog'){DY.flag.blog=false;MiniFlow.go('daily',DYFLOW,DYACTS,'blog');return}
+ if(id==='post'){dyPostGo(false);return}
+ if(id==='all'){toast('⚡ 블로그까지 이어서 진행해요');MiniFlow.force('daily',DYFLOW,DYACTS)}}
 function dyFiltered(){var f=DY.f,q=f.q.trim().toLowerCase();var a=DY.rows.filter(function(r){if(f.dip){if(!(r.day_pct<0&&r.dip>=60))return false}else if(r.score<f.min)return false;if(q&&(r.name.toLowerCase().indexOf(q)<0&&r.ticker.indexOf(q)<0))return false;return true});
  var k=f.sort;a.sort(function(x,y){if(k==='dip')return y.dip-x.dip;if(k==='pct')return (y.day_pct||0)-(x.day_pct||0);if(k==='since')return (y.since||-99)-(x.since||-99);return y.score-x.score});return a}
 function dyMainDraw(){var m=$('dyMain');if(!m)return;m.innerHTML='';dySteps();
@@ -1251,7 +1262,7 @@ function dyOut(b){var rows=DY.rows;
  DY.imgPanel=ImgKit.panel(ib,{menu:'daily',name:'오늘추천',ticker:(DY.date||'').replace(/-/g,''),onDone:function(){DY.flag.img=true;dySteps()},gen:function(scale){if(!rows.length)return Promise.reject(new Error('후보가 없어요. 먼저 스캔하세요.'));return Promise.resolve(window.DyImg.build(rows.slice().sort(function(a,b){return b.score-a.score}),DY.picks[DY.date]||[],DY.date,scale,DY.excl))}});
  b.appendChild(el('div','m','📝 블로그 글 (🌟 오늘의 추천 주식 N선)'));var bx=el('div');b.appendChild(bx);
  var secs=[['stats','요약통계'],['market','시장환경'],['top','점수TOP'],['ai','AI추천결과'],['list','추천목록'],['dip','음봉강세'],['track','지난성과']];
- DY.blogPanel=window.BlogKit.panel(bx,{idp:'dy',key:'daily',kind:'daily',ticker:'D'+DY.date.replace(/-/g,'').slice(2),name:'오늘추천 '+DY.date,sections:secs,dup_warn:'',onBuilt:function(){DY.flag.blog=true;dySteps()},
+ DY.blogPanel=window.BlogKit.panel(bx,{idp:'dy',key:'daily',kind:'daily',ticker:'D'+DY.date.replace(/-/g,'').slice(2),name:'오늘추천 '+DY.date,sections:secs,dup_warn:'',onBuilt:function(){DY.flag.blog=true;DY.flag.posted=false;dySteps()},onCopied:function(){DY.flag.posted=true;dySteps()},
   build:function(inc,title){return apiJ('/admin/api/daily/blog',{date:DY.date,ai:DY.ai[DY.date]||'',inc:inc,title:title,n:30})}})}
 function dyTrack(b){if(!ftOk('track')){dyLockBox(b,'track','AI 정리 이후 성과 기록');return}var c=el('div');c.appendChild(el('p','note','AI가 추천한 종목의 추천가 대비 현재 수익률이에요. 호흡(단기 7일·중기 30일·장기 90일)이 지나면 그 시점 가격으로 승/패(±1% 기준)를 확정하고, 확정된 건이 5건 이상 쌓이면 다음 AI 요청문의 오답노트에 자동 반영돼요. 원본 프로그램의 기록도 함께 보여줘요.'));
  var body=el('div');c.appendChild(body);body.appendChild(el('div','m','⏳ 현재가를 불러오는 중…'));b.appendChild(c);
@@ -1317,7 +1328,8 @@ def register():
     C.register_flow("daily", "🌟 오늘추천", "① 오늘 스캔하기(직접 시작)", [
         {"id": "ai", "label": "② AI 추천주", "desc": "스캔이 끝나면 AI 요청문 창을 자동으로 열어요. AI 답변을 복사해 돌아오면 다음 단계로 이어져요(이미 저장된 AI 글이 있으면 건너뛰어요)."},
         {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 단계가 끝나면 이미지를 자동으로 그려요."},
-        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."}])
+        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."},
+        {"id": "post", "label": "⑤ 블로그 복사·열기", "desc": "글이 만들어지면 서식을 복사하고 블로그 글쓰기 화면을 새 창으로 열어요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요. 브라우저가 복사·새 창을 막으면 [📋 복사하고 블로그 열기]를 한 번 눌러 주세요."}])
     F("daily", "list", "후보 목록 보기", "스캔 날짜의 후보 종목 이름·점수·등락률. 이 기능이 열려 있어야 화면이 나와요(주소: 상태·목록).", default="admin",
       endpoints=["/admin/api/daily/state", "/admin/api/daily/list"])
     F("daily", "detail", "상세 근거", "RSI·이평선·52주 위치·수급·신호·음봉강세·연속 등장, 스캔 후 수익률(현재가 기준) 같은 점수의 근거 열.", default="admin")

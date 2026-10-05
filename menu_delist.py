@@ -995,7 +995,7 @@ def admin_api_delist_img_data():
 # ══════════════════════════════════════════════════════════════
 TAB_JS = r"""
 var DL={rows:[],sum:{},diff:null,snaps:[],crit:null,advice:{},meta:null,view:null,sel:{},open:{},more:40,timer:null,critOpen:false,critEdit:null,
- f:{scope:'all',mkt:'',ai:'',st:'',q:'',sort:'default'}};
+ f:{scope:'all',mkt:'',ai:'',st:'',q:'',sort:'default'},flag:{img:false,blog:false,posted:false}};
 var DLCSS='.dlH{background:linear-gradient(135deg,#7f1d1d 0%,#b91c1c 55%,#dc2626 100%);color:#fff;border-radius:16px;padding:16px 18px;margin-bottom:10px}.dlH h3{margin:0;font-size:19px;font-weight:900}.dlH p{margin:5px 0 0;font-size:12.5px;color:#fecaca;line-height:1.65}'+
 '.dlChips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.dlChip{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);border-radius:12px;padding:7px 13px;min-width:92px}.dlChip small{display:block;font-size:11px;color:#fecaca}.dlChip b{font-size:20px;font-weight:900}'+
 '.dlNote{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 13px;font-size:12px;color:#78350f;line-height:1.75;margin-bottom:10px}'+
@@ -1031,21 +1031,21 @@ function dlApplyData(d){DL.rows=d.rows||[];DL.sum=d.summary||{};DL.diff=d.diff;D
 function dlReload(cb){api('/admin/api/delist/list').then(function(d){dlApplyData(d);if(cur==='dl'&&DL.p){dlDraw()}if(cb)cb()})}
 /* ── 화면: ①스크리닝(자동 공개) → ②이미지 → ③블로그 (위에서 아래로 한 줄기) ── */
 function dlStepCard(n,title,sub,id){var c=el('div','c');c.id=id;var h=el('div','dlSH');h.appendChild(el('span','dlSN',String(n)));var t=el('div');t.appendChild(el('b',null,title));if(sub)t.appendChild(el('div','m',sub));h.appendChild(t);c.appendChild(h);return c}
-function dlStepper(sm,ls){var S=el('div','dlSteps');S.id='dlSteps';var has=sm.total>0;
- var items=[['1','스크리닝',ls.finished?((ls.finished_txt||'')+' · '+dlN(sm.total)+'개'):'아직 안 했어요',!!ls.finished,'dlS1'],
-  ['2','이미지',has?'PNG 2장 만들기':'스크리닝 먼저',false,'dlS3'],
-  ['3','블로그 글',has?'HTML 만들기':'스크리닝 먼저',false,'dlS4']];
- items.forEach(function(x){var b=el('div','dlStp'+(x[3]?' done':'')+(!has&&x[0]!=='1'?' off':''));b.setAttribute('role','button');b.tabIndex=0;
-  b.appendChild(el('span','n',x[3]?'✓':x[0]));var t=el('div');t.appendChild(el('b',null,x[1]));t.appendChild(el('small',null,x[2]));b.appendChild(t);
-  function go(){dlGo(x[4]);dlStepRun(x[4])}
-  b.onclick=go;b.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}};S.appendChild(b)});return S}
+function dlStepper(sm,ls){var W=el('div');W.id='dlStepsW';W.style.cssText='position:sticky;top:0;z-index:6;background:#f1f5f9;padding:8px 0;margin:0 0 6px';var h=el('div');h.id='dlSteps';W.appendChild(h);return W}
+function dlStepsDraw(){var h=$('dlSteps');if(!h||!DL.meta)return;var sm=DL.sum||{},ls=DL.meta.last_scan||{},has=(sm.total||0)>0,F=DL.flag,ai=!!(DL.advice&&DL.advice.text);
+ var steps=[{t:'스크리닝',sub:ls.finished?((ls.finished_txt||'')+' · '+dlN(sm.total)+'개'):'아직 안 했어요',done:!!ls.finished,go:function(){dlStepRun('scan')}},
+  {t:'AI 조언',sub:ai?'저장됨 · 다시 만들기':(has?'눌러서 시작(선택)':'스크리닝 먼저'),done:ai,off:!has,go:function(){dlStepRun('ai')}},
+  {t:'이미지 만들기',sub:F.img?'완료 · 다시 만들기':(has?'PNG 2장 만들기':'스크리닝 먼저'),done:F.img,off:!has,go:function(){dlStepRun('img')}},
+  {t:'글 만들기',sub:F.blog?'완료 · 다시 만들기':(has?'HTML 만들기':'스크리닝 먼저'),done:F.blog,off:!has,go:function(){dlStepRun('blog')}},
+  {t:'블로그에 쓰기',sub:F.posted?'복사·열기 완료':(F.blog?'복사하고 블로그 열기':'글을 먼저 만드세요'),done:F.posted,off:!F.blog,go:function(){dlStepRun('post')}}];
+ window.FlowBar.draw(h,{steps:steps,runAll:function(){dlStepRun('all')},note:'[⚡ 블로그까지 한 번에]는 AI 조언 → 이미지 → 글 → 블로그 복사·열기를 설정과 상관없이 끝까지 이어요(AI 조언은 이미 저장돼 있으면 건너뛰어요). 단계별 자동/수동은 [⚙ 설정]에서 바꿔요. 블로그 글쓰기 화면에 붙여 넣기(Ctrl+V)만 직접 하면 돼요.'})}
 function dlDraw(){var p=DL.p;if(!p||cur!=='dl')return;var sy=window.pageYOffset||0;p.innerHTML='';var d=DL.meta,sm=DL.sum,ls=d.last_scan||{};
  var H=el('div','dlH');H.appendChild(el('h3',null,'🚫 거래정지·상장폐지 위험 종목'));
  H.appendChild(el('p',null,'스크리닝(①) 한 번으로 네이버 거래상태가 거래정지·상폐인 종목은 공개 목록에 자동으로 올라가고, 이어서 이미지(②)와 블로그 글(③)을 위에서 아래로 만들어요. 기준 미달 종목은 추정이라 공개하지 않아요.'));
  var ch=el('div','dlChips');function chip(l,v,fn){var c=el('div','dlChip');c.appendChild(el('small',null,l));c.appendChild(el('b',null,v));if(fn){c.style.cursor='pointer';c.onclick=fn}ch.appendChild(c)}
  function sc(v){return function(){DL.f.scope=v;dlToolDraw();dlTable();dlGo('dlS1')}}
  chip('전체',dlN(sm.total)+'개',sc('all'));chip('🔴 위험',dlN(sm.danger)+'개',sc('danger'));chip('🟡 경계',dlN(sm.warn)+'개',sc('warn'));chip('거래상태 신호',dlN(sm.status)+'개',sc('status'));chip('🌐 공개 중',dlN(sm.public)+'개');H.appendChild(ch);p.appendChild(H);
- p.appendChild(dlStepper(sm,ls));
+ p.appendChild(dlStepper(sm,ls));dlStepsDraw();
  /* ① 스크리닝 + 결과 */
  var c1=dlStepCard(1,'스크리닝','네이버에서 전 종목(코스피·코스닥) 시세를 받아 기준에 맞는 종목을 가려내요(보통 10~40초)','dlS1');
  var a1=el('div','dlBtns');a1.appendChild(dlB('🔍 스크리닝 실행','p',dlScan));
@@ -1059,27 +1059,36 @@ function dlDraw(){var p=DL.p;if(!p||cur!=='dl')return;var sy=window.pageYOffset|
  /* ③ 이미지 */
  var c3=dlStepCard(2,'이미지','블로그에 올릴 PNG 2장 — ① 메인 대시보드(전체·기준별·위험 상위) ② 위험 종목 표','dlS3');c3.appendChild(el('p','note','[🖼 이미지 만들기]를 누르면 아래에 미리보기가 나오고, 그림마다 [💾 저장]을 누르면 돼요. 스크리닝을 끝낸 뒤 만드세요.'));
  var ib=el('div');c3.appendChild(ib);p.appendChild(c3);
- DL.imgPanel=ImgKit.panel(ib,{menu:'delist',name:'투자주의',ticker:(d.today||'').replace(/-/g,''),gen:function(scale){if(!DL.rows.length)return Promise.reject(new Error('결과가 없어요. 먼저 스크리닝을 실행하세요.'));return Promise.resolve(window.DlImg.build(DL,scale))}});
+ DL.imgPanel=ImgKit.panel(ib,{menu:'delist',name:'투자주의',ticker:(d.today||'').replace(/-/g,''),onDone:function(){DL.flag.img=true;dlStepsDraw()},gen:function(scale){if(!DL.rows.length)return Promise.reject(new Error('결과가 없어요. 먼저 스크리닝을 실행하세요.'));return Promise.resolve(window.DlImg.build(DL,scale))}});
  /* ④ 블로그 */
  var c4=dlStepCard(3,'블로그 글','네이버 블로그용 HTML — “확정 아님” 표현과 위험 안내가 자동으로 들어가요','dlS4');
  var adv=el('div','dlSub');adv.id='dlAdvBox';adv.appendChild(el('b',null,'💡 투자 주의 조언 (선택) — 글에 함께 들어가요'));c4.appendChild(adv);
  var bs=el('div','dlSub');bs.appendChild(el('b',null,'📝 글 만들기'));var bx=el('div');bs.appendChild(bx);c4.appendChild(bs);p.appendChild(c4);dlAdvDraw(adv);
  DL.blogPanel=window.BlogKit.panel(bx,{idp:'dl',key:'caution',kind:'caution',ticker:'D'+(d.today||'').replace(/-/g,'').slice(2),name:'투자주의 '+(d.today||''),sections:[['stats','요약통계'],['danger','위험종목표'],['warn','경계종목표'],['diff','신규진입·졸업'],['pub','공개종목'],['advice','AI조언'],['rules','스크리닝기준']],dup_warn:'',
+  onBuilt:function(){DL.flag.blog=true;DL.flag.posted=false;dlStepsDraw()},onCopied:function(){DL.flag.posted=true;dlStepsDraw()},
   build:function(inc,title){return apiJ('/admin/api/delist/blog',{inc:inc,title:title})}});
  /* 참고 */
  var cD=dlCard('🆕 신규 진입 · 🎓 졸업','직전 스크리닝 대비 변화 — 스크리닝이 끝날 때마다 결과가 자동으로 저장돼 다음 번과 비교해요');cD.id='dlDiffBox';p.appendChild(cD);dlDiffDraw(cD);
  var cR=dlCard('⚙️ 스크리닝 기준 (고급)',(DL.crit&&DL.crit.updated_at?'기준 갱신 '+DL.crit.updated_at+' · ':'')+((DL.crit&&DL.crit.source_note)||''));cR.id='dlCritBox';p.appendChild(cR);dlCritDraw(cR);
  dlWatch(true);if(DL._drawn)window.scrollTo(0,sy);DL._drawn=true}
 /* 단계 자동 진행([⚙ 설정] 의 단계 진행 방식): 스크리닝이 끝나면 이미지 → 블로그 글 순서로 설정대로 이어 간다 */
-var DLFLOW=['img','blog'];
+var DLFLOW=['ai','img','blog','post'];
 var DLACTS={
- img:function(next){if(!DL.rows.length||!DL.imgPanel)return;dlGo('dlS3');DL.imgPanel.gen(true).then(function(){if(DL.imgPanel&&DL.imgPanel.items())next()},function(){})},
- blog:function(){if(!DL.rows.length||!DL.blogPanel)return;dlGo('dlS4');DL.blogPanel.rebuild()}};
+ ai:function(next){if(!DL.rows.length)return;if(DL.advice&&DL.advice.text){next();return}dlGo('dlS4');dlAdvice()},
+ img:function(next){if(!DL.rows.length||!DL.imgPanel)return;if(DL.flag.img){next();return}dlGo('dlS3');DL.imgPanel.gen(true).then(function(){if(DL.imgPanel&&DL.imgPanel.items())next()},function(){})},
+ blog:function(next){if(!DL.rows.length||!DL.blogPanel)return;if(DL.flag.blog&&DL.blogPanel.built()){next();return}dlGo('dlS4');DL.blogPanel.rebuild().then(function(j){if(j&&!j.error)next()})},
+ post:function(next){if(dlPostGo(true))next()}};
+function dlPostGo(auto){var P=DL.blogPanel;if(!P)return false;if(P.built()){P.copyOpen(auto);return true}
+ if(!DL.flag.blog){if(!auto)toast('먼저 ④ 글 만들기를 해 주세요');return false}
+ P.rebuild().then(function(j){if(j)P.copyOpen(auto)});return true}
 function dlStepRun(id){/* 단계 줄을 누르면 그 단계 작업을 바로 실행(이어지는 단계는 설정대로) */
- if(id==='dlS1'){dlScan(true);return}
+ if(id==='scan'){dlGo('dlS1');dlScan(true);return}
  if(!DL.rows.length){toast('먼저 ① 스크리닝을 실행하세요');return}
- if(id==='dlS3')MiniFlow.go('delist',DLFLOW,DLACTS,'img');
- else if(id==='dlS4')MiniFlow.go('delist',DLFLOW,DLACTS,'blog')}
+ if(id==='ai'){dlGo('dlS4');dlAdvice();return}
+ if(id==='img'){DL.flag.img=false;MiniFlow.go('delist',DLFLOW,DLACTS,'img');return}
+ if(id==='blog'){DL.flag.blog=false;MiniFlow.go('delist',DLFLOW,DLACTS,'blog');return}
+ if(id==='post'){dlGo('dlS4');dlPostGo(false);return}
+ if(id==='all'){toast('⚡ 블로그까지 이어서 진행해요');MiniFlow.force('delist',DLFLOW,DLACTS)}}
 function dlGo(id){var e=$(id);if(e)e.scrollIntoView({behavior:'smooth',block:'start'})}
 /* ── 스크리닝 ── */
 function dlScan(now){if(!now&&!confirm('네이버에서 전 종목(코스피·코스닥) 시세 목록을 받아 기준에 맞는 종목을 가려냅니다(보통 10~40초). 계속할까요?'))return;
@@ -1090,7 +1099,7 @@ function dlWatch(quiet){if(DL.timer)clearInterval(DL.timer);
    if(s.running){var pc=s.pages_total?Math.min(99,Math.round(s.pages_done*100/s.pages_total)):5;e.textContent='⏳ '+(s.phase||'진행 중')+(s.pages_total?' — 시세 목록 '+s.pages_done+'/'+s.pages_total+'쪽':'')+(s.total?' · 받은 종목 '+dlN(s.total):'');e.className='note';
     if(b){b.style.display='';b.firstChild.style.width=pc+'%'}}
    else{if(b)b.style.display='none';
-    if(DL._wasRunning){DL._wasRunning=false;clearInterval(DL.timer);DL.timer=null;e.textContent=s.error?'⚠ '+s.error:'✅ 스크리닝 완료 — 위험 '+s.danger+'개 · 경계 '+s.warn+'개 (받은 종목 '+dlN(s.total)+')';e.className='note'+(s.error?' bad':'');if(!s.error)toast('스크리닝이 끝났어요 — 위험 '+s.danger+'개 · 경계 '+s.warn+'개');dlReload(s.error?null:function(){MiniFlow.run('delist',DLFLOW,DLACTS)});return}
+    if(DL._wasRunning){DL._wasRunning=false;clearInterval(DL.timer);DL.timer=null;e.textContent=s.error?'⚠ '+s.error:'✅ 스크리닝 완료 — 위험 '+s.danger+'개 · 경계 '+s.warn+'개 (받은 종목 '+dlN(s.total)+')';e.className='note'+(s.error?' bad':'');if(!s.error)toast('스크리닝이 끝났어요 — 위험 '+s.danger+'개 · 경계 '+s.warn+'개');if(!s.error)DL.flag={img:false,blog:false,posted:false};dlReload(s.error?null:function(){MiniFlow.run('delist',DLFLOW,DLACTS)});return}
     e.textContent=s.error?'⚠ '+s.error:'';e.className='note'+(s.error?' bad':'');if(!s.running&&!DL._wasRunning){clearInterval(DL.timer);DL.timer=null}}})}
  tick();DL.timer=setInterval(tick,1500)}
 /* ── 표 ── */
@@ -1133,12 +1142,12 @@ function dlExclude(r,on){if(!confirm(on?('‘'+r.name+'’ 을(를) 일반 이�
 /* ── AI 조언 ── */
 function dlAdvDraw(c){c=c||$('dlAdvBox');if(!c)return;Array.prototype.slice.call(c.querySelectorAll('.dlAdv,.dlBtns,.m')).forEach(function(x){x.remove()});
  var a=DL.advice||{};if(a.text){var b=el('div','dlAdv',a.text);c.appendChild(b);c.appendChild(el('div','m','저장일 '+(a.date||'')+' · '+a.text.length.toLocaleString()+'자 — 블로그 글에 포함돼요.'))}else c.appendChild(el('div','m','아직 없어요. 아래 [🤖 AI 조언 만들기]를 눌러 보세요(스크리닝 후, 선택 사항).'));
- var r=el('div','dlBtns');r.appendChild(dlB('🤖 AI 조언 만들기','',dlAdvice));if(a.text)r.appendChild(dlB('🗑 지우기','',function(){apiJ('/admin/api/delist/advice-save',{text:''}).then(function(){DL.advice={};toast('지웠어요 — 저장 완료');dlAdvDraw()})}));c.appendChild(r)}
+ var r=el('div','dlBtns');r.appendChild(dlB('🤖 AI 조언 만들기','',dlAdvice));if(a.text)r.appendChild(dlB('🗑 지우기','',function(){apiJ('/admin/api/delist/advice-save',{text:''}).then(function(){DL.advice={};toast('지웠어요 — 저장 완료');dlAdvDraw()})}));c.appendChild(r);dlStepsDraw()}
 function dlAdvice(){if(!window.MiniAI){toast('AI 도우미 파일(menu_ui.py)이 올라가지 않았어요.');return}
  apiJ('/admin/api/delist/advice-prompt',{}).then(function(j){if(j.error){toast(j.error);return}
   window.MiniAI.run({title:'투자주의 AI 조언',key:'dladv',steps:[{label:'AI 조언',prompt:j.prompt}],minLen:300,hint:'AI가 "## 1. 한 줄 요약 …" 형식으로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
    preview:function(t){var ok=/##\s*1\./.test(t);var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString()+'자 — '+t.slice(0,260)+(t.length>260?' …':'');return {node:x,canApply:t.trim().length>=200,strict:ok,text:ok?null:'형식(## 1. 한 줄 요약 …)이 보이지 않아요. 맞는 답변이면 [저장]을 눌러도 돼요.'}},
-   apply:function(t){return apiJ('/admin/api/delist/advice-save',{text:t}).then(function(z){DL.advice={text:t.replace(/<[^>]*>/g,'').trim(),date:z.date};setTimeout(dlAdvDraw,50);return {message:'AI 조언을 저장했어요('+z.len.toLocaleString()+'자). 블로그 글에 포함돼요.'}})}})})}
+   apply:function(t){return apiJ('/admin/api/delist/advice-save',{text:t}).then(function(z){DL.advice={text:t.replace(/<[^>]*>/g,'').trim(),date:z.date};setTimeout(function(){dlAdvDraw();dlStepsDraw();MiniFlow.run('delist',DLFLOW,DLACTS,'ai')},50);return {message:'AI 조언을 저장했어요('+z.len.toLocaleString()+'자). 블로그 글에 포함돼요.'}})}})})}
 /* ── 신규진입 · 졸업 · 스냅샷 · 이력 ── */
 function dlDiffDraw(c){c=c||$('dlDiffBox');if(!c)return;Array.prototype.slice.call(c.querySelectorAll('.dlDiff,.dlBtns,.m')).forEach(function(x){x.remove()});var d=DL.diff||{};
  if(!d.has_baseline){c.appendChild(el('div','m','첫 스크리닝이에요. 다음 스크리닝부터 직전 결과와 비교한 ‘신규 진입·졸업’이 여기에 나와요.'))}
@@ -1457,8 +1466,10 @@ def register():
         "vars": "{today}=오늘 날짜 · {summary}=결과 요약(필수) · {items}=상위 종목(필수)",
         "desc": "스크리닝 결과를 바탕으로 '투자 시 주의점·접근 방향'을 쓰게 하는 요청문. 블로그 글에 함께 들어가요."})
     C.register_flow("delist", "🚫 거래정지·상폐", "① 스크리닝 실행(직접 시작)", [
-        {"id": "img", "label": "② 이미지 만들기", "desc": "스크리닝이 끝나면 PNG 이미지 2장을 자동으로 그려요."},
-        {"id": "blog", "label": "③ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요. 만든 뒤 복사해서 올리면 돼요."}])
+        {"id": "ai", "label": "② AI 조언", "desc": "스크리닝이 끝나면 AI 요청문 창을 자동으로 열어요. AI 답변을 복사해 돌아오면 저장되고 다음 단계로 이어져요(이미 저장된 조언이 있으면 건너뛰어요)."},
+        {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 단계가 끝나면 PNG 이미지 2장을 자동으로 그려요."},
+        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."},
+        {"id": "post", "label": "⑤ 블로그 복사·열기", "desc": "글이 만들어지면 서식을 복사하고 블로그 글쓰기 화면을 새 창으로 열어요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요. 브라우저가 복사·새 창을 막으면 [📋 복사하고 블로그 열기]를 한 번 눌러 주세요."}])
     C.register_table_hook(_ensure_delist_table)
     C.register_admin_tab("dl", "🚫 거래정지·상폐", TAB_JS + "\n" + IMG_JS, "dlLoad", menu="delist")
     # 🎚 기능별 등급 공개 — 읽기 전용 기능만. 스캔·기준 저장·공개 제외·블로그·설정·가져오기 같은 관리자 업무 주소는

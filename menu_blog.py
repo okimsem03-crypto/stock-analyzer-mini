@@ -142,7 +142,7 @@ def api_urls_save():
 # ══════════════════════════════════════════════════════════════
 # 작성 이력 (표 이름은 v139 의 lab_blog_log 를 그대로 쓴다 — 이미 쌓인 기록 유지)
 # ══════════════════════════════════════════════════════════════
-KINDS = {"stock": "종목분석", "deepdive": "심층분석", "daily": "오늘추천", "caution": "투자주의", "news": "뉴스분석", "challenge": "도전주", "market": "시장수급", "theme": "네이버테마"}
+KINDS = {"stock": "종목분석", "deepdive": "심층분석", "daily": "오늘추천", "caution": "투자주의", "news": "뉴스분석", "challenge": "도전주", "market": "시장수급", "theme": "네이버테마", "flow": "수급분석"}
 
 
 def _ensure_table(c, use_pg):
@@ -604,12 +604,20 @@ K.urlOf=function(key){var m=((K.urls||{}).menus||[]).filter(function(x){return x
 K.labelOf=function(key){var m=((K.urls||{}).menus||[]).filter(function(x){return x.key===key})[0];return m?m.label:key};
 K.autoOpen=function(){return !K.urls||K.urls.auto_open!==false};
 // 서식(text/html) 그대로 복사 — copy 이벤트를 가로채 HTML 과 글자를 함께 싣는다(원본 방식). 동기 실행이라 바로 뒤에 창을 열어도 팝업 차단에 안 걸린다.
-K.copyHtml=function(html){var plain=html.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();var ok=false;
+K._exec=function(html){var plain=html.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();var ok=false;
  try{var ta=document.createElement('textarea');ta.value=' ';ta.setAttribute('readonly','');ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.focus();ta.select();var done=false;
   var h=function(e){try{e.clipboardData.setData('text/html',html);e.clipboardData.setData('text/plain',plain);e.preventDefault();done=true}catch(x){}};
   document.addEventListener('copy',h,true);var r=false;try{r=document.execCommand('copy')}catch(x){}document.removeEventListener('copy',h,true);document.body.removeChild(ta);ok=!!(r&&done)}catch(e){}
+ return ok};
+K.copyHtml=function(html){var plain=html.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();var ok=K._exec(html);
  if(!ok){try{if(navigator.clipboard&&window.ClipboardItem){navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})})]).catch(function(){});ok=true}}catch(e){}}
  return ok};
+// 팝업 차단 감지: noopener 를 넣으면 반환값이 늘 null 이라 차단 여부를 못 알아봐서, 열고 나서 opener 를 끊는다.
+// 자동 단계용: 클릭 직후면 예전 방식(서식 그대로)으로, 아니면 비동기 클립보드(크롬은 열린 탭이면 허용)로 복사한다.
+K.copyAuto=function(html){if(K._exec(html))return Promise.resolve(true);var plain=html.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
+ try{if(navigator.clipboard&&window.ClipboardItem&&navigator.clipboard.write){return navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})})]).then(function(){return true},function(){return K.copyHtml(html)})}}catch(e){}
+ return Promise.resolve(K.copyHtml(html))};
+K.openBlog=function(key){var w=null;try{w=window.open(K.urlOf(key),'_blank')}catch(e){}if(w){try{w.opener=null}catch(e){}return true}return false};
 K.save=function(name,title,html){var b=new Blob(['<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>'+String(title||'').replace(/</g,'')+'</title></head><body style="max-width:860px;margin:0 auto;padding:20px">'+html+'</body></html>'],{type:'text/html'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500)};
 function bt(txt,primary,fn){var b=el('button',null,txt);sty(b,'font:inherit;font-size:13px;font-weight:700;border-radius:10px;padding:8px 14px;cursor:pointer;margin:0 6px 6px 0;border:1.5px solid '+(primary?'#312e81':'#c7d2fe')+';background:'+(primary?'#312e81':'#fff')+';color:'+(primary?'#fff':'#312e81'));b.onclick=fn;return b}
 // opt: {key,kind,ticker,name,sections:[[k,label]],build:function(inc,title)->Promise<{html,title,titles,tags,size,ok_size,dup_warn}>,dup_warn:'',idp:'접두어'}
@@ -620,20 +628,21 @@ K.panel=function(box,opt){var idp=opt.idp||'bk';box.innerHTML='';
  var last=null,mainFn=null;var r=el('div');var out=el('div');var go=bt('🧱 글 만들기',true,function(){make()});r.appendChild(go);box.appendChild(r);box.appendChild(out);
  K.load();
  function make(){out.innerHTML='';out.appendChild(sty(el('div',null,'⏳ 만드는 중…'),'font-size:12.5px;color:#6b7280'));go.disabled=true;
-  Promise.resolve(opt.build(inc,ti.value)).then(function(j){go.disabled=false;out.innerHTML='';if(!j||j.error){out.appendChild(sty(el('div',null,'⚠ '+((j&&j.error)||'만들지 못했어요')),'color:#b91c1c;font-size:13px'));return}
+  return Promise.resolve(opt.build(inc,ti.value)).then(function(j){go.disabled=false;out.innerHTML='';if(!j||j.error){out.appendChild(sty(el('div',null,'⚠ '+((j&&j.error)||'만들지 못했어요')),'color:#b91c1c;font-size:13px'));return null}
    if(!ti.value)ti.value=j.title||'';
     last=j;if(opt.onBuilt){try{opt.onBuilt(j)}catch(x){}}
    if(j.dup_warn!=null){dw.textContent=j.dup_warn?('⚠ '+j.dup_warn):'';dw.style.display=j.dup_warn?'':'none'}
    if(j.titles&&j.titles.length){var tl=sty(el('div',null,'AI 제목 후보: '),'font-size:12px;color:#6b7280;margin:6px 0');j.titles.forEach(function(t){var a=bt(t.length>34?t.slice(0,34)+'…':t,false,function(){ti.value=t});sty(a,'margin:2px;padding:3px 9px;font-size:12px');tl.appendChild(a)});out.appendChild(tl)}
-   K.load().then(function(){
+   return K.load().then(function(){
     var lab=K.labelOf(opt.key),ao=K.autoOpen();var rr=el('div');
-    mainFn=function(){var ok=K.copyHtml(j.html);if(!ok){toast('복사가 막혔어요. 아래 [HTML 파일로 저장]을 쓰거나 미리보기를 드래그해 복사하세요.');return}if(opt.onCopied){try{opt.onCopied()}catch(x){}}
-     if(ao){window.open(K.urlOf(opt.key),'_blank','noopener');toast('📋 복사했어요 — 열린 블로그 글쓰기 화면에서 Ctrl+V 하세요 ('+lab+')')}else toast('📋 블로그용 HTML을 복사했어요 — 블로그 글쓰기 화면에서 Ctrl+V 하세요.')};
-    var main=bt(ao?'📋 복사하고 블로그 열기':'📋 서식 그대로 복사',true,mainFn);
+    function after(ok){if(!ok){toast('복사가 막혔어요. [📋 복사하고 블로그 열기]를 직접 한 번 누르거나 아래 [HTML 파일로 저장]을 쓰세요.');if(opt.onBlocked){try{opt.onBlocked('copy')}catch(x){}}return false}if(opt.onCopied){try{opt.onCopied()}catch(x){}}
+     if(ao){var op=K.openBlog(opt.key);if(op)toast('📋 복사했어요 — 열린 블로그 글쓰기 화면에서 Ctrl+V 하세요 ('+lab+')');else{toast('📋 복사는 됐어요. 브라우저가 새 창을 막았어요 — [✍ 블로그만 열기]를 눌러 열고 Ctrl+V 하세요. (주소창 오른쪽 팝업 차단 표시에서 이 사이트를 허용하면 다음부터 자동으로 열려요)');if(opt.onBlocked){try{opt.onBlocked('popup')}catch(x){}}}}else toast('📋 블로그용 HTML을 복사했어요 — 블로그 글쓰기 화면에서 Ctrl+V 하세요.');return true}
+    mainFn=function(auto){if(auto)return K.copyAuto(j.html).then(after);return after(K.copyHtml(j.html))};
+    var main=bt(ao?'📋 복사하고 블로그 열기':'📋 서식 그대로 복사',true,function(){mainFn(false)});
     rr.appendChild(main);
     if(ao)rr.appendChild(bt('복사만',false,function(){toast(K.copyHtml(j.html)?'📋 복사했어요.':'복사가 막혔어요.')}));
-    else rr.appendChild(bt('📋 복사 → 블로그 열기',true,function(){var ok=K.copyHtml(j.html);if(!ok){toast('복사가 막혔어요. 아래 [HTML 파일로 저장]을 쓰거나 미리보기를 드래그해 복사하세요.');return}if(opt.onCopied){try{opt.onCopied()}catch(x){}}window.open(K.urlOf(opt.key),'_blank','noopener');toast('📋 복사했어요 — 열린 블로그 글쓰기 화면에서 Ctrl+V 하세요 ('+lab+')')}));
-    rr.appendChild(bt('✍ 블로그만 열기',false,function(){window.open(K.urlOf(opt.key),'_blank','noopener')}));
+    else rr.appendChild(bt('📋 복사 → 블로그 열기',true,function(){var ok=K.copyHtml(j.html);if(!ok){toast('복사가 막혔어요. 아래 [HTML 파일로 저장]을 쓰거나 미리보기를 드래그해 복사하세요.');return}if(opt.onCopied){try{opt.onCopied()}catch(x){}}if(!K.openBlog(opt.key))toast('새 창이 막혔어요 — [✍ 블로그만 열기]를 눌러 주세요.');else toast('📋 복사했어요 — 열린 블로그 글쓰기 화면에서 Ctrl+V 하세요 ('+lab+')')}));
+    rr.appendChild(bt('✍ 블로그만 열기',false,function(){K.openBlog(opt.key)}));
     rr.appendChild(bt('💾 HTML 파일로 저장',false,function(){K.save((opt.ticker||'blog')+'_'+(opt.kind||'blog')+'.html',j.title,j.html)}));
     out.appendChild(rr);
     var info=sty(el('div',null,'열리는 곳: '+lab+' → '+K.urlOf(opt.key)+' · 글 크기 '+Math.round((j.size||j.html.length)/1000)+'KB'+(j.tags&&j.tags.length?' · 태그 '+j.tags.map(function(t){return '#'+t}).join(' '):'')+(j.ok_size===false?' — ⚠ 너무 커서 일부 섹션을 빼고 다시 만드세요':'')),'font-size:12px;color:#6b7280;line-height:1.6;margin:2px 0 8px');out.appendChild(info);
@@ -642,8 +651,8 @@ K.panel=function(box,opt){var idp=opt.idp||'bk';box.innerHTML='';
     var lg=sty(el('div'),'margin-top:12px;border-top:1px dashed #c7d2fe;padding-top:10px');lg.appendChild(sty(el('b',null,'✅ 블로그에 올렸다면 기록 남기기 (중복 방지)'),'font-size:13px'));
     var u=el('input');u.type='text';u.placeholder='올린 글 주소(선택) https://blog.naver.com/…';sty(u,'width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1.5px solid #d1d5db;border-radius:9px;padding:8px;margin:6px 0 4px');lg.appendChild(u);
     var m=el('input');m.type='text';m.placeholder='메모(선택)';sty(m,'width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1.5px solid #d1d5db;border-radius:9px;padding:8px;margin:0 0 6px');lg.appendChild(m);
-    var sv=bt('작성 기록 남기기',true,function(){call('/admin/api/blog/log',{ticker:opt.ticker,name:opt.name,title:ti.value||j.title,url:u.value,memo:m.value,kind:opt.kind||'stock'}).then(function(z){if(z.error){toast(z.error);return}toast('작성 기록을 남겼어요 (관리자 화면 📝 블로그 이력)');dw.textContent='⚠ '+z.dup_warn;dw.style.display='';sv.disabled=true;sv.textContent='기록 완료';if(opt.onLogged)opt.onLogged(z)})});lg.appendChild(sv);out.appendChild(lg)})})}
- return {rebuild:make,built:function(){return !!last},copyOpen:function(){if(mainFn)mainFn();else toast('먼저 [글 만들기]를 눌러 글을 만드세요.')}}};
+    var sv=bt('작성 기록 남기기',true,function(){call('/admin/api/blog/log',{ticker:opt.ticker,name:opt.name,title:ti.value||j.title,url:u.value,memo:m.value,kind:opt.kind||'stock'}).then(function(z){if(z.error){toast(z.error);return}toast('작성 기록을 남겼어요 (관리자 화면 📝 블로그 이력)');dw.textContent='⚠ '+z.dup_warn;dw.style.display='';sv.disabled=true;sv.textContent='기록 완료';if(opt.onLogged)opt.onLogged(z)})});lg.appendChild(sv);out.appendChild(lg);return j})}).catch(function(e){go.disabled=false;out.innerHTML='';out.appendChild(sty(el('div',null,'⚠ '+((e&&e.message)||'만들지 못했어요')),'color:#b91c1c;font-size:13px'));return null})}
+ return {rebuild:make,built:function(){return !!last},copyOpen:function(auto){if(mainFn)return mainFn(!!auto);if(!auto)toast('먼저 [글 만들기]를 눌러 글을 만드세요.');return false}}};
 window.BlogKit=K;
 })();
 """

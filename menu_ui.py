@@ -273,11 +273,51 @@ function scoreOpen(kind){var T=SCORE_TXT[kind]||SCORE_TXT.deep;var old=document.
 function scoreNote(kind,dark){var w=el('div');var st=w.style;st.fontSize='12px';st.lineHeight='1.5';st.margin='6px 0 0';st.color=dark?'#cbd5e1':'#64748b';
  w.appendChild(document.createTextNode('※ 공개 자료를 규칙으로 계산한 참고 지표이며 기업 평가점수가 아니에요 '));var b=el('button',null,'ⓘ 자세히');var s=b.style;s.border='1px solid '+(dark?'#94a3b8':'#cbd5e1');s.background='transparent';s.color=dark?'#e2e8f0':'#334155';s.borderRadius='999px';s.padding='1px 9px';s.fontSize='11.5px';s.cursor='pointer';b.setAttribute('data-noconfirm','1');b.onclick=function(){scoreOpen(kind)};w.appendChild(b);return w}
 window.ScoreInfo={open:scoreOpen,note:scoreNote};
-// 종목 클릭 → 메인 화면의 종목분석·심층분석 탭을 연다. data-tk="종목코드" 가 붙은 요소를 누르면 동작(탭 안에서 열렸을 때).
-window.GoStock=function(t){t=String(t||'').trim().toUpperCase();if(!t)return false;try{var P=window.parent;if(P&&P!==window&&P.MiniTabs&&P.MiniTabs.openStock){P.MiniTabs.openStock(t);return true}}catch(e){}
- try{window.open('/?t='+encodeURIComponent(t),'mini_main')}catch(e){}return true};
+// 종목 클릭 → 종목분석·심층분석 중 고르는 작은 팝업. data-tk="종목코드"(선택: data-nm="종목명") 가 붙은 요소를 누르면 뜬다.
+// 네이버 증권 이동은 팝업이 아니라 종목 옆 작은 아이콘(NvIcon) 으로 따로 둔다.
+var SPN=null;
+function spCss(){if(document.getElementById('skPopCss'))return;var nn='',n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';
+ var s=document.createElement('style');s.id='skPopCss';if(nn)s.setAttribute('nonce',nn);
+ s.textContent='.tkl{cursor:pointer;text-decoration:underline;text-decoration-color:#cbd5e1;text-underline-offset:3px}.tkl:hover{text-decoration-color:currentColor}'+
+ '.skPop{position:fixed;z-index:2147483000;background:#fff;color:#0f172a;border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 14px 40px rgba(15,23,42,.30);padding:10px;width:244px;font:14px/1.5 system-ui,-apple-system,"Malgun Gothic",sans-serif}'+
+ '.skPop .hd{display:flex;align-items:center;gap:6px;margin:0 0 8px}.skPop .hd b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.skPop .hd i{font-style:normal;font-size:11.5px;color:#94a3b8}'+
+ '.skPop .x{border:0;background:#f1f5f9;color:#475569;border-radius:8px;width:26px;height:26px;cursor:pointer;font-size:13px}'+
+ '.skPop button.go{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:1.5px solid #e2e8f0;background:#fff;color:#0f172a;border-radius:11px;padding:9px 11px;margin:5px 0 0;font:inherit;font-size:14px;font-weight:800;cursor:pointer}'+
+ '.skPop button.go:hover,.skPop button.go:focus{border-color:#2563eb;background:#eff6ff;outline:0}.skPop button.go small{display:block;font-weight:500;font-size:11.5px;color:#64748b}'+
+ '@media(max-width:520px){.skPop{left:0!important;right:0!important;top:auto!important;bottom:0;width:auto;border-radius:16px 16px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom))}.skPop button.go{padding:12px 13px;font-size:15px}}'+
+ 'a.skNv{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:5px;border:1px solid #86efac;background:#f0fdf4;color:#15803d;border-radius:5px;font:700 11px/1 system-ui,sans-serif;text-decoration:none;vertical-align:1px;flex:0 0 auto}a.skNv:hover{background:#16a34a;color:#fff;border-color:#16a34a}';
+ document.head.appendChild(s)}
+function spClose(){if(SPN){try{SPN.remove()}catch(e){}SPN=null}document.removeEventListener('keydown',spKey,true);document.removeEventListener('mousedown',spOut,true);document.removeEventListener('touchstart',spOut,true)}
+function spKey(e){if(e.key==='Escape')spClose()}
+function spOut(e){if(SPN&&!SPN.contains(e.target))spClose()}
+window.GoStock=function(t,kind){t=String(t||'').trim().toUpperCase();if(!t)return false;
+ try{var P=window.parent;if(P&&P!==window&&P.MiniTabs){if(kind==='deep'&&P.MiniTabs.openDeep){P.MiniTabs.openDeep(t);return true}if(kind==='stock'&&P.MiniTabs.openStock){P.MiniTabs.openStock(t,true);return true}if(!kind&&P.MiniTabs.openStock){P.MiniTabs.openStock(t);return true}}}catch(e){}
+ try{window.open('/?t='+encodeURIComponent(t)+(kind==='deep'?'&m=deep':''),'mini_main')}catch(e){}return true};
+window.StockPop=function(t,name,anchor){t=String(t||'').trim().toUpperCase();if(!t)return false;spClose();spCss();
+ var bx=el('div','skPop');bx.setAttribute('role','dialog');bx.setAttribute('aria-label','종목 이동 선택');SPN=bx;
+ var hd=el('div','hd');hd.appendChild(el('b',null,name||t));hd.appendChild(el('i',null,t));var x=el('button','x','✕');x.type='button';x.setAttribute('aria-label','닫기');x.setAttribute('data-noconfirm','1');x.onclick=spClose;hd.appendChild(x);bx.appendChild(hd);
+ function go(ic,lb,sub,kind){var b=el('button','go');b.type='button';b.setAttribute('data-noconfirm','1');b.appendChild(el('span',null,ic));var d=el('span');d.appendChild(document.createTextNode(lb));d.appendChild(el('small',null,sub));b.appendChild(d);b.onclick=function(){spClose();window.GoStock(t,kind)};bx.appendChild(b);return b}
+ var b1=go('📈','종목분석','가격·지표·체력지표 한눈에','stock');go('🔎','심층분석','재무·공시·뉴스·AI 분석','deep');
+ document.body.appendChild(bx);
+ if(window.innerWidth>520){var r=anchor&&anchor.getBoundingClientRect?anchor.getBoundingClientRect():{left:window.innerWidth/2-122,bottom:window.innerHeight/3,top:window.innerHeight/3};
+  var w=bx.offsetWidth||244,h=bx.offsetHeight||150,l=Math.max(8,Math.min(r.left,window.innerWidth-w-8)),tp=r.bottom+6;if(tp+h>window.innerHeight-8)tp=Math.max(8,r.top-h-6);bx.style.left=l+'px';bx.style.top=tp+'px'}
+ document.addEventListener('keydown',spKey,true);setTimeout(function(){document.addEventListener('mousedown',spOut,true);document.addEventListener('touchstart',spOut,true)},0);try{b1.focus({preventScroll:true})}catch(e){}return true};
+window.NvIcon=function(t){spCss();t=String(t||'').trim().toUpperCase();var a=el('a','skNv','↗');a.href='https://finance.naver.com/item/main.naver?code='+encodeURIComponent(t);a.target='_blank';a.rel='noopener';a.title='네이버 증권에서 보기(새 창)';a.setAttribute('aria-label','네이버 증권에서 보기');a.setAttribute('data-noconfirm','1');
+ a.addEventListener('click',function(e){e.stopPropagation()});return a};
+// 종목 이름 + (눌러서 분석 메뉴 고르기) + 네이버 아이콘 한 묶음
+window.StockName=function(t,name,opt){spCss();opt=opt||{};var w=el('span','skNm');var n=el('span','tkl nm',name||t);n.setAttribute('data-nv','1');n.setAttribute('data-tk',t);n.setAttribute('data-nm',name||'');n.title='눌러서 종목분석·심층분석 고르기';n.tabIndex=0;n.setAttribute('role','button');
+ n.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();window.StockPop(t,name,n)}});w.appendChild(n);if(opt.naver!==false)w.appendChild(window.NvIcon(t));return w};
 document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('[data-tk]'):null;if(!a)return;var t=a.getAttribute('data-tk');if(!t)return;
- if(e.ctrlKey||e.metaKey||e.shiftKey||e.button===1)return;e.preventDefault();e.stopPropagation();window.GoStock(t)},true);
+ if(e.ctrlKey||e.metaKey||e.shiftKey||e.button===1)return;e.preventDefault();e.stopPropagation();
+ var nm=a.getAttribute('data-nm')||(a.textContent||'').replace(/\s+/g,' ').replace(/\s*\(\s*[0-9A-Za-z]{6}\s*\)\s*$/,'').trim().slice(0,24);if(nm===t)nm='';window.StockPop(t,nm,a)},true);
+// 종목 이름 표시(.tkl[data-tk]) 옆에 네이버 증권 아이콘을 자동으로 붙인다(메뉴마다 따로 만들지 않아도 되게). 표 칸·너무 긴 글·이미 붙은 곳은 건너뛴다.
+var NVOK={SPAN:1,A:1,B:1,STRONG:1,EM:1,I:1,LABEL:1,H3:0};
+function nvScan(){try{var l=document.querySelectorAll('.tkl[data-tk]:not([data-nv])');for(var i=0;i<l.length;i++){var n=l[i];n.setAttribute('data-nv','1');var t=(n.getAttribute('data-tk')||'').trim();
+ if(!/^[0-9A-Za-z]{6}$/.test(t)||!NVOK[n.tagName]||!n.parentNode)continue;if(n.closest('a.skNv,.skNm,button,[data-nonv]'))continue;if((n.textContent||'').length>40)continue;
+ var nx=n.nextSibling;if(nx&&nx.nodeType===1&&nx.className==='skNv')continue;n.parentNode.insertBefore(window.NvIcon(t),n.nextSibling)}}catch(e){}}
+var nvT=0;function nvLater(){if(nvT)return;nvT=setTimeout(function(){nvT=0;nvScan()},60)}
+function nvInit(){nvScan();try{new MutationObserver(nvLater).observe(document.body,{childList:true,subtree:true})}catch(e){}}
+if(document.body)nvInit();else document.addEventListener('DOMContentLoaded',nvInit);
 })();
 """
 

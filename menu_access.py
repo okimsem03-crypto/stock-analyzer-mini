@@ -131,11 +131,12 @@ MEM_BOOT = r"""
  function link(t,h,go,top){var a=el('a',go?'go':null,t);a.href=h;if(top!==false)a.target='_top';return a}
  fetch('/api/features/'+MENU_ID,{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){
   if(j.error){$('pane').textContent=j.error;return}
-  FEATS=j.feats;$('mbt').textContent=j.menu.icon+' '+j.menu.label;document.title=j.menu.label+' · 종목분석 미니';
+  FEATS=j.feats;ADMIN_REAL=!!j.is_admin;$('mbt').textContent=j.menu.icon+' '+j.menu.label;document.title=j.menu.label+' · 종목분석 미니';
   var bs=$('mbs');bs.textContent=(j.preview?'👁 미리보기: ':'')+j.viewer_name;
   if(!j.login&&!j.is_admin){var l=$('mbl');l.textContent='내 정보';l.href='/member'}
   var it=$('intro');it.innerHTML='';var cd=el('div','itCard'),tp=el('div','itTop');tp.appendChild(el('b',null,j.menu.icon+' '+j.menu.label));
   tp.appendChild(el('span','itBadge'+(j.preview?' pv':''),(j.preview?'미리보기 · ':'지금 등급 · ')+j.viewer_name));cd.appendChild(tp);
+  if(j.preview)cd.appendChild(el('div','itDesc','👁 미리보기 중이에요 — 화면은 '+j.viewer_name+' 기준이지만, 관리자로 로그인돼 있어서 모든 기능은 그대로 쓸 수 있어요.'));
   if(j.menu.desc)cd.appendChild(el('div','itDesc',j.menu.desc));
   if(j.order.length){var ch=el('div','itChips');j.order.forEach(function(fid){ch.appendChild(chip(FEATS[fid],fid))});cd.appendChild(ch)}
   var ac=el('div','itAct');
@@ -145,7 +146,7 @@ MEM_BOOT = r"""
   if(j.is_admin){var sel=el('select');[['','관리자 화면(전체)'],['guest','👁 비회원으로 보기']].concat(j.levels.map(function(x){return [x.id,'👁 '+x.name+'으로 보기']})).forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];sel.appendChild(op)});
    sel.value=PA;sel.onchange=function(){location.href='/m/'+MENU_ID+(sel.value?'?as='+sel.value:'')+(/embed=1/.test(Q)?(sel.value?'&':'?')+'embed=1':'')};ac.appendChild(sel)}
   cd.appendChild(ac);it.appendChild(cd);
-  if(!j.menu_ok){var p=$('pane');p.innerHTML='';var b=el('div','c itLock');b.appendChild(el('h2',null,'🔒 '+j.menu.label));
+  if(!j.menu_ok&&!j.is_admin){var p=$('pane');p.innerHTML='';var b=el('div','c itLock');b.appendChild(el('h2',null,'🔒 '+j.menu.label));
    b.appendChild(el('p','note',j.menu_need==='관리자 전용(아직 공개 전)'?'아직 일반 이용자에게 공개되지 않은 메뉴예요. 곧 열립니다.':'이 메뉴는 '+j.menu_need+'부터 볼 수 있어요.'));
    if(j.login){var r=el('div','itAct');r.style.justifyContent='center';r.appendChild(link('로그인','/member?next='+nx,true));r.appendChild(link('회원가입','/member?tab=signup&next='+nx,false));b.appendChild(r)}
    p.appendChild(b);return}
@@ -163,7 +164,7 @@ def shell_page(mid, tab):
     page = page.replace('<div class="w"><nav id="nav"></nav>', '<div class="w"><div id="intro"></div><nav id="nav"></nav>', 1)
     page = page.replace('var CSRF="{{ csrf }}";var cur=\'sum\';var EXT={};', 'var CSRF="";var cur=' + json.dumps(tab) + ';var EXT={};', 1)
     page = re.sub(r"var TABS=\[\[.*?\]\];", "var TABS=[];", page, count=1)
-    page = page.replace("var MEMBER_MODE=false,FEATS=null,MENU_ID='';", "var MEMBER_MODE=true,FEATS=null,MENU_ID=" + json.dumps(mid) + ";", 1)
+    page = page.replace("var MEMBER_MODE=false,FEATS=null,MENU_ID='',ADMIN_REAL=false;", "var MEMBER_MODE=true,FEATS=null,ADMIN_REAL=false,MENU_ID=" + json.dumps(mid) + ";", 1)
     lib = "\n".join(C.ADMIN_LIB_JS + [js])
     a = page.index("/*__MODULE_JS__*/")
     b = page.index("</script></body></html>")

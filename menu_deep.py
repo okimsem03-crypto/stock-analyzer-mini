@@ -953,23 +953,30 @@ function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML
  if(DP._chain&&!MEMBER_MODE){DP._chain=0;MiniFlow.run('deep',DPFLOW,DPACTS)}}
 /* 단계 자동 진행([⚙ 설정] 의 단계 진행 방식): 분석이 열리면 AI → 이미지 → 블로그 글 순서로 설정대로 이어 간다 */
 function dpGo2(id){var e=$('dps_'+id);if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'})}
-function dpSteps(){var sp=$('dpSteps'),d=DP.d;if(!sp||!d)return;sp.innerHTML='';var ai=!!(DP.ai[d.ticker]||'').trim(),done=[true,ai,!!DP.st.img,!!DP.st.blog,!!DP.st.copied],cur2=-1;
- var L=[['분석 열기','불러옴 · 완료','1'],[MEMBER_MODE?'AI 요청문':'AI 정성 분석',ai?'글 있음 · 다시 만들기':'눌러서 시작','2'],[MEMBER_MODE?'요약 이미지':'이미지 만들기',done[2]?'완료 · 다시 만들기':'눌러서 만들기','3']];if(!MEMBER_MODE){L.push(['블로그 글 만들기',done[3]?'완료 · 다시 만들기':'눌러서 만들기','4']);L.push(['복사하고 블로그 쓰기',done[4]?'복사함 · 다시 복사':(done[3]?'눌러서 복사하고 열기':'글을 만든 뒤 눌러요'),'5'])}
- for(var i=0;i<L.length;i++){if(!done[i]){cur2=i;break}}
- L.forEach(function(a,i){var b=el('button',(done[i]?'done':'')+(i===cur2?' cur':''));b.setAttribute('data-noconfirm','1');b.appendChild(el('span','n',done[i]?'✓':a[2]));var t=el('span');t.appendChild(document.createTextNode(a[0]));t.appendChild(el('small',null,a[1]));b.appendChild(t);b.onclick=function(){dpStepRun(i)};sp.appendChild(b)})}
-function dpStepRun(i){var d=DP.d;if(!d)return;
- if(i===0){dpGo2('ax');return}
- if(i===1){dpGo2('ai');if(MEMBER_MODE&&(d.locked||[]).indexOf('ai')>=0){lockDlg('ai');return}dpAI(d);return}
+function dpSteps(){var sp=$('dpSteps'),d=DP.d;if(!sp||!d)return;var ai=!!(DP.ai[d.ticker]||'').trim(),S=DP.st;
+ var steps=[{t:'분석 열기',sub:'불러옴 · 완료',done:true,go:function(){dpStepRun('open')}},
+  {t:MEMBER_MODE?'AI 요청문':'AI 정성 분석',sub:ai?'글 있음 · 다시 만들기':'눌러서 시작',done:ai,go:function(){dpStepRun('ai')}},
+  {t:MEMBER_MODE?'요약 이미지':'이미지 만들기',sub:S.img?'완료 · 다시 만들기':'눌러서 만들기',done:!!S.img,go:function(){dpStepRun('img')}},
+  {t:'글 만들기',sub:S.blog?'완료 · 다시 만들기':'눌러서 만들기',done:!!S.blog,hide:MEMBER_MODE,go:function(){dpStepRun('blog')}},
+  {t:'블로그에 쓰기',sub:S.copied?'복사·열기 완료':(S.blog?'복사하고 블로그 열기':'글을 먼저 만드세요'),done:!!S.copied,off:!S.blog,hide:MEMBER_MODE,go:function(){dpStepRun('post')}}];
+ window.FlowBar.draw(sp,{steps:steps,runAll:MEMBER_MODE?null:function(){dpStepRun('all')},note:MEMBER_MODE?'':'[⚡ 블로그까지 한 번에]는 AI 분석 → 이미지 → 글 → 블로그 복사·열기를 설정과 상관없이 끝까지 이어요. 단계별 자동/수동은 [⚙ 설정]에서 바꿔요. 블로그 글쓰기 화면에 붙여 넣기(Ctrl+V)만 직접 하면 돼요.'})}
+function dpStepRun(id){var d=DP.d;if(!d)return;
+ if(id==='open'){dpGo2('ax');return}
+ if(id==='ai'){dpGo2('ai');if(MEMBER_MODE&&(d.locked||[]).indexOf('ai')>=0){lockDlg('ai');return}dpAI(d);return}
  if(MEMBER_MODE){dpGo2('img');return}
- if(i===4){dpGo2('blog');if(!DP.blogPanel){toast('블로그 구역을 불러오지 못했어요.');return}
-  if(!DP.blogPanel.built()){toast('먼저 블로그 글을 만들어요. 다 만들어지면 이 단계를 한 번 더 눌러 복사하세요.');DP.blogPanel.rebuild();return}
-  DP.blogPanel.copyOpen();return}
- MiniFlow.go('deep',DPFLOW,DPACTS,i===2?'img':'blog')}
-var DPFLOW=['ai','img','blog'];
+ if(id==='post'){dpGo2('blog');dpPostGo(false);return}
+ if(id==='all'){toast('⚡ 블로그까지 이어서 진행해요');MiniFlow.force('deep',DPFLOW,DPACTS);return}
+ if(id==='img')DP.st.img=false;else DP.st.blog=false;
+ MiniFlow.go('deep',DPFLOW,DPACTS,id)}
+function dpPostGo(auto){var P=DP.blogPanel;if(!P){if(!auto)toast('블로그 구역을 불러오지 못했어요.');return false}
+ if(!P.built()){if(!auto)toast('먼저 글을 만들어요. 다 만들어지면 이 단계를 한 번 더 눌러 복사하세요.');if(!auto)P.rebuild();return false}
+ P.copyOpen(auto);return true}
+var DPFLOW=['ai','img','blog','post'];
 var DPACTS={
  ai:function(next){var d=DP.d;if(!d||MEMBER_MODE)return;if((DP.ai[d.ticker]||'').trim()){next();return}var e=$('dps_ai')||$('dpAiTa');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'});dpAI(d)},
- img:function(next){if(!DP.imgPanel)return;var e=$('dps_img');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'});DP.imgPanel.gen(true).then(function(){if(DP.imgPanel&&DP.imgPanel.items())next()},function(){})},
- blog:function(){if(!DP.blogPanel)return;DP.blogPanel.rebuild()}};
+ img:function(next){if(!DP.imgPanel)return;if(DP.st.img){next();return}var e=$('dps_img');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'});DP.imgPanel.gen(true).then(function(){if(DP.imgPanel&&DP.imgPanel.items())next()},function(){})},
+ blog:function(next){if(!DP.blogPanel)return;if(DP.st.blog&&DP.blogPanel.built()){next();return}dpGo2('blog');DP.blogPanel.rebuild().then(function(j){if(j&&!j.error)next()})},
+ post:function(next){dpGo2('blog');if(dpPostGo(true))next()}};
 function dpAiState(){var d=DP.d,z=$('dpAiState');dpSteps();if(!z||!d)return;var t=DP.ai[d.ticker]||'';z.textContent=t.trim()?('✅ AI 글 '+t.length.toLocaleString()+'자'+(MEMBER_MODE?' — 이 화면에만 있어요.':' — 블로그 글에 포함돼요.')):(MEMBER_MODE?'아직 AI 글이 없어요.':'아직 AI 글이 없어요(없어도 블로그 글은 만들 수 있어요).')}
 function dpAI(d){if(!window.MiniAI){toast('AI 도우미 파일(menu_ui.py)이 올라가지 않았어요.');return}
  apiJ('/admin/api/deep/prompt',{ticker:d.ticker,peers:DP.peers[d.ticker]||[]}).then(function(j){if(j.error){toast(j.error);return}
@@ -1098,5 +1105,6 @@ def register():
     C.register_flow("deep", "🏛 심층분석", "① 종목 심층분석 열기(분석이 열리면 자동으로 시작)", [
         {"id": "ai", "label": "② AI 정성 분석", "desc": "분석이 열리면 AI 요청문 창을 자동으로 열어요. 답변을 복사해 돌아오면 다음 단계로 이어져요(이미 AI 글이 있으면 건너뛰어요)."},
         {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 단계가 끝나면 이미지 3장을 자동으로 그려요."},
-        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."}])
+        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."},
+        {"id": "post", "label": "⑤ 블로그 복사·열기", "desc": "글이 만들어지면 서식을 복사하고 블로그 글쓰기 화면을 새 창으로 열어요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요. 브라우저가 복사·새 창을 막으면 [📋 복사하고 블로그 열기]를 한 번 눌러 주세요."}])
     return bp

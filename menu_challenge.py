@@ -1689,7 +1689,7 @@ def api_reload():
 TAB_JS = r"""
 var CH={sec:'list',css:false,cfg:null,tbl:null,ex:{},open:{},
  ld:{market:'all',drop:'30',axes:'1',top:'60',sortk:'ch_score',view:'card',data:null,seq:0,sort:{col:'ch_score',asc:false},inited:false,sel:{},busy:false,refs:{},was:false,tm:0,job:null},
- sv:{list:null,cur:null,seq:0},tr:{days:'30',limit:'60',data:null,seq:0},ai:{text:'',date:'',old:null},flag:{img:false,blog:false},_chain:0,imgPanel:null,blogPanel:null};
+ sv:{list:null,cur:null,seq:0},tr:{days:'30',limit:'60',data:null,seq:0},ai:{text:'',date:'',old:null},flag:{img:false,blog:false,posted:false},_chain:0,imgPanel:null,blogPanel:null};
 var CH_SECS=[['list','① 📉 낙폭 회복 후보','list'],['ai','② 🤖 AI 분석','ai'],['img','③ 🖼 대시보드 이미지','img'],['blog','④ 📝 블로그 쓰기','blog'],['saved','📂 보관함','saved'],['track','📈 성과 기록','track'],['guide','📘 기준 설명','guide']];
 var CH_ST={ok:['✅','회복 확인','#15803d','#dcfce7'],weak:['🔸','일부 회복','#b45309','#fffbeb'],no:['❌','미흡','#64748b','#f1f5f9'],na:['⚪','자료 없음','#94a3b8','#f8fafc']};
 var CH_SIG={'낙폭회복':['📉','#eef2ff','#4338ca','52주 고점 대비 크게 떨어진 종목 중 회복 신호를 점검한 목록'],'재무개선':['💹','#fef2f2','#dc2626','최근 분기 영업이익이 전 분기보다 나아졌어요'],'흑자전환':['🔄','#fef2f2','#b91c1c','최근 분기에 영업이익이 흑자로 돌아섰어요'],
@@ -1828,7 +1828,7 @@ function chExpBar(parent){var r=el('div','bar');r.appendChild(ft(bt('📄 표 �
 
 /* ── 위쪽 틀 ── */
 function chLoad(p){chCss();p.innerHTML='';
- var hd=el('div','c chHd');hd.appendChild(el('h2',null,'🎯 도전주 — 낙폭 회복 후보'));hd.appendChild(el('div','m',(MEMBER_MODE?'① 낙폭 회복 후보 → ② AI 분석 → ③ 대시보드 이미지. ':'① 낙폭 회복 후보 → ② AI 분석 → ③ 대시보드 이미지 → ④ 블로그 쓰기. ')+'52주 고점 대비 크게 떨어진 종목 가운데, 재무·수급·테마가 다시 살아나고 있는 종목을 그래프와 함께 보여 줘요. 종목을 추천하는 화면이 아니라 회복 신호가 보이는 낙폭 종목 목록(정보)이에요. 많이 떨어진 종목은 더 떨어질 수도 있어요. 투자 권유가 아니며 판단과 책임은 이용자 본인에게 있어요.'));
+ var hd=el('div','c chHd');hd.appendChild(el('h2',null,'🎯 도전주 — 낙폭 회복 후보'));hd.appendChild(el('div','m',(MEMBER_MODE?'① 낙폭 회복 후보 → ② AI 분석 → ③ 대시보드 이미지. ':'① 낙폭 회복 후보 → ② AI 분석 → ③ 대시보드 이미지 → ④ 글 만들기 → ⑤ 블로그에 쓰기. ')+'52주 고점 대비 크게 떨어진 종목 가운데, 재무·수급·테마가 다시 살아나고 있는 종목을 그래프와 함께 보여 줘요. 종목을 추천하는 화면이 아니라 회복 신호가 보이는 낙폭 종목 목록(정보)이에요. 많이 떨어진 종목은 더 떨어질 수도 있어요. 투자 권유가 아니며 판단과 책임은 이용자 본인에게 있어요.'));
  var sb=el('div');sb.id='chSum';hd.appendChild(sb);p.appendChild(hd);
  var sp=el('div','chStp');sp.id='chSteps';p.appendChild(sp);var nv=el('div','chNav');nv.id='chNav';p.appendChild(nv);var bd=el('div');bd.id='chBody';p.appendChild(bd);
  p.appendChild(el('p','note','※ 낙폭·가격은 관리자가 마지막으로 스캔한 일봉 기준이고(오늘보다 앞설 수 있어요), 수급은 최근 20거래일 ‘순매수 수량×종가’ 근사치, 재무는 네이버 증권 분기·연간 요약이에요. 회복 점수는 신호가 몇 가지 확인되는지 보여 줄 뿐 오른다는 뜻이 아니며, 이후 주가는 오를 수도 내릴 수도 있어요. 이 화면은 정보 제공용이며 특정 종목의 매수·매도 권유가 아닙니다. 투자 판단과 책임은 이용자 본인에게 있습니다.'));
@@ -1836,7 +1836,7 @@ function chLoad(p){chCss();p.innerHTML='';
  if(MEMBER_MODE&&CH.sec==='blog')CH.sec='list';chNavDraw();chShow();chSteps();if(!MEMBER_MODE){chAdmLoad();chPoll(true);chAiLoad()}}
 function chNavDraw(){var n=$('chNav');if(!n)return;n.innerHTML='';CH_SECS.forEach(function(s){if(MEMBER_MODE&&s[0]==='blog')return;var b=el('button',CH.sec===s[0]?'chOn':'',(ftOk(s[2])?'':'🔒 ')+s[1]);b.type='button';b.onclick=function(){chGo(s[0])};n.appendChild(b)})}
 /* ── 단계 바(① 낙폭회복 리스트 → ② AI 분석 → ③ 대시보드 이미지 → ④ 블로그 쓰기) + 자동/수동 진행([⚙ 설정]의 단계 진행 방식) ── */
-var CHFLOW=['ai','img','blog'];
+var CHFLOW=['ai','img','blog','post'];
 function chItems(){var j=CH.ld.data;return (j&&j.items)||[]}
 function chPickItems(){var all=chItems(),sel=CH.ld.sel||{};var a=all.filter(function(x){return sel[x.ticker]});return (a.length?a:all).slice(0,30)}
 function chDate(){var d=new Date(),z=function(n){return ('0'+n).slice(-2)};return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
@@ -1844,21 +1844,31 @@ function chListQ(){var S=CH.ld;return S.inited?{markets:S.market==='all'?'KOSPI,
 /* 목록이 아직 없으면(이미지·블로그 탭을 먼저 연 경우) 지금 기준으로 한 번 불러온다 */
 function chEnsureP(){if(chItems().length)return Promise.resolve(chPickItems());
  return api('/admin/api/challenge/list?'+chQ(chListQ())).then(function(j){if(j.error)throw new Error(j.error);if(j.empty)throw new Error(j.msg||'낙폭 스캔 결과가 없어요. 관리자가 [🔎 낙폭 스캔]을 실행하면 보여요.');chListSet(j);if(!chItems().length)throw new Error('조건에 맞는 종목이 없어요.');return chPickItems()})}
-function chSteps(){var sp=$('chSteps');if(!sp)return;sp.innerHTML='';var n=chItems().length,has=n>0,ai=!!(CH.ai.text&&CH.ai.text.trim());
- var defs=[['낙폭회복 리스트',has?(n+'종목 · 완료'):'조회하세요','list',has],['AI 분석',ai?'완료 · 다시 만들기':'눌러서 시작','ai',ai],[MEMBER_MODE?'요약 이미지':'대시보드 이미지',CH.flag.img?'만들었어요':'눌러서 만들기','img',CH.flag.img]];
- if(!MEMBER_MODE)defs.push(['블로그 쓰기',CH.flag.blog?'글 만들었어요':'눌러서 만들기','blog',CH.flag.blog]);
- var first=-1;defs.forEach(function(d,i){if(first<0&&!d[3])first=i});
- defs.forEach(function(d,i){var b=el('button',(d[3]?'done':'')+(i===first?' cur':''));b.type='button';b.setAttribute('data-noconfirm','1');b.appendChild(el('span','n',d[3]?'✓':String(i+1)));var t=el('span');t.appendChild(document.createTextNode(d[0]));t.appendChild(el('small',null,d[1]));b.appendChild(t);b.onclick=function(){chStepRun(d[2])};sp.appendChild(b)})}
+function chSteps(){var sp=$('chSteps');if(!sp)return;var n=chItems().length,has=n>0,ai=!!(CH.ai.text&&CH.ai.text.trim()),F=CH.flag;
+ var steps=[{t:'낙폭회복 리스트',sub:has?(n+'종목 · 완료'):'조회하세요',done:has,go:function(){chStepRun('list')}},
+  {t:'AI 분석',sub:ai?'완료 · 다시 만들기':'눌러서 시작',done:ai,go:function(){chStepRun('ai')}},
+  {t:MEMBER_MODE?'요약 이미지':'이미지 만들기',sub:F.img?'만들었어요 · 다시 만들기':'눌러서 만들기',done:F.img,go:function(){chStepRun('img')}},
+  {t:'글 만들기',sub:F.blog?'완료 · 다시 만들기':'눌러서 만들기',done:F.blog,hide:MEMBER_MODE,go:function(){chStepRun('blog')}},
+  {t:'블로그에 쓰기',sub:F.posted?'복사·열기 완료':(F.blog?'복사하고 블로그 열기':'글을 먼저 만드세요'),done:F.posted,off:!F.blog,hide:MEMBER_MODE,go:function(){chStepRun('post')}}];
+ window.FlowBar.draw(sp,{steps:steps,runAll:MEMBER_MODE?null:function(){chStepRun('all')},note:MEMBER_MODE?'':'[⚡ 블로그까지 한 번에]는 AI 분석 → 이미지 → 글 → 블로그 복사·열기를 설정과 상관없이 끝까지 이어요. 단계별 자동/수동은 [⚙ 설정]에서 바꿔요. 블로그 글쓰기 화면에 붙여 넣기(Ctrl+V)만 직접 하면 돼요.'})}
 function chStepRun(id){
  if(id==='list'){chGo('list');return}
  if(!chItems().length&&CH.sec==='list'){toast('먼저 ① 낙폭 회복 후보를 조회해 주세요');return}
  if(id==='ai'){if(!ftOk('ai')){lockDlg('ai');return}chGo('ai');chAiRun();return}
- if(id==='img'){if(!ftOk('img')){lockDlg('img');return}if(MEMBER_MODE){chGo('img');if(CH.memGo&&!CH.memGo.disabled)CH.memGo.click();return}if(window.MiniFlow)MiniFlow.go('challenge',CHFLOW,CHACTS,'img');else{chGo('img')}return}
- if(id==='blog'){if(MEMBER_MODE)return;if(window.MiniFlow)MiniFlow.go('challenge',CHFLOW,CHACTS,'blog');else{chGo('blog')}}}
+ if(id==='img'){if(!ftOk('img')){lockDlg('img');return}if(MEMBER_MODE){chGo('img');if(CH.memGo&&!CH.memGo.disabled)CH.memGo.click();return}CH.flag.img=false;if(window.MiniFlow)MiniFlow.go('challenge',CHFLOW,CHACTS,'img');else{chGo('img')}return}
+ if(MEMBER_MODE)return;
+ if(id==='blog'){CH.flag.blog=false;if(window.MiniFlow)MiniFlow.go('challenge',CHFLOW,CHACTS,'blog');else{chGo('blog')}return}
+ if(id==='post'){chPostGo(false);return}
+ if(id==='all'){if(!window.MiniFlow)return;toast('⚡ 블로그까지 이어서 진행해요');MiniFlow.force('challenge',CHFLOW,CHACTS)}}
+/* 블로그 글이 만들어져 있으면 복사하고 블로그 글쓰기 화면을 연다(자동 단계에서는 브라우저가 복사·새 창을 막으면 안내만 하고, 직접 한 번 누르면 돼요) */
+function chPostGo(auto){var P=CH.blogPanel;if(CH.sec==='blog'&&P&&P.built()){P.copyOpen(auto);return true}
+ if(!CH.flag.blog){if(!auto)toast('먼저 ④ 글 만들기를 해 주세요');return false}
+ chGo('blog');var k=0,t=setInterval(function(){var Q=CH.blogPanel;if(Q&&Q.built()){clearInterval(t);Q.copyOpen(auto)}else if(++k>40)clearInterval(t)},250);return true}
 var CHACTS={
  ai:function(next){if(!chItems().length)return;if((CH.ai.text||'').trim()){next();return}if(!ftOk('ai'))return;chGo('ai');chAiRun()},
- img:function(next){chEnsureP().then(function(){chGo('img');if(!CH.imgPanel)return;return CH.imgPanel.gen(true).then(function(){if(CH.imgPanel&&CH.imgPanel.items())next()})}).catch(function(){})},
- blog:function(){chEnsureP().then(function(){chGo('blog');if(CH.blogPanel)CH.blogPanel.rebuild()}).catch(function(){})}};
+ img:function(next){if(CH.flag.img){next();return}chEnsureP().then(function(){chGo('img');if(!CH.imgPanel)return;return CH.imgPanel.gen(true).then(function(){if(CH.imgPanel&&CH.imgPanel.items())next()})}).catch(function(){})},
+ blog:function(next){if(CH.flag.blog&&CH.sec==='blog'&&CH.blogPanel&&CH.blogPanel.built()){next();return}chEnsureP().then(function(){CH.flag.blog=false;chGo('blog');if(!CH.blogPanel)return;return CH.blogPanel.rebuild().then(function(j){if(j&&!j.error)next()})}).catch(function(){})},
+ post:function(next){if(chPostGo(true))next()}};
 function chGo(sec){CH.sec=sec;chNavDraw();chShow()}
 function chShow(){var b=$('chBody');if(!b)return;b.innerHTML='';var box=el('div');b.appendChild(box);
  var m={list:chSecList,saved:chSecSaved,track:chSecTrack,ai:chSecAi,img:chSecImg,blog:chSecBlog,guide:chSecGuide}[CH.sec],fid=CH_SECS.filter(function(s){return s[0]===CH.sec})[0][2];
@@ -1885,7 +1895,7 @@ function chScanDraw(s){var c=$('chScanCard');if(!c)return;c.innerHTML='';var job
 function chScanStart(){apiJ('/admin/api/challenge/scan/start',{limit:Number(CH.scanSel||(CH.cfg&&CH.cfg.scan_limit)||400),skip_today:CH.scanSkip!==false}).then(function(r){if(r.error){toast(r.error);return}if(r.ok===false){toast(r.error||'시작하지 못했어요');return}toast('낙폭 스캔을 시작했어요');CH.ld.was=true;chPoll(true)}).catch(function(){toast('시작하지 못했어요.')})}
 function chPoll(now){var S=CH.ld;if(S.tm){clearTimeout(S.tm);S.tm=0}
  var go=function(){S.tm=0;if(!$('chScanCard')&&!$('chAdm'))return;api('/admin/api/challenge/scan/status').then(function(s){if(s.error)return;CH.stat=s;var run=s.job&&s.job.running;chScanDraw(s);
-  if(run){S.was=true;S.tm=setTimeout(go,2000)}else if(S.was){S.was=false;var bad=!!(s.job&&s.job.error);toast(bad?'스캔이 끝나지 않았어요':'낙폭 스캔이 끝났어요');S.data=null;CH.ex={};if(!bad){CH.ai.text='';CH.ai.date='';CH.flag={img:false,blog:false};CH._chain=1}chSteps();
+  if(run){S.was=true;S.tm=setTimeout(go,2000)}else if(S.was){S.was=false;var bad=!!(s.job&&s.job.error);toast(bad?'스캔이 끝나지 않았어요':'낙폭 스캔이 끝났어요');S.data=null;CH.ex={};if(!bad){CH.ai.text='';CH.ai.date='';CH.flag={img:false,blog:false,posted:false};CH._chain=1}chSteps();
    if(CH.sec==='list'){chListGo(false)}else if(!bad){chEnsureP().catch(function(){})}chAdmLoad()}}).catch(function(){})};
  if(now)go();else S.tm=setTimeout(go,2000)}
 
@@ -2036,7 +2046,7 @@ function chAiRun(){if(!window.MiniAI){toast('AI 도우미를 불러오지 못했
  api('/admin/api/challenge/prompt?'+chQ({tickers:tk,markets:S.market==='all'?'KOSPI,KOSDAQ':S.market,drop:S.drop,axes:S.axes,top:20})).then(function(j){if(j.error){toast(j.error);return}if(j.empty){toast(j.msg);return}
   window.MiniAI.run({title:'낙폭 회복 AI 해설 — '+j.label,key:'challenge',steps:[{label:j.label,prompt:j.prompt}],minLen:150,hint:'AI가 "## 📉 낙폭 종목의 공통 특징 …" 형식으로 답하면 답변 전체를 복사하고 이 창으로 돌아오세요.',
    preview:function(t){var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString('ko-KR')+'자 — '+t.slice(0,240)+(t.length>240?' …':'');return {node:x,canApply:t.trim().length>=100,strict:true}},
-   apply:function(t){CH.ai.text=String(t||'').slice(0,20000);CH.ai.date='';CH.flag.img=false;CH.flag.blog=false;
+   apply:function(t){CH.ai.text=String(t||'').slice(0,20000);CH.ai.date='';CH.flag.img=false;CH.flag.blog=false;CH.flag.posted=false;
     if(MEMBER_MODE){chAiDraw();chSteps();return Promise.resolve({message:'AI 해설을 아래 화면에 보여 줬어요(이 화면에서만 보관돼요).'})}
     var tks=chPickItems().map(function(x){return x.ticker});
     return apiJ('/admin/api/challenge/ai',{text:CH.ai.text,label:j.label,tickers:tks}).then(function(z){var ok=!z.error;if(ok)CH.ai.date=z.date;chAiDraw();chSteps();
@@ -2074,7 +2084,7 @@ function chSecBlog(box){if(MEMBER_MODE)return;
  var bx=el('div','chPan');box.appendChild(bx);
  if(!window.BlogKit){bx.appendChild(el('p','note bad','블로그 도구(menu_blog.py)가 올라가지 않았어요.'));CH.blogPanel=null;return}
  var secs=[['stats','요약통계'],['axes','3축 현황'],['top','점수TOP'],['ai','AI분석'],['list','후보표'],['notes','회복 근거']];
- CH.blogPanel=window.BlogKit.panel(bx,{idp:'ch',key:'challenge',kind:'challenge',ticker:'D'+chStamp().slice(2),name:'도전주 낙폭회복 '+chDate(),sections:secs,dup_warn:'',onBuilt:function(){CH.flag.blog=true;chSteps()},
+ CH.blogPanel=window.BlogKit.panel(bx,{idp:'ch',key:'challenge',kind:'challenge',ticker:'D'+chStamp().slice(2),name:'도전주 낙폭회복 '+chDate(),sections:secs,dup_warn:'',onBuilt:function(){CH.flag.blog=true;CH.flag.posted=false;chSteps()},onCopied:function(){CH.flag.posted=true;chSteps()},
   build:function(inc,title){return chEnsureP().then(function(items){return apiJ('/admin/api/challenge/blog',{tickers:items.map(function(x){return x.ticker}),ai:CH.ai.text||'',inc:inc,title:title,n:20})}).catch(function(e){return {error:(e&&e.message)||'만들지 못했어요'}})}});
  if(CH.flag.blog)CH.blogPanel.rebuild()}
 
@@ -2222,7 +2232,8 @@ def register():
     C.register_flow(MENU, "🎯 도전주", "① 낙폭 스캔(직접 시작)", [
         {"id": "ai", "label": "② AI 분석", "desc": "스캔이 끝나 낙폭 회복 목록이 뜨면 AI 요청문 창을 자동으로 열어요. AI 답변을 복사해 돌아오면 저장되고 다음 단계로 이어져요(오늘 저장한 AI 분석이 있으면 건너뛰어요)."},
         {"id": "img", "label": "③ 대시보드 이미지", "desc": "AI 단계가 끝나면 블로그용 대시보드 이미지를 자동으로 그려요(저장은 [⚙ 저장 설정]의 자동/수동 설정을 따라요)."},
-        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요. 글은 자동으로 올라가지 않고 복사해서 붙여 넣어요."}])
+        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."},
+        {"id": "post", "label": "⑤ 블로그 복사·열기", "desc": "글이 만들어지면 서식을 복사하고 블로그 글쓰기 화면을 새 창으로 열어요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요. 브라우저가 복사·새 창을 막으면 [📋 복사하고 블로그 열기]를 한 번 눌러 주세요."}])
     # ── 기능별 공개: 추천형에 가까워 법적 검토 전에는 모두 관리자만(default admin). 관리자가 [🎚 기능 공개]에서 하나씩 연다. ──
     F = C.register_feature
     F(MENU, "list", "후보 목록 보기", "52주 고점 대비 낙폭과 재무·수급·테마 회복 판정(✅🔸❌⚪), 회복 점수·등급·신호. 이 기능이 열려 있어야 목록이 나와요(주소: 목록).", default="admin",

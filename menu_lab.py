@@ -868,7 +868,7 @@ var LABACTS={
  ai:function(next){if(pubText()&&LAB.ai[LAB.tk]&&String(LAB.ai[LAB.tk]).trim()){next();return}scrollTo2('labS2');runBoth()},
  img:function(next){if(LAB.st.img){next();return}if(!LAB.imgPanel)return;scrollTo2('labS3');LAB.imgPanel.gen(true).then(function(){if(LAB.st.img)next()},function(){})},
  blog:function(next){if(LAB.st.blog){next();return}if(!LAB.blogPanel)return;scrollTo2('labS4');LAB.blogPanel.rebuild()},
- post:function(){if(LAB.st.blog&&LAB.blogPanel)LAB.blogPanel.copyOpen()}};
+ post:function(next){if(LAB.st.blog&&LAB.blogPanel){if(!LAB.blogPanel.built()){LAB.blogPanel.rebuild().then(function(j){if(j){LAB.blogPanel.copyOpen(true);next()}});return}LAB.blogPanel.copyOpen(true);next()}}};
 function labFlow(from){if(window.MiniFlow)window.MiniFlow.run('stock',LABFLOW,LABACTS,from)}
 function afterAI(){drawSteps();var fl=window.MiniFlow;if(window.ImgKit&&window.ImgKit.mode()==='auto'&&window.ImgKit.when()==='ai'&&LAB.imgPanel&&!LAB.st.img&&!(fl&&fl.auto('stock','img')))LAB.imgPanel.gen(true);setTimeout(function(){labFlow('ai')},200)}
 function applyLab(t){LAB.ai[LAB.tk]=t;setTimeout(afterAI,50);var ta=document.getElementById('labAiTa');if(ta)ta.value=t;var z=document.getElementById('labAiState');if(z)z.textContent='✅ AI 종합 리포트 저장됨 ('+t.length.toLocaleString()+'자) — 아래 블로그 글에 포함돼요.'}
@@ -910,10 +910,10 @@ function drawSteps(){var h=document.getElementById('labSteps');if(!h)return;h.in
   {t:'블로그에 쓰기',sub:d[4]?'복사·열기 완료':(d[3]?'복사하고 블로그 열기':'글을 먼저 만드세요'),go:function(){scrollTo2('labS4');if(LAB.blogPanel)LAB.blogPanel.copyOpen()}}];
  var done=[d[0],ai>=1,d[2],d[3],d[4]],cur=-1;for(var i=0;i<done.length;i++){if(!done[i]){cur=i;break}}
  var cnt=0;done.forEach(function(v){if(v)cnt++});var key=LAB.tk+'|';if(LAB._pk===key&&cnt>LAB._pc){setTimeout(function(){scrollTo2('labSteps')},650)}LAB._pk=key;LAB._pc=cnt;   /* 단계가 하나 끝나면 위쪽 작업 순서 줄로 자동 이동 */
- acts.forEach(function(a,i){var b=el('button','stp'+(done[i]?' done':'')+(i===cur?' cur':'')+((i===4&&!d[3])?' off':''));b.setAttribute('data-noconfirm','1');var n=el('span','n',done[i]?'✓':String(i+1));b.appendChild(n);var t=el('span');t.appendChild(document.createTextNode(a.t));var sm=el('small',null,a.sub);t.appendChild(sm);b.appendChild(t);b.onclick=a.go;h.appendChild(b)});
- var nl=document.getElementById('labNext');if(nl)nl.textContent=cur<0?'✅ 모든 단계를 마쳤어요. 올린 글은 아래에서 작성 기록을 남기세요.':'▶ 지금 할 일: '+(cur+1)+'. '+acts[cur].t}
+ var steps=acts.map(function(a,i){return {t:a.t,sub:a.sub,done:!!done[i],go:a.go,off:(i===4&&!d[3])}});
+ window.FlowBar.draw(h,{steps:steps,runAll:function(){toast('⚡ 블로그까지 이어서 진행해요');if(window.MiniFlow)window.MiniFlow.force('stock',LABFLOW,LABACTS)},note:'[⚡ 블로그까지 한 번에]는 AI 분석 → 이미지 → 글 → 블로그 복사·열기를 설정과 상관없이 끝까지 이어요. 단계별 자동/수동은 [⚙ 설정]에서 바꿔요. 블로그 글쓰기 화면에 붙여 넣기(Ctrl+V)만 직접 하면 돼요.'});h.style.scrollMarginTop='84px'}
 function draw(){var c=card();if(!c)return;var x=LAB.x;head(c,x);
- var sp=el('div','steps');sp.id='labSteps';c.appendChild(sp);var nl=el('div','nextline');nl.id='labNext';c.appendChild(nl);
+ var sp=el('div','steps');sp.id='labSteps';c.appendChild(sp);
  var r=el('div','lrow'),b=el('button',null,'🔄 새로 불러오기');b.onclick=load;r.appendChild(b);var b2=el('button',null,'접기');b2.onclick=function(){LAB.open=false;draw0()};r.appendChild(b2);c.appendChild(r);
  if(x.delisting&&x.delisting.level&&x.delisting.level!=='none'){c.appendChild(el('div','warn','⚠ 상장폐지·거래정지 위험 신호가 있어요 — 위쪽 경고 상자를 먼저 확인하세요.'))}
  var d=el('details','lsec');d.id='labS1';d.open=true;d.appendChild(el('summary',null,'① 분석 결과 — 체력지표 '+x.score.total+' · '+x.score.grade+' (5축·수급·재무·공시)'));c.appendChild(d);
@@ -943,6 +943,5 @@ def register():
         {"id": "ai", "label": "② AI 분석 + 종합 리포트", "desc": "분석이 열리면 AI 요청문 창을 자동으로 열어요. 답변을 복사해 돌아오면 다음 단계로 이어져요(이미 둘 다 있으면 건너뛰어요)."},
         {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 단계가 끝나면 이미지를 자동으로 그려요."},
         {"id": "blog", "label": "④ 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."},
-        {"id": "post", "label": "⑤ 블로그에 쓰기(복사하고 열기)", "default": "manual",
-         "desc": "글을 만든 뒤 자동으로 복사하고 블로그를 열어요. 브라우저가 자동 복사·새 창을 막는 경우가 있어 기본은 수동이에요."}])
+        {"id": "post", "label": "⑤ 블로그 복사·열기", "desc": "글이 만들어지면 서식을 복사하고 블로그 글쓰기 화면을 새 창으로 열어요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요. 브라우저가 복사·새 창을 막으면 [📋 복사하고 블로그 열기]를 한 번 눌러 주세요."}])
     return bp

@@ -28,6 +28,7 @@ from datetime import timedelta
 from flask import Blueprint, request
 
 from menu_ctx import C
+import menu_blog as B
 
 bp = Blueprint("flow", __name__)
 
@@ -126,9 +127,10 @@ def _signals(r):
 def _build():
     """수급 표 + 시세 표 + 테마 표를 읽어 종목별 한 줄로 합친다(30초 캐시)."""
     out = {"rows": [], "by": {}, "themes": {}, "missing": [], "tables": {}, "meta": {}, "has_price": False, "has_theme": False}
-    inv = _try("SELECT ticker,name,foreign_1,inst_1,foreign_5,inst_5,foreign_20,inst_20,base_date,scanned_at FROM investor_scan_cache",
-               "SELECT ticker,name,foreign_1,inst_1,foreign_5,inst_5,foreign_20,inst_20,'',scanned_at FROM investor_scan_cache",
-               "SELECT ticker,name,foreign_1,inst_1,foreign_5,inst_5,foreign_20,inst_20,'','' FROM investor_scan_cache")
+    inv = _try("SELECT ticker,name,foreign_1,inst_1,foreign_5,inst_5,foreign_20,inst_20,base_date,scanned_at,retail_1,retail_5,retail_20 FROM investor_scan_cache",
+               "SELECT ticker,name,foreign_1,inst_1,foreign_5,inst_5,foreign_20,inst_20,base_date,scanned_at,0,0,0 FROM investor_scan_cache",
+               "SELECT ticker,name,foreign_1,inst_1,foreign_5,inst_5,foreign_20,inst_20,'',scanned_at,0,0,0 FROM investor_scan_cache",
+               "SELECT ticker,name,foreign_1,inst_1,foreign_5,inst_5,foreign_20,inst_20,'','',0,0,0 FROM investor_scan_cache")
     out["tables"]["investor_scan_cache"] = None if inv is None else len(inv)
     if not inv:
         out["missing"].append("investor_scan_cache")
@@ -167,6 +169,12 @@ def _build():
              "f1": v[0], "i1": v[1], "f5": v[2], "i5": v[3], "f20": v[4], "i20": v[5], "base": base, "eff": eff, "stale": bool(eff and eff < cut)}
         r["market"] = r["market"] if r["market"] in ("KOSPI", "KOSDAQ") else ""
         r["c1"], r["c5"], r["c20"] = v[0] + v[1], v[2] + v[3], v[4] + v[5]
+        rt = [_n(x[10]), _n(x[11]), _n(x[12])]            # 개인 순매수(원) — 없으면 0,0,0
+        if any(rt):                                       # 기타(법인 등) = −(개인+외국인+기관) 잔여 추정
+            r["r1"], r["r5"], r["r20"] = rt
+            r["o1"], r["o5"], r["o20"] = -(rt[0] + v[0] + v[1]), -(rt[1] + v[2] + v[3]), -(rt[2] + v[4] + v[5])
+        else:
+            r["r1"] = r["r5"] = r["r20"] = r["o1"] = r["o5"] = r["o20"] = None
         if r["stale"]:
             r.update(sg=[], ss=0, tw=[], pw=[], ratio=0)
         else:
@@ -271,6 +279,7 @@ def _strip_sig(it):
 def _item(r):
     return {"ticker": r["ticker"], "name": r["name"], "market": r["market"], "price": r["price"], "pct": r["pct"], "cap": r["cap"], "score": r["score"],
             "f1": r["f1"], "i1": r["i1"], "f5": r["f5"], "i5": r["i5"], "f20": r["f20"], "i20": r["i20"],
+            "r1": r.get("r1"), "r5": r.get("r5"), "r20": r.get("r20"), "o1": r.get("o1"), "o5": r.get("o5"), "o20": r.get("o20"),
             "base": r["eff"], "stale": r["stale"], "sg": r["sg"], "ss": r["ss"]}
 
 
@@ -563,6 +572,133 @@ def api_prompt():
 
 
 # ══════════════════════════════════════════════════════════════
+# 블로그 글(관리자 전용 — 어떤 기능에도 등록하지 않음). 서버는 HTML 만 만들고 글은 올리지 않아요.
+# ══════════════════════════════════════════════════════════════
+BLOG_SECS = ("stats", "rank", "signal", "ai")
+_TITLE_BLOCK = re.compile(r"^[ \t]*\[블로그\s*제목\s*후보[^\]]*\][ \t]*\n(?:[ \t]*(?:[-•*·]|\d+[.)])[ \t]*.+\n?)*", re.M)
+
+
+def _split_ai(text):
+    text = str(text or "").replace("\r", "")
+    return _TITLE_BLOCK.sub("", text).strip(), B.extract_titles(text)
+
+
+def _bf(b, name, allowed, default):
+    v = str(b.get(name) or "").strip()
+    return v if v in allowed else default
+
+
+def _ftd(txt, w, align="right", color="#111827", bold=False):
+    return ('<td width="%d%%" align="%s" style="padding:6px 4px;border-bottom:1px solid #eef2f7;font-size:12.5px;%scolor:%s;white-space:nowrap;">%s</td>'
+            % (w, align, "font-weight:800;" if bold else "", color, txt))
+
+
+def _rank_tbl(title, color, items, keys):
+    """items: 행 목록, keys: [(머리글, 값을 꺼내는 함수)] — 첫 열은 종목(링크), 마지막 열은 등락률."""
+    E = B.E
+    head = ('<th width="8%" style="padding:7px 2px;font-size:12px;color:#475569;background-color:#f1f5f9;border-bottom:2px solid #e2e8f0;">#</th>'
+            '<th width="34%" style="padding:7px 4px;font-size:12px;color:#475569;background-color:#f1f5f9;border-bottom:2px solid #e2e8f0;text-align:left;">종목</th>')
+    wv = int(46 / max(1, len(keys)))
+    head += "".join('<th width="%d%%" style="padding:7px 4px;font-size:12px;color:#475569;background-color:#f1f5f9;border-bottom:2px solid #e2e8f0;white-space:nowrap;">%s</th>' % (wv, E(k[0])) for k in keys)
+    head += '<th width="%d%%" style="padding:7px 4px;font-size:12px;color:#475569;background-color:#f1f5f9;border-bottom:2px solid #e2e8f0;white-space:nowrap;">등락</th>' % (100 - 42 - wv * len(keys))
+    trs = ""
+    for n, r in enumerate(items, 1):
+        pct = r.get("pct")
+        trs += ('<tr><td width="8%%" align="center" style="padding:6px 2px;border-bottom:1px solid #eef2f7;font-size:12px;color:#64748b;">%d</td>'
+                '<td width="34%%" style="padding:6px 4px;border-bottom:1px solid #eef2f7;font-size:13px;color:#111827;">%s</td>' % (n, B.nlink(r["ticker"], E(r["name"])))
+                + "".join(_ftd(E(_amt(f(r))), wv, "right", B.updown(f(r)), True) for _, f in keys)
+                + _ftd(("%+.2f%%" % pct) if pct is not None else "-", 100 - 42 - wv * len(keys), "right", B.updown(pct or 0)) + "</tr>")
+    return (B.side_title(title, color) + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;' + B.FONT + '"><tr>' + head + "</tr>" + trs + "</table>")
+
+
+def _flow_blog_build(d, ai_text, inc, title):
+    E = B.E
+    today = _now_kst().strftime("%Y-%m-%d")
+    base = d["meta"].get("base_date") or today
+    fresh = [r for r in d["rows"] if not r["stale"]]
+    ai_body, titles = _split_ai(ai_text) if (ai_text or "").strip() else ("", [])
+    cnt = Counter()
+    for r in fresh:
+        for k in ("dual", "turn", "bsell", "surge"):
+            if k in r["sg"]:
+                cnt[k] += 1
+    f_buy = sorted((r for r in fresh if r["f5"] > 0), key=lambda r: -r["f5"])[:8]
+    i_buy = sorted((r for r in fresh if r["i5"] > 0), key=lambda r: -r["i5"])[:8]
+    c_sell = sorted((r for r in fresh if r["c5"] < 0), key=lambda r: r["c5"])[:8]
+    c_buy = sorted((r for r in fresh if r["c5"] > 0), key=lambda r: -r["c5"])[:8]
+    dual = sorted((r for r in fresh if "dual" in r["sg"]), key=lambda r: -r["c20"])[:8]
+    bsell = sorted((r for r in fresh if "bsell" in r["sg"]), key=lambda r: r["c20"])[:8]
+    lead = ("%s 외국인·기관 동반 순매수 1위 %s" % (base, c_buy[0]["name"])) if c_buy else base
+    auto_title = "💧 %s 수급 | 외국인·기관 순매수 상위·쌍끌이 종목" % base
+    title = title or (titles[0] if titles else auto_title)
+    names = []
+    for lst in (c_buy, f_buy, i_buy, dual):
+        for r in lst[:3]:
+            if r["name"] not in names:
+                names.append(r["name"])
+    tags, tag_html = B.hashtags(names[:10], today, extra=["수급분석", "외국인순매수", "기관순매수", "쌍끌이", "수급전환", "투자자별매매동향"])
+    h = [B.seo_box(auto_title, "%s 기준 외국인·기관 순매수 상위 종목과 쌍끌이·수급전환 신호를 정리했어요. 매수 추천이 아닌 참고 정보예요." % base,
+                   ["수급분석", "외국인 순매수", "기관 순매수", "쌍끌이", "수급전환", "투자자별 매매동향"]),
+         B.head_box("★ SUPPLY & DEMAND · %s" % base, '외국인·기관 <span style="color:%s;">수급</span> 한눈에' % B.GOLD, "최근 5일·20일 순매수 상위 · 기준일 %s · 대상 %d종목" % (E(base), len(fresh)))]
+    if inc.get("stats"):
+        def tile(label, val, color):
+            return ('<td width="25%%" align="center" style="padding:11px 4px;background-color:#f8faff;border:1px solid #e5e7eb;"><div style="font-size:11px;color:#6b7280;margin-bottom:3px;">%s</div>'
+                    '<div style="font-size:17px;font-weight:900;color:%s;">%s</div></td>' % (label, color, val))
+        cells = (tile("쌍끌이", "%d종목" % cnt["dual"], "#dc2626") + tile("수급전환", "%d종목" % cnt["turn"], "#d97706")
+                 + tile("동반매도", "%d종목" % cnt["bsell"], "#2563eb") + tile("수급 급증", "%d종목" % cnt["surge"], "#7c3aed"))
+        h.append('<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;margin:14px 0 4px;' + B.FONT + '"><tr>' + cells + "</tr></table>")
+        h.append('<p style="font-size:11.5px;color:#9ca3af;margin:4px 0 10px;">쌍끌이=외국인·기관 20일 동반 순매수 · 수급전환=최근 5일 순매수로 돌아섬 · 동반매도=20일 동반 순매도</p>')
+    if inc.get("rank"):
+        K5 = [("외국인5일", lambda r: r["f5"]), ("기관5일", lambda r: r["i5"])]
+        if c_buy:
+            h.append(_rank_tbl("&#127942; 외국인+기관 합산 순매수 상위 (5일)", "#c62828", c_buy, [("합산5일", lambda r: r["c5"])] + K5[:1]))
+        if f_buy:
+            h.append(_rank_tbl("&#127758; 외국인 순매수 상위 (5일)", "#1e40af", f_buy, [("외국인5일", lambda r: r["f5"]), ("20일", lambda r: r["f20"])]))
+        if i_buy:
+            h.append(_rank_tbl("&#127970; 기관 순매수 상위 (5일)", "#0f766e", i_buy, [("기관5일", lambda r: r["i5"]), ("20일", lambda r: r["i20"])]))
+        if c_sell:
+            h.append(_rank_tbl("&#128201; 외국인+기관 합산 순매도 상위 (5일)", "#1565c0", c_sell, [("합산5일", lambda r: r["c5"]), ("외국인", lambda r: r["f5"])]))
+        h.append('<p style="font-size:11.5px;color:#9ca3af;margin:6px 0 0;">금액은 &lsquo;순매수 수량×종가&rsquo; 추정치이고, 오른쪽은 당일 등락률이에요.</p>')
+    if inc.get("signal"):
+        if dual:
+            h.append(_rank_tbl("&#129309; 쌍끌이 종목 (외국인·기관 20일 동반 순매수)", "#dc2626", dual, [("합산20일", lambda r: r["c20"]), ("외국인20일", lambda r: r["f20"])]))
+        if bsell:
+            h.append(_rank_tbl("&#9888;&#65039; 동반매도 종목 (외국인·기관 20일 동반 순매도)", "#2563eb", bsell, [("합산20일", lambda r: r["c20"]), ("외국인20일", lambda r: r["f20"])]))
+    if inc.get("ai") and ai_body:
+        pairs = [(r["name"], r["ticker"]) for lst in (c_buy, f_buy, i_buy, dual, bsell, c_sell) for r in lst]
+        h.append(B.side_title("&#129302; AI 수급 해설", "#0d1b3e"))
+        h.append(B.link_names(B.ai_to_html(ai_body), pairs))
+    h.append('<table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #d97706;border-collapse:collapse;margin:14px 0 4px;' + B.FONT + '"><tr><td bgcolor="#fffbeb" style="background-color:#fffbeb;padding:12px 16px;">'
+             '<div style="font-size:13px;font-weight:900;color:#92400e;">&#9888;&#65039; 수급은 결과일 뿐 방향을 보장하지 않아요</div><div style="font-size:12.5px;color:#92400e;line-height:1.85;margin-top:4px;">'
+             '외국인·기관이 많이 샀다고 오른다는 뜻도, 많이 팔았다고 내린다는 뜻도 아닙니다. 며칠의 수급은 금방 바뀔 수 있고, 종목별 수급은 추정치라 실제와 차이가 있을 수 있어요.</div></td></tr></table>')
+    h.append(B.risk_box())
+    h.append(B.engage_box())
+    h.append(tag_html)
+    body = "".join(h)
+    return {"html": body, "title": title, "titles": titles, "tags": tags, "size": len(body), "ok_size": len(body) < 400000}
+
+
+@bp.route("/admin/api/flow/blog", methods=["POST"])
+def api_blog():
+    """관리자 전용 — 수급 순위·신호와 AI 해설로 블로그용 HTML 글을 만든다(서버가 글을 올리지는 않아요)."""
+    deny = _admin_deny()
+    if deny:
+        return deny
+    d = _load()
+    if not d["rows"]:
+        return _admin_json({"error": "수급 자료가 없어요. 먼저 [📦 수급 자료 가져오기]를 실행하세요."}, 404)
+    b = _json_body() or {}
+    inc = b.get("inc")
+    inc = {k: bool((inc or {}).get(k, True)) for k in BLOG_SECS} if isinstance(inc, dict) else {k: True for k in BLOG_SECS}
+    out = _flow_blog_build(d, str(b.get("ai") or "")[:20000], inc, str(b.get("title") or "").strip()[:150])
+    base = d["meta"].get("base_date") or _now_kst().strftime("%Y-%m-%d")
+    pseudo = "D" + re.sub(r"\D", "", base)[2:8]
+    logs, warn = B.dup_info(pseudo, "flow")
+    out.update({"ticker": pseudo, "name": "수급분석 " + base, "dups": logs, "dup_warn": warn})
+    return _admin_json(out)
+
+
+# ══════════════════════════════════════════════════════════════
 # 관리자 전용(어떤 기능에도 등록하지 않음 → 회원 화면에서는 404)
 # ══════════════════════════════════════════════════════════════
 def _diag(d):
@@ -602,14 +738,14 @@ var FL={sec:'rank',sum:null,
  st:{tk:'',data:null,seq:0,q:''},
  th:{period:'20',side:'buy',min:'3',name:'',list:null,mem:null,seq:0},
  ai:{inv:'comb',period:'5',side:'buy',market:'all',text:''},
- tbl:null,css:false,tmr:null};
+ tbl:null,css:false,tmr:null,flag:{img:false,blog:false,posted:false},imgPanel:null,blogPanel:null};
 var FL_KIND=[['dual','쌍끌이','외국인과 기관이 최근 20거래일 동안 함께 순매수한 종목'],
  ['warn','쌍끌이⚠','쌍끌이 중인데 오늘 외국인·기관이 함께 크게 순매도해(20일 합의 30% 초과) 흐름 변화를 살펴볼 종목'],
  ['turn','수급전환','외국인 또는 기관이 20일로는 순매도·중립이었는데 최근 5일은 순매수로 돌아선 종목'],
  ['bsell','동반매도','외국인과 기관이 20일 동안 함께 순매도한 종목'],
  ['persist','지속 순매수','1일·5일·20일 모두 순매수인 종목(외국인 또는 기관) — 웹에서 더한 보조 지표'],
  ['surge','수급 급증','오늘 합산(외국인+기관) 순매수가 20일 일평균의 3배 이상인 종목 — 웹에서 더한 보조 지표']];
-var FL_SECS=[['rank','📊 순위','rank'],['sig','🧭 신호 종목','sig'],['stock','🔎 종목별','stock'],['theme','🏷 테마별','theme'],['ai','🤖 AI 해설','ai'],['guide','📘 읽는 법','guide']];
+var FL_SECS=[['rank','📊 순위','rank'],['sig','🧭 신호 종목','sig'],['stock','🔎 종목별','stock'],['theme','🏷 테마별','theme'],['ai','🤖 AI 해설','ai'],['img','🖼 이미지','exp'],['blog','📝 블로그 쓰기','exp'],['guide','📘 읽는 법','guide']];
 var FL_CSS='.flHd{padding:14px 16px}.flHd h2{margin:0 0 4px;font-size:18px}.flSt{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 0}'+
 '.flCh{display:inline-block;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;white-space:nowrap}'+
 '.flCh.a{background:#ecfdf5;color:#047857;border-color:#a7f3d0}.flCh.w{background:#fffbeb;color:#b45309;border-color:#fcd34d}.flCh.s{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}.flCh.g{background:#f8fafc;color:#64748b}'+
@@ -688,14 +824,15 @@ function flLoad(p){flCss();p.innerHTML='';
  var hd=el('div','c flHd');hd.appendChild(el('h2',null,'💧 수급분석'));hd.appendChild(el('div','m','외국인·기관이 최근 며칠 동안 어떤 종목을 순매수(산 금액이 판 금액보다 많음)·순매도했는지 정리해 보여 줘요. 정보 제공용이며 투자 권유가 아닙니다.'));
  var sb=el('div');sb.id='flSum';hd.appendChild(sb);p.appendChild(hd);
  if(!MEMBER_MODE){var cp=el('div','c');cp.id='flCol';p.appendChild(cp);flColInit()}
+ if(!MEMBER_MODE){var sp=el('div');sp.id='flSteps';p.appendChild(sp)}
  var nv=el('div','flNav');nv.id='flNav';p.appendChild(nv);var bd=el('div');bd.id='flBody';p.appendChild(bd);
  var ft2=el('p','note','※ 수급 자료는 가져온 캐시(1일·5일·20일 합계)이고 시가총액 상위 종목 위주예요. 일부 종목은 20일 값이 더 짧은 기간일 수 있어요. 본 화면은 공개된 자료를 정리한 정보 제공용이며 특정 종목의 매수·매도 권유가 아닙니다. 수급은 과거 단기 동향으로 미래 수익을 보장하지 않으며 투자 판단과 책임은 이용자 본인에게 있습니다.');p.appendChild(ft2);
  var ad=el('div','c');ad.id='flAdm';p.appendChild(adm(ad));
- flSumLoad();flNavDraw();flShow();if(!MEMBER_MODE)flDiagLoad()}
+ flSumLoad();flNavDraw();flShow();flSteps();if(!MEMBER_MODE)flDiagLoad()}
 function flSumLoad(){var b=$('flSum');if(!b)return;b.innerHTML='';
  if(!ftOk('sum')){b.appendChild(el('p','note','🔒 수급 요약은 지금 등급에서 볼 수 없어요.'));ftSec(b,'sum');return}
  b.appendChild(el('div','m','불러오는 중…'));
- api('/admin/api/flow/summary').then(function(j){var b2=$('flSum');if(!b2)return;b2.innerHTML='';if(j.error)return;FL.sum=j;if(j.empty){flEmpty(b2,j);return}
+ api('/admin/api/flow/summary').then(function(j){var b2=$('flSum');if(!b2)return;b2.innerHTML='';if(j.error)return;FL.sum=j;flSteps();if(j.empty){flEmpty(b2,j);return}
   var s=j.status,st=el('div','flSt');st.appendChild(el('span','flCh a','📅 수급 기준일 '+(s.base_date||'알 수 없음')));if(s.last_scan)st.appendChild(el('span','flCh','마지막 갱신 '+s.last_scan));
   st.appendChild(el('span','flCh','종목 '+s.count.toLocaleString('ko-KR')+'개'));
   if(s.stale>0)st.appendChild(el('span','flCh w','오래된 자료 '+s.stale+'개는 신호에서 제외'));
@@ -707,10 +844,10 @@ function flSumLoad(){var b=$('flSum');if(!b)return;b.innerHTML='';
   ['KOSPI','KOSDAQ'].forEach(function(m){var x=j.market[m];if(!x||!x.n)return;any=true;[['외국인','f'],['기관','i'],['합산','c']].forEach(function(z){var tr=el('tr');tr.appendChild(el('td',null,m+' ('+x.n+'종목) · '+z[0]));
    ['1','5','20'].forEach(function(p){var v=z[1]==='c'?x['f'+p]+x['i'+p]:x[z[1]+p];tr.appendChild(el('td','r '+flCls(v),flFv(v)))});tb.t.appendChild(tr)})});
   if(any){b2.appendChild(el('div','m','시장 전체 합계(수급 자료에 담긴 종목 합) — 숫자가 +면 순매수, −면 순매도'));b2.appendChild(tb.wrap)}})}
-function flNavDraw(){var n=$('flNav');if(!n)return;n.innerHTML='';FL_SECS.forEach(function(s){var b=el('button',FL.sec===s[0]?'flOn':'',(ftOk(s[2])?'':'🔒 ')+s[1]);b.type='button';b.onclick=function(){flGo(s[0])};n.appendChild(b)})}
+function flNavDraw(){var n=$('flNav');if(!n)return;n.innerHTML='';FL_SECS.forEach(function(s){if(MEMBER_MODE&&(s[0]==='img'||s[0]==='blog'))return;var b=el('button',FL.sec===s[0]?'flOn':'',(ftOk(s[2])?'':'🔒 ')+s[1]);b.type='button';b.onclick=function(){flGo(s[0])};n.appendChild(b)})}
 function flGo(sec){FL.sec=sec;flNavDraw();flShow()}
 function flShow(){var b=$('flBody');if(!b)return;b.innerHTML='';var box=el('div');b.appendChild(box);
- var m={rank:flSecRank,sig:flSecSig,stock:flSecStock,theme:flSecTheme,ai:flSecAi,guide:flSecGuide}[FL.sec],fid=FL_SECS.filter(function(s){return s[0]===FL.sec})[0][2];
+ var m={rank:flSecRank,sig:flSecSig,stock:flSecStock,theme:flSecTheme,ai:flSecAi,img:flSecImg,blog:flSecBlog,guide:flSecGuide}[FL.sec],fid=FL_SECS.filter(function(s){return s[0]===FL.sec})[0][2];
  if(!ftOk(fid)){var f=FEATS&&FEATS[fid];flPlace(box,fid,'🔒 '+(f?f.label:'잠긴 기능'));return}m(box)}
 
 /* ── 순위(기능 'rank') ── */
@@ -727,17 +864,18 @@ function flRankDraw(out){var j=FL.rk.data;out.innerHTML='';if(!j)return;if(j.emp
  out.appendChild(el('p','note',lbl+' 기준 · 조건에 맞는 종목 '+j.matched+'개 중 상위 '+j.items.length+'개 · 대상 '+j.universe+'종목 · 수급 기준일 '+(j.base_date||'-')));
  if(!j.items.length){out.appendChild(el('p','note','조건에 맞는 종목이 없어요. 시장·종목 범위를 넓혀 보세요.'));FL.tbl=null;return}
  var key=q.inv==='foreign'?'f':(q.inv==='inst'?'i':'c');var mx=0;j.items.forEach(function(it){var v=flVal(it,key,q.period);if(Math.abs(v)>mx)mx=Math.abs(v)});
- var drv={foreign:1,inst:2,comb:3}[q.inv];var tb=flTblBuild(['#','종목','현재가','외국인'+(drv===1?' ▼':''),'기관'+(drv===2?' ▼':''),'합산'+(drv===3?' ▼':''),'신호'],['','','r','r','r','r','']);
- j.items.forEach(function(it,i){var tr=el('tr',it.stale?'flOld':'');tr.appendChild(el('td','flZ',String(i+1)));var nm=el('td');var a=flTk(el('span','nm',it.name),it.ticker);nm.appendChild(a);
+ var drv={foreign:1,inst:2,comb:3}[q.inv];var HR=j.items.some(function(it){return it.o5!=null});var tb=flTblBuild(HR?['#','종목','현재가','외국인'+(drv===1?' ▼':''),'기관'+(drv===2?' ▼':''),'합산'+(drv===3?' ▼':''),'개인','기타*','신호']:['#','종목','현재가','외국인'+(drv===1?' ▼':''),'기관'+(drv===2?' ▼':''),'합산'+(drv===3?' ▼':''),'신호'],HR?['','','r','r','r','r','r','r','']:['','','r','r','r','r','']);
+ j.items.forEach(function(it,i){var tr=el('tr',it.stale?'flOld':'');tr.appendChild(el('td','flZ',String(i+1)));var nm=el('td');var a=flTk(el('span','nm',it.name),it.ticker);nm.appendChild(a);if(window.NvIcon)nm.appendChild(window.NvIcon(it.ticker));
   var tg=el('span','flZ',' ▾');tg.style.cursor='pointer';tg.title='1·5·20일 자세히';tg.onclick=function(){FL.rk.open[it.ticker]=!FL.rk.open[it.ticker];flRankDraw(out)};nm.appendChild(tg);
   nm.appendChild(el('div','sb',it.ticker+(it.market?' · '+it.market:'')+(it.stale?' · 오래된 자료('+it.base+')':'')));tr.appendChild(nm);
   var pc=el('td','r');pc.appendChild(document.createTextNode(it.price?flN(it.price)+'원':'-'));if(it.pct!=null){var pp=el('div',flCls(it.pct),(it.pct>0?'+':'')+Number(it.pct).toFixed(2)+'%');pp.style.fontSize='11px';pc.appendChild(pp)}tr.appendChild(pc);
   [['f',1],['i',2],['c',3]].forEach(function(z){var v=flVal(it,z[0],q.period),td=el('td','r');td.appendChild(el('span',flCls(v),flFv(v)));if(drv===z[1]&&mx){var w=el('div','flBw'),f=el('i');f.style.width=Math.max(3,Math.round(Math.abs(v)/mx*100))+'%';f.style.background=v>0?'#f87171':'#60a5fa';w.appendChild(f);td.appendChild(w)}tr.appendChild(td)});
+  if(HR){[it['r'+q.period],it['o'+q.period]].forEach(function(v){var td=el('td','r');td.appendChild(el('span',v==null?'flZ':flCls(v),v==null?'-':flFv(v)));tr.appendChild(td)})}
   var sg=el('td');sg.appendChild(flChips(it));tr.appendChild(sg);tb.t.appendChild(tr);
-  if(FL.rk.open[it.ticker]){var d2=el('tr','flDt'),dc=el('td');dc.colSpan=7;var kv=el('div','flKv');[['1일',1],['5일',5],['20일',20]].forEach(function(z){var b=el('div');b.appendChild(el('b',null,'최근 '+z[0]));
-    [['외국인','f'],['기관','i'],['합산','c']].forEach(function(y){var v=flVal(it,y[1],String(z[1]));var l=el('div');l.style.cssText='background:none;border:0;padding:0';l.appendChild(document.createTextNode(y[0]+' '));l.appendChild(el('span',flCls(v),flFv(v)));b.appendChild(l)});kv.appendChild(b)});dc.appendChild(kv);
+  if(FL.rk.open[it.ticker]){var d2=el('tr','flDt'),dc=el('td');dc.colSpan=HR?9:7;var kv=el('div','flKv');[['1일',1],['5일',5],['20일',20]].forEach(function(z){var b=el('div');b.appendChild(el('b',null,'최근 '+z[0]));
+    (HR?[['외국인','f'],['기관','i'],['합산','c'],['개인','r'],['기타*','o']]:[['외국인','f'],['기관','i'],['합산','c']]).forEach(function(y){var v=flVal(it,y[1],String(z[1]));var l=el('div');l.style.cssText='background:none;border:0;padding:0';l.appendChild(document.createTextNode(y[0]+' '));l.appendChild(el('span',flCls(v),flFv(v)));b.appendChild(l)});kv.appendChild(b)});dc.appendChild(kv);
    var br=el('div','bar');br.appendChild(flStockBtn(it.ticker));if(it.cap)br.appendChild(el('span','m','시총 '+flCap(it.cap)));if(it.score!=null)br.appendChild(el('span','m','종합점수 '+it.score));dc.appendChild(br);d2.appendChild(dc);tb.t.appendChild(d2)}});
- out.appendChild(tb.wrap);
+ out.appendChild(tb.wrap);if(HR)out.appendChild(el('p','note','* 기타 = −(개인+외국인+기관) 추정값(기타법인·기타외국인 등). 네이버는 종목별로 개인·외국인·기관(합계)만 줘서 사모·연기금 등은 나눌 수 없어요. 금액은 ‘순매수 수량×종가’ 근사치예요.'));
  flSetTbl('수급 순위 · '+lbl,[{h:'#',raw:function(it){return j.items.indexOf(it)+1}},{h:'종목',raw:function(it){return it.name}},{h:'코드',raw:function(it){return it.ticker}},{h:'현재가(원)',raw:function(it){return it.price},num:1,disp:function(it,r){return r?flN(r):'-'}},
   {h:'외국인 '+q.period+'일(원)',raw:function(it){return flVal(it,'f',q.period)},num:1,disp:function(it,r){return flFv(r)}},{h:'기관 '+q.period+'일(원)',raw:function(it){return flVal(it,'i',q.period)},num:1,disp:function(it,r){return flFv(r)}},
   {h:'합산 '+q.period+'일(원)',raw:function(it){return flVal(it,'c',q.period)},num:1,disp:function(it,r){return flFv(r)}}],j.items,j.base_date);
@@ -794,11 +932,11 @@ function flStockDraw(out){var j=FL.st.data;out.innerHTML='';if(!j)return;if(j.em
  else{var sr=el('div');sr.style.margin='8px 0';sr.appendChild(flChips(it));sr.appendChild(el('span','m',' 수급 점수 '+(it.ss>0?'+':'')+it.ss+'(원본 종목발굴 점수 중 수급 항목)'));c.appendChild(sr);
   if(j.pos&&j.pos.c20)c.appendChild(el('div','m',j.market_scope+' 안에서 합산 순매수 순위 — 5일 '+j.pos.c5[0]+'위 · 20일 '+j.pos.c20[0]+'위 (대상 '+j.pos.c20[1]+'종목)'))}
  var tb=flTblBuild(['구분','1일','5일','20일','하루평균(5일)','하루평균(20일)'],['','r','r','r','r','r']);var ser=[];
- [['외국인','f','#2563eb',null],['기관','i','#f97316',null],['합산','c','#475569','5 4']].forEach(function(z){var v1=flVal(it,z[1],'1'),v5=flVal(it,z[1],'5'),v20=flVal(it,z[1],'20');var tr=el('tr');tr.appendChild(el('td',null,z[0]));[v1,v5,v20,v5/5,v20/20].forEach(function(v){tr.appendChild(el('td','r '+flCls(v),flFv(v)))});tb.t.appendChild(tr);ser.push({name:z[0],color:z[2],dash:z[3],vals:[v20/20,v5/5,v1]})});
+ [['외국인','f','#2563eb',null],['기관','i','#f97316',null],['합산','c','#475569','5 4']].concat(it.o5!=null?[['개인','r','#16a34a',null,1],['기타*','o','#7c3aed',null,1]]:[]).forEach(function(z){var v1=flVal(it,z[1],'1'),v5=flVal(it,z[1],'5'),v20=flVal(it,z[1],'20');var tr=el('tr');tr.appendChild(el('td',null,z[0]));[v1,v5,v20,v5/5,v20/20].forEach(function(v){tr.appendChild(el('td','r '+flCls(v),flFv(v)))});tb.t.appendChild(tr);if(!z[4])ser.push({name:z[0],color:z[2],dash:z[3],vals:[v20/20,v5/5,v1]})});
  c.appendChild(tb.wrap);var lg=el('div','m');lg.textContent='그래프 — 하루 평균 순매수(선): 20일 → 5일 → 1일(최근). 파랑 외국인 · 주황 기관 · 점선 합산. 빨간 바탕=순매수 영역, 파란 바탕=순매도 영역.';c.appendChild(lg);var gw=el('div');gw.style.cssText='max-width:520px';gw.appendChild(flLine(['20일 평균','5일 평균','오늘'],ser));c.appendChild(gw);
  if(j.themes&&j.themes.length){var tw=el('div');tw.style.marginTop='8px';tw.appendChild(el('span','m','소속 테마: '));j.themes.forEach(function(t){var b=el('button','flCh s',t);b.type='button';b.style.cursor='pointer';b.onclick=function(){if(!ftOk('theme')){lockDlg('theme');return}FL.th.name=t;FL.th.mem=null;flGo('theme')};tw.appendChild(b);tw.appendChild(document.createTextNode(' '))});c.appendChild(tw)}
  else if(j.locked&&j.locked.indexOf('theme')>=0)c.appendChild(el('p','note','🔒 소속 테마는 테마별 수급 기능이 열린 등급부터 보여요.'));
- var lk=el('div','bar');var a=el('a',null,'네이버 증권에서 보기 ↗');a.href='https://finance.naver.com/item/main.naver?code='+encodeURIComponent(it.ticker);a.target='_blank';a.rel='noopener';lk.appendChild(a);c.appendChild(lk);out.appendChild(c)}
+ var lk=el('div','bar');if(window.NvIcon){lk.appendChild(window.NvIcon(it.ticker));lk.appendChild(el('span','m',' 네이버 증권에서 보기(새 창)'))}else{var a=el('a',null,'네이버 증권에서 보기 ↗');a.href='https://finance.naver.com/item/main.naver?code='+encodeURIComponent(it.ticker);a.target='_blank';a.rel='noopener';lk.appendChild(a)}c.appendChild(lk);out.appendChild(c)}
 
 /* ── 테마별(기능 'theme') ── */
 function flSecTheme(box){var S=FL.th;box.appendChild(el('p','note','같은 테마로 묶인 종목들의 외국인·기관 순매수 합계예요. 테마 이름을 누르면 그 테마 안의 종목별 수급을 볼 수 있어요. 종목이 3개 이상 있는 테마만 모아요.'));
@@ -830,11 +968,74 @@ function flAiRun(){if(!window.MiniAI){toast('AI 도우미를 불러오지 못했
  api('/admin/api/flow/prompt?'+flQ({inv:S.inv,period:S.period,side:S.side,market:S.market})).then(function(j){if(j.error){toast(j.error);return}if(j.empty){toast(j.msg);return}
   window.MiniAI.run({title:'수급 AI 해설 — '+j.label,key:'flow',steps:[{label:j.label,prompt:j.prompt}],minLen:150,hint:'AI가 "## 수급 특징이 두드러진 종목 …" 형식으로 답하면 답변 전체를 복사하고 이 창으로 돌아오세요.',
    preview:function(t){var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString('ko-KR')+'자 — '+t.slice(0,240)+(t.length>240?' …':'');return {node:x,canApply:t.trim().length>=100,strict:true}},
-   apply:function(t){FL.ai.text=String(t||'').slice(0,20000);flAiDraw();return Promise.resolve({message:'AI 해설을 아래 화면에 보여 줬어요.'})}})})}
+   apply:function(t){FL.ai.text=String(t||'').slice(0,20000);FL.flag.img=false;FL.flag.blog=false;FL.flag.posted=false;flAiDraw();flSteps();if(!MEMBER_MODE)setTimeout(function(){if(window.MiniFlow)MiniFlow.run('flow',FLFLOW,FLACTS,'ai')},60);return Promise.resolve({message:MEMBER_MODE?'AI 해설을 아래 화면에 보여 줬어요.':'AI 해설을 저장했어요. 설정에 따라 이미지 → 글 → 블로그 복사·열기로 이어져요.'})}})})}
 function flAiDraw(){var out=$('flAiOut');if(!out)return;out.innerHTML='';var t=FL.ai.text;if(!t){out.appendChild(el('p','note','아직 AI 해설이 없어요. [AI 프롬프트 만들기]를 눌러 보세요.'));return}
  var box=el('div','flAiOut');t.split('\n').forEach(function(l){var m;var s=l.replace(/\*\*/g,'');if((m=/^##\s+(.*)$/.exec(s))){box.appendChild(el('span','h2',m[1]))}else if((m=/^###\s+(.*)$/.exec(s))){box.appendChild(el('span','h3',m[1]))}else{box.appendChild(document.createTextNode(s));box.appendChild(document.createElement('br'))}});out.appendChild(box);
  var r=el('div','bar');r.appendChild(bt('📋 해설 복사하기','bt3',function(){var ok=window.MiniAI&&window.MiniAI.copy?window.MiniAI.copy(FL.ai.text):false;toast(ok?'복사했어요':'복사가 막혔어요')}));r.appendChild(bt('✖ 지우기','bt3',function(){FL.ai.text='';flAiDraw()}));out.appendChild(r);
  out.appendChild(el('p','note','⚠ AI가 만든 참고 글이에요. 숫자와 내용이 틀릴 수 있고, 특정 종목의 매수·매도 권유가 아니에요.'))}
+
+/* ── 단계 바(5단계: 수급 자료 → AI 해설 → 이미지 → 글 → 블로그에 쓰기) + 자동/수동 진행([⚙ 설정]) — 관리자만 ── */
+var FLFLOW=['ai','img','blog','post'];
+function flHas(){return !!(FL.sum&&!FL.sum.empty)}
+function flSteps(){var sp=$('flSteps');if(!sp||MEMBER_MODE)return;var has=flHas(),ai=!!(FL.ai.text&&FL.ai.text.trim()),F=FL.flag;
+ var steps=[{t:'수급 자료',sub:has?((FL.sum.status&&FL.sum.status.base_date)||'')+' · 완료':'가져오거나 조회하세요',done:has,go:function(){flStepRun('rank')}},
+  {t:'AI 해설',sub:ai?'완료 · 다시 만들기':'눌러서 시작',done:ai,go:function(){flStepRun('ai')}},
+  {t:'이미지 만들기',sub:F.img?'만들었어요 · 다시 만들기':'눌러서 만들기',done:F.img,go:function(){flStepRun('img')}},
+  {t:'글 만들기',sub:F.blog?'완료 · 다시 만들기':'눌러서 만들기',done:F.blog,go:function(){flStepRun('blog')}},
+  {t:'블로그에 쓰기',sub:F.posted?'복사·열기 완료':(F.blog?'복사하고 블로그 열기':'글을 먼저 만드세요'),done:F.posted,off:!F.blog,go:function(){flStepRun('post')}}];
+ window.FlowBar.draw(sp,{steps:steps,runAll:function(){flStepRun('all')},note:'[⚡ 블로그까지 한 번에]는 AI 해설 → 이미지 → 글 → 블로그 복사·열기를 설정과 상관없이 끝까지 이어요. 단계별 자동/수동은 [⚙ 설정]에서 바꿔요. 블로그 글쓰기 화면에 붙여 넣기(Ctrl+V)만 직접 하면 돼요.'})}
+function flStepRun(id){
+ if(id==='rank'){flGo('rank');return}
+ if(!flHas()){toast('먼저 수급 자료를 가져와 주세요(아래 [📦 수급 자료] 상자).');return}
+ if(id==='ai'){if(!ftOk('ai')){lockDlg('ai');return}flGo('ai');flAiRun();return}
+ if(id==='img'){FL.flag.img=false;MiniFlow.go('flow',FLFLOW,FLACTS,'img');return}
+ if(id==='blog'){FL.flag.blog=false;MiniFlow.go('flow',FLFLOW,FLACTS,'blog');return}
+ if(id==='post'){flPostGo(false);return}
+ if(id==='all'){toast('⚡ 블로그까지 이어서 진행해요');MiniFlow.force('flow',FLFLOW,FLACTS)}}
+function flPostGo(auto){var P=FL.blogPanel;if(FL.sec==='blog'&&P&&P.built()){P.copyOpen(auto);return true}
+ if(!FL.flag.blog){if(!auto)toast('먼저 ④ 글 만들기를 해 주세요');return false}
+ flGo('blog');var k=0,t=setInterval(function(){var Q=FL.blogPanel;if(Q&&Q.built()){clearInterval(t);Q.copyOpen(auto)}else if(++k>40)clearInterval(t)},250);return true}
+var FLACTS={
+ ai:function(next){if(!flHas())return;if((FL.ai.text||'').trim()){next();return}if(!ftOk('ai'))return;flGo('ai');flAiRun()},
+ img:function(next){if(FL.flag.img){next();return}flEnsure().then(function(){flGo('img');if(!FL.imgPanel)return;return FL.imgPanel.gen(true).then(function(){if(FL.imgPanel&&FL.imgPanel.items())next()})}).catch(function(){})},
+ blog:function(next){if(FL.flag.blog&&FL.sec==='blog'&&FL.blogPanel&&FL.blogPanel.built()){next();return}flEnsure().then(function(){FL.flag.blog=false;flGo('blog');if(!FL.blogPanel)return;return FL.blogPanel.rebuild().then(function(j){if(j&&!j.error)next()})}).catch(function(){})},
+ post:function(next){if(flPostGo(true))next()}};
+/* 이미지·글은 지금 순위 조건의 표를 쓴다 — 순위를 한 번도 안 열었으면 기본 조건으로 불러온다 */
+function flEnsure(){var S=FL.rk;if(S.data&&!S.data.empty&&S.data.items&&S.data.items.length)return Promise.resolve(S.data);
+ return api('/admin/api/flow/rank?'+flQ({inv:S.inv,period:S.period,side:S.side,market:S.market,pool:S.pool,top:S.top,fresh:S.fresh})).then(function(j){if(j.error)throw new Error(j.error);if(j.empty)throw new Error(j.msg||'수급 자료가 없어요.');S.data=j;return j})}
+function flStampD(){var d=new Date(),z=function(n){return ('0'+n).slice(-2)};return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
+function flSecImg(box){if(MEMBER_MODE)return;box.appendChild(el('p','note','지금 순위 조건(투자자·기간·방향)의 상위 10종목과 신호 종목 수를 한 장의 대시보드 이미지로 만들어요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
+ var ib=el('div');box.appendChild(ib);if(!window.ImgKit){ib.appendChild(el('p','note bad','이미지 도구(menu_img.py)가 올라가지 않았어요.'));return}
+ FL.imgPanel=ImgKit.panel(ib,{menu:'flow',name:'수급분석',ticker:flStamp(),perStock:false,onDone:function(){FL.flag.img=true;flSteps()},gen:function(scale){return flEnsure().then(function(j){if(!window.FlImg)throw new Error('이미지 도구를 불러오지 못했어요.');return window.FlImg.build(j,FL.sum,scale)})}});
+ if(FL.flag.img)FL.imgPanel.gen(false)}
+function flSecBlog(box){if(MEMBER_MODE)return;box.appendChild(el('p','note','순위·신호·AI 해설로 블로그용 글(HTML)을 만들어요. 글은 자동으로 올라가지 않고, [복사하고 블로그 열기]로 복사한 뒤 블로그 글쓰기 화면에 붙여 넣는 방식이에요. 이미지는 글 위쪽에 직접 올려 주세요.'));
+ var bx=el('div');box.appendChild(bx);if(!window.BlogKit){bx.appendChild(el('p','note bad','블로그 도구(menu_blog.py)가 올라가지 않았어요.'));FL.blogPanel=null;return}
+ var secs=[['stats','요약통계'],['rank','순위표'],['signal','신호 종목'],['ai','AI 해설']];
+ FL.blogPanel=window.BlogKit.panel(bx,{idp:'fl',key:'flow',kind:'flow',ticker:'D'+flStamp().slice(2),name:'수급분석 '+flStampD(),sections:secs,dup_warn:'',onBuilt:function(){FL.flag.blog=true;FL.flag.posted=false;flSteps()},onCopied:function(){FL.flag.posted=true;flSteps()},
+  build:function(inc,title){return flEnsure().then(function(){return apiJ('/admin/api/flow/blog',{ai:FL.ai.text||'',inc:inc,title:title})}).catch(function(e){return {error:(e&&e.message)||'만들지 못했어요'}})}});
+ if(FL.flag.blog)FL.blogPanel.rebuild()}
+(function(){
+var K=window.ImgKit;if(!K||window.FlImg)return;var T=K.text,RR=K.rr;
+var NAVY0='#0a1228',NAVY1='#16275a',GOLD='#d6b25e',PAPER='#f4f0e6',INK='#0f172a',MUT='#64748b',UP='#e11d48',DN='#2563eb';
+function card(c,x,y,w,h,r){c.save();c.shadowColor='rgba(15,23,42,.14)';c.shadowBlur=22;c.shadowOffsetY=6;RR(c,x,y,w,h,r||24);c.fillStyle='#fff';c.fill();c.restore()}
+function fv(v){v=Number(v)||0;if(v===0)return '0';var s=v>0?'+':'-',a=Math.abs(v);if(a>=1e12)return s+(a/1e12).toFixed(2)+'조';if(a>=1e10)return s+Math.round(a/1e8).toLocaleString('ko-KR')+'억';if(a>=1e8)return s+(a/1e8).toFixed(1)+'억';if(a>=1e4)return s+Math.round(a/1e4).toLocaleString('ko-KR')+'만';return s+'<1만'}
+function cl(v){return v>0?UP:(v<0?DN:MUT)}
+function dash(j,sum,scale){var its=(j.items||[]).slice(0,10),n=its.length,q=j.q||{},RH=76,W=1080,tH=100,tbH=74+n*RH+44,H=210+30+tH+30+tbH+30+118,m=K.make(W,H,scale),c=m.c;
+ c.fillStyle=PAPER;c.fillRect(0,0,W,H);var g=c.createLinearGradient(0,0,0,210);g.addColorStop(0,NAVY0);g.addColorStop(1,NAVY1);c.fillStyle=g;c.fillRect(0,0,W,210);c.fillStyle=GOLD;c.fillRect(0,0,W,8);
+ var inv={foreign:'외국인',inst:'기관',comb:'외국인+기관 합산'}[q.inv]||'외국인+기관',sd=q.side==='sell'?'순매도':'순매수';
+ T(c,'SUPPLY & DEMAND',W/2,60,{s:20,w:800,c:GOLD,a:'center',ls:5});T(c,inv+' '+(q.period||'5')+'일 '+sd+' 상위',W/2,132,{s:52,w:900,c:'#fff',a:'center',max:W-120});T(c,'수급 기준일 '+(j.base_date||'-')+' · 대상 '+(j.universe||0).toLocaleString('ko-KR')+'종목',W/2,178,{s:21,w:600,c:'#cbd5e1',a:'center',max:W-120});
+ var ct=(sum&&sum.counts)||{},tl=[['쌍끌이',(ct.dual||0)+'종목',UP],['수급전환',(ct.turn||0)+'종목','#d97706'],['동반매도',(ct.bsell||0)+'종목',DN],['수급 급증',(ct.surge||0)+'종목','#7c3aed']],tw=(W-100-16*3)/4,y1=240;
+ tl.forEach(function(t,i){var x=50+i*(tw+16);card(c,x,y1,tw,tH,18);T(c,t[0],x+tw/2,y1+36,{s:20,w:700,c:MUT,a:'center'});T(c,t[1],x+tw/2,y1+80,{s:34,w:900,c:t[2],a:'center',max:tw-16})});
+ var y2=y1+tH+30;card(c,50,y2,W-100,tbH,24);c.fillStyle=GOLD;RR(c,76,y2+26,6,30,3);c.fill();T(c,'순위 TOP '+n,96,y2+50,{s:26,w:900,c:INK});
+ var cx=[120,420,640,860,1010];T(c,'종목',cx[0],y2+90,{s:18,w:700,c:MUT});T(c,'외국인',cx[2],y2+90,{s:18,w:700,c:MUT,a:'right'});T(c,'기관',cx[3],y2+90,{s:18,w:700,c:MUT,a:'right'});T(c,'등락',cx[4],y2+90,{s:18,w:700,c:MUT,a:'right'});
+ var p=q.period||'5';its.forEach(function(it,i){var y=y2+110+i*RH;if(i%2===0){c.fillStyle='#f8fafc';c.fillRect(66,y,W-132,RH-6)}
+  T(c,String(i+1),96,y+46,{s:24,w:900,c:'#94a3b8',a:'center'});T(c,it.name,cx[0],y+36,{s:26,w:800,c:INK,max:290});T(c,(it.market||'')+' · '+(it.ticker||''),cx[0],y+62,{s:16,w:500,c:'#94a3b8'});
+  var f=it['f'+p],ii=it['i'+p];T(c,fv(f),cx[2],y+46,{s:24,w:800,c:cl(f),a:'right'});T(c,fv(ii),cx[3],y+46,{s:24,w:800,c:cl(ii),a:'right'});
+  var pc=it.pct;T(c,pc==null?'-':((pc>0?'+':'')+Number(pc).toFixed(2)+'%'),cx[4],y+46,{s:22,w:700,c:cl(pc||0),a:'right'})});
+ var fy=H-118;c.fillStyle='rgba(100,116,139,.35)';c.fillRect(60,fy,W-120,2);T(c,'금액은 순매수 수량×종가 추정치예요. 공개 데이터를 정리한 참고 자료이며 투자 권유가 아닙니다.',W/2,fy+38,{s:19,w:600,c:MUT,a:'center',max:W-120});
+ T(c,'모든 투자 판단과 책임은 투자자 본인에게 있어요 · 출처 네이버증권 · stock.oky.kr',W/2,fy+72,{s:19,w:700,c:'#94a3b8',a:'center',max:W-120});return m.cv}
+window.FlImg={build:function(j,sum,scale){return [{idx:1,label:'수급 대시보드',canvas:dash(j,sum,scale)}]}};
+})();
 
 /* ── 읽는 법(기능 'guide', 서버 호출 없음) ── */
 function flSecGuide(box){var g=el('div','flGd');
@@ -875,6 +1076,11 @@ def register():
         "vars": "{data_rows}=상위 20종목 수급 데이터(필수) · {side_lbl}=순매수/순매도 · {base_date}=수급 기준일 · {rank_lbl}=순위 기준 설명",
         "desc": "수급분석 화면의 [AI 프롬프트 만들기]가 AI에게 보내는 요청문. 매수·매도 권유를 하지 않도록 쓰는 것이 원칙이에요."})
     C.register_admin_tab("fl", "💧 수급분석", TAB_JS, "flLoad", menu=MENU)
+    C.register_flow(MENU, "💧 수급분석", "① 수급 자료 가져오기(직접 시작)", [
+        {"id": "ai", "label": "② AI 해설", "desc": "[🤖 AI 해설]을 시작하면 AI 요청문 창이 열려요. AI 답변을 복사해 돌아오면 저장되고 다음 단계로 이어져요(이미 저장한 해설이 있으면 건너뛰어요)."},
+        {"id": "img", "label": "③ 수급 대시보드 이미지", "desc": "AI 단계가 끝나면 블로그용 수급 대시보드 이미지를 자동으로 그려요(저장은 [⚙ 저장 설정]의 자동/수동 설정을 따라요)."},
+        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."},
+        {"id": "post", "label": "⑤ 블로그 복사·열기", "desc": "글이 만들어지면 서식을 복사하고 블로그 글쓰기 화면을 새 창으로 열어요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요. 브라우저가 복사·새 창을 막으면 [📋 복사하고 블로그 열기]를 한 번 눌러 주세요."}])
     F = C.register_feature
     F(MENU, "sum", "수급 요약", "수급 기준일·신호별 종목 수·시장별 외국인/기관 합계", default="public", endpoints=["/admin/api/flow/summary"])
     F(MENU, "guide", "수급 읽는 법", "순매수·쌍끌이·수급전환 등 용어와 읽는 방법 해설", default="public", endpoints=[])

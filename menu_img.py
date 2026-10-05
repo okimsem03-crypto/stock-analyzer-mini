@@ -16,7 +16,7 @@ from menu_ctx import C
 
 bp = Blueprint("img", __name__)
 
-DEFAULT_CFG = {"folders": {"stock": "종목분석", "deep": "심층분석", "daily": "오늘추천", "delist": "투자주의", "news": "뉴스분석", "challenge": "도전주", "market": "시장수급", "theme": "네이버테마"}, "scale": 2}
+DEFAULT_CFG = {"folders": {"stock": "종목분석", "deep": "심층분석", "daily": "오늘추천", "delist": "투자주의", "news": "뉴스분석", "challenge": "도전주", "market": "시장수급", "theme": "네이버테마", "flow": "수급분석"}, "scale": 2}
 _BAD = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
 
@@ -59,7 +59,7 @@ var K=window.ImgKit={supported:!!window.showDirectoryPicker,_cfg:null};
 var FONT='"Pretendard","Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo","Noto Sans CJK KR",sans-serif';
 var CIRC=['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
 K.FONT=FONT;K.CIRC=CIRC;
-var DEF={folders:{stock:'종목분석',deep:'심층분석',daily:'오늘추천',delist:'투자주의',news:'뉴스분석',challenge:'도전주',market:'시장수급',theme:'네이버테마'},scale:2};
+var DEF={folders:{stock:'종목분석',deep:'심층분석',daily:'오늘추천',delist:'투자주의',news:'뉴스분석',challenge:'도전주',market:'시장수급',theme:'네이버테마',flow:'수급분석'},scale:2};
 function lsGet(k,d){try{var v=localStorage.getItem(k);return v==null?d:v}catch(e){return d}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
@@ -427,7 +427,7 @@ function ikLoad(p){p.innerHTML='';var top=el('div','c');top.appendChild(el('b',n
  var fc=el('div','c');fc.id='ikFolder';fc.appendChild(el('p','note','불러오는 중…'));p.appendChild(fc);var mc=el('div','c');mc.id='ikMode';p.appendChild(mc);var nc=el('div','c');nc.id='ikNames';nc.appendChild(el('p','note','불러오는 중…'));p.appendChild(nc);
  var K=window.ImgKit;
  if(!K||typeof K.info!=='function'||typeof K.loadCfg!=='function'){ikFail('이미지 도구가 불러와지지 않았어요. 페이지를 새로고침(Ctrl+Shift+R)해 보시고, 계속되면 아래 문구를 알려 주세요: '+(window.__ikBoot?ikWhy(window.__ikBoot):'ImgKit 없음'));return}
- IK.cfg={folders:{stock:'종목분석',deep:'심층분석',daily:'오늘추천',delist:'투자주의',news:'뉴스분석',challenge:'도전주',market:'시장수급',theme:'네이버테마'},scale:2};
+ IK.cfg={folders:{stock:'종목분석',deep:'심층분석',daily:'오늘추천',delist:'투자주의',news:'뉴스분석',challenge:'도전주',market:'시장수급',theme:'네이버테마',flow:'수급분석'},scale:2};
  try{ikFolder();ikMode()}catch(e){ikFail('화면을 그리다 오류가 났어요: '+ikWhy(e))}
  var drew=false;function names(c){if(drew)return;drew=true;try{if(c)IK.cfg=JSON.parse(JSON.stringify(c));ikNames()}catch(e){var b=$('ikNames');if(b){b.innerHTML='';b.appendChild(el('p','note bad','⚠ 폴더 이름 화면 오류: '+ikWhy(e)))}}}
  setTimeout(function(){names(null)},7000);
@@ -452,7 +452,7 @@ function ikMode(){var b=$('ikMode');if(!b)return;b.innerHTML='';b.appendChild(el
  var wh=window.ImgKit.when();b.appendChild(el('div','m','자동 저장 시점 (자동 저장일 때만 적용)'));[['ai','AI 분석·종합 리포트가 끝난 뒤 (권장 — 작업 순서대로)'],['analysis','종목을 분석한 직후 (AI 없이 바로)']].forEach(function(o){var l=el('label','bar');var i=el('input');i.type='radio';i.name='imwhen';i.checked=wh===o[0];i.onchange=function(){window.ImgKit.setWhen(o[0]);toast('자동 저장 시점을 바꿨어요')};l.appendChild(i);l.appendChild(el('span',null,' '+o[1]));b.appendChild(l)});
  b.appendChild(el('p','note','같은 날 같은 종목을 다시 저장하면 같은 이름의 파일을 덮어씁니다. 자동 저장이 아니어도 분석실의 [이미지 만들기] 단계에서 언제든 직접 저장할 수 있어요.'))}
 function ikNames(){var b=$('ikNames');if(!b)return;b.innerHTML='';b.appendChild(el('b',null,'🗂 메뉴 폴더 이름 · 이미지 선명도 (모든 기기 공통)'));
- var C=IK.cfg,names={stock:'종목분석 (메인 분석 화면)',deep:'심층분석',daily:'오늘추천',delist:'거래정지·상폐(투자주의)',news:'뉴스분석 (대시보드·뉴스별 이미지)',challenge:'도전주 (낙폭회복 대시보드)',market:'시장수급 (수급 대시보드·누적 그래프)',theme:'네이버테마 (강세 테마 대시보드)'};var tw=el('div');var t=el('table');
+ var C=IK.cfg,names={stock:'종목분석 (메인 분석 화면)',deep:'심층분석',daily:'오늘추천',delist:'거래정지·상폐(투자주의)',news:'뉴스분석 (대시보드·뉴스별 이미지)',challenge:'도전주 (낙폭회복 대시보드)',market:'시장수급 (수급 대시보드·누적 그래프)',theme:'네이버테마 (강세 테마 대시보드)',flow:'수급분석 (수급 순위 대시보드)'};var tw=el('div');var t=el('table');
  Object.keys(C.folders).forEach(function(k){var tr=el('tr');tr.appendChild(el('td',null,names[k]||k));var td=el('td');var i=el('input');i.value=C.folders[k];i.maxLength=20;i.style.width='180px';i.oninput=function(){C.folders[k]=i.value};td.appendChild(i);tr.appendChild(td);t.appendChild(tr)});tw.appendChild(t);b.appendChild(tw);
  var r=el('div','bar');r.appendChild(el('span','m','이미지 선명도 '));var sel=el('select');[[1,'보통 (1080px)'],[1.5,'선명 (1620px)'],[2,'아주 선명 (2160px) — 권장'],[3,'최대 (3240px, 용량 큼)']].forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];if(Number(C.scale)===o[0])op.selected=true;sel.appendChild(op)});sel.onchange=function(){C.scale=Number(sel.value)};r.appendChild(sel);b.appendChild(r);
  var pv=el('p','note');b.appendChild(bt('💾 저장','bt',function(){apiJ('/admin/api/settings',{img_cfg:JSON.stringify(C)}).then(function(j){if(j.error){toast(j.error);return}window.ImgKit.loadCfg(true);toast('저장했어요')})}));

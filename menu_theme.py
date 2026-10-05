@@ -80,7 +80,9 @@ def _fmt_eok(v):
     s = "-" if v < 0 else ("+" if v > 0 else "")
     if a >= 10000:
         return "%s%.1f조" % (s, a / 10000)
-    return "%s%s억" % (s, format(int(round(a)), ","))
+    if a >= 100:
+        return "%s%s억" % (s, format(int(round(a)), ","))
+    return "%s%s억" % (s, ("%.1f" % a) if a >= 1 else ("%.2f" % a))
 
 
 def _pct(v, d=2):
@@ -88,7 +90,7 @@ def _pct(v, d=2):
 
 
 def _eok(won):
-    return round(float(won or 0) / 1e8, 1)
+    return round(float(won or 0) / 1e8, 2)
 
 
 def _json_get(key):
@@ -149,13 +151,21 @@ def _load(force=False):
     pr = _try("SELECT ticker,name,market,price,day_pct,cap_num FROM stock_price_cache",
               "SELECT ticker,name,market,price,NULL,NULL FROM stock_price_cache") or []
     for tk, nm, mk, pc, dp, cap in pr:
-        out["price"][str(tk)] = {"name": nm, "market": mk or "", "price": int(_n(pc)), "pct": (None if dp is None else round(_n(dp), 2)), "cap": int(_n(cap))}
+        cp = _n(cap)
+        if cp >= 1e8:           # 원 단위로 들어온 옛 자료는 억원으로 맞춘다(시총 최대치가 수백만 억원이라 1억 억원 이상은 원 단위)
+            cp = cp / 1e8
+        out["price"][str(tk)] = {"name": nm, "market": mk or "", "price": int(_n(pc)), "pct": (None if dp is None else round(_n(dp), 2)), "cap": int(round(cp))}
     inv = _try("SELECT ticker,foreign_1,inst_1,foreign_5,inst_5,foreign_20,inst_20,retail_1,retail_5,retail_20,base_date FROM investor_scan_cache",
                "SELECT ticker,foreign_1,inst_1,foreign_5,inst_5,foreign_20,inst_20,0,0,0,base_date FROM investor_scan_cache",
                "SELECT ticker,foreign_1,inst_1,foreign_5,inst_5,foreign_20,inst_20,0,0,0,'' FROM investor_scan_cache") or []
     for r in inv:
-        out["inv"][str(r[0])] = {"f1": _eok(r[1]), "i1": _eok(r[2]), "f5": _eok(r[3]), "i5": _eok(r[4]), "f20": _eok(r[5]), "i20": _eok(r[6]),
-                                 "r1": _eok(r[7]), "r5": _eok(r[8]), "r20": _eok(r[9])}
+        iv = {"f1": _eok(r[1]), "i1": _eok(r[2]), "f5": _eok(r[3]), "i5": _eok(r[4]), "f20": _eok(r[5]), "i20": _eok(r[6]),
+              "r1": _eok(r[7]), "r5": _eok(r[8]), "r20": _eok(r[9])}
+        # 기타(법인 등) = −(개인+외국인+기관): 하루의 순매수는 주체를 다 더하면 0이라는 점을 이용한 잔여 추정값(개인 자료가 없으면 계산하지 않는다)
+        has_r = any(abs(iv[k]) > 0 for k in ("r1", "r5", "r20"))
+        for p_ in ("1", "5", "20"):
+            iv["o" + p_] = round(-(iv["f" + p_] + iv["i" + p_] + iv["r" + p_]), 2) if has_r else None
+        out["inv"][str(r[0])] = iv
         if str(r[10] or "") > out["base_date"]:
             out["base_date"] = str(r[10] or "")
     # 일별 이력으로 연속 일수·전일 값 붙이기
@@ -176,7 +186,15 @@ def _load(force=False):
 
 
 def _empty():
-    return _admin_json({"ok": True, "empty": True, "msg": "네이버 테마 자료가 아직 없어요. 관리자가 이 화면 아래 [🏷 테마 가져오기]를 실행하면 보여요."})
+    msg = "네이버 테마 자료가 아직 없어요. 관리자가 이 화면 아래 [🏷 테마 가져오기]를 실행하면 보여요."
+    try:
+        if C.admin_viewer():                    # 관리자에게만: 지난 가져오기가 실패했다면 그 사유를 같이 보여 준다
+            f = _json_get("collect_fail_last")
+            if isinstance(f, dict) and f.get("kind") == "theme" and f.get("error"):
+                msg += " ⚠ 지난 시도(%s)가 실패했어요: %s" % (str(f.get("at", ""))[:16], str(f.get("error"))[:200])
+    except Exception:
+        pass
+    return _admin_json({"ok": True, "empty": True, "msg": msg})
 
 
 def _members_rows(d, name):
@@ -187,6 +205,8 @@ def _members_rows(d, name):
         row = {"ticker": tk, "name": p.get("name") or nm, "market": p.get("market") or "", "price": p.get("price") or 0, "pct": p.get("pct"), "cap": p.get("cap") or 0, "has_inv": bool(iv)}
         for k in ("f1", "i1", "f5", "i5", "f20", "i20", "r1", "r5", "r20"):
             row[k] = (iv or {}).get(k, 0)
+        for k in ("o1", "o5", "o20"):
+            row[k] = (iv or {}).get(k)
         rows.append(row)
     return rows
 
@@ -199,14 +219,33 @@ def _flow_rank(d, per, side, minn, top):
             continue
         f, i = sum(r["f" + per] for r in mem), sum(r["i" + per] for r in mem)
         r_ = sum(r["r" + per] for r in mem)
+        o_ = sum(r["o" + per] for r in mem if r["o" + per] is not None)
         c = f + i
         if (side == "buy" and c <= 0) or (side == "sell" and c >= 0):
             continue
         out.append({"no": t["no"], "name": t["name"], "rate": t["rate"], "n": len(mem), "total": len(d["members"].get(t["name"], [])), "f": round(f, 1), "i": round(i, 1),
-                    "r": round(r_, 1), "c": round(c, 1), "pos": sum(1 for r in mem if r["f" + per] + r["i" + per] > 0)})
+                    "r": round(r_, 1), "o": round(o_, 1), "c": round(c, 1), "pos": sum(1 for r in mem if r["f" + per] + r["i" + per] > 0)})
     out.sort(key=lambda x: (-x["c"] if side == "buy" else x["c"], x["name"]))
     return out[:top]
 
+
+
+def _theme_sums(d, name, per):
+    """테마 안 종목 중 수급 자료가 있는 종목의 주체별 합(억원) → {f,i,r,o,c,n,total}."""
+    mem = d["members"].get(name, [])
+    f = i = r_ = o_ = 0.0
+    n = 0
+    for tk, _nm in mem:
+        iv = d["inv"].get(tk)
+        if not iv:
+            continue
+        n += 1
+        f += iv["f" + per]
+        i += iv["i" + per]
+        r_ += iv["r" + per]
+        if iv.get("o" + per) is not None:
+            o_ += iv["o" + per]
+    return {"f": round(f, 1), "i": round(i, 1), "r": round(r_, 1), "o": round(o_, 1), "c": round(f + i, 1), "n": n, "total": len(mem)}
 
 # ══════════════════════════════════════════════════════════════
 # 조회 API
@@ -220,15 +259,24 @@ def api_list():
     if not d["themes"]:
         return _empty()
     q = _s(request.args.get("q"), 30).lower()
-    sort = _arg("sort", ("rate", "rise", "streak", "total"), "rate")
+    sort = _arg("sort", ("rate", "rise", "streak", "total", "flow"), "rate")
     side = _arg("side", ("up", "down", "all"), "all")
-    top = _iarg("top", 5, 300, 60)
-    its = [t for t in d["themes"] if (not q or q in t["name"].lower())]
+    per = _arg("per", ("1", "5", "20"), "5")
+    top = _iarg("top", 5, 400, 60)
+    def _hit(t):
+        if not q or q in t["name"].lower():
+            return True
+        return any(q in (tk.lower() + " " + nm.lower()) for tk, nm in d["members"].get(t["name"], []))
+    its = [dict(t) for t in d["themes"] if _hit(t)]
     if side == "up":
         its = [t for t in its if t["rate"] > 0]
     elif side == "down":
         its = [t for t in its if t["rate"] < 0]
-    key = {"rate": lambda t: (-t["rate"], t["name"]), "rise": lambda t: (-t["rise"], t["name"]), "streak": lambda t: (-abs(t["streak"]), -t["rate"], t["name"]), "total": lambda t: (-t["total"], t["name"])}[sort]
+    for t in its:
+        t["fl"] = _theme_sums(d, t["name"], per)
+        t["have"] = t["fl"]["total"]
+    key = {"rate": lambda t: (-t["rate"], t["name"]), "rise": lambda t: (-t["rise"], t["name"]), "streak": lambda t: (-abs(t["streak"]), -t["rate"], t["name"]),
+           "total": lambda t: (-t["total"], t["name"]), "flow": lambda t: (-t["fl"]["c"], t["name"])}[sort]
     its = sorted(its, key=key)
     if side == "down" and sort == "rate":
         its = sorted(its, key=lambda t: (t["rate"], t["name"]))
@@ -236,8 +284,9 @@ def api_list():
     up = sum(1 for t in allr if t["rate"] > 0)
     dn = sum(1 for t in allr if t["rate"] < 0)
     avg = round(sum(t["rate"] for t in allr) / len(allr), 2) if allr else 0
+    links = sum(len(v) for v in d["members"].values())
     return _admin_json({"ok": True, "items": its[:top], "matched": len(its), "count": len(allr), "up": up, "down": dn, "avg": avg, "dates": len(d["dates"]),
-                        "fetched_at": d["fetched_at"], "base_date": d["base_date"], "sort": sort, "side": side})
+                        "fetched_at": d["fetched_at"], "base_date": d["base_date"], "sort": sort, "side": side, "per": per, "links": links, "inv_n": len(d["inv"])})
 
 
 @bp.route("/admin/api/theme/detail", methods=["GET"])
@@ -259,12 +308,42 @@ def api_detail():
     rows.sort(key=lambda r: (-(r["pct"] if r["pct"] is not None else -999), r["ticker"]))
     inv = [r for r in rows if r["has_inv"]]
     sums = {k: round(sum(r[k] for r in inv), 1) for k in ("f1", "i1", "f5", "i5", "f20", "i20", "r1", "r5", "r20")}
+    for p_ in ("1", "5", "20"):
+        sums["o" + p_] = round(sum(r["o" + p_] for r in inv if r["o" + p_] is not None), 1) if any(r["o" + p_] is not None for r in inv) else None
     pcts = [r["pct"] for r in rows if r["pct"] is not None]
     hh = d["hist"].get(no, {})
-    return _admin_json({"ok": True, "theme": t, "items": rows[:80], "total": len(rows), "inv_n": len(inv), "sums": sums, "base_date": d["base_date"],
+    return _admin_json({"ok": True, "theme": t, "items": rows[:300], "total": len(rows), "inv_n": len(inv), "sums": sums, "base_date": d["base_date"],
                         "avg_pct": (round(sum(pcts) / len(pcts), 2) if pcts else None), "up_n": sum(1 for p in pcts if p > 0), "down_n": sum(1 for p in pcts if p < 0),
                         "hist": {"dates": [x for x in d["dates"] if x in hh], "rates": [hh[x] for x in d["dates"] if x in hh]}})
 
+
+
+@bp.route("/admin/api/theme/days", methods=["GET"])
+def api_days():
+    """종목 하나의 일별 수급(최근 거래일별 외국인·기관·개인·기타, 억원) — 수급 가져오기가 보관해 둔 원자료로 계산."""
+    deny = _admin_deny()
+    if deny:
+        return deny
+    tk = _s(request.args.get("ticker"), 8).upper()
+    if not re.match(r"^[0-9A-Za-z]{6}$", tk):
+        return _admin_json({"error": "종목 코드가 올바르지 않아요."}, 400)
+    rows = _try("SELECT days_json,base_date FROM stock_flow_days WHERE ticker='%s'" % tk)
+    if not rows:
+        return _admin_json({"ok": True, "ticker": tk, "days": [], "msg": "이 종목의 일별 수급 자료가 아직 없어요. 관리자가 수급을 다시 가져오면 생겨요."})
+    try:
+        raw = json.loads(rows[0][0] or "[]")
+    except Exception:
+        raw = []
+    n = _iarg("n", 3, 30, 10)
+    out = []
+    for r in raw[:n]:
+        try:
+            dt, px, vol, fq, iq, pq = r[:6]
+            f, i, p_ = round(fq * px / 1e8, 2), round(iq * px / 1e8, 2), round(pq * px / 1e8, 2)
+            out.append({"date": dt, "close": px, "vol": vol, "f": f, "i": i, "r": p_, "o": round(-(f + i + p_), 2) if (pq or fq or iq) else None})
+        except Exception:
+            continue
+    return _admin_json({"ok": True, "ticker": tk, "days": out, "base_date": str(rows[0][1] or "")})
 
 @bp.route("/admin/api/theme/flow", methods=["GET"])
 def api_flow():
@@ -604,8 +683,8 @@ def api_delete():
 # ══════════════════════════════════════════════════════════════
 # 화면
 # ══════════════════════════════════════════════════════════════
-TAB_JS = r"""var TH={sec:'list',css:false,q:'',sort:'rate',side:'all',top:'60',ls:null,no:0,det:null,fl:{per:'5',side:'buy'},flD:null,tr:{side:'up',days:'10'},trD:null,ai:{text:'',date:'',old:null},flag:{img:false,blog:false},imgPanel:null,blogPanel:null,diag:null,job:null,jtm:0,jwas:false,memGo:null};
-var TH_SECS=[['list','① 🏷 테마 순위','list'],['detail','② 🔎 테마 안 종목','detail'],['flow','③ 💰 테마별 수급','flow'],['trend','④ 📈 일별 추이','trend'],['ai','⑤ 🤖 AI 해설','ai'],['img','⑥ 🖼 테마 이미지','img'],['blog','⑦ 📝 블로그 쓰기','blog'],['guide','📘 읽는 법','guide']];
+TAB_JS = r"""var TH={sec:'board',css:false,per:'5',bd:{q:'',sort:'rate',side:'all',no:0,det:null,sk:'',sd:-1,open:{}},q:'',sort:'rate',side:'all',top:'60',ls:null,no:0,det:null,fl:{per:'5',side:'buy'},flD:null,tr:{side:'up',days:'10'},trD:null,ai:{text:'',date:'',old:null},flag:{img:false,blog:false,posted:false},imgPanel:null,blogPanel:null,diag:null,job:null,jtm:0,jwas:false,memGo:null,chain:false,cl:{lim:'0',skip:true}};
+var TH_SECS=[['board','① 🏷 테마·종목·수급','list'],['list','② 테마 순위표','list'],['flow','③ 💰 테마별 수급','flow'],['trend','④ 📈 일별 추이','trend'],['ai','⑤ 🤖 AI 해설','ai'],['img','⑥ 🖼 테마 이미지','img'],['blog','⑦ 📝 블로그 쓰기','blog'],['guide','📘 읽는 법','guide']];
 var TH_COL=['#e11d48','#f59e0b','#10b981','#3b82f6','#8b5cf6','#14b8a6','#f97316','#64748b','#ec4899','#84cc16'];
 var TH_CSS='.thHd{padding:14px 16px}.thHd h2{margin:0 0 4px;font-size:18px}'+
 '.thNav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 8px}.thNav button{border:1.5px solid #cbd5e1;background:#fff;color:#334155;border-radius:999px;padding:7px 13px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}.thNav button.thOn{background:#c2410c;border-color:#c2410c;color:#fff}'+
@@ -622,11 +701,18 @@ var TH_CSS='.thHd{padding:14px 16px}.thHd h2{margin:0 0 4px;font-size:18px}'+
 '.thAiOut{white-space:pre-wrap;word-break:break-word;font-size:13.5px;line-height:1.65;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-top:8px}'+
 '.thAiOut .h2{display:block;font-weight:900;color:#fff;background:#c2410c;border-radius:8px;padding:5px 10px;margin:10px 0 4px}.thAiOut .h3{display:block;font-weight:800;border-left:5px solid #c2410c;padding-left:8px;margin:8px 0 2px}'+
 '.thGd h4{margin:12px 0 4px;font-size:14px}.thGd p,.thGd li{font-size:13px;line-height:1.65;color:#334155;margin:3px 0}.thGd ul{margin:4px 0 4px 18px;padding:0}'+
+'.thBd{display:grid;grid-template-columns:minmax(250px,320px) minmax(0,1fr);gap:12px;align-items:start}@media(max-width:860px){.thBd{grid-template-columns:1fr}.thLs{max-height:250px!important}}'+
+'.thLs{border:1px solid #e2e8f0;border-radius:12px;background:#fff;max-height:74vh;overflow:auto;-webkit-overflow-scrolling:touch}.thLi{display:grid;grid-template-columns:1fr auto;gap:1px 8px;padding:8px 11px;border-bottom:1px solid #f1f5f9;cursor:pointer}.thLi:hover{background:#fffaf5}.thLi.on{background:#fff7ed;box-shadow:inset 3px 0 0 #c2410c}.thLi .n{font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.thLi .r{font-weight:800;text-align:right}.thLi .s{font-size:11px;color:#64748b}.thLi .f{font-size:11px;text-align:right;font-weight:700}'+
+'.thChW{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap}.thChL{font-size:11.5px;color:#64748b;margin-right:2px}.thCh{border:1.5px solid #cbd5e1;background:#fff;color:#334155;border-radius:999px;padding:5px 12px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}.thCh.on{background:#0f172a;border-color:#0f172a;color:#fff}'+
+'.thAct{display:grid;grid-template-columns:104px 1fr 78px;align-items:center;gap:8px;margin:5px 0;font-size:12.5px}.thAct .l{font-weight:800}.thAct .l small{display:block;font-weight:500;font-size:10.5px;color:#94a3b8}.thAct .v{text-align:right;font-weight:800}'+
+'.thT2 th.sk{cursor:pointer;user-select:none}.thT2 th.sk:hover{background:#ffedd5}.thT2 td:first-child,.thT2 th:first-child{position:sticky;left:0;background:#fff;z-index:1}.thT2 th:first-child{background:#fff7ed}.thT2 td.nmc{min-width:128px}.thT2 .sb{font-size:10.5px;color:#94a3b8}.thT2 tr.dly td{background:#f8fafc;padding:6px 10px}.thT2 button.dyb{border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:2px 7px;font-size:12px;cursor:pointer}'+
+'.thRd{font-size:13px;line-height:1.6;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:8px 11px;margin:8px 0}.thRd b.b{color:#dc2626}.thRd b.s{color:#2563eb}'+
 '.thPg{height:10px;border-radius:6px;background:#e2e8f0;overflow:hidden;margin:6px 0}.thPg>div{height:100%;background:#c2410c;width:0}.thImgG .c{margin:8px 0}';
 function thCss(){if(TH.css)return;TH.css=true;var nn='';var n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';var s=document.createElement('style');if(nn)s.setAttribute('nonce',nn);s.textContent=TH_CSS;document.head.appendChild(s)}
 function thQ(o){var a=[];Object.keys(o).forEach(function(k){if(o[k]!==''&&o[k]!=null)a.push(encodeURIComponent(k)+'='+encodeURIComponent(o[k]))});return a.join('&')}
 function thCls(v){return v>0?'thUp':(v<0?'thDn':'thZ')}
-function thFe(v){if(v==null||isNaN(v))return '-';v=Number(v);var a=Math.abs(v),s=v>0?'+':(v<0?'-':'');if(a>=10000)return s+(a/10000).toFixed(1)+'조';return s+Math.round(a).toLocaleString('ko-KR')+'억'}
+function thFe(v){if(v==null||isNaN(v))return '-';v=Number(v);var a=Math.abs(v),s=v>0?'+':(v<0?'-':'');if(a===0)return '0';if(a>=10000)return s+(a/10000).toFixed(1)+'조';if(a>=100)return s+Math.round(a).toLocaleString('ko-KR')+'억';if(a>=1)return s+a.toFixed(1)+'억';return s+a.toFixed(2)+'억'}
+function thCap(v){v=Number(v)||0;if(!v)return '-';return v>=10000?(v/10000).toFixed(1)+'조':Math.round(v).toLocaleString('ko-KR')+'억'}
 function thPct(v){if(v==null||isNaN(v))return '-';return (v>0?'+':'')+Number(v).toFixed(2)+'%'}
 function thStk(s){return !s||Math.abs(s)<2?'-':(Math.abs(s)+'일 '+(s>0?'연속↑':'연속↓'))}
 function thStamp(){var d=new Date(),z=function(n){return ('0'+n).slice(-2)};return d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())}
@@ -636,7 +722,7 @@ function thCsv(lines,name){thDl(new Blob(['﻿'+lines.join('\n')],{type:'text/cs
 function thSel(bar,lbl,obj,key,opts,fn){var l=el('label','thL');if(lbl)l.appendChild(el('span',null,lbl));var s=el('select');opts.forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];s.appendChild(op)});s.value=obj[key];s.onchange=function(){obj[key]=s.value;if(fn)fn()};l.appendChild(s);bar.appendChild(l);return s}
 function thTbl(heads,aligns){var w=el('div','thW'),t=el('table','thT'),h=el('tr');heads.forEach(function(x,i){h.appendChild(el('th',aligns&&aligns[i]==='r'?'r':'',x))});t.appendChild(h);w.appendChild(t);return {wrap:w,t:t}}
 function thPlace(box,fid,txt){var c=el('div','thCard');c.appendChild(el('b',null,txt||'이 기능은 잠겨 있어요'));c.appendChild(el('p','note','등급이 열리면 이 자리에 내용이 나타나요. 위 안내를 눌러 자세히 확인해 보세요.'));box.appendChild(c);ftSec(box,fid)}
-function thNaverLink(tk,nm){var a=el('a','nm',nm);a.href='https://finance.naver.com/item/main.naver?code='+encodeURIComponent(tk);a.target='_blank';a.rel='noopener';return a}
+function thNaverLink(tk,nm){if(window.StockName)return window.StockName(tk,nm);var a=el('a','nm',nm);a.href='https://finance.naver.com/item/main.naver?code='+encodeURIComponent(tk);a.target='_blank';a.rel='noopener';return a}
 
 /* ── 화면 뼈대 ── */
 function thLoad(p){thCss();p.innerHTML='';
@@ -644,30 +730,39 @@ function thLoad(p){thCss();p.innerHTML='';
  hd.appendChild(el('div','m',(MEMBER_MODE?'① 테마 순위 → ② 테마 안 종목 → ③ 테마별 수급 → ④ 일별 추이. ':'① 테마 가져오기 → ② AI 해설 → ③ 테마 이미지 → ④ 블로그 쓰기. ')+'네이버 증권 테마가 오늘 얼마나 올랐는지, 어떤 종목이 끌었는지, 외국인·기관이 어느 테마에 몰렸는지 보여 줘요. 정보 제공용이며 투자 권유가 아니에요.'));
  var sb=el('div');sb.id='thSum';hd.appendChild(sb);p.appendChild(hd);
  var sp=el('div','thStp');sp.id='thSteps';p.appendChild(sp);var nv=el('div','thNav');nv.id='thNav';p.appendChild(nv);var bd=el('div');bd.id='thBody';p.appendChild(bd);
- p.appendChild(el('p','note','※ 테마 등락률·종목은 네이버 증권이 주는 값이에요. 테마별 수급은 시가총액 상위로 수집한 종목의 ‘순매수 수량×종가’ 합이라 테마 전체와 차이가 있어요. 테마는 단기 관심이 몰리는 묶음이라 변동이 크고, 투자 판단과 책임은 이용자 본인에게 있어요.'));
+ p.appendChild(el('p','note','※ 테마 등락률·종목은 네이버 증권이 주는 값이에요. 테마별 수급은 [수급 가져오기]로 받은 종목(전종목·테마 종목)의 ‘순매수 수량×종가’ 합이라 실제 거래소 집계와 차이가 있어요. 테마는 단기 관심이 몰리는 묶음이라 변동이 크고, 투자 판단과 책임은 이용자 본인에게 있어요.'));
  var ad=el('div','c');ad.id='thAdm';p.appendChild(adm(ad));
- if(MEMBER_MODE&&TH.sec==='blog')TH.sec='list';thNavDraw();thShow();thSteps();if(!MEMBER_MODE){thAdmLoad();thAiLoad();thJobPoll(false)}}
+ if(MEMBER_MODE&&TH.sec==='blog')TH.sec='board';thNavDraw();thShow();thSteps();if(!MEMBER_MODE){thAdmLoad();thAiLoad();thJobPoll(false)}}
 function thNavDraw(){var n=$('thNav');if(!n)return;n.innerHTML='';TH_SECS.forEach(function(s){if(MEMBER_MODE&&s[0]==='blog')return;var b=el('button',TH.sec===s[0]?'thOn':'',(ftOk(s[2])?'':'🔒 ')+s[1]);b.type='button';b.onclick=function(){thGo(s[0])};n.appendChild(b)})}
-var THFLOW=['ai','img','blog'];
+var THFLOW=['ai','img','blog','post'];
 function thHas(){return !!(TH.ls&&!TH.ls.empty)}
-function thSteps(){var sp=$('thSteps');if(!sp)return;sp.innerHTML='';var has=thHas(),ai=!!(TH.ai.text&&TH.ai.text.trim());
- var defs=[['네이버 테마',has?(TH.ls.count+'개 · '+((TH.ls.fetched_at||'').slice(0,10))):'가져오거나 조회하세요','list',has],['AI 해설',ai?'완료 · 다시 만들기':'눌러서 시작','ai',ai],[MEMBER_MODE?'테마 이미지':'테마 대시보드 이미지',TH.flag.img?'만들었어요':'눌러서 만들기','img',TH.flag.img]];
- if(!MEMBER_MODE)defs.push(['블로그 쓰기',TH.flag.blog?'글 만들었어요':'눌러서 만들기','blog',TH.flag.blog]);
- var first=-1;defs.forEach(function(d,i){if(first<0&&!d[3])first=i});
- defs.forEach(function(d,i){var b=el('button',(d[3]?'done':'')+(i===first?' cur':''));b.type='button';b.setAttribute('data-noconfirm','1');b.appendChild(el('span','n',d[3]?'✓':String(i+1)));var t=el('span');t.appendChild(document.createTextNode(d[0]));t.appendChild(el('small',null,d[1]));b.appendChild(t);b.onclick=function(){thStepRun(d[2])};sp.appendChild(b)})}
+function thSteps(){var sp=$('thSteps');if(!sp)return;var has=thHas(),ai=!!(TH.ai.text&&TH.ai.text.trim()),F=TH.flag;
+ var steps=[{t:'네이버 테마',sub:has?(TH.ls.count+'개 · '+((TH.ls.fetched_at||'').slice(0,10))):'가져오거나 조회하세요',done:has,go:function(){thStepRun('board')}},
+  {t:'AI 해설',sub:ai?'완료 · 다시 만들기':'눌러서 시작',done:ai,go:function(){thStepRun('ai')}},
+  {t:MEMBER_MODE?'테마 이미지':'이미지 만들기',sub:F.img?'만들었어요 · 다시 만들기':'눌러서 만들기',done:F.img,go:function(){thStepRun('img')}},
+  {t:'글 만들기',sub:F.blog?'완료 · 다시 만들기':'눌러서 만들기',done:F.blog,hide:MEMBER_MODE,go:function(){thStepRun('blog')}},
+  {t:'블로그에 쓰기',sub:F.posted?'복사·열기 완료':(F.blog?'복사하고 블로그 열기':'글을 먼저 만드세요'),done:F.posted,off:!F.blog,hide:MEMBER_MODE,go:function(){thStepRun('post')}}];
+ window.FlowBar.draw(sp,{steps:steps,runAll:MEMBER_MODE?null:function(){thStepRun('all')},note:MEMBER_MODE?'':'[⚡ 블로그까지 한 번에]는 AI 해설 → 이미지 → 글 → 블로그 복사·열기를 설정과 상관없이 끝까지 이어요. 단계별 자동/수동은 [⚙ 설정]에서 바꿔요. 블로그 글쓰기 화면에 붙여 넣기(Ctrl+V)만 직접 하면 돼요.'})}
 function thStepRun(id){
- if(id==='list'){thGo('list');return}
- if(!thHas()&&TH.sec==='list'){toast(MEMBER_MODE?'아직 네이버 테마 자료가 없어요.':'먼저 아래 [🏷 테마 가져오기]를 눌러 주세요.');return}
+ if(id==='board'||id==='list'){thGo('board');return}
+ if(!thHas()&&TH.sec==='board'){toast(MEMBER_MODE?'아직 네이버 테마 자료가 없어요.':'먼저 아래 [🏷 테마 가져오기]를 눌러 주세요.');return}
  if(id==='ai'){if(!ftOk('ai')){lockDlg('ai');return}thGo('ai');thAiRun();return}
- if(id==='img'){if(!ftOk('img')){lockDlg('img');return}if(MEMBER_MODE){thGo('img');if(TH.memGo&&!TH.memGo.disabled)TH.memGo.click();return}if(window.MiniFlow)MiniFlow.go('theme',THFLOW,THACTS,'img');else thGo('img');return}
- if(id==='blog'){if(MEMBER_MODE)return;if(window.MiniFlow)MiniFlow.go('theme',THFLOW,THACTS,'blog');else thGo('blog')}}
+ if(id==='img'){if(!ftOk('img')){lockDlg('img');return}if(MEMBER_MODE){thGo('img');if(TH.memGo&&!TH.memGo.disabled)TH.memGo.click();return}TH.flag.img=false;if(window.MiniFlow)MiniFlow.go('theme',THFLOW,THACTS,'img');else thGo('img');return}
+ if(MEMBER_MODE)return;
+ if(id==='blog'){TH.flag.blog=false;if(window.MiniFlow)MiniFlow.go('theme',THFLOW,THACTS,'blog');else thGo('blog');return}
+ if(id==='post'){thPostGo(false);return}
+ if(id==='all'){if(!window.MiniFlow)return;toast('⚡ 블로그까지 이어서 진행해요');MiniFlow.force('theme',THFLOW,THACTS)}}
+function thPostGo(auto){var P=TH.blogPanel;if(TH.sec==='blog'&&P&&P.built()){P.copyOpen(auto);return true}
+ if(!TH.flag.blog){if(!auto)toast('먼저 ④ 글 만들기를 해 주세요');return false}
+ thGo('blog');var k=0,t=setInterval(function(){var Q=TH.blogPanel;if(Q&&Q.built()){clearInterval(t);Q.copyOpen(auto)}else if(++k>40)clearInterval(t)},250);return true}
 var THACTS={
  ai:function(next){if(!thHas())return;if((TH.ai.text||'').trim()){next();return}if(!ftOk('ai'))return;thGo('ai');thAiRun()},
- img:function(next){thEnsure().then(function(){thGo('img');if(!TH.imgPanel)return;return TH.imgPanel.gen(true).then(function(){if(TH.imgPanel&&TH.imgPanel.items())next()})}).catch(function(){})},
- blog:function(){thEnsure().then(function(){thGo('blog');if(TH.blogPanel)TH.blogPanel.rebuild()}).catch(function(){})}};
+ img:function(next){if(TH.flag.img){next();return}thEnsure().then(function(){thGo('img');if(!TH.imgPanel)return;return TH.imgPanel.gen(true).then(function(){if(TH.imgPanel&&TH.imgPanel.items())next()})}).catch(function(){})},
+ blog:function(next){if(TH.flag.blog&&TH.sec==='blog'&&TH.blogPanel&&TH.blogPanel.built()){next();return}thEnsure().then(function(){TH.flag.blog=false;thGo('blog');if(!TH.blogPanel)return;return TH.blogPanel.rebuild().then(function(j){if(j&&!j.error)next()})}).catch(function(){})},
+ post:function(next){if(thPostGo(true))next()}};
 function thGo(sec){TH.sec=sec;thNavDraw();thShow()}
 function thShow(){var b=$('thBody');if(!b)return;b.innerHTML='';var box=el('div');b.appendChild(box);
- var m={list:thSecList,detail:thSecDetail,flow:thSecFlow,trend:thSecTrend,ai:thSecAi,img:thSecImg,blog:thSecBlog,guide:thSecGuide}[TH.sec],fid=TH_SECS.filter(function(s){return s[0]===TH.sec})[0][2];
+ var m={board:thSecBoard,list:thSecList,flow:thSecFlow,trend:thSecTrend,ai:thSecAi,img:thSecImg,blog:thSecBlog,guide:thSecGuide}[TH.sec],fid=TH_SECS.filter(function(s){return s[0]===TH.sec})[0][2];
  if(!ftOk(fid)){var f=FEATS&&FEATS[fid];thPlace(box,fid,'🔒 '+(f?f.label:'잠긴 기능'));return}m(box)}
 function thListQ(){return thQ({q:TH.q,sort:TH.sort,side:TH.side,top:TH.top})}
 function thEnsure(){if(thHas())return Promise.resolve(TH.ls);return api('/admin/api/theme/list?'+thQ({top:'300'})).then(function(j){if(j.error)throw new Error(j.error);if(j.empty)throw new Error(j.msg||'테마 자료가 없어요.');TH.ls=j;thSteps();return j})}
@@ -693,26 +788,69 @@ function thListDraw(o,j){var mx=1;j.items.forEach(function(t){mx=Math.max(mx,Mat
   tr.appendChild(el('td','r',t.rank_prev?(t.rank_prev+'위'+(t.rank_prev>t.rank?' ▲'+(t.rank_prev-t.rank):(t.rank_prev<t.rank?' ▼'+(t.rank-t.rank_prev):' -'))):'-'));T.t.appendChild(tr)});o.appendChild(T.wrap);
  if(!MEMBER_MODE||ftOk('exp')){var cc=el('div','bar');var eb=bt('📄 CSV 내려받기','bt3',function(){var L=['순위,테마,등락률(%),상승,하락,보합,종목수,연속일수'];j.items.forEach(function(t){L.push([t.rank,'"'+t.name.replace(/"/g,'""')+'"',t.rate,t.rise,t.fall,t.steady,t.total,t.streak].join(','))});thCsv(L,'네이버테마')});cc.appendChild(ft(eb,'exp'));o.appendChild(cc)}
  o.appendChild(el('p','note','연속: 일별 이력이 쌓인 날 기준으로 같은 방향(↑강세/↓약세)이 며칠 이어졌는지예요. 이력은 관리자가 테마를 가져올 때마다 하루씩 쌓여요(지금 '+j.dates+'일).'))}
-function thOpen(no){if(!ftOk('detail')){lockDlg('detail');return}TH.no=no;TH.det=null;thGo('detail')}
+function thOpen(no){if(!ftOk('detail')){lockDlg('detail');return}TH.bd.no=no;TH.bd.det=null;thGo('board')}
 
-/* ── ② 테마 안 종목 ── */
-function thSecDetail(box){
- var bar=el('div','bar');var s=el('select');var op0=el('option',null,'테마를 고르세요');op0.value='0';s.appendChild(op0);
- thEnsure().then(function(j){j.items.slice().sort(function(a,b){return a.name<b.name?-1:1}).forEach(function(t){var op=el('option',null,t.name+' ('+thPct(t.rate)+')');op.value=String(t.no);s.appendChild(op)});s.value=String(TH.no||0)}).catch(function(){});
- s.onchange=function(){TH.no=Number(s.value)||0;TH.det=null;thDetGo()};var lb=el('label','thL');lb.appendChild(el('span',null,'테마'));lb.appendChild(s);bar.appendChild(lb);box.appendChild(bar);
- var o=el('div');o.id='thDetO';box.appendChild(o);thDetGo()}
-function thDetGo(){var o=$('thDetO');if(!o)return;o.innerHTML='';if(!TH.no){o.appendChild(el('p','note','위에서 테마를 고르거나 ① 테마 순위에서 테마를 눌러 보세요.'));return}
- o.appendChild(el('p','note','⏳ 불러오는 중…'));api('/admin/api/theme/detail?'+thQ({no:TH.no})).then(function(j){if(j.error)return;o.innerHTML='';if(j.empty){o.appendChild(el('p','note',j.msg));return}TH.det=j;thDetDraw(o,j)})}
-function thDetDraw(o,j){var t=j.theme,S=j.sums;
- var tl=el('div','thTiles');[['등락률',thPct(t.rate),thCls(t.rate)],['상승/하락 종목',t.rise+' / '+t.fall,''],['시세 있는 종목 평균',j.avg_pct==null?'-':thPct(j.avg_pct),thCls(j.avg_pct||0)],['연속',thStk(t.streak),thCls(t.streak)]].forEach(function(x){var c=el('div','thTile');c.appendChild(el('div','l',x[0]));c.appendChild(el('div','v '+x[2],x[1]));tl.appendChild(c)});o.appendChild(tl);
- if(j.inv_n){var c2=el('div','thCard');c2.appendChild(el('h3',null,'💰 이 테마 수급 (수급 자료가 있는 '+j.inv_n+'종목 합, 억원)'));var T0=thTbl(['주체','1일','5일','20일'],['','r','r','r']);[['외국인','f'],['기관','i'],['개인','r']].forEach(function(a){var tr=el('tr');tr.appendChild(el('td','nm',a[0]));['1','5','20'].forEach(function(p){var v=S[a[1]+p];tr.appendChild(el('td','r '+thCls(v),thFe(v)))});T0.t.appendChild(tr)});c2.appendChild(T0.wrap);c2.appendChild(el('p','note','기준일 '+(j.base_date||'-')+' · 시가총액 상위로 수집한 종목만 더한 추정치예요.'));o.appendChild(c2)}
- else o.appendChild(el('p','note','이 테마 종목의 수급 자료가 없어요(수집한 시가총액 상위 종목에 들지 않음).'));
- if(j.hist&&j.hist.dates.length>=2){var c3=el('div','thCard');c3.appendChild(el('h3',null,'📈 이 테마의 일별 등락률'));c3.appendChild(thLine(j.hist.dates,[{name:t.name,color:'#c2410c',data:j.hist.rates}]));o.appendChild(c3)}
- var T=thTbl(['종목','시장','현재가','등락률','시총(억)','외국인5일','기관5일','개인5일'],['','','r','r','r','r','r','r']);
- j.items.forEach(function(x){var tr=el('tr');var td=el('td');td.appendChild(thNaverLink(x.ticker,x.name));td.appendChild(el('div','sb',x.ticker));tr.appendChild(td);tr.appendChild(el('td',null,x.market||'-'));tr.appendChild(el('td','r',x.price?x.price.toLocaleString('ko-KR'):'-'));tr.appendChild(el('td','r '+thCls(x.pct||0),x.pct==null?'-':thPct(x.pct)));tr.appendChild(el('td','r',x.cap?Math.round(x.cap/1e8).toLocaleString('ko-KR'):'-'));
-  ['f5','i5','r5'].forEach(function(k){tr.appendChild(el('td','r '+(x.has_inv?thCls(x[k]):'thZ'),x.has_inv?thFe(x[k]):'-'))});T.t.appendChild(tr)});o.appendChild(T.wrap);
- o.appendChild(el('p','note','시세가 수집된 종목 '+j.items.filter(function(x){return x.pct!=null}).length+'개 / 테마 종목 '+j.total+'개. 종목명을 누르면 네이버 증권으로 이동해요(새 창).'));
- if(!MEMBER_MODE||ftOk('exp')){var cc=el('div','bar');var eb=bt('📄 CSV 내려받기','bt3',function(){var L=['종목코드,종목,시장,현재가,등락률(%),시총(원),외국인5일(억),기관5일(억),개인5일(억)'];j.items.forEach(function(x){L.push([x.ticker,'"'+x.name.replace(/"/g,'""')+'"',x.market,x.price,x.pct==null?'':x.pct,x.cap,x.f5,x.i5,x.r5].join(','))});thCsv(L,'테마_'+t.name.replace(/[^0-9A-Za-z가-힣]/g,''))});cc.appendChild(ft(eb,'exp'));o.appendChild(cc)}}
+/* ── ① 테마·종목·수급 (한 화면: 왼쪽 테마 → 오른쪽 종목별 수급) ── */
+function thChips(bar,lbl,obj,key,opts,fn){var l=el('span','thChW');if(lbl)l.appendChild(el('span','thChL',lbl));opts.forEach(function(o){var b=el('button','thCh'+(obj[key]===o[0]?' on':''),o[1]);b.type='button';b.setAttribute('data-noconfirm','1');b.onclick=function(){if(obj[key]===o[0])return;obj[key]=o[0];Array.prototype.forEach.call(l.querySelectorAll('.thCh'),function(x){x.classList.remove('on')});b.classList.add('on');if(fn)fn()};l.appendChild(b)});bar.appendChild(l);return l}
+function thNm(tk,nm){return window.StockName?window.StockName(tk,nm):thNaverLink(tk,nm)}
+function thSecBoard(box){var B=TH.bd;
+ var bar=el('div','bar');var q=el('input');q.type='search';q.placeholder='테마·종목 이름 검색';q.value=B.q;q.onkeydown=function(e){if(e.key==='Enter'){B.q=q.value.trim();thBdList()}};bar.appendChild(q);bar.appendChild(bt('검색','bt3',function(){B.q=q.value.trim();thBdList()}));
+ thSel(bar,'보기',B,'side',[['all','전체'],['up','강세만'],['down','약세만']],thBdList);thSel(bar,'정렬',B,'sort',[['rate','등락률'],['flow','외국인+기관 수급'],['rise','상승 종목 수'],['total','종목 수']],thBdList);
+ thChips(bar,'수급 기간',TH,'per',[['1','1일'],['5','5일'],['20','20일']],function(){thBdList();thBdDet()});box.appendChild(bar);
+ var g=el('div','thBd');var L=el('div','thLs');L.id='thBdL';var R=el('div');R.id='thBdR';g.appendChild(L);g.appendChild(R);box.appendChild(g);thBdList()}
+function thBdList(){var L=$('thBdL');if(!L)return;var B=TH.bd;L.innerHTML='';L.appendChild(el('p','note','⏳ 불러오는 중…'));
+ api('/admin/api/theme/list?'+thQ({q:B.q,sort:B.sort,side:B.side,per:TH.per,top:'400'})).then(function(j){if(j.error)return;L=$('thBdL');if(!L)return;L.innerHTML='';
+  if(j.empty){TH.ls={empty:true};thStatus();thSteps();L.appendChild(el('p','note',j.msg||'자료가 없어요.'));var R0=$('thBdR');if(R0)R0.innerHTML='';return}
+  if(!B.q&&B.side==='all'&&B.sort==='rate')TH.ls=j;else if(!thHas())api('/admin/api/theme/list?'+thQ({top:'400'})).then(function(a){if(!a.error&&!a.empty){TH.ls=a;thStatus();thSteps()}});
+  thStatus();thSteps();
+  if(!j.items.length){L.appendChild(el('p','note','조건에 맞는 테마가 없어요.'));return}
+  if(!B.no||!j.items.some(function(t){return t.no===B.no})){B.no=j.items[0].no;B.det=null}
+  j.items.forEach(function(t){var r=el('div','thLi'+(t.no===B.no?' on':''));r.setAttribute('data-no',String(t.no));r.setAttribute('role','button');r.tabIndex=0;
+   r.appendChild(el('span','n',t.name));r.appendChild(el('span','r '+thCls(t.rate),thPct(t.rate)));r.appendChild(el('span','s','▲'+t.rise+' ▼'+t.fall+' · '+t.total+'종목'));
+   r.appendChild(el('span','f '+(t.fl.n?thCls(t.fl.c):'thZ'),t.fl.n?('외+기 '+thFe(t.fl.c)):'수급 -'));
+   function pick(){B.no=t.no;B.det=null;Array.prototype.forEach.call(L.querySelectorAll('.thLi'),function(x){x.classList.toggle('on',x===r)});thBdDet();if(window.innerWidth<=860){var R1=$('thBdR');if(R1&&R1.scrollIntoView)R1.scrollIntoView({behavior:'smooth',block:'start'})}}
+   r.onclick=pick;r.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();pick()}};L.appendChild(r)});
+  var on=L.querySelector('.thLi.on');if(on&&on.scrollIntoView&&L.scrollTo)L.scrollTo({top:Math.max(0,on.offsetTop-60)});
+  thBdDet()})}
+function thBdDet(){var R=$('thBdR');if(!R)return;var B=TH.bd;
+ if(!ftOk('detail')){R.innerHTML='';thPlace(R,'detail','🔒 테마 안 종목·종목별 수급');return}
+ if(!B.no){R.innerHTML='';return}
+ if(B.det&&B.det.theme&&B.det.theme.no===B.no){thBdDraw(R,B.det);return}
+ R.innerHTML='';R.appendChild(el('p','note','⏳ 불러오는 중…'));var no=B.no;
+ api('/admin/api/theme/detail?'+thQ({no:no})).then(function(j){if(j.error||B.no!==no)return;R=$('thBdR');if(!R)return;R.innerHTML='';if(j.empty){R.appendChild(el('p','note',j.msg));return}B.det=j;thBdDraw(R,j)})}
+function thBdRead(S,P){var A=[['외국인','f'],['기관','i'],['개인','r']],buy=[],sell=[];A.forEach(function(a){var v=S[a[1]+P];if(v>0)buy.push(a[0]);else if(v<0)sell.push(a[0])});
+ var d=el('div','thRd');d.appendChild(document.createTextNode('순매수 '));d.appendChild(el('b','b',buy.length?buy.join('·'):'없음'));d.appendChild(document.createTextNode(' / 순매도 '));d.appendChild(el('b','s',sell.length?sell.join('·'):'없음'));
+ d.appendChild(document.createTextNode(' — 수급 자료가 있는 종목을 더한 값이에요. 이 해석은 참고용이며 매수·매도 권유가 아니에요.'));return d}
+function thBdDraw(R,j){R.innerHTML='';var B=TH.bd,t=j.theme,S=j.sums,P=TH.per,PL={'1':'1일','5':'5일','20':'20일'}[P];
+ var hd=el('div','thCard');var h=el('h3',null,t.name+'  ');h.appendChild(el('span','thRt '+thCls(t.rate),thPct(t.rate)));hd.appendChild(h);
+ var tl=el('div','thTiles');[['상승/하락 종목',t.rise+' / '+t.fall,''],['테마 종목',j.total+'개',''],['수급 자료',j.inv_n+'/'+j.total+'종목',j.inv_n?'':'thZ'],['연속',thStk(t.streak),thCls(t.streak)]].forEach(function(x){var c=el('div','thTile');c.appendChild(el('div','l',x[0]));c.appendChild(el('div','v '+x[2],x[1]));tl.appendChild(c)});hd.appendChild(tl);
+ if(j.inv_n){hd.appendChild(el('div','m','💰 이 테마 수급 — 최근 '+PL+' 합계 (수급 자료가 있는 '+j.inv_n+'종목, 억원)'));
+  var acts=[['외국인','f','순매수 수량×종가'],['기관','i','사모·연기금·투신 등 합계'],['개인','r',''],['기타법인 등','o','추정(잔여)']],mx=1;acts.forEach(function(a){var v=S[a[1]+P];if(v!=null)mx=Math.max(mx,Math.abs(v))});
+  acts.forEach(function(a){var v=S[a[1]+P],row=el('div','thAct');var l=el('div','l',a[0]);if(a[2])l.appendChild(el('small',null,a[2]));row.appendChild(l);var bar=el('div','thBar');if(v!=null){var i=document.createElement('i');i.style.width=Math.round(Math.abs(v)*50/mx)+'%';i.style.background=v>=0?'#e11d48':'#2563eb';if(v>=0)i.style.left='50%';else i.style.right='50%';bar.appendChild(i)}bar.appendChild(document.createElement('b'));row.appendChild(bar);row.appendChild(el('div','v '+(v==null?'thZ':thCls(v)),v==null?'-':thFe(v)));hd.appendChild(row)});
+  var cv=(S['f'+P]||0)+(S['i'+P]||0);var row2=el('div','thAct');row2.appendChild(el('div','l','외국인+기관'));row2.appendChild(el('div'));row2.appendChild(el('div','v '+thCls(cv),thFe(cv)));hd.appendChild(row2);hd.appendChild(thBdRead(S,P))}
+ else hd.appendChild(el('p','note','이 테마 종목의 수급 자료가 없어요. 관리자가 [💧 수급 가져오기]를 실행하면 채워져요(전종목·테마 종목 포함으로 받으면 비지 않아요).'));
+ R.appendChild(hd);
+ if(j.hist&&j.hist.dates.length>=2){var c3=el('div','thCard');c3.appendChild(el('h3',null,'📈 이 테마의 일별 등락률'));c3.appendChild(thLine(j.hist.dates,[{name:t.name,color:'#c2410c',data:j.hist.rates}]));R.appendChild(c3)}
+ var rows=j.items.map(function(x){var o=Object.assign({},x);o.fv=x['f'+P];o.iv=x['i'+P];o.rv=x['r'+P];o.ov=x['o'+P];o.cv=o.has_inv?(o.fv+o.iv):null;if(!o.has_inv){o.fv=o.iv=o.rv=o.ov=null}return o});
+ var cols=[['종목','nm',''],['현재가','price','r'],['등락률','pct','r'],['시총','cap','r'],['외국인','fv','r'],['기관','iv','r'],['개인','rv','r'],['기타*','ov','r'],['외국인+기관','cv','r'],['일별','','']];
+ if(!B.sk)B.sk=j.inv_n?'cv':'pct';
+ var card=el('div','thCard');card.appendChild(el('h3',null,'🧾 종목별 수급 — 최근 '+PL+' (억원) · 머리글을 누르면 정렬'));var wrap=el('div','thW'),tb=el('table','thT thT2');wrap.appendChild(tb);card.appendChild(wrap);
+ function draw(){tb.innerHTML='';var h=el('tr');cols.forEach(function(c){var th=el('th',(c[2]==='r'?'r ':'')+(c[1]?'sk':''),c[0]+(B.sk===c[1]?(B.sd<0?' ▼':' ▲'):''));if(c[1])th.onclick=function(){if(B.sk===c[1])B.sd=-B.sd;else{B.sk=c[1];B.sd=c[1]==='nm'?1:-1}draw()};h.appendChild(th)});tb.appendChild(h);
+  rows.sort(function(a,b){var k=B.sk,x=a[k],y=b[k];if(k==='nm')return B.sd*String(x).localeCompare(String(y),'ko');var nx=(x==null),ny=(y==null);if(nx&&ny)return 0;if(nx)return 1;if(ny)return -1;return B.sd*(x-y)});
+  rows.forEach(function(x){var tr=el('tr');var td=el('td','nmc');td.appendChild(thNm(x.ticker,x.name));td.appendChild(el('div','sb',x.ticker+(x.market?' · '+x.market:'')));tr.appendChild(td);
+   tr.appendChild(el('td','r',x.price?x.price.toLocaleString('ko-KR'):'-'));tr.appendChild(el('td','r '+thCls(x.pct||0),x.pct==null?'-':thPct(x.pct)));tr.appendChild(el('td','r',thCap(x.cap)));
+   ['fv','iv','rv','ov','cv'].forEach(function(k){tr.appendChild(el('td','r '+(x[k]==null?'thZ':thCls(x[k])),x[k]==null?'-':thFe(x[k])))});
+   var tdb=el('td');var db=el('button','dyb',B.open[x.ticker]?'▲':'📅');db.type='button';db.title='일별 수급 보기';db.setAttribute('data-noconfirm','1');db.onclick=function(){B.open[x.ticker]=!B.open[x.ticker];draw()};if(x.has_inv)tdb.appendChild(db);tr.appendChild(tdb);tb.appendChild(tr);
+   if(B.open[x.ticker]){var dr=el('tr','dly'),dc=el('td');dc.colSpan=cols.length;dc.appendChild(el('span','m','⏳ 불러오는 중…'));dr.appendChild(dc);tb.appendChild(dr);thDays(dc,x.ticker)}})}
+ draw();R.appendChild(card);
+ var nsh=j.items.filter(function(x){return x.pct!=null}).length;
+ R.appendChild(el('p','note','시세가 수집된 종목 '+nsh+'개 / 테마 종목 '+j.total+'개 · 기준일 '+(j.base_date||'-')+'. 종목 이름을 누르면 종목분석·심층분석 중에서 고르고, 이름 옆 ↗ 는 네이버 증권(새 창)이에요.'));
+ R.appendChild(el('p','note','* 기타 = −(개인+외국인+기관)으로 계산한 추정값이라 기타법인·기타외국인 등이 섞여 있어요. 네이버가 종목별로 나눠 주는 투자자는 개인·외국인·기관(합계)뿐이라, 기관 안의 사모펀드·연기금·투신 등은 따로 보여 드릴 수 없어요. 금액은 ‘순매수 수량×종가’ 근사치예요.'));
+ if(!MEMBER_MODE||ftOk('exp')){var cc=el('div','bar');var eb=bt('📄 CSV 내려받기','bt3',function(){var L=['종목코드,종목,시장,현재가,등락률(%),시총(억),외국인'+P+'일(억),기관'+P+'일(억),개인'+P+'일(억),기타'+P+'일(억·추정)'];j.items.forEach(function(x){L.push([x.ticker,'"'+x.name.replace(/"/g,'""')+'"',x.market,x.price,x.pct==null?'':x.pct,x.cap,x.has_inv?x['f'+P]:'',x.has_inv?x['i'+P]:'',x.has_inv?x['r'+P]:'',x.has_inv&&x['o'+P]!=null?x['o'+P]:''].join(','))});thCsv(L,'테마_'+t.name.replace(/[^0-9A-Za-z가-힣]/g,''))});cc.appendChild(ft(eb,'exp'));R.appendChild(cc)}}
+function thDays(cell,tk){api('/admin/api/theme/days?'+thQ({ticker:tk,n:'10'})).then(function(j){cell.innerHTML='';if(j.error){cell.appendChild(el('span','m',j.error));return}
+ if(!j.days||!j.days.length){cell.appendChild(el('span','m',j.msg||'일별 자료가 없어요.'));return}
+ var T=thTbl(['날짜','종가','외국인','기관','개인','기타*','외국인+기관'],['','r','r','r','r','r','r']);
+ j.days.forEach(function(d){var tr=el('tr');tr.appendChild(el('td',null,d.date.slice(5).replace('-','.')));tr.appendChild(el('td','r',d.close.toLocaleString('ko-KR')));[d.f,d.i,d.r,d.o,d.f+d.i].forEach(function(v){tr.appendChild(el('td','r '+(v==null?'thZ':thCls(v)),v==null?'-':thFe(v)))});T.t.appendChild(tr)});cell.appendChild(T.wrap)})}
 
 /* ── ③ 테마별 수급 ── */
 function thSecFlow(box){box.appendChild(el('p','note','시가총액 상위로 수집한 종목의 수급을 테마별로 더한 값이에요(외국인+기관 합계 순). 테마에 수급 자료가 있는 종목이 2개 이상일 때만 보여 줘요.'));
@@ -720,9 +858,9 @@ function thSecFlow(box){box.appendChild(el('p','note','시가총액 상위로 �
 function thFlowGo(){var o=$('thFlowO');if(!o)return;o.innerHTML='';o.appendChild(el('p','note','⏳ 불러오는 중…'));
  api('/admin/api/theme/flow?'+thQ({period:TH.fl.per,side:TH.fl.side})).then(function(j){if(j.error)return;o.innerHTML='';if(j.empty){o.appendChild(el('p','note',j.msg));return}TH.flD=j;
   if(!j.items.length){o.appendChild(el('p','note','조건에 맞는 테마가 없어요.'));return}
-  var T=thTbl(['#','테마','외국인','기관','개인','외국인+기관','수급 종목','오늘'],['','','r','r','r','r','r','r']);
-  j.items.forEach(function(x,i){var tr=el('tr','thClk');tr.onclick=function(){thOpen(x.no)};tr.appendChild(el('td',null,String(i+1)));tr.appendChild(el('td','nm',x.name));['f','i','r','c'].forEach(function(k){tr.appendChild(el('td','r '+thCls(x[k]),thFe(x[k])))});tr.appendChild(el('td','r',x.pos+'/'+x.n));tr.appendChild(el('td','r '+thCls(x.rate),thPct(x.rate)));T.t.appendChild(tr)});o.appendChild(T.wrap);
-  o.appendChild(el('p','note','기준일 '+(j.base_date||'-')+' · 수급 자료가 있는 종목 '+j.inv_stocks+'개 · 수급 종목 칸은 (합계가 순매수인 종목 수/수급 자료 종목 수)예요. 행을 누르면 테마 안 종목을 보여 줘요.'));
+  var T=thTbl(['#','테마','외국인','기관','개인','기타*','외국인+기관','수급 종목','오늘'],['','','r','r','r','r','r','r','r']);
+  j.items.forEach(function(x,i){var tr=el('tr','thClk');tr.onclick=function(){thOpen(x.no)};tr.appendChild(el('td',null,String(i+1)));tr.appendChild(el('td','nm',x.name));['f','i','r','o','c'].forEach(function(k){tr.appendChild(el('td','r '+thCls(x[k]),thFe(x[k])))});tr.appendChild(el('td','r',x.pos+'/'+x.n));tr.appendChild(el('td','r '+thCls(x.rate),thPct(x.rate)));T.t.appendChild(tr)});o.appendChild(T.wrap);
+  o.appendChild(el('p','note','기준일 '+(j.base_date||'-')+' · 수급 자료가 있는 종목 '+j.inv_stocks+'개 · 수급 종목 칸은 (합계가 순매수인 종목 수/수급 자료 종목 수)예요. 행을 누르면 테마 안 종목을 보여 줘요. * 기타 = −(개인+외국인+기관) 추정값.'));
   if(!MEMBER_MODE||ftOk('exp')){var cc=el('div','bar');var eb=bt('📄 CSV 내려받기','bt3',function(){var L=['테마,외국인(억),기관(억),개인(억),외국인+기관(억),수급종목수,오늘등락률(%)'];j.items.forEach(function(x){L.push(['"'+x.name.replace(/"/g,'""')+'"',x.f,x.i,x.r,x.c,x.n,x.rate].join(','))});thCsv(L,'테마별수급_'+j.period+'일')});cc.appendChild(ft(eb,'exp'));o.appendChild(cc)}})}
 
 /* ── ④ 일별 추이 ── */
@@ -752,14 +890,14 @@ function thAiRun(){if(!window.MiniAI){toast('AI 도우미를 불러오지 못했
  api('/admin/api/theme/prompt').then(function(j){if(j.error){toast(j.error);return}if(j.empty){toast(j.msg);return}
   window.MiniAI.run({title:'네이버테마 AI 해설 — '+j.label,key:'theme',steps:[{label:j.label,prompt:j.prompt}],minLen:150,hint:'AI가 "## 🔥 오늘 한 줄 요약 …" 형식으로 답하면 답변 전체를 복사하고 이 창으로 돌아오세요.',
    preview:function(t){var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString('ko-KR')+'자 — '+t.slice(0,240)+(t.length>240?' …':'');return {node:x,canApply:t.trim().length>=100,strict:true}},
-   apply:function(t){TH.ai.text=String(t||'').slice(0,20000);TH.ai.date='';TH.flag.img=false;TH.flag.blog=false;
+   apply:function(t){TH.ai.text=String(t||'').slice(0,20000);TH.ai.date='';TH.flag.img=false;TH.flag.blog=false;TH.flag.posted=false;
     if(MEMBER_MODE){thAiDraw();thSteps();return Promise.resolve({message:'AI 해설을 아래 화면에 보여 줬어요(이 화면에서만 보관돼요).'})}
     return apiJ('/admin/api/theme/ai',{text:TH.ai.text,label:j.label}).then(function(z){var ok=!z.error;if(ok)TH.ai.date=z.date;thAiDraw();thSteps();
      if(ok)setTimeout(function(){if(window.MiniFlow)MiniFlow.run('theme',THFLOW,THACTS,'ai')},60);
      return {message:ok?'AI 해설을 저장했어요. 다음 단계(이미지 → 블로그 글)로 이어져요.':'읽었지만 저장하지 못했어요: '+z.error}}).catch(function(){thAiDraw();thSteps();return {message:'읽었지만 저장하지 못했어요(네트워크).'}})}})})}
 function thAiLoad(){if(MEMBER_MODE)return;api('/admin/api/theme/ai').then(function(j){if(!j||j.error||!j.found)return;if(j.stale){TH.ai.old={text:j.text,date:j.date}}else{TH.ai.text=j.text;TH.ai.date=j.date}thAiDraw();thSteps()})}
 function thAiDraw(){var out=$('thAiOut');if(!out)return;out.innerHTML='';var t=TH.ai.text;if(!t){out.appendChild(el('p','note','아직 AI 해설이 없어요. [AI 프롬프트 만들기]를 눌러 보세요.'));
-  var o=TH.ai.old;if(o&&!MEMBER_MODE){var r0=el('div','bar');r0.appendChild(el('span','m','지난 AI 해설이 저장돼 있어요('+(o.date||'')+'). 오늘 테마와 맞지 않을 수 있어요.'));r0.appendChild(bt('지난 해설 불러오기','bt3',function(){TH.ai.text=o.text;TH.ai.date=o.date;TH.ai.old=null;TH.flag.img=false;TH.flag.blog=false;thAiDraw();thSteps()}));out.appendChild(r0)}return}
+  var o=TH.ai.old;if(o&&!MEMBER_MODE){var r0=el('div','bar');r0.appendChild(el('span','m','지난 AI 해설이 저장돼 있어요('+(o.date||'')+'). 오늘 테마와 맞지 않을 수 있어요.'));r0.appendChild(bt('지난 해설 불러오기','bt3',function(){TH.ai.text=o.text;TH.ai.date=o.date;TH.ai.old=null;TH.flag.img=false;TH.flag.blog=false;TH.flag.posted=false;thAiDraw();thSteps()}));out.appendChild(r0)}return}
  var box=el('div','thAiOut');t.split('\n').forEach(function(l){var m;var s=l.replace(/\*\*/g,'');if((m=/^##\s+(.*)$/.exec(s))){box.appendChild(el('span','h2',m[1]))}else if((m=/^###\s+(.*)$/.exec(s))){box.appendChild(el('span','h3',m[1]))}else{box.appendChild(document.createTextNode(s));box.appendChild(document.createElement('br'))}});out.appendChild(box);
  var r=el('div','bar');r.appendChild(bt('📋 해설 복사하기','bt3',function(){var ok=window.MiniAI&&window.MiniAI.copy?window.MiniAI.copy(TH.ai.text):false;toast(ok?'복사했어요':'복사가 막혔어요')}));r.appendChild(bt('✖ 지우기','bt3',function(){TH.ai.text='';TH.ai.date='';thAiDraw();thSteps()}));out.appendChild(r);
  if(TH.ai.date&&!MEMBER_MODE)out.appendChild(el('p','note','💾 저장돼 있어요('+TH.ai.date+') — 테마 이미지·블로그 글에 쓰여요. [지우기]는 이 화면에서만 지우고 저장본은 남아요.'));
@@ -816,7 +954,7 @@ function thSecBlog(box){if(MEMBER_MODE)return;
  box.appendChild(el('p','note','테마 요약·강세/약세 순위·대표 종목·테마별 수급·AI 해설로 블로그용 글(HTML)을 만들어요. 글은 자동으로 올라가지 않고, [복사하고 블로그 열기]로 복사한 뒤 블로그 글쓰기 화면에 붙여 넣는 방식이에요. ⑥에서 저장한 대시보드 이미지는 글 위쪽에 직접 올려 주세요.'));
  var bx=el('div');box.appendChild(bx);if(!window.BlogKit){bx.appendChild(el('p','note bad','블로그 도구(menu_blog.py)가 올라가지 않았어요.'));TH.blogPanel=null;return}
  var secs=[['stats','요약·포인트'],['top','강세 테마 표'],['bottom','약세 테마 표'],['leaders','대표 종목'],['flow','테마별 수급'],['ai','AI해설']];
- TH.blogPanel=window.BlogKit.panel(bx,{idp:'th',key:'theme',kind:'theme',ticker:'D'+thStamp().slice(2),name:'네이버테마 '+thDate(),sections:secs,dup_warn:'',onBuilt:function(){TH.flag.blog=true;thSteps()},
+ TH.blogPanel=window.BlogKit.panel(bx,{idp:'th',key:'theme',kind:'theme',ticker:'D'+thStamp().slice(2),name:'네이버테마 '+thDate(),sections:secs,dup_warn:'',onBuilt:function(){TH.flag.blog=true;TH.flag.posted=false;thSteps()},onCopied:function(){TH.flag.posted=true;thSteps()},
   build:function(inc,title){return thEnsure().then(function(){return apiJ('/admin/api/theme/blog',{ai:TH.ai.text||'',inc:inc,title:title})}).catch(function(e){return {error:(e&&e.message)||'만들지 못했어요'}})}});
  if(TH.flag.blog)TH.blogPanel.rebuild()}
 
@@ -828,22 +966,35 @@ function thSecGuide(box){var g=el('div','thGd');function H(t){g.appendChild(el('
 
 /* ── 관리자 전용: 테마 가져오기·점검 ── */
 function thAdmLoad(){var b=$('thAdm');if(!b)return;api('/admin/api/theme/diag').then(function(j){TH.diag=j;thAdmDraw()})}
-function thAdmDraw(){var b=$('thAdm');if(!b)return;b.innerHTML='';b.appendChild(el('b',null,'🛠 네이버 테마 가져오기·점검 (관리자만 보여요)'));var j=TH.diag;if(!j||j.error){b.appendChild(el('p','note bad','점검 정보를 읽지 못했어요.'));return}
- b.appendChild(el('p','note','[🏷 테마 가져오기]는 네이버 증권의 테마 목록과 테마별 종목을 받아 저장해요(1~2분 걸려요, 하루 한 번이면 충분해요). 가져올 때마다 그날의 테마 등락률이 일별 이력으로 쌓여 연속 강세·일별 추이에 쓰여요. 같은 테마·종목 연결은 수급분석 메뉴의 테마별 수급에도 함께 쓰여요.'));
- var r=el('div','bar');var b1=bt('🏷 테마 가져오기','bt',function(){if(TH.job&&TH.job.running){toast('이미 가져오기가 실행 중이에요.');return}apiJ('/admin/api/collect/theme/start',{}).then(function(z){if(z.error){toast(z.error);return}toast('테마 가져오기를 시작했어요');TH.jwas=true;thJobPoll(true)})});b1.id='thColB1';r.appendChild(b1);
- var b3=bt('⏹ 멈춤','bt3',function(){apiJ('/admin/api/collect/stop',{}).then(function(z){if(z.error){toast(z.error);return}toast('멈추는 중이에요…');thJobPoll(true)})});b3.id='thColB3';r.appendChild(b3);b.appendChild(r);
+function thAdmDraw(){var b=$('thAdm');if(!b)return;b.innerHTML='';b.appendChild(el('b',null,'🛠 네이버 테마·수급 가져오기 (관리자만 보여요)'));var j=TH.diag;if(!j||j.error){b.appendChild(el('p','note bad','점검 정보를 읽지 못했어요.'));return}
+ b.appendChild(el('p','note','① [🏷 테마 가져오기]는 네이버 증권의 테마 목록과 테마별 종목을 받아요(1~2분). ② [💧 수급 가져오기]는 종목별 외국인·기관·개인 순매수를 받아요 — 기본은 코스피·코스닥 전종목 + 테마 종목 전부라 몇 분 걸리고, 이어서 받기가 켜져 있으면 오늘 받은 종목은 건너뛰어요. 처음엔 [한 번에 가져오기]를 누르면 ①→② 순서로 이어져요(하루 한 번이면 충분해요).'));
+ var op=el('div','bar');thSel(op,'수급 범위',TH.cl,'lim',[['0','전종목(코스피+코스닥)'],['2000','시총 상위 2000'],['1000','시총 상위 1000'],['500','시총 상위 500'],['300','시총 상위 300']]);
+ var cl=el('label','thL');var ck=el('input');ck.type='checkbox';ck.checked=!!TH.cl.skip;ck.onchange=function(){TH.cl.skip=ck.checked};cl.appendChild(el('span',null,'이어서 받기'));cl.appendChild(ck);op.appendChild(cl);b.appendChild(op);
+ var r=el('div','bar');
+ var b0=bt('🏷💧 테마+수급 한 번에 가져오기','bt',function(){if(TH.job&&TH.job.running){toast('이미 가져오기가 실행 중이에요.');return}TH.chain=true;thStartTheme()});b0.id='thColB0';r.appendChild(b0);
+ var b1=bt('🏷 테마만','bt3',function(){if(TH.job&&TH.job.running){toast('이미 가져오기가 실행 중이에요.');return}TH.chain=false;thStartTheme()});b1.id='thColB1';r.appendChild(b1);
+ var b2=bt('💧 수급만','bt3',function(){if(TH.job&&TH.job.running){toast('이미 가져오기가 실행 중이에요.');return}TH.chain=false;thStartInv()});b2.id='thColB2';r.appendChild(b2);
+ var b3=bt('⏹ 멈춤','bt3',function(){TH.chain=false;apiJ('/admin/api/collect/stop',{}).then(function(z){if(z.error){toast(z.error);return}toast('멈추는 중이에요…');thJobPoll(true)})});b3.id='thColB3';r.appendChild(b3);b.appendChild(r);
  var pg=el('div');pg.id='thColPg';b.appendChild(pg);var ls=el('div');ls.id='thColLast';b.appendChild(ls);thJobDraw();
  b.appendChild(el('p','note','현황 — 테마 '+j.themes+'개 · 종목 연결 '+j.links+'건 · 일별 이력 '+j.date_n+'일'+(j.dates&&j.dates.length?'('+j.dates.join(', ')+')':'')+' · 시세 '+j.price_n+'종목 · 수급 '+j.inv_n+'종목(기준일 '+(j.inv_base||'-')+') · 저장된 AI 해설 '+(j.ai_date||'없음')));
  if(j.date_n){var dr=el('div','bar');dr.appendChild(bt('🗑 일별 이력 지우기','bt3',function(){if(!confirm('테마 일별 이력(연속 일수·추이)을 모두 지울까요? 현재 테마 목록은 그대로 남아요.'))return;apiJ('/admin/api/theme/delete',{}).then(function(z){if(z.error){toast(z.error);return}toast('지웠어요');TH.ls=null;TH.trD=null;thAdmLoad();thShow()})}));b.appendChild(dr)}}
+function thStartTheme(){apiJ('/admin/api/collect/theme/start',{}).then(function(z){if(z.error){toast(z.error);TH.chain=false;return}toast('테마 가져오기를 시작했어요');TH.jwas=true;thJobPoll(true)})}
+function thStartInv(){apiJ('/admin/api/collect/investor/start',{limit:Number(TH.cl.lim),skip_today:!!TH.cl.skip,with_theme:true}).then(function(z){if(z.error){toast(z.error);TH.chain=false;return}toast('수급 가져오기를 시작했어요');TH.jwas=true;thJobPoll(true)})}
 function thJobPoll(keep){api('/admin/api/collect/status').then(function(j){if(j.error||!$('thColPg'))return;TH.job=(j.job||{});TH.jall=j;thJobDraw();var run=!!(TH.job&&TH.job.running);
   if(run){TH.jwas=true;if(TH.jtm)clearTimeout(TH.jtm);TH.jtm=setTimeout(function(){thJobPoll(true)},1500)}
-  else if(TH.jwas){TH.jwas=false;var okEnd=TH.job&&TH.job.kind==='theme'&&!TH.job.error;TH.ls=null;TH.det=null;TH.trD=null;TH.flag.img=false;TH.flag.blog=false;thAdmLoad();
-   api('/admin/api/theme/list?'+thQ({top:'300'})).then(function(s){if(!s.error&&!s.empty)TH.ls=s;thStatus();thSteps();thShow();if(okEnd&&TH.ls&&window.MiniFlow)setTimeout(function(){MiniFlow.run('theme',THFLOW,THACTS)},80)})}})}
-function thJobDraw(){var pg=$('thColPg'),ls=$('thColLast');var jb=TH.job||{},j=TH.jall||{},LT=j.last_theme||{};var b1=$('thColB1');if(b1)b1.disabled=!!jb.running;var st=$('thColB3');if(st)st.disabled=!jb.running;
- if(pg){pg.innerHTML='';if((jb.running||jb.phase==='end')&&jb.kind==='theme'){var pct=jb.total?Math.min(100,Math.round(jb.done*100/jb.total)):0;pg.appendChild(el('div','m',(jb.running?'⏳ ':'')+'테마 가져오기 — '+(jb.msg||'')+(jb.total?' ('+jb.done+'/'+jb.total+', '+pct+'%)':'')+(jb.cur?' · '+jb.cur:'')+(jb.fail?' · 실패 '+jb.fail:'')+' · '+jb.elapsed+'초'));
-   var w=el('div','thPg'),f=document.createElement('div');f.style.width=(jb.running?Math.max(3,pct):(jb.error?0:100))+'%';if(jb.error)f.style.background='#f87171';w.appendChild(f);pg.appendChild(w);if(jb.error)pg.appendChild(el('p','note bad','⚠ '+jb.error))}
-  else if(jb.running&&jb.kind!=='theme')pg.appendChild(el('p','note','다른 가져오기(종목 수급)가 실행 중이에요. 끝나면 테마 가져오기를 눌러 주세요.'))}
- if(ls){ls.innerHTML='';ls.appendChild(el('p','note',LT.at?('마지막: '+LT.at+' · 테마 '+LT.themes+'개 · 종목 연결 '+(LT.stocks||0).toLocaleString('ko-KR')+'건'+(LT.fail?' · 실패 '+LT.fail:'')):'테마: 아직 가져온 적 없어요'))}}
+  else if(TH.jwas){TH.jwas=false;var kd=TH.job&&TH.job.kind,okEnd=!!TH.job&&!TH.job.error,was=TH.chain;
+   if(TH.chain&&kd==='theme'&&okEnd){thStartInv();return}
+   TH.chain=false;TH.ls=null;TH.bd.det=null;TH.trD=null;TH.flag.img=false;TH.flag.blog=false;TH.flag.posted=false;thAdmLoad();
+   api('/admin/api/theme/list?'+thQ({top:'400'})).then(function(s){if(!s.error&&!s.empty)TH.ls=s;thStatus();thSteps();thShow();if(okEnd&&TH.ls&&window.MiniFlow&&(kd==='theme'||(kd==='investor'&&was)))setTimeout(function(){MiniFlow.run('theme',THFLOW,THACTS)},80)})}})}
+function thJobDraw(){var pg=$('thColPg'),ls=$('thColLast');var jb=TH.job||{},j=TH.jall||{},LT=j.last_theme||{},LI=j.last_inv||{};var busy=!!jb.running;
+ ['thColB0','thColB1','thColB2'].forEach(function(id){var x=$(id);if(x)x.disabled=busy});var st=$('thColB3');if(st)st.disabled=!busy;
+ if(pg){pg.innerHTML='';var nm={theme:'테마 가져오기',investor:'수급 가져오기'}[jb.kind]||'가져오기';
+  if(jb.running||jb.phase==='end'){var pct=jb.total?Math.min(100,Math.round(jb.done*100/jb.total)):0;pg.appendChild(el('div','m',(jb.running?'⏳ ':'')+nm+(TH.chain&&jb.kind==='theme'?' (1/2)':(TH.chain&&jb.kind==='investor'?' (2/2)':''))+' — '+(jb.msg||'')+(jb.total?' ('+jb.done+'/'+jb.total+', '+pct+'%)':'')+(jb.cur?' · '+jb.cur:'')+(jb.fail?' · 실패 '+jb.fail:'')+' · '+jb.elapsed+'초'));
+   var w=el('div','thPg'),f=document.createElement('div');f.style.width=(jb.running?Math.max(3,pct):(jb.error?0:100))+'%';if(jb.error)f.style.background='#f87171';w.appendChild(f);pg.appendChild(w);if(jb.error)pg.appendChild(el('p','note bad','⚠ '+jb.error));
+   if(jb.errs&&jb.errs.length){var ed=el('div','note');ed.appendChild(el('b',null,'받는 중 만난 문제'+(jb.err_n>jb.errs.length?' (모두 '+jb.err_n+'건 중 대표 '+jb.errs.length+'건)':'')+':'));jb.errs.forEach(function(x){ed.appendChild(el('div',null,'· '+x))});pg.appendChild(ed)}}}
+ if(ls){ls.innerHTML='';ls.appendChild(el('p','note',LT.at?('테마 마지막: '+LT.at+' · 테마 '+LT.themes+'개 · 종목 연결 '+(LT.stocks||0).toLocaleString('ko-KR')+'건'+(LT.fail?' · 종목 못 받은 테마 '+LT.fail:'')+(LT.how?' · 받은 방식 '+LT.how:'')):'테마: 아직 가져온 적 없어요'));
+  ls.appendChild(el('p','note',LI.at?('수급 마지막: '+LI.at+' · '+LI.ok+'종목(기준일 '+(LI.base_date||'-')+')'+(LI.fail?' · 실패 '+LI.fail:'')+(LI.limit===0?' · 전종목':(LI.limit?' · 시총 상위 '+LI.limit:''))):'수급: 아직 가져온 적 없어요'));
+  if(LT.errs&&LT.errs.length&&!(jb.running||jb.phase==='end')){var e2=el('div','note');e2.appendChild(el('b',null,'지난 테마 가져오기에서 만난 문제:'));LT.errs.forEach(function(x){e2.appendChild(el('div',null,'· '+x))});ls.appendChild(e2)}}}
 """
 
 
@@ -859,11 +1010,12 @@ def register():
     C.register_flow(MENU, "🏷 네이버테마", "① 테마 가져오기(직접 시작)", [
         {"id": "ai", "label": "② AI 해설", "desc": "테마를 가져오면 AI 요청문 창을 자동으로 열어요. AI 답변을 복사해 돌아오면 저장되고 다음 단계로 이어져요(오늘 저장한 AI 해설이 있으면 건너뛰어요)."},
         {"id": "img", "label": "③ 테마 대시보드 이미지", "desc": "AI 단계가 끝나면 블로그용 테마 대시보드 이미지를 자동으로 그려요(저장은 [⚙ 저장 설정]의 자동/수동 설정을 따라요)."},
-        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요. 글은 자동으로 올라가지 않고 복사해서 붙여 넣어요."}])
+        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."},
+        {"id": "post", "label": "⑤ 블로그 복사·열기", "desc": "글이 만들어지면 서식을 복사하고 블로그 글쓰기 화면을 새 창으로 열어요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요. 브라우저가 복사·새 창을 막으면 [📋 복사하고 블로그 열기]를 한 번 눌러 주세요."}])
     F = C.register_feature
     F(MENU, "list", "테마 순위", "오늘 등락률 기준 강세·약세 테마 순위, 상승/하락 종목 수, 연속 강세 일수, 전일 대비 순위 변화", default="public", endpoints=["/admin/api/theme/list"])
     F(MENU, "guide", "읽는 법", "테마 등락률·연속 일수·테마별 수급 용어와 자료 출처 해설(서버 호출 없음)", default="public", endpoints=[])
-    F(MENU, "detail", "테마 안 종목", "테마를 눌러 안에 든 종목의 등락률·외국인·기관·개인 수급 합계 보기", default="member", endpoints=["/admin/api/theme/detail"])
+    F(MENU, "detail", "테마 안 종목", "테마를 눌러 안에 든 종목의 등락률·외국인·기관·개인 수급 합계 보기", default="member", endpoints=["/admin/api/theme/detail", "/admin/api/theme/days"])
     F(MENU, "flow", "테마별 수급", "외국인·기관이 몰린(또는 빠진) 테마 순위(1·5·20일)", default="member", endpoints=["/admin/api/theme/flow"])
     F(MENU, "trend", "일별 추이", "강세·약세 테마의 일별 등락률 선그래프", default="member", endpoints=["/admin/api/theme/history"])
     F(MENU, "ai", "AI 테마 해설", "테마 요약으로 AI 프롬프트를 만들고 답변을 붙여 보기(수동 — 서버가 AI를 부르지 않아요)", default="L2", endpoints=["/admin/api/theme/prompt"], kind="action")

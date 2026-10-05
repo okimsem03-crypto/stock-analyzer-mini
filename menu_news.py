@@ -1731,11 +1731,15 @@ function nwItems(out,j){out.innerHTML='';if(j.error){NeedNote(out,j.error,'','no
  out.appendChild(el('p','note','출처: '+(j.source||'네이버 금융')+' · 제목을 누르면 언론사 원문으로 이동해요.'))}
 /* ══ 뉴스룸(v154): 위=대시보드 · 왼쪽=뉴스 목록 · 오른쪽=분석 작업대 ══ */
 var NR={cat:'main',items:[],lat:null,ov:null,sel:-1,q:'',f:'all',th:'',res:{},minis:{},ws:'',load:0,urlv:'',imgP:null,dashP:null,dashOpen:false};
-var NRFLOW=['ai','img','blog'];
+var NRFLOW=['ai','img','blog','post'];
 var NRACTS={
- ai:function(next){if(NR.res[NR.ws])next()},
- img:function(next){if(!NR.imgP)return;var e=$('nrImgR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});NR.imgP.gen(true).then(function(){if(NR.imgP&&NR.imgP.items&&NR.imgP.items())next()},function(){})},
- blog:function(){if(MEMBER_MODE||!NR.blogP)return;var e=$('nrBlogR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});NR.blogP.rebuild()}};
+ ai:function(next){var rs=NR.res[NR.ws],x=NR.sel>=0?NR.items[NR.sel]:null;if(rs){next();return}if(MiniFlow.forced('news')&&x)nrStartNews(x)},
+ img:function(next){if(!NR.imgP)return;var rs=NR.res[NR.ws];if(rs&&rs.img){next();return}var e=$('nrImgR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});NR.imgP.gen(true).then(function(){if(NR.imgP&&NR.imgP.items&&NR.imgP.items())next()},function(){})},
+ blog:function(next){if(MEMBER_MODE||!NR.blogP)return;var rs=NR.res[NR.ws];if(rs&&rs.blog&&NR.blogP.built()){next();return}var e=$('nrBlogR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});NR.blogP.rebuild().then(function(j){if(j&&!j.error)next()})},
+ post:function(next){if(nrPostGo(true))next()}};
+function nrPostGo(auto){var P=NR.blogP;if(MEMBER_MODE||!P)return false;var rs=NR.res[NR.ws];if(P.built()){var b=$('nrBlogR');if(b&&b.scrollIntoView)b.scrollIntoView({behavior:'smooth',block:'nearest'});P.copyOpen(auto);return true}
+ if(!(rs&&rs.blog)){if(!auto)toast('먼저 ④ 글 만들기를 해 주세요');return false}
+ P.rebuild().then(function(j){if(j)P.copyOpen(auto)});return true}
 var NRCSS='.nrRoot{display:block}.nrDash{background:#fff;border:1px solid #dbe3ee;border-radius:16px;padding:14px 16px;margin:0 0 12px;box-shadow:0 2px 10px rgba(15,23,42,.05)}'+
 '.nrDh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}.nrDh h2{margin:0;font-size:20px}.nrAs{font-size:12px;color:#64748b}'+
 '.nrBar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}.nrBar button{font:inherit;font-size:13px;border-radius:999px;padding:7px 13px;cursor:pointer;border:1px solid #cbd5e1;background:#fff;color:#0f172a}.nrBar button.on{background:#0f172a;color:#fff;border-color:#0f172a}.nrBar button.pri{background:#1e3a8a;color:#fff;border-color:#1e3a8a;font-weight:800}.nrBar .sp{flex:1}'+
@@ -1892,21 +1896,23 @@ function nrResult(R,rs){var j=rs.j,ctx=rs.ctx;var c=el('div','nwS nrRes');var h=
  if(!MEMBER_MODE&&ftOk('overview'))setTimeout(function(){if($('nrImgR')===ib&&!NR.imgP)mount()},30)}
 /* 차례(단계) 메뉴 — 뉴스 고르기 → AI 분석 → 이미지 → (관리자) 블로그 글 만들기 → 복사하고 블로그 쓰기 */
 function nrRedo(ctx){if(ctx.kind==='ov')nrOverall();else if(ctx.kind==='url')nrUrl(ctx.url);else{var x=NR.items[NR.sel];if(x)nrStartNews(x);else if(ctx.url)nrUrl(ctx.url)}}
-function nrSteps(){var sp=$('nrSteps');if(!sp)return;sp.innerHTML='';var rs=NR.res[NR.ws],x=NR.sel>=0?NR.items[NR.sel]:null;
- var ai=!!rs,img=!!(rs&&(rs.img||(NR.imgP&&NR.imgP.items&&NR.imgP.items()))),bl=!!(rs&&rs.blog),cp=!!(rs&&rs.copied),done=[!!(rs||x),ai,img,bl,cp],cur2=-1;
- var L=[['뉴스 고르기',rs||x?'선택됨':'목록에서 뉴스를 눌러요','1'],['AI 분석',ai?'완료 · 다시 분석':'눌러서 시작','2'],[MEMBER_MODE?'이미지 만들기·저장':'이미지 만들기·저장',img?'완료 · 다시 만들기':(ai?'눌러서 만들기':'분석 뒤에 해요'),'3']];
- if(!MEMBER_MODE){L.push(['블로그 글 만들기',bl?'완료 · 다시 만들기':(ai?'눌러서 만들기':'분석 뒤에 해요'),'4']);L.push(['복사하고 블로그 쓰기',cp?'복사함 · 다시 복사':(bl?'눌러서 복사하고 열기':'글을 만든 뒤 눌러요'),'5'])}
- for(var i=0;i<L.length;i++){if(!done[i]){cur2=i;break}}
- L.forEach(function(a,i){var b=el('button',(done[i]?'done':'')+(i===cur2?' cur':''));b.type='button';b.setAttribute('data-noconfirm','1');b.appendChild(el('span','n',done[i]?'✓':a[2]));var t=el('span');t.appendChild(document.createTextNode(a[0]));t.appendChild(el('small',null,a[1]));b.appendChild(t);b.onclick=function(){nrStepRun(i)};sp.appendChild(b)})}
-function nrStepRun(i){var rs=NR.res[NR.ws],x=NR.sel>=0?NR.items[NR.sel]:null;
- if(i===0){var L=$('nrL');if(L&&L.scrollIntoView)L.scrollIntoView({behavior:'smooth',block:'start'});if(!x&&!rs)toast('왼쪽 목록에서 분석할 뉴스를 눌러 주세요');return}
- if(i===1){if(rs){nrRedo(rs.ctx);return}if(x){nrStartNews(x);return}toast('먼저 뉴스를 고르거나 위쪽 [전체 AI 총평]·URL 분석으로 시작하세요');return}
+function nrSteps(){var sp=$('nrSteps');if(!sp)return;var rs=NR.res[NR.ws],x=NR.sel>=0?NR.items[NR.sel]:null;
+ var ai=!!rs,img=!!(rs&&(rs.img||(NR.imgP&&NR.imgP.items&&NR.imgP.items()))),bl=!!(rs&&rs.blog),cp=!!(rs&&rs.copied);
+ var steps=[{t:'뉴스 고르기',sub:rs||x?'선택됨':'목록에서 뉴스를 눌러요',done:!!(rs||x),go:function(){nrStepRun('pick')}},
+  {t:'AI 분석',sub:ai?'완료 · 다시 분석':'눌러서 시작',done:ai,go:function(){nrStepRun('ai')}},
+  {t:'이미지 만들기',sub:img?'완료 · 다시 만들기':(ai?'눌러서 만들기':'분석 뒤에 해요'),done:img,off:!ai,go:function(){nrStepRun('img')}},
+  {t:'글 만들기',sub:bl?'완료 · 다시 만들기':(ai?'눌러서 만들기':'분석 뒤에 해요'),done:bl,off:!ai,hide:MEMBER_MODE,go:function(){nrStepRun('blog')}},
+  {t:'블로그에 쓰기',sub:cp?'복사·열기 완료':(bl?'복사하고 블로그 열기':'글을 먼저 만드세요'),done:cp,off:!bl,hide:MEMBER_MODE,go:function(){nrStepRun('post')}}];
+ window.FlowBar.draw(sp,{steps:steps,runAll:MEMBER_MODE?null:function(){nrStepRun('all')},note:MEMBER_MODE?'':'[⚡ 블로그까지 한 번에]는 (고른 뉴스의) AI 분석 → 이미지 → 글 → 블로그 복사·열기를 설정과 상관없이 끝까지 이어요. 단계별 자동/수동은 [⚙ 설정]에서 바꿔요. 블로그 글쓰기 화면에 붙여 넣기(Ctrl+V)만 직접 하면 돼요.'})}
+function nrStepRun(id){var rs=NR.res[NR.ws],x=NR.sel>=0?NR.items[NR.sel]:null;
+ if(id==='pick'){var L=$('nrL');if(L&&L.scrollIntoView)L.scrollIntoView({behavior:'smooth',block:'start'});if(!x&&!rs)toast('왼쪽 목록에서 분석할 뉴스를 눌러 주세요');return}
+ if(id==='ai'){if(rs){nrRedo(rs.ctx);return}if(x){nrStartNews(x);return}toast('먼저 뉴스를 고르거나 위쪽 [전체 AI 총평]·URL 분석으로 시작하세요');return}
+ if(id==='all'){if(MEMBER_MODE||!window.MiniFlow)return;if(!rs&&!x){toast('먼저 뉴스를 고르거나 위쪽 [전체 AI 총평]·URL 분석으로 시작하세요');return}toast('⚡ 블로그까지 이어서 진행해요');MiniFlow.force('news',NRFLOW,NRACTS);return}
  if(!rs){toast('먼저 AI 분석을 끝내 주세요');return}
- if(i===2){var e=$('nrImgR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});if(!MEMBER_MODE&&window.MiniFlow)window.MiniFlow.go('news',NRFLOW,NRACTS,'img');else if(NR.imgGo)NR.imgGo();return}
+ if(id==='img'){var e=$('nrImgR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});if(!MEMBER_MODE&&window.MiniFlow){rs.img=false;window.MiniFlow.go('news',NRFLOW,NRACTS,'img')}else if(NR.imgGo)NR.imgGo();return}
  if(MEMBER_MODE)return;
- if(i===3){if(window.MiniFlow)window.MiniFlow.go('news',NRFLOW,NRACTS,'blog');return}
- if(i===4){var b=$('nrBlogR');if(b&&b.scrollIntoView)b.scrollIntoView({behavior:'smooth',block:'nearest'});if(!NR.blogP){toast('블로그 구역을 불러오지 못했어요');return}
-  if(!NR.blogP.built()){toast('먼저 블로그 글을 만들어요. 다 만들어지면 이 단계를 한 번 더 눌러 복사하세요.');NR.blogP.rebuild();return}NR.blogP.copyOpen()}}
+ if(id==='blog'){rs.blog=false;if(window.MiniFlow)window.MiniFlow.go('news',NRFLOW,NRACTS,'blog');return}
+ if(id==='post'){nrPostGo(false)}}
 /* 블로그 글 쓰기 구역(관리자) — 서버가 AI 분석문·관련 종목을 블로그용 HTML 로 만든다 */
 function nrBlogMount(c,rs,j,ctx){NR.blogP=null;if(MEMBER_MODE||!window.BlogKit)return;
  var bs=el('div','nwS nrBlog');bs.id='nrBlogR';bs.appendChild(el('h4','nwH4','📝 블로그 글 쓰기 (관리자만 보여요)'));
@@ -2167,5 +2173,6 @@ def register():
     C.register_flow("news", "📰 뉴스분석", "① 뉴스를 누르거나 [전체 AI 총평]·URL 분석을 시작(직접 시작)", [
         {"id": "ai", "label": "② AI 분석", "desc": "시작하면 AI 요청문 창을 자동으로 열어요. 답변을 복사해 돌아오면 관련종목 표·그래프가 만들어져요."},
         {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 분석이 끝나면 대시보드·관련종목 이미지를 자동으로 그려요."},
-        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요(관리자 화면). 복사하고 블로그 열기는 직접 눌러요."}])
+        {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요(관리자 화면)."},
+        {"id": "post", "label": "⑤ 블로그 복사·열기", "desc": "글이 만들어지면 서식을 복사하고 블로그 글쓰기 화면을 새 창으로 열어요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요. 브라우저가 복사·새 창을 막으면 [📋 복사하고 블로그 열기]를 한 번 눌러 주세요."}])
     return bp
