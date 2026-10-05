@@ -171,12 +171,12 @@ function run(opt){
  var steps=(opt.steps||[]).filter(function(s){return s&&s.prompt});if(!steps.length)return;
  var cur=0,notice='',site=siteDefault(),armed=false,seen={},lastText='',busy=false,closed=false,doneSet={},curJob=null,gotMsg=false,hTm=null;
  var minLen=opt.minLen||60;
- var ov=el('div','ma-ov'),box=el('div','ma-box');ov.appendChild(box);
+ var ov=el('div','ma-ov'),box=el('div','ma-box');ov.setAttribute('tabindex','-1');ov.appendChild(box);
  var h=el('div','ma-h');h.appendChild(el('b',null,opt.title||'AI로 분석하기'));var x=el('button','ma-x','✕');x.onclick=close;h.appendChild(x);box.appendChild(h);
  var dots=el('div','ma-dots');box.appendChild(dots);var body=el('div','ma-b');box.appendChild(body);
  ov.addEventListener('mousedown',function(e){if(e.target===ov)ov._dn=1});ov.addEventListener('mouseup',function(e){if(e.target===ov&&ov._dn)close();ov._dn=0});
  document.body.appendChild(ov);document.body.style.overflow='hidden';
- function close(){if(closed)return;closed=true;armed=false;clearTimeout(hTm);window.removeEventListener('message',onMsg);window.removeEventListener('focus',onBack);document.removeEventListener('visibilitychange',onVis);document.removeEventListener('keydown',onKey);document.body.removeChild(ov);document.body.style.overflow='';if(opt.onClose)opt.onClose()}
+ function close(){if(closed)return;closed=true;armed=false;clearTimeout(hTm);window.removeEventListener('message',onMsg);window.removeEventListener('focus',onBack);window.removeEventListener('pageshow',onBack);document.removeEventListener('pointerdown',onPtr,true);clearInterval(wTm);document.removeEventListener('visibilitychange',onVis);document.removeEventListener('keydown',onKey);document.body.removeChild(ov);document.body.style.overflow='';if(opt.onClose)opt.onClose()}
  function onKey(e){if(e.key==='Escape')close()}document.addEventListener('keydown',onKey);
  function drawDots(){dots.innerHTML='';if(steps.length<2)return;steps.forEach(function(s,i){var d=el('span','ma-dot'+(doneSet[i]?' done':(i===cur?' on':'')),(doneSet[i]?'✓ ':'')+(s.label||('프롬프트 '+(i+1))));dots.appendChild(d)})}
  var live,ta,pvBox,applyBtn,autoCb;
@@ -231,14 +231,22 @@ function run(opt){
   return raw}
  function looksLikeAnswer(t,manual){t=stripPrompt(t);if(t.length<minLen)return false;var n=norm(t);if(!manual&&seen[n])return false;
   for(var i=0;i<steps.length;i++){var p=norm(steps[i].prompt);if(n===p||(p&&n.slice(0,60)===p.slice(0,60)))return false}return true}
- function pullClip(manual,tries){tries=tries||0;
-  if(!(navigator.clipboard&&navigator.clipboard.readText)){if(manual)setLive('이 브라우저는 자동 읽기를 지원하지 않아요. 아래 칸을 누르고 Ctrl+V 하세요.','bad');if(ta){ta.classList.add('glow');ta.focus()}return}
-  navigator.clipboard.readText().then(function(t){t=stripPrompt((t||'').trim());if(looksLikeAnswer(t,manual))onText(t,false);else if(manual){if(t&&seen[norm(t)])setLive('이미 읽어온 답변이에요. 아래 칸의 내용을 확인하고 저장하세요.','ok');else setLive('클립보드에 AI 답변이 없어요. AI 화면에서 답변 아래 복사 버튼을 먼저 누르세요.','bad')}})
-  .catch(function(){if(tries<2&&!closed){setTimeout(function(){pullClip(manual,tries+1)},700);return}
-   setLive('브라우저가 클립보드 읽기를 막았어요. 아래 칸을 누르고 Ctrl+V 하세요. (주소창 왼쪽 자물쇠에서 클립보드 허용을 켜면 다음부터 자동입니다)','bad');if(ta){ta.classList.add('glow');ta.focus()}})}
- var tm=null;function onBack(){if(!armed||closed)return;clearTimeout(tm);tm=setTimeout(function(){pullClip(false)},350)}
- function onVis(){if(document.visibilityState==='visible')onBack()}
- window.addEventListener('focus',onBack);document.addEventListener('visibilitychange',onVis);
+ var pulling=false,pfail=0,hinted=false;
+ function pullClip(manual,tries,quiet){tries=tries||0;
+  if(!(navigator.clipboard&&navigator.clipboard.readText)){if(manual)setLive('이 브라우저는 자동 읽기를 지원하지 않아요. 아래 칸을 누르고 Ctrl+V 하세요.','bad');if(ta){ta.classList.add('glow');if(manual)ta.focus()}return}
+  if(pulling&&!manual&&tries===0)return;pulling=true;
+  navigator.clipboard.readText().then(function(t){pulling=false;pfail=0;t=stripPrompt((t||'').trim());if(looksLikeAnswer(t,manual))onText(t,false);else if(manual){if(t&&seen[norm(t)])setLive('이미 읽어온 답변이에요. 아래 칸의 내용을 확인하고 저장하세요.','ok');else setLive('클립보드에 AI 답변이 없어요. AI 화면에서 답변 아래 복사 버튼을 먼저 누르세요.','bad')}})
+  .catch(function(){pulling=false;if(closed)return;
+   if(quiet){pfail++;if(pfail>=4&&!hinted&&armed&&!lastText){hinted=true;setLive('자동 읽기가 아직 안 돼요. 이 창을 한 번 클릭하거나 [📥 클립보드에서 가져오기]를 누르세요. (자물쇠 아이콘에서 클립보드 허용을 켜면 다음부터 완전 자동)','bad')}return}
+   if(tries<2){setTimeout(function(){pullClip(manual,tries+1,quiet)},700);return}
+   setLive('브라우저가 클립보드 읽기를 막았어요. [📥 클립보드에서 가져오기]를 누르거나 아래 칸을 누르고 Ctrl+V 하세요. (주소창 왼쪽 자물쇠에서 클립보드 허용을 켜면 다음부터 자동입니다)','bad');if(ta){ta.classList.add('glow');if(manual)ta.focus()}})}
+ // 복사한 뒤 돌아오면 바로 읽기: 창 포커스/탭 전환 이벤트 + (iframe 안에서는 이벤트가 빠지는 경우가 있어) 1초 간격 감시를 함께 사용
+ function takeFocus(){try{if(document.hasFocus())return;window.focus();if(ov&&ov.focus)ov.focus({preventScroll:true})}catch(e){}}
+ var tm=null;function onBack(){if(!armed||closed)return;clearTimeout(tm);tm=setTimeout(function(){takeFocus();pullClip(false,0,true)},250)}
+ function onPtr(){if(!lastText)onBack()}
+ function onVis(){if(document.visibilityState==='visible'){hinted=false;onBack()}}
+ var wTm=setInterval(function(){if(closed){clearInterval(wTm);return}if(!armed||busy||lastText||document.visibilityState!=='visible')return;takeFocus();pullClip(false,0,true)},1000);
+ window.addEventListener('focus',onBack);document.addEventListener('visibilitychange',onVis);window.addEventListener('pageshow',onBack);document.addEventListener('pointerdown',onPtr,true);
  function onText(t,fromPaste){if(!t)return;t=stripPrompt(t);lastText=t;if(ta){ta.value=t;ta.classList.remove('glow')}seen[norm(t)]=1;setLive('✅ 답변을 읽어왔어요. 아래 내용을 확인하세요.','ok');
   preview(t,true).then(function(r){if(r&&r.canApply&&r.strict!==false&&opt.apply&&autoCb&&autoCb.checked)doApply()})}
  function preview(t,quiet){if(!opt.preview){if(applyBtn)applyBtn.disabled=!t;return Promise.resolve({canApply:!!t})}

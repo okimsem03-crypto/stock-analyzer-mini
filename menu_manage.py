@@ -70,10 +70,58 @@ def api_save():
     return _admin_json(_state())
 
 
+def _tier_rank(on, tok, levels, admin_only=False):
+    """공개 등급 순서: 0=누구나, 1=첫 회원 단계 이상, … , 99=관리자 전용(숨김 포함)."""
+    if admin_only or not on or not tok:
+        return 99
+    if C.GUEST in tok:
+        return 0
+    ids = [x["id"] for x in levels]
+    idx = [ids.index(t) for t in tok if t in ids]
+    return 1 + min(idx) if idx else 99
+
+
+def _badge(rank, levels):
+    if rank == 0:
+        return "누구나"
+    if rank >= 99 or rank - 1 >= len(levels):
+        return "관리자 전용"
+    return levels[rank - 1]["name"] + " 이상"
+
+
+@bp.route("/admin/api/workbench")
+def api_workbench():
+    """[v168] 관리자 '메뉴 작업대' — 공개 등급 순서(누구나 → 일반 → 정회원 → 우수 → 관리자 전용)로 정렬한 메뉴 목록과 기능 공개 요약."""
+    deny = _admin_deny()
+    if deny:
+        return deny
+    levels = member_levels()
+    rows = []
+    for i, m in enumerate(C.menus_grouped(menus_ordered())):
+        on, tok = menu_policy(m["id"])
+        rk = _tier_rank(on, tok, levels, bool(m.get("admin_only")))
+        fs = [f for f in C.FEATURES if f["menu"] == m["id"]]
+        cnt = {"all": 0, "member": 0, "admin": 0}
+        for f in fs:
+            frk = _tier_rank(True, C.feature_policy(m["id"], f["id"]), levels)
+            if rk >= 99 or frk >= 99:
+                cnt["admin"] += 1
+            elif frk == 0 and rk == 0:
+                cnt["all"] += 1
+            else:
+                cnt["member"] += 1
+        rows.append({"id": m["id"], "tab": C.MENU_TAB.get(m["id"]) or "", "icon": m["icon"], "label": m["label"], "rank": rk, "badge": _badge(rk, levels),
+                     "on": bool(on), "admin_only": bool(m.get("admin_only")), "public_path": m["public_path"], "feats": len(fs), "cnt": cnt, "_o": i})
+    rows.sort(key=lambda r: (r["rank"], r["_o"]))
+    for r in rows:
+        r.pop("_o", None)
+    return _admin_json({"items": rows, "levels": [{"id": x["id"], "name": x["name"]} for x in levels], "guest": C.GUEST})
+
+
 JS = r"""
 var MM={S:null,draft:null,dirty:false,q:''};
 function mmClone(o){return JSON.parse(JSON.stringify(o))}
-function mmLoad(p){api('/admin/api/menumgr/state').then(function(j){if(cur!=='mm')return;MM.S=j;MM.draft=mmClone(j);MM.dirty=false;mmDraw(p)})}
+function mmLoad(p){api('/admin/api/menumgr/state').then(function(j){if(cur!=='mm'&&cur!=='pb')return;MM.S=j;MM.draft=mmClone(j);MM.dirty=false;mmDraw(p)})}
 function mmFree(){var used={};MM.draft.levels.forEach(function(l){used[l.id]=1});for(var i=1;i<=10;i++){if(!used[String(i)])return String(i)}return null}
 function mmDirty(p){MM.dirty=true;var b=$('mmsave');if(b){b.disabled=false;b.textContent='💾 저장 (변경사항 있음)'}}
 function mmDraw(p){p.innerHTML='';var D=MM.draft;
@@ -114,6 +162,38 @@ function mmSave(p){var D=MM.draft;var names={};for(var i=0;i<D.levels.length;i++
 """
 
 
+PB_JS = r"""
+var PB={sub:'ov'};
+function pbRank(m,L){if(m.admin_only||!m.on||!m.tokens.length)return 99;if(m.tokens.indexOf('guest')>=0)return 0;var ids=L.map(function(x){return x.id}),b=99;m.tokens.forEach(function(t){var i=ids.indexOf(t);if(i>=0&&i+1<b)b=i+1});return b}
+function pbDirty(){var d=false;try{if(MM&&MM.dirty)d=true;if(FE&&FE.draft&&FE.draft.menus.some(function(m,i){return feDirty(i)}))d=true}catch(e){}return d}
+function pbGo(sub,p,mi){if(sub!==PB.sub&&pbDirty()&&!confirm('저장하지 않은 변경이 있어요. 저장하지 않고 이동할까요?'))return;if(mi!=null&&typeof FE!=='undefined')FE.sel=mi;PB.sub=sub;pbLoad(p)}
+function pbLoad(p){p.innerHTML='';var top=el('div','c');var th=el('div','bar');th.appendChild(el('b',null,'🎚 공개 관리'));th.appendChild(el('span','m','누구에게 무엇을 열지 한 곳에서 정해요 · 관리자는 어떤 설정이든 모든 메뉴·기능을 항상 쓸 수 있어요(블로그 쓰기 포함)'));top.appendChild(th);
+ var bar=el('div','bar');[['ov','📋 한눈에 보기'],['fe','🎚 기능별 공개'],['mm','🧭 메뉴 순서·회원 단계']].forEach(function(x){bar.appendChild(bt(x[1],PB.sub===x[0]?'bt':'bt2',function(){pbGo(x[0],p)}))});top.appendChild(bar);p.appendChild(top);
+ var box=el('div');p.appendChild(box);if(PB.sub==='fe')feLoad(box);else if(PB.sub==='mm')mmLoad(box);else pbOv(box,p)}
+function pbOv(box,p){api('/admin/api/feat/matrix').then(function(j){if(cur!=='pb'||PB.sub!=='ov')return;var L=j.levels,G=j.guest;
+ var cols=[[G,'비회원']].concat(L.map(function(x){return [x.id,x.name]}));
+ var c=el('div','c');c.appendChild(el('b',null,'📋 공개 현황 — 공개 등급이 낮은(누구나) 메뉴부터'));
+ c.appendChild(el('p','note','칸의 숫자 = 그 등급이 쓸 수 있는 기능 수 / 전체 기능 수 · — = 그 등급에게는 메뉴 자체가 안 보임 · 이름을 누르면 기능별 공개 설정으로 이동해요.'));
+ var rows=j.menus.map(function(m,i){return {m:m,i:i,r:pbRank(m,L)}});rows.sort(function(a,b){return a.r-b.r||a.i-b.i});
+ var tw=el('div');tw.style.overflowX='auto';var t=el('table');var h=el('tr');['메뉴','공개 범위'].concat(cols.map(function(x){return x[1]})).concat(['바로가기']).forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
+ var last=-1;
+ rows.forEach(function(o){var m=o.m;if(o.r!==last){last=o.r;var hr=el('tr');var hd=el('td','m',o.r===0?'🌐 누구나':(o.r>=99?'🔒 관리자 전용 (아직 공개 전 · 관리자만 테스트)':'🟢 '+(L[o.r-1]?L[o.r-1].name:'회원')+' 이상'));hd.colSpan=cols.length+3;hd.style.cssText='background:#f1f5f9;font-weight:800';hr.appendChild(hd);t.appendChild(hr)}
+  var tr=el('tr');var nm=el('td');var a=el('a',null,m.icon+' '+m.label);a.href='#';a.onclick=function(e){e.preventDefault();pbGo('fe',p,o.i)};nm.appendChild(a);tr.appendChild(nm);
+  tr.appendChild(el('td','m',m.admin_only?'관리자 전용':(!m.on?'🙈 숨김':(o.r===0?'누구나':(o.r>=99?'관리자 전용':L[o.r-1].name+' 이상')))));
+  cols.forEach(function(cc){var td=el('td');var vis=m.on&&!m.admin_only&&m.tokens.indexOf(cc[0])>=0;
+   if(!vis)td.appendChild(el('span','m','—'));else{var n=m.feats.filter(function(f){return f.tokens.indexOf(cc[0])>=0}).length,N=m.feats.length;td.appendChild(el('span',N&&n===N?'good':(n?'':'m'),'✅ '+(N?n+'/'+N:'')))}tr.appendChild(td)});
+  var ac=el('td');var wb=WB&&WB.items.filter(function(x){return x.id===m.id})[0];
+  if(wb&&wb.tab){var b1=bt('🧰 작업대','bt3',function(){cur=wb.tab;nav();load()});ac.appendChild(b1)}
+  if(m.shell){var a2=el('a','bt3','👁 이용자 화면');a2.href='/m/'+m.id;a2.target='_blank';a2.rel='noopener';a2.style.textDecoration='none';a2.style.marginLeft='4px';ac.appendChild(a2)}
+  tr.appendChild(ac);t.appendChild(tr)});
+ tw.appendChild(t);c.appendChild(tw);
+ var vis=j.menus.filter(function(m){return m.on&&!m.admin_only&&m.tokens.indexOf(G)>=0}).length;
+ c.appendChild(el('p','note','지금 비회원에게 보이는 메뉴: '+vis+'개 / 전체 '+j.menus.length+'개 · 새로 만든 메뉴는 기본이 "관리자 전용"이라, 테스트를 마친 뒤 [기능별 공개]에서 등급을 열어 주세요.'));
+ box.innerHTML='';box.appendChild(c)})}
+"""
+
+
 def register():
     C.register_admin_tab("mm", "🧭 메뉴 관리", JS, "mmLoad")
+    C.register_admin_tab("pb", "🎚 공개 관리", PB_JS, "pbLoad")
     return bp

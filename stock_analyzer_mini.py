@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v168 — 🧭 관리자 메뉴 정비: 위쪽 메뉴를 [현황 / 메뉴 작업대 / 공개·회원 / 콘텐츠 / 설정]으로 재편. [메뉴 작업대]는 공개 등급 순서(누구나 → 일반 → 정회원 → 우수 → 관리자 전용)로 모든 메뉴를 늘어놓고, 각 메뉴 위에 '지금 공개 범위·기능 수·이용자 화면 미리보기' 띠가 떠요(관리자는 어디서든 블로그 쓰기까지 전부 실행). [메뉴 관리]+[기능 공개]를 하나의 [🎚 공개 관리](한눈에 보기·기능별 공개·메뉴 순서/회원 단계)로 합쳤고, ⚙ 설정은 AI·자동화·보안·메뉴별 섹션 탭으로 나눴어요. 🤖 AI 답변을 복사한 뒤 돌아와도 자동으로 못 읽던 문제 수정(1초 감시·창 포커스 강제 이동·실패해도 계속 재시도).
 ✨ v167 — 🔗 블로그까지 한 번에: 모든 메뉴(종목분석·심층분석·오늘추천·도전주·거래정지/상폐·시장수급·네이버테마·뉴스분석·수급분석)가 같은 5단계 막대(분석 → AI → 이미지 → 글 → 블로그에 쓰기)와 [⚡ 블로그까지 한 번에 이어서] 버튼을 써요. 자동 설정이면 블로그 복사·열기까지 이어지고(붙여 넣기 Ctrl+V만 직접), 설정 화면에 '모든 메뉴 한 번에 맞추기'·'완전 자동' 추가, 브라우저가 복사·새 창을 막으면 안내. 수급분석에 이미지·블로그 글 신설, 거래정지/상폐에 AI 조언 단계 추가. 🏷 네이버 테마 수집 보강(여러 경로·실패 사유 표시)·전 종목 수급 수집(개인·외국인·기관·기타법인 추정)·테마 보드(테마→종목→주체별 수급)·종목 클릭 시 종목분석/심층분석 선택 팝업·네이버 이동 ↗ 아이콘.
 ✨ v166 — 🎨 전체 리디자인(공통 스킨 mini_skin.py): 얇은 흰색 상단 바(로고·검색·계정) + 왼쪽 사이드바 메뉴(분류별 접기, 좁은 화면은 ☰ 서랍), 컴팩트한 카드·표·버튼, 관리자 콘솔도 왼쪽 사이드바. 메뉴 분류를 종목·리서치(심층·뉴스·거래정지) / 시장·수급(시장수급·네이버테마·수급분석) / 추천·AI(오늘추천·도전주)로 재배치. 🐛 관리자 로그인이 오래 쉬어 풀렸을 때 AI가 ‘정회원 이상’이라고 거부하던 문구를 ‘관리자 로그인이 풀렸어요’로 바로잡고, 메인 화면을 열어 둔 동안 4분마다 로그인을 자동 연장. 또 관리자로 로그인돼 있으면 ‘👁 비회원/회원으로 보기’ 미리보기 중에도 모든 기능(AI 분석 등)이 실제로 동작하도록 변경(미리보기는 화면 표시만 그 등급 기준).
 ✨ v165 — 새 메뉴 [📊 시장수급]·[🏷 네이버테마]: 수급분석 화면의 ‘수급·테마 가져오기’ 상자를 두 메뉴로 나눠 옮김. 시장수급은 개인·외국인·기관에 금융투자·보험·투신·사모·은행·연기금·기타법인 등 세부 주체(KRX 표 붙여넣기)까지 일별 흐름·연속 일수·종목 상위·AI 해설·이미지·블로그 글로, 네이버테마는 테마 순위·연속 강세·테마 안 종목·테마별 수급·일별 추이·AI·이미지·블로그 글로 제공.
@@ -349,7 +350,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v167"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v168"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4381,7 +4382,7 @@ header button.red{background:#b91c1c}.w{max-width:960px;margin:0 auto;padding:14
 nav{display:flex;gap:6px 14px;flex-wrap:wrap;margin-bottom:12px}.ng{display:flex;gap:5px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:5px 8px}.ngl{font-size:11.5px;font-weight:800;color:#64748b;margin-right:2px}
 .ng.dd{position:relative;padding:0;border:0;background:transparent}.ngb{display:inline-flex;align-items:center;gap:6px;font-weight:700}.ngb em{font-style:normal;font-size:10px;opacity:.6}.ng.open .ngb{border-color:#5b7cfa;background:#eef2ff}.ng.open .ngb.on{background:#0f172a}
 .ngd{display:none;position:absolute;left:0;top:calc(100% + 6px);z-index:50;min-width:190px;padding:6px;flex-direction:column;gap:2px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 14px 34px -10px rgba(15,23,42,.35)}
-.ng.open .ngd{display:flex}.ngd button{border:0;border-radius:8px;text-align:left;width:100%;background:#fff;color:#1e293b}.ngd button:hover{background:#eef2ff}.ngd button.on{background:#0f172a;color:#fff}nav button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer}
+.ng.open .ngd{display:flex}.ngh{font-size:11px;font-weight:800;color:#64748b;padding:6px 8px 2px;border-top:1px solid #e2e8f0;margin-top:3px}.ngh:first-child{border-top:0;margin-top:0}#accbar{display:none;gap:6px 10px;align-items:center;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:8px 12px;margin:0 0 10px;font-size:13px}#accbar .m{margin:0}.accb{border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800;background:#e0e7ff;color:#3730a3}.accb.r0{background:#dcfce7;color:#166534}.accb.rx{background:#fee2e2;color:#991b1b}.ngd button{border:0;border-radius:8px;text-align:left;width:100%;background:#fff;color:#1e293b}.ngd button:hover{background:#eef2ff}.ngd button.on{background:#0f172a;color:#fff}nav button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer}
 nav button.on{background:#0f172a;color:#fff;border-color:#0f172a}
 .c{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin:10px 0}.h{background:#fff7ed;border-color:#fdba74}
 .m{font-size:12px;color:#64748b;margin-bottom:6px;word-break:break-all}.b{white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.55}
@@ -4409,7 +4410,7 @@ textarea{border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-size:12.5px
 <header><b>🛠 종목분석 미니 관리자 <span id="ver"></span></b>
 <a href="/" target="mini_main" class="home">🏠 메인 화면</a><button id="lo">로그아웃</button><button id="loall" class="red">모든 세션 종료</button></header>
 <div id="mbar"><b id="mbt"></b><span id="mbs"></span><a href="/" target="_top">🏠 종목분석</a><a href="/menus" target="_top">전체 메뉴</a><a href="/plans" target="_top">등급 안내</a><a id="mbl" href="/member" target="_top">로그인·가입</a></div>
-<div class="w"><nav id="nav"></nav><div id="pane"></div></div><div id="toast"></div>
+<div class="w"><nav id="nav"></nav><div id="accbar"></div><div id="pane"></div></div><div id="toast"></div>
 <script nonce="{{ nonce }}">
 var CSRF="{{ csrf }}";var cur='sum';var EXT={};
 try{if(window.self!==window.top){document.body.classList.add('emb');if(!/embed=full/.test(location.search))document.body.classList.add('one')}}catch(e){}
@@ -4442,16 +4443,35 @@ function toast(t,kind){var x=$('toast');t=String(t==null?'':t);var bad=kind==='b
 function api(u,post){return fetch(u,{method:post?'POST':'GET',credentials:'same-origin',headers:post?{'X-CSRF-Token':CSRF}:{}}).then(function(r){
   if(r.status===401){location.replace('/admin');throw 0}return r.json()}).then(gwErr)}
 function gwErr(j){if(MEMBER_MODE&&j&&j.feature&&j.error){toast(j.error,'bad');if(FEATS&&FEATS[j.feature]&&j.login!==undefined)lockDlg(j.feature)}return j}
-var TAB_GROUPS=[['📊 운영',['sum','cmt','ovw','log']],['📈 종목·리서치',['dp','nw','dl']],['🔬 시장·수급',['mk','th','fl']],['🏆 추천·AI',['dy','ch']],['🎚 공개·회원',['mm','fe','mem']],['✍ 콘텐츠',['bu','bl','ik','pr']],['⚙ 설정',['mn','im']]];
+var TAB_GROUPS=[['📊 현황',['sum','cmt','log']],['🧰 메뉴 작업대','@wb'],['🎚 공개·회원',['pb','mem']],['✍ 콘텐츠',['bu','bl','ik','pr','ovw']],['⚙ 설정',['mn','im']]];
+var HIDTAB={mm:1,fe:1};var WB=null;
+/* [v168] 메뉴 작업대 — 공개 등급 순서(누구나 → 일반 → 정회원 → 우수 → 관리자 전용)로 메뉴 탭을 늘어놓고, 탭 위에 '지금 공개 범위' 띠를 보여준다 */
+function wbLoad(){if(MEMBER_MODE)return;api('/admin/api/workbench').then(function(j){if(j&&j.items){WB=j;nav()}}).catch(function(){})}
+function wbItems(){var out=[];var seenT={};
+ if(WB&&WB.items){WB.items.forEach(function(i){var t=i.tab&&TABS.filter(function(x){return x[0]===i.tab})[0];if(t){out.push({tab:t[0],label:t[1],badge:i.badge,rank:i.rank,off:!i.on&&!i.admin_only});seenT[t[0]]=1}})}
+ TABS.forEach(function(t){if(['dp','nw','dl','mk','th','fl','dy','ch'].indexOf(t[0])>=0&&!seenT[t[0]])out.push({tab:t[0],label:t[1],badge:WB?'':'',rank:-1})});return out}
+function accBar(){var b=$('accbar');if(!b)return;b.innerHTML='';if(MEMBER_MODE||!WB){b.style.display='none';return}
+ var it=WB.items.filter(function(i){return i.tab===cur})[0];if(!it){b.style.display='none';return}b.style.display='flex';
+ b.appendChild(el('b',null,it.icon+' '+it.label));var bg=el('span','accb r'+(it.rank===0?'0':(it.rank>=99?'x':'m')),(it.rank===0?'🌐 ':(it.rank>=99?'🔒 ':'🟢 '))+it.badge+(it.on||it.admin_only?'':' (숨김)'));b.appendChild(bg);
+ b.appendChild(el('span','m',it.feats?('기능 '+it.feats+'개 · 누구나 '+it.cnt.all+' · 회원 '+it.cnt.member+' · 관리자 전용 '+it.cnt.admin):'기능별 공개 설정 없음'));
+ b.appendChild(el('span','m','· 관리자는 모든 기능(블로그 쓰기 포함)을 바로 실행해 볼 수 있어요'));
+ var go=bt('🎚 공개 설정','bt3',function(){var mi=-1;try{if(FE.S)FE.S.menus.forEach(function(m,i){if(m.id===it.id)mi=i})}catch(e){}if(typeof FE!=='undefined'&&mi>=0)FE.sel=mi;if(typeof PB!=='undefined')PB.sub='fe';cur='pb';nav();load()});b.appendChild(go);
+ var sel=el('select');sel.setAttribute('aria-label','이용자 화면 미리보기');[['','👁 이용자 화면 미리보기…'],['guest','비회원으로'],].concat((WB.levels||[]).map(function(x){return [x.id,x.name+'으로']})).forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];sel.appendChild(op)});
+ sel.onchange=function(){if(!sel.value)return;window.open(it.public_path+'?as='+sel.value,'mini_admin_view');sel.value=''};b.appendChild(sel)}
 function nav(){var n=$('nav');n.innerHTML='';var seen={};
  function pill(t,box){var b=el('button',t[0]===cur?'on':'',t[1]);b.onclick=function(){cur=t[0];nav();load()};box.appendChild(b);seen[t[0]]=1}
  if(MEMBER_MODE||TABS.length<6){TABS.forEach(function(t){pill(t,n)});return}
- TAB_GROUPS.forEach(function(g){var items=g[1].map(function(id){return TABS.filter(function(t){return t[0]===id})[0]}).filter(Boolean);if(!items.length)return;
+ TAB_GROUPS.forEach(function(g){var items;
+  if(g[1]==='@wb'){var wi=wbItems();if(!wi.length)return;ddGroup(g[0],wi.map(function(w){return [w.tab,w.label,w]}),true);return}
+  items=g[1].map(function(id){return TABS.filter(function(t){return t[0]===id})[0]}).filter(Boolean);if(!items.length)return;
   ddGroup(g[0],items)});
- var rest=TABS.filter(function(t){return !seen[t[0]]});if(rest.length)ddGroup('🧰 기타',rest);
- function ddGroup(label,items){var box=el('div','ng dd');var act=items.filter(function(t){return t[0]===cur})[0];
+ var rest=TABS.filter(function(t){return !seen[t[0]]&&!HIDTAB[t[0]]});if(rest.length)ddGroup('🧰 기타',rest);
+ accBar();
+ function ddGroup(label,items,wb){var box=el('div','ng dd');var act=items.filter(function(t){return t[0]===cur})[0]||(HIDTAB[cur]&&label.indexOf('공개')>=0?1:0);
   var gb=el('button','ngb'+(act?' on':''));gb.type='button';gb.appendChild(el('span',null,label));gb.appendChild(el('em',null,'▾'));
-  var dd=el('div','ngd');items.forEach(function(t){pill(t,dd)});
+  var dd=el('div','ngd');var lastB=null;
+  items.forEach(function(t){if(wb&&t[2]&&t[2].badge&&t[2].badge!==lastB){lastB=t[2].badge;dd.appendChild(el('div','ngh',(t[2].rank===0?'🌐 ':(t[2].rank>=99?'🔒 ':'🟢 '))+t[2].badge))}pill([t[0],t[1]+(wb&&t[2]&&t[2].off?' (숨김)':'')],dd)});
+  if(wb){dd.appendChild(el('div','ngh','📈 종목분석(메인 화면)'));var mb=el('button',null,'📈 종목분석 열기 ↗');mb.onclick=function(){window.open('/','mini_main')};dd.appendChild(mb)}
   gb.onclick=function(e){e.stopPropagation();var was=box.classList.contains('open');navCloseAll();box.classList.toggle('open',!was)};
   box.appendChild(gb);box.appendChild(dd);n.appendChild(box)}}
 function navCloseAll(){[].forEach.call(document.querySelectorAll('.ng.open'),function(x){x.classList.remove('open')})}
@@ -4550,8 +4570,8 @@ function prHist(key,ta,c){api('/admin/api/prompt/'+key+'/history').then(function
 
 /* ── 메뉴·설정 ── */
 function mnLoad(p){api('/admin/api/settings').then(function(d){if(cur!=='mn')return;p.innerHTML='';
- var c=el('div','c');c.appendChild(el('b',null,'🎚 공개·회원 설정 바로가기'));c.appendChild(el('p','note','누구에게 무엇을 보여줄지는 아래 세 곳에서 정해요. 이 [⚙ 설정] 화면에는 AI·로그인 시간 같은 일반 설정만 있어요.'));
- var qb=el('div','bar');[['mm','🧭 메뉴 관리','메뉴 보이기·순서·회원 단계'],['fe','🎚 기능 공개','기능마다 열어 줄 등급'],['mem','👤 회원','가입자 목록·관리']].forEach(function(x){if(!TABS.some(function(t){return t[0]===x[0]}))return;var b=bt(x[1],'bt2',function(){cur=x[0];nav();load()});b.title=x[2];qb.appendChild(b);qb.appendChild(el('span','m',x[2]))});c.appendChild(qb);p.appendChild(c);
+ var c=el('div','c');c.appendChild(el('b',null,'🎚 공개·회원 설정 바로가기'));c.appendChild(el('p','note','누구에게 무엇을 보여줄지는 [🎚 공개 관리]에서 한 번에 정해요. 이 [⚙ 설정] 화면에는 AI·자동화·보안 같은 운영 설정만 있어요.'));
+ var qb=el('div','bar');[['pb','🎚 공개 관리','메뉴·기능을 누구에게 열지 · 회원 단계 · 순서'],['mem','👤 회원','가입자 목록·관리']].forEach(function(x){if(!TABS.some(function(t){return t[0]===x[0]}))return;var b=bt(x[1],'bt2',function(){cur=x[0];nav();load()});b.title=x[2];qb.appendChild(b);qb.appendChild(el('span','m',x[2]))});c.appendChild(qb);
  var a=el('div','c');a.appendChild(el('b',null,'🤖 AI 설정 (서버 자동 호출용)'));
  var prov=['gemini','anthropic','openai'];var names={gemini:'Gemini',anthropic:'Claude',openai:'OpenAI'};
  a.appendChild(el('p','note','서버 API 키: '+prov.map(function(x){return names[x]+(d.providers[x]?' ✅':' ✖')}).join(' · ')+' — 키는 Render 환경변수(GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY)에만 넣어요. 화면과 DB에는 저장하지 않아요. 지금 자동 모드에 쓰는 것: '+(d.provider_now?names[d.provider_now]:'없음(수동 모드만 가능)')));
@@ -4594,11 +4614,17 @@ function mnLoad(p){api('/admin/api/settings').then(function(d){if(cur!=='mn')ret
  if(!(d.flows||[]).length)fc.appendChild(el('p','note','단계 흐름이 있는 메뉴가 아직 없어요.'));
  else{var fb=bt('💾 단계 진행 방식 저장','bt',function(){var o={};Object.keys(fsel).forEach(function(k){o[k]=fsel[k].value});apiJ('/admin/api/settings',o).then(function(j){if(j.error)toast(j.error);else{if(window.MiniFlow)MiniFlow.reset();toast('저장했어요')}})});fc.appendChild(fb);
   var fa=bt('모두 자동으로','bt2',function(){Object.keys(fsel).forEach(function(k){fsel[k].value='auto'})});fc.appendChild(fa)}
- p.appendChild(fc);p.appendChild(ss);p.appendChild(ms);p.appendChild(s)})}
+ /* [v168] 설정을 섹션으로 나눠 한 번에 하나만 보여준다 */
+ var SECS=[['ai','🤖 AI·분석',[a,ms]],['auto','⚡ 자동화(단계 진행)',[fc]],['sec','🔐 보안',[ss]],['menu','🧰 메뉴별 설정',[s]],['go','🎚 공개·회원',[c]]];
+ if(!SECS.some(function(x){return x[0]===MNS.sec}))MNS.sec='ai';
+ var sb=el('div','bar');SECS.forEach(function(x){sb.appendChild(bt(x[1],MNS.sec===x[0]?'bt':'bt2',function(){MNS.sec=x[0];mnLoad(p)}))});p.appendChild(sb);
+ SECS.forEach(function(x){if(x[0]===MNS.sec)x[2].forEach(function(n){p.appendChild(n)})})})}
+var MNS={sec:'ai'};
 
 /*__MODULE_JS__*/
 var HH=(location.hash||'').slice(1);if(TABS.some(function(t){return t[0]===HH}))cur=HH;
-nav();load();
+if(cur==='mm'||cur==='fe'){if(typeof PB!=='undefined')PB.sub=cur;cur='pb'}
+nav();load();wbLoad();
 </script></body></html>"""
 
 # 🎨 [v166] 공통 디자인 스킨(mini_skin.py) — 관리자·회원 메뉴 화면에 덧씌운다. 파일이 없거나 오류면 예전 모양 그대로 동작한다.

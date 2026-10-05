@@ -347,7 +347,7 @@ def api_save():
 TAB_JS = r"""
 var FE={S:null,draft:null,sel:0};
 function feClone(o){return JSON.parse(JSON.stringify(o))}
-function feLoad(p){api('/admin/api/feat/matrix').then(function(j){if(cur!=='fe')return;FE.S=j;FE.draft=feClone(j);feDraw(p)})}
+function feLoad(p){api('/admin/api/feat/matrix').then(function(j){if(cur!=='fe'&&cur!=='pb')return;FE.S=j;FE.draft=feClone(j);feDraw(p)})}
 function feHas(a,t){return a.indexOf(t)>=0}
 function feSet(a,t,on){var i=a.indexOf(t);if(on&&i<0)a.push(t);if(!on&&i>=0)a.splice(i,1)}
 function feCols(){var L=FE.S.levels;return [[FE.S.guest,'비회원']].concat(L.map(function(x){return [x.id,x.name]}))}
