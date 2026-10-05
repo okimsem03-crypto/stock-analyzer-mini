@@ -617,6 +617,9 @@ K.copyHtml=function(html){var plain=html.replace(/<[^>]+>/g,' ').replace(/&nbsp;
 K.copyAuto=function(html){if(K._exec(html))return Promise.resolve(true);var plain=html.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
  try{if(navigator.clipboard&&window.ClipboardItem&&navigator.clipboard.write){return navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})})]).then(function(){return true},function(){return K.copyHtml(html)})}}catch(e){}
  return Promise.resolve(K.copyHtml(html))};
+// 도우미(v1.4+)가 있으면 열린 블로그 글쓰기 화면에 제목·상단 이미지·본문을 자동으로 넣어 준다(발행은 직접). 돌려주는 값: sent|off|none|old|err
+K.handoff=function(opt,title,html){var M=window.MiniAI;if(!M||!M.blogSend)return 'none';var img='';try{if(window.ImgKit&&ImgKit.topImage)img=ImgKit.topImage(opt.key,opt.ticker)||''}catch(e){}return M.blogSend({title:title,html:html,img:img})};
+K.handNote=function(hs){return hs==='sent'?'도우미가 제목·이미지·본문을 자동으로 넣어요(안 들어가면 본문을 눌러 Ctrl+V)':(hs==='old'?'도우미가 옛 버전이에요 — 새 버전을 설치하면 자동 입력돼요. 지금은 Ctrl+V 하세요':'Ctrl+V 하세요')};
 K.openBlog=function(key){var w=null;try{w=window.open(K.urlOf(key),'_blank')}catch(e){}if(w){try{w.opener=null}catch(e){}return true}return false};
 K.save=function(name,title,html){var b=new Blob(['<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>'+String(title||'').replace(/</g,'')+'</title></head><body style="max-width:860px;margin:0 auto;padding:20px">'+html+'</body></html>'],{type:'text/html'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500)};
 function bt(txt,primary,fn){var b=el('button',null,txt);sty(b,'font:inherit;font-size:13px;font-weight:700;border-radius:10px;padding:8px 14px;cursor:pointer;margin:0 6px 6px 0;border:1.5px solid '+(primary?'#312e81':'#c7d2fe')+';background:'+(primary?'#312e81':'#fff')+';color:'+(primary?'#fff':'#312e81'));b.onclick=fn;return b}
@@ -636,12 +639,12 @@ K.panel=function(box,opt){var idp=opt.idp||'bk';box.innerHTML='';
    return K.load().then(function(){
     var lab=K.labelOf(opt.key),ao=K.autoOpen();var rr=el('div');
     function after(ok){if(!ok){toast('복사가 막혔어요. [📋 복사하고 블로그 열기]를 직접 한 번 누르거나 아래 [HTML 파일로 저장]을 쓰세요.');if(opt.onBlocked){try{opt.onBlocked('copy')}catch(x){}}return false}if(opt.onCopied){try{opt.onCopied()}catch(x){}}
-     if(ao){var op=K.openBlog(opt.key);if(op)toast('📋 복사했어요 — 열린 블로그 글쓰기 화면에서 Ctrl+V 하세요 ('+lab+')');else{toast('📋 복사는 됐어요. 브라우저가 새 창을 막았어요 — [✍ 블로그만 열기]를 눌러 열고 Ctrl+V 하세요. (주소창 오른쪽 팝업 차단 표시에서 이 사이트를 허용하면 다음부터 자동으로 열려요)');if(opt.onBlocked){try{opt.onBlocked('popup')}catch(x){}}}}else toast('📋 블로그용 HTML을 복사했어요 — 블로그 글쓰기 화면에서 Ctrl+V 하세요.');return true}
+     if(ao){var hs=K.handoff(opt,ti.value||j.title||'',j.html);var op=K.openBlog(opt.key);if(op)toast('📋 복사했어요 — '+K.handNote(hs)+' ('+lab+')');else{toast('📋 복사는 됐어요. 브라우저가 새 창을 막았어요 — [✍ 블로그만 열기]를 눌러 열고 Ctrl+V 하세요. (주소창 오른쪽 팝업 차단 표시에서 이 사이트를 허용하면 다음부터 자동으로 열려요)');if(opt.onBlocked){try{opt.onBlocked('popup')}catch(x){}}}}else toast('📋 블로그용 HTML을 복사했어요 — 블로그 글쓰기 화면에서 Ctrl+V 하세요.');return true}
     mainFn=function(auto){if(auto)return K.copyAuto(j.html).then(after);return after(K.copyHtml(j.html))};
     var main=bt(ao?'📋 복사하고 블로그 열기':'📋 서식 그대로 복사',true,function(){mainFn(false)});
     rr.appendChild(main);
     if(ao)rr.appendChild(bt('복사만',false,function(){toast(K.copyHtml(j.html)?'📋 복사했어요.':'복사가 막혔어요.')}));
-    else rr.appendChild(bt('📋 복사 → 블로그 열기',true,function(){var ok=K.copyHtml(j.html);if(!ok){toast('복사가 막혔어요. 아래 [HTML 파일로 저장]을 쓰거나 미리보기를 드래그해 복사하세요.');return}if(opt.onCopied){try{opt.onCopied()}catch(x){}}if(!K.openBlog(opt.key))toast('새 창이 막혔어요 — [✍ 블로그만 열기]를 눌러 주세요.');else toast('📋 복사했어요 — 열린 블로그 글쓰기 화면에서 Ctrl+V 하세요 ('+lab+')')}));
+    else rr.appendChild(bt('📋 복사 → 블로그 열기',true,function(){var ok=K.copyHtml(j.html);if(!ok){toast('복사가 막혔어요. 아래 [HTML 파일로 저장]을 쓰거나 미리보기를 드래그해 복사하세요.');return}if(opt.onCopied){try{opt.onCopied()}catch(x){}}var hs2=K.handoff(opt,ti.value||j.title||'',j.html);if(!K.openBlog(opt.key))toast('새 창이 막혔어요 — [✍ 블로그만 열기]를 눌러 주세요.');else toast('📋 복사했어요 — '+K.handNote(hs2)+' ('+lab+')')}));
     rr.appendChild(bt('✍ 블로그만 열기',false,function(){K.openBlog(opt.key)}));
     rr.appendChild(bt('💾 HTML 파일로 저장',false,function(){K.save((opt.ticker||'blog')+'_'+(opt.kind||'blog')+'.html',j.title,j.html)}));
     out.appendChild(rr);

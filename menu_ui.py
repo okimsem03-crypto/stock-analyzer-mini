@@ -264,7 +264,12 @@ function run(opt){
  draw();
  return {close:close};
 }
-window.MiniAI={run:run,copy:copyText,sites:SITES};
+function verGE(a,b){var x=String(a||'0').split('.'),y=String(b).split('.');for(var i=0;i<3;i++){var p=parseInt(x[i]||0,10),q=parseInt(y[i]||0,10);if(p!==q)return p>q}return true}
+// 블로그 글쓰기 화면에 넣을 내용(제목·상단 이미지·본문)을 도우미에게 맡긴다. 돌려주는 값: sent | off | none(도우미 없음) | old(옛 버전) | err
+function blogSend(job){try{if(lsGet('mini_blog_paste')==='0')return 'off';var v=helperVer();if(!v)return 'none';if(!verGE(v,'1.4.0'))return 'old';
+ var id=newJob(),m={id:id,title:job.title||'',html:job.html||'',img:job.img||''};
+ if(ownAttr())window.postMessage({miniHelper:'blogjob',id:m.id,title:m.title,html:m.html,img:m.img},location.origin);else window.top.postMessage({miniRelay:'blogjob',id:m.id,title:m.title,html:m.html,img:m.img},location.origin);return 'sent'}catch(e){return 'err'}}
+window.MiniAI={run:run,copy:copyText,sites:SITES,blogSend:blogSend,helperVer:helperVer};
 // 점수 오해 방지: '체력지표'가 기업 평가점수가 아님을 알리는 짧은 안내 + 자세히 보기 창
 var SCORE_TXT={deep:{calc:'수익성 25% + 안정성 20% + 성장성 20% + 거버넌스 15% + 밸류에이션 20% 를 합친 값(0~100)이에요. 각 축은 공개된 5개년 재무·시세 숫자를 정해진 규칙으로 점수화해요.'},
  lab:{calc:'기술·모멘텀·수급·재무·밸류에이션 5개 축을 정해진 규칙으로 점수화해 합친 값(0~100)이에요. 공개된 시세·재무 숫자만 써요.'}};
@@ -382,30 +387,31 @@ def _js_str(s):
 HELPER_JS = r"""// ==UserScript==
 // @name         종목분석 미니 · AI 도우미
 // @namespace    __ORIGIN__
-// @version      1.3.0
+// @version      1.4.0
 // @updateURL    __ORIGIN__/assets/mini-ai-helper.user.js
 // @downloadURL  __ORIGIN__/assets/mini-ai-helper.user.js
-// @description  종목분석 미니에서 [AI 열기]를 누르면 AI 사이트에서 프롬프트 입력 → 전송 → 답변 복사 → 탭 닫기까지 자동으로 해 주고, 답변을 종목분석 미니로 바로 돌려줍니다.
+// @description  종목분석 미니에서 [AI 열기]를 누르면 AI 사이트에서 프롬프트 입력 → 전송 → 답변 복사 → 탭 닫기까지 자동으로 해 주고, 블로그 글쓰기 화면이 열리면 제목·상단 이미지·본문을 자동으로 넣어 줍니다(발행은 직접).
 // @match        __ORIGIN__/*
 // @match        https://gemini.google.com/*
 // @match        https://chatgpt.com/*
 // @match        https://claude.ai/*
 // @match        https://www.perplexity.ai/*
+// @match        https://blog.naver.com/*
+// @match        https://*.blog.naver.com/*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue
 // @grant        GM_addValueChangeListener
 // @grant        GM_setClipboard
 // @run-at       document-start
-// @noframes
 // ==/UserScript==
-/* 종목분석 미니 AI 도우미 v1.3.0
+/* 종목분석 미니 AI 도우미 v1.4.0
  * · 종목분석 미니 화면에서 보낸 작업(프롬프트)만 처리합니다. 다른 경로로 열린 AI 화면은 건드리지 않아요.
  * · 이 스크립트는 사용자의 브라우저 안에서만 동작하며, 로그인 정보·대화 내용을 어디로도 보내지 않습니다.
  * · AI 사이트 화면이 개편되면 자동 진행이 멈출 수 있어요. 그때는 프롬프트가 복사돼 있으니 직접 붙여넣으면 됩니다. */
 (function () {
   'use strict';
-  var ORIGIN = '__ORIGIN__', VER = '1.3.0';
+  var ORIGIN = '__ORIGIN__', VER = '1.4.0';
   function gget(k) { try { return Promise.resolve(GM_getValue(k, null)); } catch (e) { return Promise.resolve(null); } }
   function gset(k, v) { try { return Promise.resolve(GM_setValue(k, v)); } catch (e) { return Promise.resolve(); } }
   function gdel(k) { try { return Promise.resolve(GM_deleteValue(k)); } catch (e) { return Promise.resolve(); } }
@@ -413,12 +419,17 @@ HELPER_JS = r"""// ==UserScript==
 
   /* ───────── 1) 종목분석 미니 화면 쪽: 작업을 받아 저장하고, 결과를 화면에 전달 ───────── */
   if (location.origin === ORIGIN) {
+    if (window.top !== window) return;   /* 메뉴 탭(iframe)에는 붙지 않아요 — 바깥 화면만 */
     var marked = false, mark = function () { try { document.documentElement.setAttribute('data-mini-helper', VER); marked = true; } catch (e) {} };
     mark(); document.addEventListener('DOMContentLoaded', mark);
     if (!marked) { var mt = setInterval(function () { mark(); if (marked) clearInterval(mt); }, 20); }
     window.addEventListener('message', function (e) {
       if (e.source !== window || e.origin !== ORIGIN) return;
       var d = e.data;
+      if (d && d.miniHelper === 'blogjob' && d.id && d.html) {   /* 블로그 글쓰기 화면에 넣을 내용(제목·상단 이미지·본문) */
+        gset('blogjob', { id: String(d.id), title: String(d.title || ''), html: String(d.html), img: String(d.img || ''), ts: Date.now() });
+        return;
+      }
       if (!d || d.miniHelper !== 'job' || !d.id || !d.prompt) return;
       gdel('result'); gdel('status');
       gset('job', { id: String(d.id), prompt: String(d.prompt), host: String(d.host || ''), ts: Date.now() });
@@ -433,6 +444,142 @@ HELPER_JS = r"""// ==UserScript==
         window.postMessage({ miniHelper: 'status', id: v.id, msg: v.msg || '' }, ORIGIN);
       });
     } catch (e) {}
+    return;
+  }
+
+
+  /* ───────── 1-2) 네이버 블로그 글쓰기 화면: 제목·상단 이미지·본문 자동 입력(발행은 직접) ───────── */
+  if (/(^|\.)blog\.naver\.com$/.test(location.hostname)) {
+    (function naverBlog() {
+      var bn = null;
+      function banner(t, kind, btn) {
+        try {
+          if (!bn) {
+            bn = document.createElement('div');
+            var st = bn.style; st.position = 'fixed'; st.left = '50%'; st.top = '10px'; st.transform = 'translateX(-50%)'; st.zIndex = '2147483647'; st.maxWidth = '92vw';
+            st.font = '600 13px/1.5 system-ui,sans-serif'; st.padding = '9px 14px'; st.borderRadius = '12px'; st.boxShadow = '0 6px 22px rgba(0,0,0,.25)'; st.color = '#fff';
+            (document.body || document.documentElement).appendChild(bn);
+          }
+          bn.style.background = kind === 'bad' ? '#b91c1c' : (kind === 'ok' ? '#15803d' : '#1e3a8a');
+          bn.textContent = '🤖 종목분석 미니 도우미 · ' + t;
+          if (btn) { var b = document.createElement('button'); b.textContent = btn.label; b.style.marginLeft = '10px'; b.style.cursor = 'pointer'; b.onclick = btn.fn; bn.appendChild(b); }
+        } catch (e) {}
+      }
+      /* 화면이 바뀌어 안 맞으면 여기 선택자만 고치면 돼요 */
+      var SEL = {
+        root: ['.se-main-container', '.se-content', '#SE-editor', '.se-canvas'],
+        title: ['.se-documentTitle .se-text-paragraph', '.se-section-documentTitle .se-text-paragraph', '.se-title-text .se-text-paragraph', '.se-title-text'],
+        bodyP: ['.se-component.se-text:not(.se-documentTitle) .se-text-paragraph', '.se-section-text .se-text-paragraph', '.se-main-container .se-text-paragraph'],
+        image: ['.se-component.se-image', '.se-module-image', '.se-image-resource']
+      };
+      function q1(list, root) { for (var i = 0; i < list.length; i++) { try { var e = (root || document).querySelector(list[i]); if (e) return e; } catch (x) {} } return null; }
+      function qa(list, root) { for (var i = 0; i < list.length; i++) { try { var a = (root || document).querySelectorAll(list[i]); if (a && a.length) return Array.prototype.slice.call(a); } catch (x) {} } return []; }
+      function inTitle(p) { return !!(p.closest && p.closest('.se-documentTitle,.se-section-documentTitle,.se-title-text')); }
+      function bodyParas() { return qa(SEL.bodyP).filter(function (p) { return !inTitle(p); }); }
+      function bodyLen() { var r = q1(SEL.root); return r ? (r.innerText || '').replace(/\s+/g, '').length : 0; }
+      function imgCount() { return qa(SEL.image).length; }
+      function caretTo(node) {
+        try {
+          var host = node.closest('[contenteditable="true"]') || node;
+          if (host.focus) host.focus();
+          var t = node.querySelector('span') || node, r = document.createRange(), s = window.getSelection();
+          r.selectNodeContents(t); r.collapse(false); s.removeAllRanges(); s.addRange(r);
+          return true;
+        } catch (e) { return false; }
+      }
+      function pasteInto(node, data) {   /* 사람이 Ctrl+V 한 것과 같은 '붙여넣기' 신호를 편집기에 보낸다 */
+        var dt = new DataTransfer();
+        if (data.html) dt.setData('text/html', data.html);
+        if (data.text) dt.setData('text/plain', data.text);
+        if (data.file) dt.items.add(data.file);
+        var tgt = document.activeElement && document.activeElement !== document.body ? document.activeElement : node;
+        var ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+        return tgt.dispatchEvent(ev);
+      }
+      function dataUrlToFile(u, name) {
+        try {
+          var m = /^data:([^;]+);base64,(.*)$/.exec(u); if (!m) return null;
+          var bin = atob(m[2]), a = new Uint8Array(bin.length);
+          for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+          return new File([a], name + (m[1].indexOf('jpeg') >= 0 ? '.jpg' : '.png'), { type: m[1] });
+        } catch (e) { return null; }
+      }
+      function dismissPopups() {
+        try {
+          var pops = document.querySelectorAll('.se-popup, .se-popup-container, [class*="popup"]');
+          Array.prototype.forEach.call(pops, function (p) {
+            var tx = p.innerText || '';
+            if (/작성 중인 글|이어서 작성|임시 저장된 글/.test(tx)) {
+              var btns = p.querySelectorAll('button');
+              for (var i = 0; i < btns.length; i++) if (/^\s*취소\s*$/.test(btns[i].textContent)) { btns[i].click(); break; }
+            }
+          });
+          var hp = document.querySelector('.se-help-panel-close-button, button[class*="help-panel-close"]'); if (hp) hp.click();
+        } catch (e) {}
+      }
+      function diag() {   /* 안 맞을 때: 편집기 구조를 복사해 보내 주면 선택자를 고칠 수 있어요 */
+        var out = [];
+        Array.prototype.forEach.call(document.querySelectorAll('[class*="se-"]'), function (n, i) { if (i < 160) out.push((n.tagName + '.' + String(n.className).replace(/\s+/g, '.')).slice(0, 110) + (n.getAttribute('contenteditable') ? ' [ce=' + n.getAttribute('contenteditable') + ']' : '')); });
+        var t = 'URL ' + location.href + '\n' + out.join('\n');
+        try { GM_setClipboard(t, 'text'); } catch (e) { try { navigator.clipboard.writeText(t); } catch (e2) {} }
+        banner('편집기 구조를 복사했어요. 채팅에 붙여넣어 보내 주세요.', 'ok');
+      }
+      async function waitFn(fn, ms) { var t0 = Date.now(); while (Date.now() - t0 < ms) { var v = null; try { v = fn(); } catch (e) {} if (v) return v; await sleep(500); } return null; }
+
+      async function run() {
+        /* 이 칸(프레임)에 편집기가 있을 때만 일을 가져온다 */
+        var ready = await waitFn(function () { return q1(SEL.root) && q1(SEL.title) && bodyParas().length ? true : null; }, 45000);
+        if (!ready) return;
+        var job = await gget('blogjob');
+        if (!job || Date.now() - job.ts > 180000) return;
+        await gdel('blogjob');
+        var plain = (function () { var d = document.createElement('div'); d.innerHTML = job.html; return (d.innerText || d.textContent || '').trim(); })();
+        banner('글쓰기 화면을 확인하는 중…');
+        await sleep(1500); dismissPopups(); await sleep(600); dismissPopups(); await sleep(400);
+        var steps = [];
+        try {
+          /* ① 제목 */
+          if (job.title) {
+            banner('제목을 넣는 중…');
+            var tp = q1(SEL.title), before = (tp && tp.innerText || '').trim();
+            var ok1 = false;
+            if (tp && caretTo(tp)) {
+              try { document.execCommand('insertText', false, job.title); } catch (e) {}
+              await sleep(500);
+              ok1 = (tp.innerText || '').indexOf(job.title.slice(0, Math.min(8, job.title.length))) >= 0;
+              if (!ok1) { caretTo(tp); pasteInto(tp, { text: job.title }); await sleep(600); ok1 = (tp.innerText || '').indexOf(job.title.slice(0, Math.min(8, job.title.length))) >= 0; }
+            }
+            steps.push(['제목', ok1]);
+          }
+          /* ② 본문 맨 위 이미지 */
+          if (job.img) {
+            banner('상단 이미지를 넣는 중…');
+            var f = dataUrlToFile(job.img, 'main'), ok2 = false;
+            var bp = bodyParas()[0];
+            if (f && bp && caretTo(bp)) {
+              var n0 = imgCount();
+              pasteInto(bp, { file: f });
+              ok2 = !!(await waitFn(function () { return imgCount() > n0 ? true : null; }, 25000));
+              if (ok2) await sleep(2500);   /* 올라가는 동안 잠깐 기다려요 */
+            }
+            steps.push(['이미지', ok2]);
+          }
+          /* ③ 본문 */
+          banner('본문을 붙여넣는 중…');
+          var ps = bodyParas(), last = ps[ps.length - 1], l0 = bodyLen(), ok3 = false;
+          if (last && caretTo(last)) {
+            pasteInto(last, { html: job.html, text: plain });
+            ok3 = !!(await waitFn(function () { return bodyLen() > l0 + Math.min(60, plain.replace(/\s+/g, '').length * 0.3) ? true : null; }, 8000));
+          }
+          steps.push(['본문', ok3]);
+        } catch (e) { steps.push(['오류 ' + String((e && e.message) || e), false]); }
+        var bad = steps.filter(function (x) { return !x[1]; });
+        if (!bad.length) { banner('✅ ' + steps.map(function (x) { return x[0]; }).join('·') + ' 입력 완료 — 내용을 확인하고 [발행]을 눌러 주세요.', 'ok'); return; }
+        var left = bad.map(function (x) { return x[0]; }).join('·');
+        banner('⚠ ' + left + '은(는) 자동으로 안 들어갔어요. ' + (bad.some(function (x) { return x[0] === '본문'; }) ? '복사돼 있으니 본문을 클릭하고 Ctrl+V 하세요. ' : '직접 넣어 주세요. '), 'bad', { label: '🔍 구조 복사', fn: diag });
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { run(); }); else run();
+    })();
     return;
   }
 
@@ -777,11 +924,13 @@ def helper_page():
         '<li>아래 <b>[도우미 설치]</b> 버튼을 누르면 Tampermonkey 설치 화면이 떠요 → [설치].</li>'
         '<li>크롬 <code>chrome://extensions</code> → Tampermonkey [세부정보] → <b>‘사이트 액세스’를 ‘모든 사이트에서’</b>로 바꿔요(‘클릭 시’나 특정 사이트면 제미나이 등에서 동작하지 않아요).</li>'
         '<li>이 사이트를 새로고침한 뒤, AI 창에서 [AI 열기]를 눌러 보세요. 새로 열린 AI 화면 위쪽에 🤖 안내 띠가 나오면 성공이에요.</li></ol>'
+        '<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:12px;padding:12px 14px;margin:6px 0 14px;font-size:13.5px;line-height:1.8">'
+        '<b>✍ 블로그 자동 입력 (v1.4.0~)</b><br>글 만들기 뒤 [복사하고 블로그 열기]를 누르면, 열린 <b>네이버 글쓰기 화면</b>에 도우미가 <b>제목 → 본문 맨 위 대표 이미지 → 본문</b>을 자동으로 넣어요. <b>발행은 직접</b> 눌러요. 안 들어가면 안내 띠가 뜨고, 복사돼 있으니 본문을 눌러 Ctrl+V 하면 돼요. 끄려면 브라우저 콘솔에서 <code>localStorage.setItem(\'mini_blog_paste\',\'0\')</code>. 이 기능은 도우미를 <b>다시 설치(업데이트)</b>해야 켜져요.</div>'
         '<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:12px 14px;margin:6px 0 14px;font-size:13.5px;line-height:1.8">'
         '<b>🔧 설치했는데 자동으로 안 될 때 (순서대로 확인)</b><br>'
         '① 위 ‘설치 여부’가 ✅ 로 나오는지 — 안 나오면 이 화면을 새로고침(Ctrl+F5)<br>'
         '② Tampermonkey [세부정보]에서 <b>사용자 스크립트 허용 ON</b>, <b>사이트 액세스 = 모든 사이트에서</b><br>'
-        '③ Tampermonkey 대시보드에서 ‘종목분석 미니 · AI 도우미’가 <b>켜짐</b>(파란 스위치)인지, 버전이 <b>1.3.0</b>인지 — 아니면 아래 [도우미 설치]를 다시 눌러 ‘업데이트/재설치’<br>'
+        '③ Tampermonkey 대시보드에서 ‘종목분석 미니 · AI 도우미’가 <b>켜짐</b>(파란 스위치)인지, 버전이 <b>1.4.0</b>인지 — 아니면 아래 [도우미 설치]를 다시 눌러 ‘업데이트/재설치’<br>'
         '④ AI 사이트(제미나이 등)에 <b>로그인</b>된 상태인지, 이미 열려 있던 AI 탭은 새로고침<br>'
         '⑤ 그래도 안 되면: [AI 열기] 때 프롬프트는 이미 복사돼 있으니 AI 입력칸에 Ctrl+V → 전송 → 답변 복사 후 이 창으로 돌아오면 기존 방식으로 가져와요.</div>'
         '<p><a class="mu-btn" href="/assets/mini-ai-helper.user.js" style="display:inline-block;padding:10px 18px;border-radius:12px;background:#2457d6;color:#fff;font-weight:700;text-decoration:none">⬇ 도우미 설치</a></p>'
@@ -792,7 +941,7 @@ def helper_page():
         '</div></div>'
     )
     script = ("function ahChk(last){var s=document.documentElement.getAttribute('data-mini-helper');var e=document.getElementById('ahState');"
-              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<3);e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.3.0)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
+              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<4);e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.4.0)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
               "ahChk(false);setTimeout(function(){ahChk(false)},300);setTimeout(function(){ahChk(true)},1200);")
     resp = C.app.make_response(page("AI 도우미", body, icon="🤖", subtitle="AI 입력·전송·답변 복사를 자동으로 해 주는 선택 도구", script=script))
     resp.headers["Cache-Control"] = "no-cache"

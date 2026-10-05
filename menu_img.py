@@ -117,6 +117,11 @@ K.save=function(blob,o){var fn=K.fileName(o.idx,o.name,o.ticker);
     .then(function(fh){return fh.createWritable()}).then(function(w){return w.write(blob).then(function(){return w.close()})})
     .then(function(){return {where:'folder',path:h.name+'/'+dd+'/'+mf+'/'+(sd?sd+'/':'')+fn}})
     .catch(function(e){download(blob,fn);return {where:'download',path:fn,note:'폴더에 저장하지 못해 일반 다운로드로 저장했어요('+(e&&e.name||'오류')+').'}})})})};
+/* 블로그 상단에 넣을 대표 이미지(① 메인): 방금 만든 그림 중 같은 메뉴·종목의 첫 장을 1080px 폭 데이터 주소로 돌려준다(없으면 null). */
+K.topImage=function(menu,ticker,maxAge){var L=K._last;if(!L||!L.items||!L.items.length)return null;if(Date.now()-L.ts>(maxAge||3*3600*1000))return null;
+ if(menu&&L.menu&&menu!==L.menu)return null;if(ticker&&L.ticker&&K.PER_STOCK[menu||L.menu]&&String(ticker)!==L.ticker)return null;
+ var src=L.items[0].canvas;if(!src)return null;var w=Math.min(1080,src.width),h=Math.round(src.height*w/src.width),cv=document.createElement('canvas');cv.width=w;cv.height=h;var c=cv.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,w,h);c.drawImage(src,0,0,w,h);
+ var u=cv.toDataURL('image/png');if(u.length>2800000)u=cv.toDataURL('image/jpeg',0.88);return u};
 K.toBlob=function(canvas){return new Promise(function(res){canvas.toBlob(function(b){res(b)},'image/png')})};
 /* ── 캔버스 도우미 ── */
 K.rr=function(c,x,y,w,h,r){r=Math.min(r,w/2,h/2);c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()};
@@ -197,7 +202,7 @@ K.panel=function(box,o){ensureCss();box.innerHTML='';var P=el('div','ikp');box.a
   var pw=Math.min(720,it.canvas.width),sm=document.createElement('canvas');sm.width=pw;sm.height=Math.round(it.canvas.height*pw/it.canvas.width);sm.getContext('2d').drawImage(it.canvas,0,0,sm.width,sm.height);im.src=sm.toDataURL('image/png');c.appendChild(im);var r=el('div','ikr');var sv=el('button','ikb','💾 저장');sv.onclick=function(){one(it,false).then(function(x){report([x])})};r.appendChild(sv);
   c.appendChild(r);c.appendChild(el('div','ikn',K.fileName(it.idx,o.name,o.ticker)+' · '+it.canvas.width+'×'+it.canvas.height));view.appendChild(c)});bAll.style.display=''}
  function gen(auto){if(S.busy)return Promise.resolve();S.busy=true;bGen.disabled=true;bGen.textContent='⏳ 그리는 중…';
-  return K.loadCfg().then(K.fonts).then(function(){return o.gen(K._cfg.scale)}).then(function(items){S.items=items;draw();bGen.textContent='🔄 다시 만들기';if(o.onDone){try{o.onDone()}catch(e){}}
+  return K.loadCfg().then(K.fonts).then(function(){return o.gen(K._cfg.scale)}).then(function(items){S.items=items;K._last={menu:o.menu,ticker:String(o.ticker||''),name:o.name||'',ts:Date.now(),items:items};draw();bGen.textContent='🔄 다시 만들기';if(o.onDone){try{o.onDone()}catch(e){}}
    return refresh().then(function(){if(auto&&K.mode()==='auto')return saveAll(true)})})
    .catch(function(e){toast('이미지를 만들지 못했어요: '+(e&&e.message||e));bGen.textContent='🖼 이미지 만들기'})
    .then(function(){S.busy=false;bGen.disabled=false})}
