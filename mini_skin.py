@@ -232,9 +232,15 @@ header button.red:hover{background:#fdf1f2;border-color:#e5384d;color:#b4232f}
 
 /* 왼쪽 사이드바 (관리자 콘솔 단독 화면) */
 body:not(.emb):not(.mem) .w{display:grid;grid-template-columns:200px minmax(0,1fr);gap:0 22px;max-width:1320px;align-items:start}
-body:not(.emb):not(.mem) nav{display:block;position:sticky;top:68px;margin:0;max-height:calc(100vh - 84px);overflow-y:auto;padding:2px 0 20px;grid-column:1}
-body:not(.emb):not(.mem) #pane{grid-column:2;min-width:0}
-body:not(.emb):not(.mem) #intro{grid-column:1/-1}
+body:not(.emb):not(.mem) .w{grid-template-rows:auto 1fr}
+body:not(.emb):not(.mem) .w:has(>#intro){grid-template-rows:auto auto 1fr}
+body:not(.emb):not(.mem) nav{display:block;position:sticky;top:68px;margin:0;max-height:calc(100vh - 84px);overflow-y:auto;padding:2px 0 20px;grid-column:1;grid-row:1/3;align-self:start}
+body:not(.emb):not(.mem) .w:has(>#intro) nav{grid-row:2/4}
+body:not(.emb):not(.mem) #accbar{grid-column:2;grid-row:1;min-width:0}
+body:not(.emb):not(.mem) #pane{grid-column:2;grid-row:2;min-width:0;align-self:start}
+body:not(.emb):not(.mem) .w:has(>#intro) #accbar{grid-row:2}
+body:not(.emb):not(.mem) .w:has(>#intro) #pane{grid-row:3}
+body:not(.emb):not(.mem) #intro{grid-column:1/-1;grid-row:1}
 .ng{display:block;background:transparent;border:0;border-radius:0;padding:0;margin:0 0 6px}
 .ngl{display:block;margin:10px 10px 4px;font-size:11px;font-weight:700;color:#8a93a6;letter-spacing:.06em}
 .ng.dd{padding:0}
@@ -308,7 +314,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ac);box-
   body:not(.emb):not(.mem) .w{display:block}
   body:not(.emb):not(.mem) nav{position:static;max-height:none;display:flex;flex-wrap:wrap;gap:2px 4px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:8px;overflow:visible}
   body:not(.emb):not(.mem) .ng{display:flex;flex-wrap:wrap;gap:2px;margin:0}
-  body:not(.emb):not(.mem) .ngl,body:not(.emb):not(.mem) .ngb{display:none}
+  body:not(.emb):not(.mem) .ngl,body:not(.emb):not(.mem) .ngb,body:not(.emb):not(.mem) .ngh{display:none}
+  body:not(.emb):not(.mem) nav,body:not(.emb):not(.mem) .ng,body:not(.emb):not(.mem) .ngd{align-items:center;align-content:flex-start}
+  body:not(.emb):not(.mem) .ng.dd .ngd{display:flex;position:static;min-width:0;padding:0;border:0;box-shadow:none;background:transparent}
+  body:not(.emb):not(.mem) nav button,body:not(.emb):not(.mem) .ngd button{height:auto;line-height:1.3;white-space:nowrap;overflow:visible}
   body:not(.emb):not(.mem) .ngd{flex-direction:row;flex-wrap:wrap}
   body:not(.emb):not(.mem) nav button,body:not(.emb):not(.mem) .ngd button{width:auto;padding:6px 11px;font-size:12.5px;border:1px solid var(--border);border-radius:999px;background:#fff}
   body:not(.emb):not(.mem) nav button.on,body:not(.emb):not(.mem) .ngd button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
