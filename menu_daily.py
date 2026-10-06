@@ -1141,8 +1141,8 @@ function dyHeadDraw(){var hd=$('dyHead');if(!hd)return;hd.innerHTML='';var c=(DY
  hd.appendChild(el('div','sub',MEMBER_MODE?'① 기술 지표로 자동 선별한 후보 보기 → ② AI 정리 보기 → ③ 이미지로 내려받기. 위험(상장폐지·거래정지) 신호 종목은 자동으로 빠져요. 참고 자료이며 투자 권유가 아니에요.':'① 오늘의 후보 만들기 → ② AI가 추천주 고르기 → ③ 이미지·블로그 글로 올리기. 위험(상장폐지·거래정지) 신호 종목은 자동으로 빠져요.'));
  var r=el('div','dyHr');
  if(DY.dates.length){var sel=el('select');sel.id='dySel';sel.onchange=function(){DY.rows=[];DY.live=false;dyOpen(sel.value)};r.appendChild(sel)}
- var go=el('button','dyGo','🔍 오늘 스캔하기');go.id='dyGo';r.appendChild(adm(go));
- var ob=el('button','dyGh','⚙ 스캔 옵션');r.appendChild(adm(ob));var cb=el('button','dyGh','중단');cb.onclick=function(){apiJ('/admin/api/daily/scan-cancel',{}).then(function(){toast('중단을 요청했어요')})};r.appendChild(adm(cb));hd.appendChild(r);
+ var go=el('button','dyGo','🔍 오늘 스캔하기');go.id='dyGo';r.appendChild(ADMIN_REAL?go:adm(go));
+ var ob=el('button','dyGh','⚙ 스캔 옵션');r.appendChild(ADMIN_REAL?ob:adm(ob));var cb=el('button','dyGh','중단');cb.onclick=function(){apiJ('/admin/api/daily/scan-cancel',{}).then(function(){toast('중단을 요청했어요')})};r.appendChild(ADMIN_REAL?cb:adm(cb));hd.appendChild(r);
  var op=el('div','dyOpt');op.style.display='none';var ck={};['KOSPI','KOSDAQ'].forEach(function(m){var l=el('label');var i=el('input');i.type='checkbox';i.checked=c.markets.indexOf(m)>=0;ck[m]=i;l.appendChild(i);l.appendChild(document.createTextNode(' '+m));op.appendChild(l)});
  function num(lbl,val,mn,mx){var l=el('label');l.appendChild(document.createTextNode(lbl+' '));var i=el('input');i.type='number';i.value=val;i.min=mn;i.max=mx;l.appendChild(i);op.appendChild(l);return i}
  var ct=num('시총 상위',c.cap_top,30,600),ms=num('최소 점수',c.min_score,0,95),cn=num('저장 개수',c.count,5,150),kr=num('코스피 비중%(0=합쳐서)',c.kospi_ratio,0,100);
