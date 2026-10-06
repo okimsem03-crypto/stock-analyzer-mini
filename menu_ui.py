@@ -213,7 +213,7 @@ function run(opt){
   var rc=el('button','ma-btn','📋 다시 복사');rc.onclick=function(){armed=true;seen[norm(s.prompt)]=1;var k=copyText(s.prompt);setLive(k?'프롬프트를 다시 복사했어요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',k?'ok':'bad')};row.appendChild(rc);s1.appendChild(row);
   if(helperOk()){var hl=el('label','ma-sw');var hc=el('input');hc.type='checkbox';hc.checked=helperOn();hc.onchange=function(){lsSet('mini_ai_helper',hc.checked?'1':'0');draw()};hl.appendChild(hc);hl.appendChild(el('span',null,'🤖 AI 도우미 사용 — 입력·전송·답변 복사를 자동으로 (끄면 직접 붙여넣기)'));s1.appendChild(hl);
    s1.appendChild(el('div','ma-d','✅ 도우미 연결됨 (v'+helperVer()+')'))}
-  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode(helperHas()?'❌ 설치된 AI 도우미(v'+helperVer()+')가 옛 버전이라 작업을 받지 못해요 — [설치·점검 방법]에서 최신 버전(1.5.3)으로 업데이트(재설치)한 뒤 이 화면을 새로고침하세요. 그때까지는 ‘복사 → 붙여넣기’ 방식으로 진행돼요. ':'❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
+  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode(helperHas()?'❌ 설치된 AI 도우미(v'+helperVer()+')가 옛 버전이라 작업을 받지 못해요 — [설치·점검 방법]에서 최신 버전(1.5.4)으로 업데이트(재설치)한 뒤 이 화면을 새로고침하세요. 그때까지는 ‘복사 → 붙여넣기’ 방식으로 진행돼요. ':'❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
    var hr=el('button','ma-btn','🔄 다시 확인');hr.onclick=function(){if(helperHas()){draw()}else{hr.textContent='아직 감지 안 됨 — 새로고침이 필요해요'}};hn.appendChild(hr);hn.appendChild(document.createTextNode(' '));
    var ha=el('a',null,'설치·점검 방법');ha.href='/ai-helper';ha.target='_blank';ha.rel='noopener';hn.appendChild(ha);s1.appendChild(hn)}
   s1.appendChild(el('div','ma-d',helperOn()?SITES[site].n+' 새 탭이 열리면 도우미가 프롬프트 입력 → 전송 → 답변 복사까지 알아서 하고, 끝나면 탭을 닫으며 답변을 이 창으로 보내 줘요. 위쪽 🤖 띠에서 진행 상황을 볼 수 있어요.':(SITES[site].q&&encodeURIComponent(s.prompt).length<=PREFILL_MAX*3?SITES[site].n+'가 열리면 질문이 자동으로 입력됩니다. 입력이 비어 있으면 입력칸에 Ctrl+V 하세요.':SITES[site].n+'가 열리면 입력칸에 Ctrl+V(붙여넣기) 한 번만 하세요. 프롬프트는 이미 복사되어 있습니다.')));
@@ -262,7 +262,7 @@ function run(opt){
     if(j.status==='running'){setLive('🤖 '+(PROVN[runInfo&&runInfo.provider]||'AI')+'가 분석 중이에요… '+Math.round((Date.now()-t0)/1000)+'초','ok',true);if(n>200)return srvFail('응답이 너무 오래 걸려요',steps[cur]);return poll(id,tok,t0,n+1)}
     if(j.status==='done'&&j.result&&j.result.text){lastRaw=j.result.text;onText(String(j.result.text).trim(),false,true);return}
     srvFail((j.errors&&j.errors[0])||j.error||'AI 응답 실패',steps[cur])}).catch(function(){if(tok!==srvRun||closed)return;if(n>200)srvFail('응답을 받지 못했어요',steps[cur]);else poll(id,tok,t0,n+1)})},n===0?1500:2500)}
- function oldHelperNote(){return (helperHas()&&!helperOk())?' ⚠ 설치된 AI 도우미(v'+helperVer()+')는 옛 버전이라 쓰지 않아요 — /ai-helper 에서 최신 버전(1.5.3)으로 업데이트(재설치)하면 완전 자동이 돼요.':''}
+ function oldHelperNote(){return (helperHas()&&!helperOk())?' ⚠ 설치된 AI 도우미(v'+helperVer()+')는 옛 버전이라 쓰지 않아요 — /ai-helper 에서 최신 버전(1.5.4)으로 업데이트(재설치)하면 완전 자동이 돼요.':''}
  function srvHint(m){m=String(m||'');var h='';
   if(/429|quota|RESOURCE_EXHAUSTED|rate.?limit/i.test(m))h='AI 사용 한도(쿼터)를 넘었거나 결제 설정이 필요해요.';
   else if(/401|403|API.?key|PERMISSION|unauthor/i.test(m))h='API 키가 틀렸거나 권한이 없어요(Render 환경변수 확인).';
@@ -456,7 +456,7 @@ def _js_str(s):
 HELPER_JS = r"""// ==UserScript==
 // @name         종목분석 미니 · AI 도우미
 // @namespace    __ORIGIN__
-// @version      1.5.3
+// @version      1.5.4
 // @updateURL    __ORIGIN__/assets/mini-ai-helper.user.js
 // @downloadURL  __ORIGIN__/assets/mini-ai-helper.user.js
 // @description  종목분석 미니에서 [AI 열기]를 누르면 AI 사이트에서 프롬프트 입력 → 전송 → 답변 복사 → 탭 닫기까지 자동으로 해 주고, 블로그 글쓰기 화면이 열리면 제목·상단 이미지·본문을 자동으로 넣어 줍니다(발행은 직접).
@@ -476,13 +476,13 @@ HELPER_JS = r"""// ==UserScript==
 // @grant        unsafeWindow
 // @run-at       document-start
 // ==/UserScript==
-/* 종목분석 미니 AI 도우미 v1.5.3
+/* 종목분석 미니 AI 도우미 v1.5.4
  * · 종목분석 미니 화면에서 보낸 작업(프롬프트)만 처리합니다. 다른 경로로 열린 AI 화면은 건드리지 않아요.
  * · 이 스크립트는 사용자의 브라우저 안에서만 동작하며, 로그인 정보·대화 내용을 어디로도 보내지 않습니다.
  * · AI 사이트 화면이 개편되면 자동 진행이 멈출 수 있어요. 그때는 프롬프트가 복사돼 있으니 직접 붙여넣으면 됩니다. */
 (function () {
   'use strict';
-  var ORIGIN = '__ORIGIN__', VER = '1.5.3';
+  var ORIGIN = '__ORIGIN__', VER = '1.5.4';
   function gget(k) { try { return Promise.resolve(GM_getValue(k, null)); } catch (e) { return Promise.resolve(null); } }
   function gset(k, v) { try { return Promise.resolve(GM_setValue(k, v)); } catch (e) { return Promise.resolve(); } }
   function gdel(k) { try { return Promise.resolve(GM_deleteValue(k)); } catch (e) { return Promise.resolve(); } }
@@ -672,14 +672,24 @@ HELPER_JS = r"""// ==UserScript==
           paste_text: function (n, t) { realClick(n); caretTo(n); pasteInto(n, { text: t }); },
           paste_inputtype: function (n, t) { realClick(n); caretTo(n); inputType(host(n), 'insertFromPaste', null, { text: t }); },
           keys: function (n, t) { realClick(n); caretTo(n); var h = host(n); String(t).slice(0, 120).split('').forEach(function (ch) { var k = { key: ch, bubbles: true }; if (fire(h, 'keydown', KeyboardEvent, k) === false) { fire(h, 'keyup', KeyboardEvent, k); return; } fire(h, 'keypress', KeyboardEvent, k); if (!inputType(h, 'insertText', ch)) { try { document.execCommand('insertText', false, ch); } catch (e) {} } fire(h, 'keyup', KeyboardEvent, k); }); },
-          drop_text: function (n, t) { realClick(n); dropOn(host(n), { text: t }); }
+          drop_text: function (n, t) { realClick(n); dropOn(host(n), { text: t }); },
+          exec_paste: function (n, t) { realClick(n); caretTo(n); try { GM_setClipboard(t, 'text'); } catch (e) {} try { document.execCommand('paste'); } catch (e) {} },   /* 확장 프로그램 권한으로 '붙여넣기' 명령 */
+          dom_direct: function (n, t) {   /* 마지막 수단: 화면의 글자를 직접 바꾸고 '입력됨' 신호를 보내요(편집기가 인식하면 저장됨) */
+            realClick(n); var sp = n.querySelector('span:not(.se-placeholder)') || n.querySelector('span');
+            if (!sp) { sp = document.createElement('span'); n.appendChild(sp); }
+            try { sp.classList.remove('se-placeholder'); sp.classList.remove('__se_placeholder'); } catch (e) {}
+            var ph = n.querySelector('.se-placeholder'); if (ph && ph !== sp) { try { ph.parentNode.removeChild(ph); } catch (e) {} }
+            sp.textContent = t; caretTo(n);
+            try { n.dispatchEvent(new InputEvent('input', { inputType: 'insertText', data: t, bubbles: true, composed: true })); } catch (e) {}
+          }
         };
         var HTM = {   /* 서식 있는 본문 넣는 방법들 */
           pointer_insertHTML: function (n, h) { realClick(n); caretTo(n); try { document.execCommand('insertHTML', false, h); } catch (e) {} },
           paste_html: function (n, h, t) { realClick(n); caretTo(n); pasteInto(n, { html: h, text: t }); },
           paste_inputtype: function (n, h, t) { realClick(n); caretTo(n); inputType(host(n), 'insertFromPaste', null, { html: h, text: t }); },
           drop_html: function (n, h, t) { realClick(n); dropOn(host(n), { html: h, text: t }); },
-          pointer_exec: function (n, h, t) { realClick(n); caretTo(n); try { document.execCommand('insertText', false, t); } catch (e) {} }
+          pointer_exec: function (n, h, t) { realClick(n); caretTo(n); try { document.execCommand('insertText', false, t); } catch (e) {} },
+          exec_paste: function (n, h, t) { realClick(n); caretTo(n); clipHtml(h, t); try { document.execCommand('paste'); } catch (e) {} }
         };
         var IMG = {   /* 이미지 넣는 방법들 */
           drop_file: function (n, f) { realClick(n); dropOn(host(n), { file: f }); },
@@ -705,6 +715,7 @@ HELPER_JS = r"""// ==UserScript==
             var before = args.base ? args.base() : null;
             try { defs[keys[i]].apply(null, args.get()); } catch (e) {}
             var ok = !!(await waitFn(function () { return verify(before) ? true : null; }, waitMs));
+            if (ok && keys[i] === 'dom_direct') { await sleep(1800); ok = !!verify(before); if (ok) { REP.push(label + ':dom_direct(화면에만 들어갔을 수 있음)'); } }
             REP.push(label + ':' + keys[i] + (ok ? '✓' : '✗'));
             if (ok) { gset('st_' + label, keys[i]); if (settleMs) await sleep(settleMs); return true; }
           }
@@ -1112,7 +1123,7 @@ def helper_page():
         '<b>🔧 설치했는데 자동으로 안 될 때 (순서대로 확인)</b><br>'
         '① 위 ‘설치 여부’가 ✅ 로 나오는지 — 안 나오면 이 화면을 새로고침(Ctrl+F5)<br>'
         '② Tampermonkey [세부정보]에서 <b>사용자 스크립트 허용 ON</b>, <b>사이트 액세스 = 모든 사이트에서</b><br>'
-        '③ Tampermonkey 대시보드에서 ‘종목분석 미니 · AI 도우미’가 <b>켜짐</b>(파란 스위치)인지, 버전이 <b>1.5.3</b>인지 — 아니면 아래 [도우미 설치]를 다시 눌러 ‘업데이트/재설치’<br>'
+        '③ Tampermonkey 대시보드에서 ‘종목분석 미니 · AI 도우미’가 <b>켜짐</b>(파란 스위치)인지, 버전이 <b>1.5.4</b>인지 — 아니면 아래 [도우미 설치]를 다시 눌러 ‘업데이트/재설치’<br>'
         '④ AI 사이트(제미나이 등)에 <b>로그인</b>된 상태인지, 이미 열려 있던 AI 탭은 새로고침<br>'
         '⑤ 그래도 안 되면: [AI 열기] 때 프롬프트는 이미 복사돼 있으니 AI 입력칸에 Ctrl+V → 전송 → 답변 복사 후 이 창으로 돌아오면 기존 방식으로 가져와요.</div>'
         '<p><a class="mu-btn" href="/assets/mini-ai-helper.user.js" style="display:inline-block;padding:10px 18px;border-radius:12px;background:#2457d6;color:#fff;font-weight:700;text-decoration:none">⬇ 도우미 설치</a></p>'
@@ -1123,7 +1134,7 @@ def helper_page():
         '</div></div>'
     )
     script = ("function ahChk(last){var s=document.documentElement.getAttribute('data-mini-helper');var e=document.getElementById('ahState');"
-              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5||(old[1]===5&&(old[2]||0)<3));e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.3)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
+              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5||(old[1]===5&&(old[2]||0)<4));e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.4)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
               "ahChk(false);setTimeout(function(){ahChk(false)},300);setTimeout(function(){ahChk(true)},1200);")
     resp = C.app.make_response(page("AI 도우미", body, icon="🤖", subtitle="AI 입력·전송·답변 복사를 자동으로 해 주는 선택 도구", script=script))
     resp.headers["Cache-Control"] = "no-cache"
