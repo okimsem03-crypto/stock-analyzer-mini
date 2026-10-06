@@ -1734,8 +1734,13 @@ var NR={cat:'main',items:[],lat:null,ov:null,sel:-1,q:'',f:'all',th:'',res:{},mi
 var NRFLOW=['ai','img','blog','post'];
 var NRACTS={
  ai:function(next){var rs=NR.res[NR.ws],x=NR.sel>=0?NR.items[NR.sel]:null;if(rs){next();return}if(MiniFlow.forced('news')&&x)nrStartNews(x)},
- img:function(next){if(!NR.imgP)return;var rs=NR.res[NR.ws];if(rs&&rs.img){next();return}var e=$('nrImgR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});NR.imgP.gen(true).then(function(){if(NR.imgP&&NR.imgP.items&&NR.imgP.items())next()},function(){})},
- blog:function(next){if(MEMBER_MODE||!NR.blogP)return;var rs=NR.res[NR.ws];if(rs&&rs.blog&&NR.blogP.built()){next();return}var e=$('nrBlogR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});NR.blogP.rebuild().then(function(j){if(j&&!j.error)next()})},
+ img:function(next){var rs=NR.res[NR.ws];if(rs&&rs.img){next();return}
+  /* 분석 직후에는 이미지 화면이 아직 안 만들어졌을 수 있어요(30ms 뒤 생성) → 만들어질 때까지 기다리거나 직접 만들고, 끝나면 이어가요 */
+  function go(n){if(NR.res[NR.ws]!==rs)return;var P=NR.imgP||(NR.mountImg&&NR.mountImg());if(!P){if(n<24)setTimeout(function(){go(n+1)},250);return}
+   var e=$('nrImgR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});
+   P.gen(true).then(function(){var done=function(){var it=P.items&&P.items();return !!(it&&it.length)};if(done()){next();return}
+    var t=0,iv=setInterval(function(){t++;if(NR.res[NR.ws]!==rs){clearInterval(iv);return}if(done()){clearInterval(iv);next()}else if(t>40)clearInterval(iv)},500)},function(){})}
+  go(0)}, blog:function(next){if(MEMBER_MODE||!NR.blogP)return;var rs=NR.res[NR.ws];if(rs&&rs.blog&&NR.blogP.built()){next();return}var e=$('nrBlogR');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'nearest'});NR.blogP.rebuild().then(function(j){if(j&&!j.error)next()})},
  post:function(next){if(nrPostGo(true))next()}};
 function nrPostGo(auto){var P=NR.blogP;if(MEMBER_MODE||!P)return false;var rs=NR.res[NR.ws];if(P.built()){var b=$('nrBlogR');if(b&&b.scrollIntoView)b.scrollIntoView({behavior:'smooth',block:'nearest'});P.copyOpen(auto);return true}
  if(!(rs&&rs.blog)){if(!auto)toast('먼저 ④ 글 만들기를 해 주세요');return false}
@@ -1888,7 +1893,7 @@ function nrResult(R,rs){var j=rs.j,ctx=rs.ctx;var c=el('div','nwS nrRes');var h=
  var ab=el('div','bar');ab.appendChild(bt('분석문 복사','bt2',function(){copyTxt(j.ai_text)}));
  ab.appendChild(adm(bt('💾 보관함에 저장 (관리자)','bt',function(){apiJ('/admin/api/news/save',{title:j.title_ko||ctx.title||'',source:ctx.source||'',excerpt:ctx.excerpt||'',ai_text:j.ai_text,stocks:j.stocks,kind:'stock'}).then(function(z){if(z.error){toast(z.error);return}toast('보관함에 저장했어요')})})));
  var bi=el('button','bt3','🖼 이미지 만들기');if(MEMBER_MODE)ab.appendChild(bi);c.appendChild(ab);var ib=el('div','nrImg');ib.id='nrImgR';c.appendChild(ib);nrBlogMount(c,rs,j,ctx);R.appendChild(c);
- NR.imgP=null;function mount(){if(!ftOk('overview')){lockDlg('overview');return}if(!window.ImgKit||!window.NwImg){ib.textContent='이미지 도우미를 불러오지 못했어요. 새로고침해 주세요.';return}
+ NR.imgP=null;NR.mountImg=function(){if(!NR.imgP&&$('nrImgR')===ib)mount();return NR.imgP};function mount(){if(!ftOk('overview')){lockDlg('overview');return}if(!window.ImgKit||!window.NwImg){ib.textContent='이미지 도우미를 불러오지 못했어요. 새로고침해 주세요.';return}
   var nm=(ctx.title||'뉴스').replace(/\s+/g,' ').slice(0,18),id=ctx.kind==='ov'?window.ImgKit.dateDir():(String(ctx.url||'').replace(/\D/g,'').slice(-8)||window.ImgKit.dateDir());
   NR.imgP=nrImgMount(ib,{name:ctx.kind==='ov'?'뉴스총평':nm,ticker:id,perStock:ctx.kind!=='ov',onDone:function(){rs.img=true;nrSteps()},gen:function(scale){var tks=(j.stocks||[]).map(function(s){return s.ticker});
    return nrFetchMinis(tks).then(function(){return window.NwImg.res({title:j.title_ko||ctx.title,source:ctx.source,kind:ctx.kind,label:ctx.label,summary:sm,lines:nrLines(j.ai_text,7),stocks:j.stocks||[],minis:NR.minis,cls:ctx.cls||null},scale)})}})}
