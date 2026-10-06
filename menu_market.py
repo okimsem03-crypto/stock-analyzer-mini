@@ -1137,11 +1137,11 @@ def api_diag():
 TAB_JS = r"""
 var MK={sec:'sum',css:false,view:'market',per:'5',days:'20',sum:null,hist:null,det:null,ex:null,ai:{text:'',date:'',old:null},flag:{img:false,blog:false,posted:false},_chain:0,imgPanel:null,blogPanel:null,
  st:{actor:'foreign',per:'5',side:'buy',market:'all',data:null},ln:{mk:'ALL',on:{}},diag:null,job:null,jtm:0,jwas:false,lim:'0',skip:true,memGo:null};
-var MK_SECS=[['sum','① 📊 오늘의 수급','sum'],['flow','② 📈 일별 흐름','flow'],['detail','③ 🧩 주체별 상세','detail'],['stocks','④ 🔝 종목 상위','stocks'],['extra','⑤ 🔥 테마·지수','extra'],['ai','⑥ 🤖 AI 해설','ai'],['img','⑦ 🖼 수급 이미지','img'],['blog','⑧ 📝 블로그 쓰기','blog'],['guide','📘 읽는 법','guide']];
+var MK_SECS=[['sum','📊 오늘의 수급','sum'],['flow','📈 일별 흐름','flow'],['detail','🧩 주체별 상세','detail'],['stocks','🔝 종목 상위','stocks'],['extra','🔥 테마·지수','extra'],['ai','🤖 AI 해설','ai'],['img','🖼 수급 이미지','img'],['blog','📝 블로그 쓰기','blog'],['guide','📘 읽는 법','guide']];
 var MK_COL={retail:'#f59e0b',foreign:'#3b82f6',inst:'#10b981',securities:'#8b5cf6',insurance:'#ec4899',trust:'#14b8a6',private_fund:'#f97316',bank:'#64748b',other_fin:'#a16207',pension:'#0ea5e9',other:'#84cc16',gov:'#78716c',foreign_other:'#6366f1'};
 var MK_NM={KOSPI:'코스피',KOSDAQ:'코스닥',ALL:'코스피+코스닥'};
 var MK_CSS='.mkHd{padding:14px 16px}.mkHd h2{margin:0 0 4px;font-size:18px}'+
-'.mkNav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 8px}.mkNav button{border:1.5px solid #cbd5e1;background:#fff;color:#334155;border-radius:999px;padding:7px 13px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}.mkNav button.mkOn{background:#1e40af;border-color:#1e40af;color:#fff}'+
+'.mkNav{display:flex;gap:2px;flex-wrap:wrap;margin:10px 0 8px;border-bottom:1.5px solid #e2e8f0}.mkNav button{border:0;border-bottom:3px solid transparent;margin-bottom:-1.5px;background:transparent;color:#64748b;border-radius:0;padding:8px 11px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}.mkNav button:hover{color:#1e293b}.mkNav button.mkOn{border-bottom-color:#1e40af;color:#1e40af}'+
 '.mkStp{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}.mkStp button{flex:1 1 170px;display:flex;align-items:center;gap:10px;text-align:left;border:1.5px solid #bfdbfe;background:#fff;color:#1e3a8a;border-radius:14px;padding:9px 12px;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;line-height:1.35}'+
 '.mkStp button small{display:block;font-weight:600;font-size:11.5px;color:#64748b}.mkStp .n{width:26px;height:26px;border-radius:50%;background:#bfdbfe;color:#1e3a8a;display:flex;align-items:center;justify-content:center;font-weight:900;flex:0 0 auto}'+
 '.mkStp .done{border-color:#86efac;background:#f0fdf4}.mkStp .done .n{background:#16a34a;color:#fff}.mkStp .cur{border-color:#1e40af;box-shadow:0 0 0 3px rgba(30,64,175,.18)}'+
@@ -1175,11 +1175,10 @@ function mkDate(){var d=new Date(),z=function(n){return ('0'+n).slice(-2)};retur
 /* ── 화면 뼈대 ── */
 function mkLoad(p){mkCss();p.innerHTML='';
  var hd=el('div','c mkHd');hd.appendChild(el('h2',null,'📊 시장수급 — 오늘의 코스피·코스닥 수급'));
- hd.appendChild(el('div','m',(MEMBER_MODE?'① 오늘의 수급 → ② 일별 흐름 → ③ 주체별 상세 → ④ 종목 상위. ':'① 수급 가져오기 → ② AI 해설 → ③ 수급 이미지 → ④ 블로그 쓰기. ')+'개인·외국인·기관(자료가 있으면 금융투자·투신·연기금 같은 세부 주체까지)이 코스피·코스닥을 얼마나 사고팔았는지 보여 줘요. 정보 제공용이며 투자 권유가 아니에요.'));
+ hd.appendChild(el('div','m','개인·외국인·기관이 코스피·코스닥을 얼마나 사고팔았는지 보여 줘요. 정보 제공용이며 투자 권유가 아니에요.'));
  var sb=el('div');sb.id='mkSum';hd.appendChild(sb);p.appendChild(hd);
- var sp=el('div','mkStp');sp.id='mkSteps';p.appendChild(sp);var nv=el('div','mkNav');nv.id='mkNav';p.appendChild(nv);var bd=el('div');bd.id='mkBody';p.appendChild(bd);
+ var ad=el('div','c');ad.id='mkAdm';p.appendChild(adm(ad));var sp=el('div','mkStp');sp.id='mkSteps';p.appendChild(sp);var nv=el('div','mkNav');nv.id='mkNav';p.appendChild(nv);var bd=el('div');bd.id='mkBody';p.appendChild(bd);
  p.appendChild(el('p','note','※ 시장 전체 수급은 네이버가 주는 개인·외국인·기관 순매수(억원)이고 하루치씩 쌓아 이력을 만들어요. “수집 종목 합산”은 시가총액 상위 일부 종목의 ‘순매수 수량×종가’ 합이라 시장 전체와 차이가 있어요. 수급은 결과일 뿐 이후 주가를 보장하지 않아요. 투자 판단과 책임은 이용자 본인에게 있어요.'));
- var ad=el('div','c');ad.id='mkAdm';p.appendChild(adm(ad));
  if(MEMBER_MODE&&MK.sec==='blog')MK.sec='sum';mkNavDraw();mkShow();mkSteps();if(!MEMBER_MODE){mkAdmLoad();mkAiLoad();mkJobPoll(false)}}
 function mkNavDraw(){var n=$('mkNav');if(!n)return;n.innerHTML='';MK_SECS.forEach(function(s){if(MEMBER_MODE&&s[0]==='blog')return;var b=el('button',MK.sec===s[0]?'mkOn':'',(ftOk(s[2])?'':'🔒 ')+s[1]);b.type='button';b.onclick=function(){mkGo(s[0])};n.appendChild(b)})}
 var MKFLOW=['ai','img','blog','post'];
@@ -1395,35 +1394,47 @@ function mkSecGuide(box){var g=el('div','mkGd');function H(t){g.appendChild(el('
 
 /* ── 관리자 전용: 가져오기·붙여넣기·점검 ── */
 function mkAdmLoad(){var b=$('mkAdm');if(!b)return;api('/admin/api/market/diag').then(function(j){MK.diag=j;mkAdmDraw()})}
-function mkAdmDraw(){var b=$('mkAdm');if(!b)return;b.innerHTML='';b.appendChild(el('b',null,'🛠 시장수급 가져오기·점검 (관리자만 보여요)'));var j=MK.diag;if(!j||j.error){b.appendChild(el('p','note bad','점검 정보를 읽지 못했어요.'));return}
- b.appendChild(el('p','note','① [📥 시장 수급 가져오기] — 네이버에서 코스피·코스닥 개인·외국인·기관 순매수를 받아 날짜별로 쌓아요(하루 한 번이면 충분해요). ② [📥 종목 수급 가져오기] — 시가총액 상위 종목의 20거래일 수급을 받아 종목 순위와 “수집 종목 합산” 흐름을 만들어요. ③ 세부 주체는 아래 붙여넣기로 추가해요.'));
- var S={days:'20'};var r=el('div','bar');mkSel(r,'가져올 기간',S,'days',[['20','최근 20일(가능한 만큼)'],['40','최근 40일'],['60','최근 60일']]);
- var b1=bt('📥 시장 수급 가져오기','bt',function(){b1.disabled=true;b1.textContent='⏳ 가져오는 중…(10~40초)';apiJ('/admin/api/market/fetch',{days:Number(S.days)}).then(function(z){b1.disabled=false;b1.textContent='📥 시장 수급 가져오기';
+function mkFetchMk(then){var b0=$('mkColB0'),b2=$('mkFetchMkB');if(!MK.pd)MK.pd='20';
+ [b0,b2].forEach(function(x){if(x)x.disabled=true});if(b0)b0.textContent='⏳ 시장 수급 가져오는 중…(10~40초)';
+ function back(){if(b0){b0.textContent='📥 오늘 수급 가져오기';b0.disabled=!!(MK.job&&MK.job.running)}if(b2)b2.disabled=false}
+ apiJ('/admin/api/market/fetch',{days:Number(MK.pd)}).then(function(z){back();
   var info=$('mkFetchInfo');if(info){info.innerHTML='';if(z.res)['KOSPI','KOSDAQ'].forEach(function(k){var x=z.res[k];if(!x)return;info.appendChild(el('p','note'+(x.ok?'':' bad'),MK_NM[k]+': '+(x.ok?('최신 '+x.latest+' · 이번에 '+x.added+'일 추가 · 쌓인 날짜 '+x.total+'일 · 주체 '+x.actors.join(', ')):x.error)))});if(z.error)info.appendChild(el('p','note bad',z.error))}
-  if(z.ok){toast('시장 수급을 가져왔어요');MK.sum=null;MK.hist=null;MK.det=null;MK.flag.img=false;MK.flag.blog=false;MK.flag.posted=false;MK.ai.old=MK.ai.old;mkAdmLoad();api('/admin/api/market/summary?'+mkQ(mkQ0())).then(function(s){if(!s.error&&!s.empty){MK.sum=s;if(s.views&&s.views.indexOf(MK.view)<0)MK.view=s.views[0]}mkStatus();mkSteps();mkShow();if(window.MiniFlow)setTimeout(function(){MiniFlow.run('market',MKFLOW,MKACTS)},80)})}else toast(z.error||'가져오지 못했어요')}).catch(function(){b1.disabled=false;b1.textContent='📥 시장 수급 가져오기';toast('네트워크 오류')})});r.appendChild(b1);b.appendChild(r);
- var fi=el('div');fi.id='mkFetchInfo';b.appendChild(fi);
- if(j.last&&j.last.at)b.appendChild(el('p','note','마지막 가져오기: '+j.last.at));
- /* 종목 수급 가져오기(예전 수급분석 화면에 있던 상자를 옮겨 왔어요) */
- var cb=el('div','mkCard');cb.appendChild(el('b',null,'📥 종목 수급 가져오기 (기본: 전종목 + 테마 종목 · 최근 거래일)'));var cr=el('div','bar');mkSel(cr,'가져올 종목',MK,'lim',[['0','전종목(코스피+코스닥)'],['2000','시총 상위 2000'],['1000','시총 상위 1000'],['500','시총 상위 500'],['300','시총 상위 300'],['200','시총 상위 200'],['100','시총 상위 100']]);
+  if(z.ok){toast('시장 수급을 가져왔어요');MK.sum=null;MK.hist=null;MK.det=null;MK.flag.img=false;MK.flag.blog=false;MK.flag.posted=false;mkAdmLoad();api('/admin/api/market/summary?'+mkQ(mkQ0())).then(function(s){if(!s.error&&!s.empty){MK.sum=s;if(s.views&&s.views.indexOf(MK.view)<0)MK.view=s.views[0]}mkStatus();mkSteps();mkShow();
+    if(then){then();return}if(window.MiniFlow)setTimeout(function(){MiniFlow.run('market',MKFLOW,MKACTS)},80)})}
+  else{MK.chain=false;toast(z.error||'가져오지 못했어요')}}).catch(function(){back();MK.chain=false;toast('네트워크 오류')})}
+function mkStartInv(chain){if(MK.job&&MK.job.running){toast('이미 가져오기가 실행 중이에요.');return}
+ apiJ('/admin/api/collect/investor/start',{limit:Number(MK.lim),skip_today:!!MK.skip,with_theme:true}).then(function(z){if(z.error){toast(z.error);MK.chain=false;return}toast('종목 수급 가져오기를 시작했어요');MK.chain=!!chain;MK.jwas=true;mkJobPoll(true)})}
+function mkAdmDraw(){var b=$('mkAdm');if(!b)return;var j=MK.diag;if(!MK.pd)MK.pd='20';
+ var C=window.CBar.make(b,{title:'📥 자료 가져오기',btn:{label:'📥 오늘 수급 가져오기',id:'mkColB0',fn:function(){if(MK.job&&MK.job.running){toast('이미 가져오기가 실행 중이에요.');return}MK.chain=true;mkFetchMk(function(){mkStartInv(true)})}},
+  stopId:'mkColB3',stopFn:function(){MK.chain=false;apiJ('/admin/api/collect/stop',{}).then(function(z){if(z.error){toast(z.error);return}toast('멈추는 중이에요…');mkJobPoll(true)})},stId:'mkColSt',pgId:'mkColPg'});
+ if(!j||j.error){C.st.textContent='점검 정보를 읽지 못했어요.';return}
+ var cnt=j.counts||{},ix=cnt.index&&(cnt.index.KOSPI||cnt.index.KOSDAQ);
+ C.st.textContent=(j.last&&j.last.at)?('✅ 마지막 '+j.last.at+' · 시장 '+(ix?ix.rows:0)+'행 · 종목 '+(j.stocks==null?0:j.stocks)+'개(기준일 '+(j.stock_base||'-')+')'):'⚠ 아직 가져온 자료가 없어요 — 왼쪽 버튼을 한 번 눌러 주세요(시장 → 종목 순서로 이어서 받아요, 몇 분 걸려요).';
+ var d=C.inn;
+ /* 따로 받기 */
+ d.appendChild(el('p','note','버튼을 따로 누르고 싶을 때만 쓰세요. 시장 수급은 하루 한 번이면 충분해요.'));
+ var r=el('div','bar');mkSel(r,'가져올 기간',MK,'pd',[['20','최근 20일(가능한 만큼)'],['40','최근 40일'],['60','최근 60일']]);
+ var b1=bt('📥 시장 수급만','bt3',function(){MK.chain=false;mkFetchMk()});b1.id='mkFetchMkB';r.appendChild(b1);d.appendChild(r);
+ var fi=el('div');fi.id='mkFetchInfo';d.appendChild(fi);
+ var cr=el('div','bar');mkSel(cr,'가져올 종목',MK,'lim',[['0','전종목(코스피+코스닥)'],['2000','시총 상위 2000'],['1000','시총 상위 1000'],['500','시총 상위 500'],['300','시총 상위 300'],['200','시총 상위 200'],['100','시총 상위 100']]);
  var lb=el('label');lb.style.fontSize='12.5px';var ck=el('input');ck.type='checkbox';ck.checked=!!MK.skip;ck.onchange=function(){MK.skip=ck.checked};lb.appendChild(ck);lb.appendChild(document.createTextNode(' 오늘 이미 가져온 종목은 건너뛰기(이어서 하기)'));cr.appendChild(lb);
- var c1=bt('📥 종목 수급 가져오기','bt',function(){if(MK.job&&MK.job.running){toast('이미 가져오기가 실행 중이에요.');return}apiJ('/admin/api/collect/investor/start',{limit:Number(MK.lim),skip_today:!!MK.skip,with_theme:true}).then(function(z){if(z.error){toast(z.error);return}toast('가져오기를 시작했어요');MK.jwas=true;mkJobPoll(true)})});c1.id='mkColB1';cr.appendChild(c1);
- var c3=bt('⏹ 멈춤','bt3',function(){apiJ('/admin/api/collect/stop',{}).then(function(z){if(z.error){toast(z.error);return}toast('멈추는 중이에요…');mkJobPoll(true)})});c3.id='mkColB3';cr.appendChild(c3);cb.appendChild(cr);var pg=el('div');pg.id='mkColPg';cb.appendChild(pg);var li=el('div');li.id='mkColLast';cb.appendChild(li);b.appendChild(cb);
- mkJobDraw();
- /* 세부 주체 붙여넣기 */
- var pc=el('div','mkCard');pc.appendChild(el('b',null,'📋 세부 주체 붙여넣기 (금융투자·보험·투신·사모·은행·연기금·기타금융·기타법인·국가 …)'));
+ var c1=bt('📥 종목 수급만','bt3',function(){MK.chain=false;mkStartInv(false)});c1.id='mkColB1';cr.appendChild(c1);d.appendChild(cr);
+ var li=el('div');li.id='mkColLast';d.appendChild(li);mkJobDraw();
+ /* 세부 주체 붙여넣기(접힘) */
+ var pd=document.createElement('details');var ps=document.createElement('summary');ps.textContent='📋 세부 주체(금융투자·보험·투신·연기금 …) 직접 붙여넣기';pd.appendChild(ps);var pc=el('div','mkCard');
  pc.appendChild(el('p','note','KRX 정보데이터시스템(data.krx.co.kr) → 통계 → 투자자별 매매동향(거래실적)에서 표를 복사해 붙여 넣으세요. 두 모양을 읽어요: ① 세로형(투자자구분 | 매도 | 매수 | 순매수, 하루치 — 아래 날짜 칸 사용) ② 가로형(날짜 | 개인 | 외국인 | 금융투자 | … , 날짜마다 한 줄). 같은 날짜·주체는 덮어써요.'));
  var P={market:'KOSPI',unit:'won',date:mkDate()};var pr=el('div','bar');mkSel(pr,'시장',P,'market',[['KOSPI','코스피'],['KOSDAQ','코스닥']]);mkSel(pr,'금액 단위',P,'unit',[['won','원(KRX 기본)'],['mil','백만원'],['eok','억원']]);
  var dl=el('label','mkL');dl.appendChild(el('span',null,'날짜(세로형일 때)'));var di=el('input');di.type='date';di.value=P.date;di.onchange=function(){P.date=di.value};dl.appendChild(di);pr.appendChild(dl);pc.appendChild(pr);
  var ta=el('textarea','mkTa');ta.id='mkPasteTa';ta.placeholder='여기에 표를 붙여 넣으세요 (Ctrl+V)';pc.appendChild(ta);var pb=el('div','bar');var pi=el('div');
  pb.appendChild(bt('💾 붙여넣은 표 저장','bt',function(){apiJ('/admin/api/market/paste',{market:P.market,unit:P.unit,date:P.date,text:ta.value}).then(function(z){pi.innerHTML='';if(z.error){pi.appendChild(el('p','note bad','⚠ '+z.error+((z.unknown&&z.unknown.length)?' (읽지 못한 이름: '+z.unknown.join(', ')+')':'')));return}
-  pi.appendChild(el('p','note',MK_NM[z.market]+' '+z.days+'일 저장 · 주체 '+z.actors.join(', ')+(z.unknown&&z.unknown.length?' · 읽지 못한 이름 '+z.unknown.join(', '):'')));toast('세부 주체를 저장했어요');ta.value='';MK.sum=null;MK.hist=null;MK.det=null;mkAdmLoad();mkShow()})}));pc.appendChild(pb);pc.appendChild(pi);b.appendChild(pc);
- /* 점검 */
- var c=j.counts||{},SN={index:'시장 전체(네이버)',univ:'수집 종목 합산',paste:'붙여넣은 세부 주체'},lines=[];Object.keys(SN).forEach(function(s){var d=c[s];if(!d){lines.push(SN[s]+': 없음');return}lines.push(SN[s]+': '+Object.keys(d).map(function(m){return MK_NM[m]+' '+d[m].from+'~'+d[m].to+'('+d[m].rows+'행)'}).join(' · '))});
- b.appendChild(el('p','note',lines.join('  |  ')));b.appendChild(el('p','note','종목 수급 '+(j.stocks==null?'-':j.stocks)+'종목(기준일 '+(j.stock_base||'-')+') · 네이버 테마 '+(j.themes==null?'-':j.themes)+'개 · 저장된 AI 해설 '+(j.ai_date||'없음')));
- var dr=el('div','bar');Object.keys(SN).forEach(function(s){if(!c[s])return;dr.appendChild(bt('🗑 '+SN[s]+' 지우기','bt3',function(){if(!confirm(SN[s]+' 자료를 모두 지울까요?'))return;apiJ('/admin/api/market/delete',{src:s}).then(function(z){if(z.error){toast(z.error);return}toast('지웠어요');MK.sum=null;MK.hist=null;MK.det=null;mkAdmLoad();mkShow()})}))});b.appendChild(dr)}
+  pi.appendChild(el('p','note',MK_NM[z.market]+' '+z.days+'일 저장 · 주체 '+z.actors.join(', ')+(z.unknown&&z.unknown.length?' · 읽지 못한 이름 '+z.unknown.join(', '):'')));toast('세부 주체를 저장했어요');ta.value='';MK.sum=null;MK.hist=null;MK.det=null;mkAdmLoad();mkShow()})}));pc.appendChild(pb);pc.appendChild(pi);pd.appendChild(pc);d.appendChild(pd);
+ /* 점검·지우기 */
+ var c=cnt,SN={index:'시장 전체(네이버)',univ:'수집 종목 합산',paste:'붙여넣은 세부 주체'},lines=[];Object.keys(SN).forEach(function(s){var q=c[s];if(!q){lines.push(SN[s]+': 없음');return}lines.push(SN[s]+': '+Object.keys(q).map(function(m){return MK_NM[m]+' '+q[m].from+'~'+q[m].to+'('+q[m].rows+'행)'}).join(' · '))});
+ d.appendChild(el('p','note',lines.join('  |  ')));d.appendChild(el('p','note','종목 수급 '+(j.stocks==null?'-':j.stocks)+'종목(기준일 '+(j.stock_base||'-')+') · 네이버 테마 '+(j.themes==null?'-':j.themes)+'개 · 저장된 AI 해설 '+(j.ai_date||'없음')));
+ var dr=el('div','bar');Object.keys(SN).forEach(function(s){if(!c[s])return;dr.appendChild(bt('🗑 '+SN[s]+' 지우기','bt3',function(){if(!confirm(SN[s]+' 자료를 모두 지울까요?'))return;apiJ('/admin/api/market/delete',{src:s}).then(function(z){if(z.error){toast(z.error);return}toast('지웠어요');MK.sum=null;MK.hist=null;MK.det=null;mkAdmLoad();mkShow()})}))});d.appendChild(dr)}
 function mkJobPoll(keep){api('/admin/api/collect/status').then(function(j){if(j.error||!$('mkColPg'))return;MK.job=(j.job||{});MK.jall=j;mkJobDraw();var run=!!(MK.job&&MK.job.running);
-  if(run){MK.jwas=true;if(MK.jtm)clearTimeout(MK.jtm);MK.jtm=setTimeout(function(){mkJobPoll(true)},1500)}else if(MK.jwas){MK.jwas=false;MK.st.data=null;MK.sum=null;MK.hist=null;MK.det=null;mkAdmLoad();mkShow()}})}
-function mkJobDraw(){var pg=$('mkColPg'),ls=$('mkColLast');var jb=MK.job||{},j=MK.jall||{},LI=j.last_inv||{},T=j.tables||{};['mkColB1'].forEach(function(id){var x=$(id);if(x)x.disabled=!!jb.running});var st=$('mkColB3');if(st)st.disabled=!jb.running;
+  if(run){MK.jwas=true;if(MK.jtm)clearTimeout(MK.jtm);MK.jtm=setTimeout(function(){mkJobPoll(true)},1500)}else if(MK.jwas){MK.jwas=false;var chn=MK.chain,okE=!(MK.job&&MK.job.error);MK.chain=false;MK.st.data=null;MK.sum=null;MK.hist=null;MK.det=null;mkAdmLoad();mkShow();if(chn&&okE&&window.MiniFlow)mkEnsure().then(function(){mkSteps();setTimeout(function(){MiniFlow.run('market',MKFLOW,MKACTS)},80)}).catch(function(){})}})}
+function mkJobDraw(){var pg=$('mkColPg'),ls=$('mkColLast');var jb=MK.job||{},j=MK.jall||{},LI=j.last_inv||{},T=j.tables||{};['mkColB0','mkColB1','mkFetchMkB'].forEach(function(id){var x=$(id);if(x)x.disabled=!!jb.running});var st=$('mkColB3');if(st)st.disabled=!jb.running;
  if(pg){pg.innerHTML='';if((jb.running||jb.phase==='end')&&jb.kind!=='theme'){var pct=jb.total?Math.min(100,Math.round(jb.done*100/jb.total)):0;pg.appendChild(el('div','m',(jb.running?'⏳ ':'')+'수급 가져오기 — '+(jb.msg||'')+(jb.total?' ('+jb.done+'/'+jb.total+', '+pct+'%)':'')+(jb.cur?' · '+jb.cur:'')+(jb.fail?' · 실패 '+jb.fail:'')+' · '+jb.elapsed+'초'));
    var w=el('div','mkPg'),f=document.createElement('div');f.style.width=(jb.running?Math.max(3,pct):(jb.error?0:100))+'%';if(jb.error)f.style.background='#f87171';w.appendChild(f);pg.appendChild(w);if(jb.error)pg.appendChild(el('p','note bad','⚠ '+jb.error))}}
  if(ls){ls.innerHTML='';ls.appendChild(el('p','note',LI.at?('마지막: '+LI.at+' · '+LI.ok+'종목 · 기준일 '+(LI.base_date||'-')+(LI.skip?' · 건너뜀 '+LI.skip:'')+(LI.fail?' · 실패 '+LI.fail:'')):'종목 수급: 아직 가져온 적 없어요'));ls.appendChild(el('p','note','표 현황 — 수급 '+(T.investor_scan_cache==null?'-':T.investor_scan_cache)+'행 · 시세 '+(T.stock_price_cache==null?'-':T.stock_price_cache)+'행'))}}

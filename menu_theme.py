@@ -684,10 +684,10 @@ def api_delete():
 # 화면
 # ══════════════════════════════════════════════════════════════
 TAB_JS = r"""var TH={sec:'board',css:false,per:'5',bd:{q:'',sort:'rate',side:'all',no:0,det:null,sk:'',sd:-1,open:{}},q:'',sort:'rate',side:'all',top:'60',ls:null,no:0,det:null,fl:{per:'5',side:'buy'},flD:null,tr:{side:'up',days:'10'},trD:null,ai:{text:'',date:'',old:null},flag:{img:false,blog:false,posted:false},imgPanel:null,blogPanel:null,diag:null,job:null,jtm:0,jwas:false,memGo:null,chain:false,cl:{lim:'0',skip:true}};
-var TH_SECS=[['board','① 🏷 테마·종목·수급','list'],['list','② 테마 순위표','list'],['flow','③ 💰 테마별 수급','flow'],['trend','④ 📈 일별 추이','trend'],['ai','⑤ 🤖 AI 해설','ai'],['img','⑥ 🖼 테마 이미지','img'],['blog','⑦ 📝 블로그 쓰기','blog'],['guide','📘 읽는 법','guide']];
+var TH_SECS=[['board','🏷 테마·종목·수급','list'],['list','테마 순위표','list'],['flow','💰 테마별 수급','flow'],['trend','📈 일별 추이','trend'],['ai','🤖 AI 해설','ai'],['img','🖼 테마 이미지','img'],['blog','📝 블로그 쓰기','blog'],['guide','📘 읽는 법','guide']];
 var TH_COL=['#e11d48','#f59e0b','#10b981','#3b82f6','#8b5cf6','#14b8a6','#f97316','#64748b','#ec4899','#84cc16'];
 var TH_CSS='.thHd{padding:14px 16px}.thHd h2{margin:0 0 4px;font-size:18px}'+
-'.thNav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 8px}.thNav button{border:1.5px solid #cbd5e1;background:#fff;color:#334155;border-radius:999px;padding:7px 13px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}.thNav button.thOn{background:#c2410c;border-color:#c2410c;color:#fff}'+
+'.thNav{display:flex;gap:2px;flex-wrap:wrap;margin:10px 0 8px;border-bottom:1.5px solid #e2e8f0}.thNav button{border:0;border-bottom:3px solid transparent;margin-bottom:-1.5px;background:transparent;color:#64748b;border-radius:0;padding:8px 11px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}.thNav button:hover{color:#1e293b}.thNav button.thOn{border-bottom-color:#c2410c;color:#c2410c}'+
 '.thStp{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}.thStp button{flex:1 1 170px;display:flex;align-items:center;gap:10px;text-align:left;border:1.5px solid #fed7aa;background:#fff;color:#9a3412;border-radius:14px;padding:9px 12px;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;line-height:1.35}'+
 '.thStp button small{display:block;font-weight:600;font-size:11.5px;color:#64748b}.thStp .n{width:26px;height:26px;border-radius:50%;background:#fed7aa;color:#9a3412;display:flex;align-items:center;justify-content:center;font-weight:900;flex:0 0 auto}'+
 '.thStp .done{border-color:#86efac;background:#f0fdf4}.thStp .done .n{background:#16a34a;color:#fff}.thStp .cur{border-color:#c2410c;box-shadow:0 0 0 3px rgba(194,65,12,.18)}'+
@@ -727,11 +727,10 @@ function thNaverLink(tk,nm){if(window.StockName)return window.StockName(tk,nm);v
 /* ── 화면 뼈대 ── */
 function thLoad(p){thCss();p.innerHTML='';
  var hd=el('div','c thHd');hd.appendChild(el('h2',null,'🏷 네이버테마 — 오늘의 강세·약세 테마'));
- hd.appendChild(el('div','m',(MEMBER_MODE?'① 테마 순위 → ② 테마 안 종목 → ③ 테마별 수급 → ④ 일별 추이. ':'① 테마 가져오기 → ② AI 해설 → ③ 테마 이미지 → ④ 블로그 쓰기. ')+'네이버 증권 테마가 오늘 얼마나 올랐는지, 어떤 종목이 끌었는지, 외국인·기관이 어느 테마에 몰렸는지 보여 줘요. 정보 제공용이며 투자 권유가 아니에요.'));
+ hd.appendChild(el('div','m','네이버 증권 테마가 오늘 얼마나 올랐는지, 어떤 종목이 끌었는지, 외국인·기관이 어느 테마에 몰렸는지 보여 줘요. 정보 제공용이며 투자 권유가 아니에요.'));
  var sb=el('div');sb.id='thSum';hd.appendChild(sb);p.appendChild(hd);
- var sp=el('div','thStp');sp.id='thSteps';p.appendChild(sp);var nv=el('div','thNav');nv.id='thNav';p.appendChild(nv);var bd=el('div');bd.id='thBody';p.appendChild(bd);
+ var ad=el('div','c');ad.id='thAdm';p.appendChild(adm(ad));var sp=el('div','thStp');sp.id='thSteps';p.appendChild(sp);var nv=el('div','thNav');nv.id='thNav';p.appendChild(nv);var bd=el('div');bd.id='thBody';p.appendChild(bd);
  p.appendChild(el('p','note','※ 테마 등락률·종목은 네이버 증권이 주는 값이에요. 테마별 수급은 [수급 가져오기]로 받은 종목(전종목·테마 종목)의 ‘순매수 수량×종가’ 합이라 실제 거래소 집계와 차이가 있어요. 테마는 단기 관심이 몰리는 묶음이라 변동이 크고, 투자 판단과 책임은 이용자 본인에게 있어요.'));
- var ad=el('div','c');ad.id='thAdm';p.appendChild(adm(ad));
  if(MEMBER_MODE&&TH.sec==='blog')TH.sec='board';thNavDraw();thShow();thSteps();if(!MEMBER_MODE){thAdmLoad();thAiLoad();thJobPoll(false)}}
 function thNavDraw(){var n=$('thNav');if(!n)return;n.innerHTML='';TH_SECS.forEach(function(s){if(MEMBER_MODE&&s[0]==='blog')return;var b=el('button',TH.sec===s[0]?'thOn':'',(ftOk(s[2])?'':'🔒 ')+s[1]);b.type='button';b.onclick=function(){thGo(s[0])};n.appendChild(b)})}
 var THFLOW=['ai','img','blog','post'];
@@ -966,18 +965,20 @@ function thSecGuide(box){var g=el('div','thGd');function H(t){g.appendChild(el('
 
 /* ── 관리자 전용: 테마 가져오기·점검 ── */
 function thAdmLoad(){var b=$('thAdm');if(!b)return;api('/admin/api/theme/diag').then(function(j){TH.diag=j;thAdmDraw()})}
-function thAdmDraw(){var b=$('thAdm');if(!b)return;b.innerHTML='';b.appendChild(el('b',null,'🛠 네이버 테마·수급 가져오기 (관리자만 보여요)'));var j=TH.diag;if(!j||j.error){b.appendChild(el('p','note bad','점검 정보를 읽지 못했어요.'));return}
- b.appendChild(el('p','note','① [🏷 테마 가져오기]는 네이버 증권의 테마 목록과 테마별 종목을 받아요(1~2분). ② [💧 수급 가져오기]는 종목별 외국인·기관·개인 순매수를 받아요 — 기본은 코스피·코스닥 전종목 + 테마 종목 전부라 몇 분 걸리고, 이어서 받기가 켜져 있으면 오늘 받은 종목은 건너뛰어요. 처음엔 [한 번에 가져오기]를 누르면 ①→② 순서로 이어져요(하루 한 번이면 충분해요).'));
+function thAdmDraw(){var b=$('thAdm');if(!b)return;var j=TH.diag;
+ var C=window.CBar.make(b,{title:'📥 자료 가져오기',btn:{label:'🏷💧 오늘 테마·수급 가져오기',id:'thColB0',fn:function(){if(TH.job&&TH.job.running){toast('이미 가져오기가 실행 중이에요.');return}TH.chain=true;thStartTheme()}},
+  stopId:'thColB3',stopFn:function(){TH.chain=false;apiJ('/admin/api/collect/stop',{}).then(function(z){if(z.error){toast(z.error);return}toast('멈추는 중이에요…');thJobPoll(true)})},stId:'thColSt',pgId:'thColPg'});
+ if(!j||j.error){C.st.textContent='점검 정보를 읽지 못했어요.';return}
+ C.st.textContent=j.themes?('✅ 테마 '+j.themes+'개 · 수급 '+(j.inv_n||0)+'종목(기준일 '+(j.inv_base||'-')+') · 일별 이력 '+(j.date_n||0)+'일'):'⚠ 아직 가져온 자료가 없어요 — 왼쪽 버튼을 한 번 눌러 주세요(테마 → 수급 순서로 이어서 받아요, 몇 분 걸려요).';
+ var d=C.inn;d.appendChild(el('p','note','버튼을 따로 누르고 싶을 때만 쓰세요. 하루 한 번이면 충분해요. 수급은 이어서 받기가 켜져 있으면 오늘 받은 종목은 건너뛰어요.'));
  var op=el('div','bar');thSel(op,'수급 범위',TH.cl,'lim',[['0','전종목(코스피+코스닥)'],['2000','시총 상위 2000'],['1000','시총 상위 1000'],['500','시총 상위 500'],['300','시총 상위 300']]);
- var cl=el('label','thL');var ck=el('input');ck.type='checkbox';ck.checked=!!TH.cl.skip;ck.onchange=function(){TH.cl.skip=ck.checked};cl.appendChild(el('span',null,'이어서 받기'));cl.appendChild(ck);op.appendChild(cl);b.appendChild(op);
+ var cl=el('label','thL');var ck=el('input');ck.type='checkbox';ck.checked=!!TH.cl.skip;ck.onchange=function(){TH.cl.skip=ck.checked};cl.appendChild(el('span',null,'이어서 받기'));cl.appendChild(ck);op.appendChild(cl);d.appendChild(op);
  var r=el('div','bar');
- var b0=bt('🏷💧 테마+수급 한 번에 가져오기','bt',function(){if(TH.job&&TH.job.running){toast('이미 가져오기가 실행 중이에요.');return}TH.chain=true;thStartTheme()});b0.id='thColB0';r.appendChild(b0);
  var b1=bt('🏷 테마만','bt3',function(){if(TH.job&&TH.job.running){toast('이미 가져오기가 실행 중이에요.');return}TH.chain=false;thStartTheme()});b1.id='thColB1';r.appendChild(b1);
- var b2=bt('💧 수급만','bt3',function(){if(TH.job&&TH.job.running){toast('이미 가져오기가 실행 중이에요.');return}TH.chain=false;thStartInv()});b2.id='thColB2';r.appendChild(b2);
- var b3=bt('⏹ 멈춤','bt3',function(){TH.chain=false;apiJ('/admin/api/collect/stop',{}).then(function(z){if(z.error){toast(z.error);return}toast('멈추는 중이에요…');thJobPoll(true)})});b3.id='thColB3';r.appendChild(b3);b.appendChild(r);
- var pg=el('div');pg.id='thColPg';b.appendChild(pg);var ls=el('div');ls.id='thColLast';b.appendChild(ls);thJobDraw();
- b.appendChild(el('p','note','현황 — 테마 '+j.themes+'개 · 종목 연결 '+j.links+'건 · 일별 이력 '+j.date_n+'일'+(j.dates&&j.dates.length?'('+j.dates.join(', ')+')':'')+' · 시세 '+j.price_n+'종목 · 수급 '+j.inv_n+'종목(기준일 '+(j.inv_base||'-')+') · 저장된 AI 해설 '+(j.ai_date||'없음')));
- if(j.date_n){var dr=el('div','bar');dr.appendChild(bt('🗑 일별 이력 지우기','bt3',function(){if(!confirm('테마 일별 이력(연속 일수·추이)을 모두 지울까요? 현재 테마 목록은 그대로 남아요.'))return;apiJ('/admin/api/theme/delete',{}).then(function(z){if(z.error){toast(z.error);return}toast('지웠어요');TH.ls=null;TH.trD=null;thAdmLoad();thShow()})}));b.appendChild(dr)}}
+ var b2=bt('💧 수급만','bt3',function(){if(TH.job&&TH.job.running){toast('이미 가져오기가 실행 중이에요.');return}TH.chain=false;thStartInv()});b2.id='thColB2';r.appendChild(b2);d.appendChild(r);
+ var ls=el('div');ls.id='thColLast';d.appendChild(ls);thJobDraw();
+ d.appendChild(el('p','note','현황 — 테마 '+j.themes+'개 · 종목 연결 '+j.links+'건 · 일별 이력 '+j.date_n+'일'+(j.dates&&j.dates.length?'('+j.dates.join(', ')+')':'')+' · 시세 '+j.price_n+'종목 · 수급 '+j.inv_n+'종목(기준일 '+(j.inv_base||'-')+') · 저장된 AI 해설 '+(j.ai_date||'없음')));
+ if(j.date_n){var dr=el('div','bar');dr.appendChild(bt('🗑 일별 이력 지우기','bt3',function(){if(!confirm('테마 일별 이력(연속 일수·추이)을 모두 지울까요? 현재 테마 목록은 그대로 남아요.'))return;apiJ('/admin/api/theme/delete',{}).then(function(z){if(z.error){toast(z.error);return}toast('지웠어요');TH.ls=null;TH.trD=null;thAdmLoad();thShow()})}));d.appendChild(dr)}}
 function thStartTheme(){apiJ('/admin/api/collect/theme/start',{}).then(function(z){if(z.error){toast(z.error);TH.chain=false;return}toast('테마 가져오기를 시작했어요');TH.jwas=true;thJobPoll(true)})}
 function thStartInv(){apiJ('/admin/api/collect/investor/start',{limit:Number(TH.cl.lim),skip_today:!!TH.cl.skip,with_theme:true}).then(function(z){if(z.error){toast(z.error);TH.chain=false;return}toast('수급 가져오기를 시작했어요');TH.jwas=true;thJobPoll(true)})}
 function thJobPoll(keep){api('/admin/api/collect/status').then(function(j){if(j.error||!$('thColPg'))return;TH.job=(j.job||{});TH.jall=j;thJobDraw();var run=!!(TH.job&&TH.job.running);

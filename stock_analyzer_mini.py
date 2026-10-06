@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v183 — 가져오기 화면 단순화: 시장수급·네이버테마는 [오늘 ○○ 가져오기] 큰 버튼 하나로 끝나고, 기간·범위·직접 붙여넣기·지우기는 ‘자세히’ 안에 접어 뒀어요. 오늘추천은 [오늘 스캔하기]·[옵션]만 보이고 [중단]은 스캔 중일 때만 나와요. 5단계 막대도 한 줄로 작게 바꿨어요. AI 도우미 1.5.9: AI 답변을 보낸 뒤 AI 탭이 자동으로 닫히지 않던 문제 수정(탭 닫기 권한 추가 — 도우미를 다시 설치/업데이트해야 적용돼요).
 ✨ v182 — 화면 통일: 관리자로 로그인하면 이용자용 주소(/m/메뉴)나 바깥 화면의 메뉴도 ‘관리자 메뉴로 들어가서 보는 화면’과 똑같이 보여요(예전엔 이용자 모드로 그려져 단계·버튼이 달랐어요). 이용자 모드로 확인하고 싶을 땐 [이용자 화면 미리보기]·화면 미리보기 모드를 쓰세요.
 ✨ v181 — 네이버 블로그(도우미 1.5.8): 사이트에서 서식 그대로 복사한 ‘제목 포함 본문’을 도우미가 덮어써서 글자만 붙던 문제를 고쳤어요. 도우미는 클립보드를 건드리지 않고 상단 이미지만 자동으로 넣으며, 버튼([본문 다시 복사]·[제목만 복사]·[이미지 복사])을 누를 때만 복사해요(본문은 표·서식 그대로). 오늘추천: 관리자 로그인 상태면 회원 화면에서도 [오늘 스캔하기] 버튼이 보여요. ※ /ai-helper 에서 도우미를 1.5.8 로 다시 설치하세요.
 ✨ v180 — 네이버 블로그(도우미 1.5.7): 네이버가 자동 입력된 제목을 ‘제목 없음’으로 처리하는 문제가 있어, 상단 이미지만 자동으로 넣고 제목·본문은 도우미가 복사해 둔 것을 사용자가 Ctrl+V 로 직접 붙여넣는 방식으로 바꿨어요(제목 → 본문 순서 안내). ※ /ai-helper 에서 도우미를 1.5.7 로 다시 설치하세요.
@@ -364,7 +365,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v182"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v183"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4780,18 +4781,36 @@ FB.CSS+='.fbx{margin:6px 0 2px}.fbx .fbRow{gap:6px}.fbx .stp{padding:6px 10px;ga
 +'.thHd,.mkHd,.flHd,.chHd{padding:9px 14px!important;margin:6px 0!important}.thHd>h2,.mkHd>h2,.flHd>h2,.chHd>h2,.nwH>h2{font-size:17px!important;margin:0 0 3px!important;line-height:1.3}.dlH>h3{margin:0 0 3px}'
 +'.thNav,.mkNav,.flNav,.chNav{margin:8px 0 6px!important}@media(max-width:760px){.thHd>h2,.mkHd>h2,.flHd>h2,.chHd>h2,.nwH>h2{font-size:15.5px!important}.thNav,.mkNav,.flNav,.chNav,.dpNav{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.thNav>*,.mkNav>*,.flNav>*,.chNav>*,.dpNav>*{flex:0 0 auto}}';
 document.addEventListener('click',function(e){var t=e.target&&e.target.closest&&e.target.closest('.thHd>.m,.mkHd>.m,.flHd>.m,.chHd>.m,.dlH>p,.nwH>p,#dyHead>.sub');if(t)t.classList.toggle('hdOpen')});
-FB.draw=function(host,o){if(!host)return;
- if(!FB.css){FB.css=true;var nn='',n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';var st=document.createElement('style');if(nn)st.setAttribute('nonce',nn);st.textContent=FB.CSS;document.head.appendChild(st)}
+FB.inj=function(){if(FB.css)return;FB.css=true;var nn='',n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';var st=document.createElement('style');if(nn)st.setAttribute('nonce',nn);st.textContent=FB.CSS;document.head.appendChild(st)};
+/* [v183] 단순화 — 5단계는 한 줄의 작은 알약으로(부제·'지금 할 일' 줄 없음), ⚡한 번에·ⓘ 는 같은 줄 오른쪽 */
+FB.CSS+='.fbx .fbRow{align-items:center;gap:6px}.fbx .stp{flex:0 0 auto;min-width:0;padding:6px 13px;border-radius:999px}.fbx .stp small{display:none!important}.fbx .fbAll{margin-left:auto;border-radius:999px;padding:7px 15px}.fbx .fbGo{display:none}'
++'.fbx .stp.cur{background:#eef2ff}.fbx .fbNote{margin:6px 2px 0}'
+/* [v183] 가져오기 카드(CBar) — 큰 버튼 하나 + 한 줄 상태 + 접힌 ‘자세히’ */
++'.cbx{background:#fff;border:1.5px solid #c7d2fe;border-radius:14px;padding:11px 14px;margin:8px 0}.cbx .cbTop{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.cbx .cbT{font-size:14px;font-weight:800;color:#1e1b4b;margin-right:2px}'
++'.cbx .cbBtn{font:inherit;font-size:14px;font-weight:800;color:#fff;background:#312e81;border:0;border-radius:11px;padding:9px 18px;cursor:pointer}.cbx .cbBtn:disabled{opacity:.5;cursor:default}'
++'.cbx .cbStop{font:inherit;font-size:12.5px;font-weight:700;color:#475569;background:#fff;border:1px solid #cbd5e1;border-radius:9px;padding:6px 11px;cursor:pointer}.cbx .cbStop:disabled{display:none}'
++'.cbx .cbSt{flex:1 1 220px;font-size:12.5px;color:#475569;line-height:1.5}.cbx .cbPg{margin-top:6px}.cbx details{margin-top:8px;border-top:1px dashed #e2e8f0;padding-top:6px}.cbx summary{cursor:pointer;font-size:12.5px;font-weight:700;color:#475569;padding:4px 0}'
++'.cbx .cbIn{padding:4px 0 2px}.cbx .cbIn .bar{margin:6px 0}.cbx .cbIn details{border:0;margin-top:6px;padding-top:0}.cbx .cbIn .mkCard,.cbx .cbIn .thCard{border:0;background:#f8fafc;margin:8px 0}'
++'@media(max-width:760px){.cbx .cbBtn{flex:1 1 100%}}';
+FB.draw=function(host,o){if(!host)return;FB.inj();
  host.innerHTML='';host.className='fbx';var steps=(o.steps||[]).filter(function(x){return !x.hide}),cur=-1;
  for(var i=0;i<steps.length;i++){if(!steps[i].done){cur=i;break}}
  var row=document.createElement('div');row.className='fbRow';
  steps.forEach(function(a,i){var b=document.createElement('button');b.type='button';b.className='stp'+(a.done?' done':'')+(i===cur?' cur':'')+(a.off?' off':'');b.setAttribute('data-noconfirm','1');
-  var nn2=document.createElement('span');nn2.className='n';nn2.textContent=a.done?'✓':String(i+1);b.appendChild(nn2);var t=document.createElement('span');t.appendChild(document.createTextNode(a.t));var sm=document.createElement('small');sm.textContent=a.sub||'';t.appendChild(sm);b.appendChild(t);b.onclick=function(){if(a.go)a.go()};row.appendChild(b)});
+  b.title=(i===cur?'지금 할 일 — ':'')+(a.sub||'');
+  var nn2=document.createElement('span');nn2.className='n';nn2.textContent=a.done?'✓':String(i+1);b.appendChild(nn2);var t=document.createElement('span');t.appendChild(document.createTextNode(a.t));b.appendChild(t);b.onclick=function(){if(a.go)a.go()};row.appendChild(b)});
+ if(o.runAll&&!M.member()){var all=document.createElement('button');all.type='button';all.className='fbAll';all.setAttribute('data-noconfirm','1');all.textContent=o.allLabel||'⚡ 한 번에';all.title='AI 해설 → 이미지 → 글 → 블로그 복사·열기를 끝까지 이어서 해요';all.onclick=function(){o.runAll()};row.appendChild(all)}
  host.appendChild(row);
- var g=document.createElement('div');g.className='fbGo';
- if(o.runAll&&!M.member()){var all=document.createElement('button');all.type='button';all.className='fbAll';all.setAttribute('data-noconfirm','1');all.textContent=o.allLabel||'⚡ 블로그까지 한 번에 이어서';all.onclick=function(){o.runAll()};g.appendChild(all)}
- var nx=document.createElement('span');nx.className='fbNext';nx.textContent=cur<0?'✅ 모든 단계를 마쳤어요.':'▶ 지금 할 일: '+(cur+1)+'. '+steps[cur].t;g.appendChild(nx);host.appendChild(g);
- if(o.note){var nt=document.createElement('div');nt.className='fbNote';nt.textContent=o.note;var ib=document.createElement('button');ib.type='button';ib.className='fbI';ib.textContent='ⓘ';ib.title='이 버튼들이 하는 일 보기';ib.setAttribute('data-noconfirm','1');ib.onclick=function(){host.classList.toggle('noteOn')};g.appendChild(ib);host.appendChild(nt)}};
+ if(o.note){var nt=document.createElement('div');nt.className='fbNote';nt.textContent=o.note;var ib=document.createElement('button');ib.type='button';ib.className='fbI';ib.textContent='ⓘ';ib.title='이 버튼들이 하는 일 보기';ib.setAttribute('data-noconfirm','1');ib.onclick=function(){host.classList.toggle('noteOn')};row.appendChild(ib);host.appendChild(nt)}};
+/* 가져오기 카드: CBar.make(host,{title,btn:{label,id,fn},stopId,stopFn,stId,pgId}) → {st,pg,inn,btn,stop} */
+window.CBar={make:function(host,o){FB.inj();host.innerHTML='';host.className=(host.className||'').replace(/\bcbx\b/,'')+' cbx';var top=document.createElement('div');top.className='cbTop';
+ if(o.title){var t=document.createElement('span');t.className='cbT';t.textContent=o.title;top.appendChild(t)}
+ var btn=document.createElement('button');btn.type='button';btn.className='cbBtn';btn.textContent=o.btn.label;if(o.btn.id)btn.id=o.btn.id;btn.setAttribute('data-noconfirm','1');btn.onclick=o.btn.fn;top.appendChild(btn);
+ var stop=document.createElement('button');stop.type='button';stop.className='cbStop';stop.textContent='⏹ 멈춤';stop.disabled=true;if(o.stopId)stop.id=o.stopId;stop.onclick=o.stopFn||function(){};top.appendChild(stop);
+ var st=document.createElement('span');st.className='cbSt';if(o.stId)st.id=o.stId;top.appendChild(st);host.appendChild(top);
+ var pg=document.createElement('div');pg.className='cbPg';if(o.pgId)pg.id=o.pgId;host.appendChild(pg);
+ var det=document.createElement('details');var sm=document.createElement('summary');sm.textContent=o.more||'⚙ 자세히 (기간·범위·직접 붙여넣기·지우기)';det.appendChild(sm);var inn=document.createElement('div');inn.className='cbIn';det.appendChild(inn);host.appendChild(det);
+ return {st:st,pg:pg,inn:inn,btn:btn,stop:stop,det:det}}};
 window.FlowBar=FB;
 window.MiniFlow=M})();
 """

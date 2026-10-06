@@ -1138,23 +1138,24 @@ function dyLoad(p){dyCss();p.innerHTML='';DY.ai={};DY.picks={};DY.lk=[];var hd=e
  api('/admin/api/daily/state').then(function(j){if(cur!=='dy')return;DY.st=j;DY.dates=j.dates||[];dyHeadDraw();if(j.scan&&j.scan.running)dyPoll();
   var d0=DY.date||(DY.dates[0]&&DY.dates[0].date)||'';if(d0)dyOpen(d0);else dyMainDraw()})}
 function dyHeadDraw(){var hd=$('dyHead');if(!hd)return;hd.innerHTML='';var c=(DY.st.cfg&&DY.st.cfg.markets)?DY.st.cfg:{markets:['KOSPI','KOSDAQ'],cap_top:200,min_score:50,count:50,kospi_ratio:0},last=DY.st.last||{};hd.appendChild(el('div','kk','DAILY PICK'));hd.appendChild(el('h2',null,'🌟 오늘의 추천'));
- hd.appendChild(el('div','sub',MEMBER_MODE?'① 기술 지표로 자동 선별한 후보 보기 → ② AI 정리 보기 → ③ 이미지로 내려받기. 위험(상장폐지·거래정지) 신호 종목은 자동으로 빠져요. 참고 자료이며 투자 권유가 아니에요.':'① 오늘의 후보 만들기 → ② AI가 추천주 고르기 → ③ 이미지·블로그 글로 올리기. 위험(상장폐지·거래정지) 신호 종목은 자동으로 빠져요.'));
+ hd.appendChild(el('div','sub','기술 지표로 자동 선별한 오늘의 후보예요. 위험(상장폐지·거래정지) 신호 종목은 자동으로 빠져요. 참고 자료이며 투자 권유가 아니에요.'));
  var r=el('div','dyHr');
  if(DY.dates.length){var sel=el('select');sel.id='dySel';sel.onchange=function(){DY.rows=[];DY.live=false;dyOpen(sel.value)};r.appendChild(sel)}
  var go=el('button','dyGo','🔍 오늘 스캔하기');go.id='dyGo';r.appendChild(ADMIN_REAL?go:adm(go));
- var ob=el('button','dyGh','⚙ 스캔 옵션');r.appendChild(ADMIN_REAL?ob:adm(ob));var cb=el('button','dyGh','중단');cb.onclick=function(){apiJ('/admin/api/daily/scan-cancel',{}).then(function(){toast('중단을 요청했어요')})};r.appendChild(ADMIN_REAL?cb:adm(cb));hd.appendChild(r);
+ var ob=el('button','dyGh','⚙ 옵션');ob.title='스캔 범위·점수 기준 바꾸기';r.appendChild(ADMIN_REAL?ob:adm(ob));var cb=el('button','dyGh','■ 중단');cb.id='dyStop';cb.style.display='none';cb.onclick=function(){apiJ('/admin/api/daily/scan-cancel',{}).then(function(){toast('중단을 요청했어요')})};r.appendChild(ADMIN_REAL?cb:adm(cb));hd.appendChild(r);
  var op=el('div','dyOpt');op.style.display='none';var ck={};['KOSPI','KOSDAQ'].forEach(function(m){var l=el('label');var i=el('input');i.type='checkbox';i.checked=c.markets.indexOf(m)>=0;ck[m]=i;l.appendChild(i);l.appendChild(document.createTextNode(' '+m));op.appendChild(l)});
  function num(lbl,val,mn,mx){var l=el('label');l.appendChild(document.createTextNode(lbl+' '));var i=el('input');i.type='number';i.value=val;i.min=mn;i.max=mx;l.appendChild(i);op.appendChild(l);return i}
  var ct=num('시총 상위',c.cap_top,30,600),ms=num('최소 점수',c.min_score,0,95),cn=num('저장 개수',c.count,5,150),kr=num('코스피 비중%(0=합쳐서)',c.kospi_ratio,0,100);
- op.appendChild(el('div',null,'시가총액 순으로 훑어 점수를 매기고 기준을 넘은 종목을 저장해요. 1~3분 걸리며 이 화면을 떠나도 계속 돌아요.'));hd.appendChild(adm(op));ob.onclick=function(){op.style.display=op.style.display==='none'?'block':'none'};
+ op.appendChild(el('div',null,'시총 순으로 점수를 매겨 기준 넘는 종목만 저장해요(1~3분, 화면을 떠나도 계속 돌아요).'));hd.appendChild(adm(op));ob.onclick=function(){op.style.display=op.style.display==='none'?'block':'none'};
  go.onclick=function(){var mk=Object.keys(ck).filter(function(k){return ck[k].checked});if(!mk.length){toast('시장을 하나 이상 고르세요');return}
   apiJ('/admin/api/daily/scan',{markets:mk,cap_top:+ct.value,min_score:+ms.value,count:+cn.value,kospi_ratio:+kr.value}).then(function(j){if(j.error){toast(j.error);return}DY.st.cfg=j.cfg;toast('스캔을 시작했어요');dyPoll()})};
  dySelSync();var pg=el('div','dyPg');pg.id='dyProg';hd.appendChild(adm(pg));if(last.date)pg.appendChild(el('div',null,'마지막 스캔: '+last.date+' · '+(last.saved||0)+'종목 저장'+(last.error?' · ⚠ '+last.error:'')))}
 function dySelSync(){var sel=$('dySel');if(!sel)return;sel.innerHTML='';DY.dates.slice(0,30).forEach(function(d){var o=el('option',null,d.date+' ('+d.n+'종목)'+(d.src==='orig'?' · 원본':''));o.value=d.date;if(d.date===DY.date)o.selected=true;sel.appendChild(o)})}
-function dyPoll(){clearInterval(DY._poll);var g=$('dyGo');if(g)g.disabled=true;DY._poll=setInterval(function(){if(cur!=='dy'){clearInterval(DY._poll);return}
+function dyStopShow(v){var b=$('dyStop');if(b)b.style.display=v?'':'none'}
+function dyPoll(){clearInterval(DY._poll);var g=$('dyGo');if(g){g.disabled=true;g.textContent='⏳ 스캔 중…'}dyStopShow(true);DY._poll=setInterval(function(){if(cur!=='dy'){clearInterval(DY._poll);return}
   api('/admin/api/daily/scan-status').then(function(s){var pg=$('dyProg');if(!pg)return;pg.innerHTML='';var pc=s.total?Math.round(s.done/s.total*100):0;var b=el('div','bar');var i=el('i');i.style.width=pc+'%';b.appendChild(i);pg.appendChild(b);
    pg.appendChild(el('div',null,(s.running?'⏳ ':'')+(s.current||'')+' · 통과 '+s.kept+'종목'));
-   if(!s.running){clearInterval(DY._poll);var g2=$('dyGo');if(g2)g2.disabled=false;if(s.error){pg.appendChild(el('div',null,'⚠ '+s.error))}else if(s.scan_date){toast('스캔 완료 — '+s.saved+'종목을 저장했어요');
+   if(!s.running){clearInterval(DY._poll);dyStopShow(false);var g2=$('dyGo');if(g2){g2.disabled=false;g2.textContent='🔍 오늘 스캔하기'}if(s.error){pg.appendChild(el('div',null,'⚠ '+s.error))}else if(s.scan_date){toast('스캔 완료 — '+s.saved+'종목을 저장했어요');
     api('/admin/api/daily/state').then(function(j){DY.st=j;DY.dates=j.dates;DY.date=s.scan_date;dyHeadDraw();DY._chain=1;dyOpen(s.scan_date)})}}})},1500)}
 function dyOpen(date,live){DY.date=date;if(live!=null)DY.live=live;var m=$('dyMain');if(m&&!DY.rows.length)m.innerHTML='<div class="c">⏳ 불러오는 중…</div>';
  api('/admin/api/daily/list?date='+encodeURIComponent(date)+(DY.live?'&live=1':'')).then(function(j){if(cur!=='dy')return;DY.rows=j.rows||[];DY.lk=j.locked||[];DY.src=j.src;DY.dates=j.dates||DY.dates;DY.excl=j.excluded||0;DY.prev=j.prev_date||'';DY.date=j.date;DY.flag={img:false,blog:false,posted:false};dySelSync();
