@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v175 — AI 도우미 1.5.1: 제미나이 탭이 안 열리던 원인(도우미가 화면의 작업 요청을 못 받던 문제 — Tampermonkey 보호 환경에서 ‘보낸 창 확인’이 어긋남)을 고쳤어요. 작업 전달 통로를 2개(메시지 + 숨은 요소)로 늘리고, 도우미가 작업을 받으면 곧바로 ‘작업을 받았어요’ 신호를 보내 줘요. 옛 버전(1.5.0 이하) 도우미가 감지되면 ‘업데이트가 필요해요’ 안내를 바로 보여 주고 복사·붙여넣기 방식으로 진행해요(20초 기다리지 않음). 도우미는 /ai-helper 에서 다시 설치(업데이트)하세요.
 ✨ v174 — ① AI 자동 분석이 실패했을 때: 이유를 알려 주는 안내(한도 초과·키 오류·모델 이름·서버 바쁨 등)를 창에 계속 보여 주고, [🔁 서버 AI 다시 시도] 버튼을 넣었어요(브라우저가 새 창을 막으면 한 번 누르는 버튼으로 이어져요). ② 관리자 → 설정 → AI 에 [🧪 서버 AI 연결 시험] 버튼 추가 — 키·모델·한도가 정상인지 바로 확인. ③ Gemini 2.5 Flash 가 ‘생각’에 토큰을 다 써서 빈 답을 보내던 경우를 줄이도록 생각 분량을 제한하고, 빈 답이면 종료 사유를 알려 줘요.
 ✨ v173 — 관리자 화면(/admin) 위쪽 큰 빈 공간 해결: 왼쪽 메뉴 목록이 한 칸을 길게 차지해 오른쪽 내용(공개 범위 띠·테마 화면 등)이 메뉴 높이만큼 아래로 밀리던 레이아웃 오류를 고쳤어요. 이제 어느 화면 크기·확대/축소에서도 내용이 맨 위(메뉴 바로 옆)부터 시작합니다. 휴대폰에서는 관리자 메뉴가 한 줄로 가로 스크롤돼요.
 ✨ v172 — ① 관리자 바로가기 아이콘: 관리자로 로그인하면 맨 위 띠에 🛠 관리자·📊 현황·🧭 메뉴·🎚 공개 관리·👤 회원·✍ 블로그·⚙ 설정·📦 가져오기·🤖 AI 도우미(/ai-helper) 아이콘이 한 줄로 나와요(좁은 화면은 아이콘만). ② 여백 정리: 위쪽 띠가 겹겹이 쌓여 본문이 아래로 밀리던 문제를 해결 — 휴대폰은 상단 바를 한 줄(☰·로고·검색·도움말)로, 관리자 띠·공개 범위 띠·5단계 막대는 얇게(안내문은 ⓘ로 접음), 메뉴 첫머리 설명은 한 줄(눌러서 펼침), 탭 버튼은 가로로 밀어 보기. 첫 화면 위쪽 빈 공간도 줄였어요. ③ AI 창 멈춤 방지: 도우미가 20초 안에 응답하지 않거나 4분 넘게 멈추면 자동으로 ‘직접 진행’ 화면(복사하면 자동 읽기)으로 바뀌고, [📥 답변 가져오기] 버튼을 추가했어요.
@@ -356,7 +357,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v174"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v175"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -8754,15 +8755,17 @@ var MiniTabs = (function(){
 })();
 // [v157] AI 도우미 중계 — 메뉴 화면(iframe 탭)의 [AI 열기]가 맡긴 작업을 이 바깥 화면의 도우미에게 전달하고, 도우미의 진행·결과를 열려 있는 탭들에 되돌려 준다
 (function(){
+  // [v174] 도우미에게 전달하는 두 번째 통로(숨은 요소) — Tampermonkey 보호 환경에서 postMessage 만으로는 못 받는 경우 대비
+  function bridge(kind, obj){ try{ var n = document.createElement('div'); n.hidden = true; n.setAttribute('data-mini-bridge', kind); n.textContent = JSON.stringify(obj); document.documentElement.appendChild(n); setTimeout(function(){ try{ n.parentNode && n.parentNode.removeChild(n); }catch(x){} }, 15000); }catch(x){} }
   window.addEventListener('message', function(e){
     if(e.origin !== location.origin) return;
     var d = e.data; if(!d || typeof d !== 'object') return;
     if(d.miniRelay === 'job' && d.id && d.prompt && e.source !== window){
-      try{ window.postMessage({ miniHelper: 'job', id: String(d.id), prompt: String(d.prompt), host: String(d.host || ''), open: String(d.open || '') }, location.origin); }catch(x){}
+      try{ var jj = { id: String(d.id), prompt: String(d.prompt), host: String(d.host || ''), open: String(d.open || '') }; window.postMessage({ miniHelper: 'job', id: jj.id, prompt: jj.prompt, host: jj.host, open: jj.open }, location.origin); bridge('job', jj); }catch(x){}
       return;
     }
     if(d.miniRelay === 'blogjob' && d.id && d.html && e.source !== window){
-      try{ window.postMessage({ miniHelper: 'blogjob', id: String(d.id), title: String(d.title || ''), html: String(d.html), img: String(d.img || ''), open: String(d.open || '') }, location.origin); }catch(x){}
+      try{ var bb = { id: String(d.id), title: String(d.title || ''), html: String(d.html), img: String(d.img || ''), open: String(d.open || '') }; window.postMessage({ miniHelper: 'blogjob', id: bb.id, title: bb.title, html: bb.html, img: bb.img, open: bb.open }, location.origin); bridge('blogjob', bb); }catch(x){}
       return;
     }
     if(e.source === window && d.miniHelper && d.miniHelper !== 'job' && d.miniHelper !== 'blogjob'){
