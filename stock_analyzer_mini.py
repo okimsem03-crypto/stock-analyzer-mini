@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v174 — ① AI 자동 분석이 실패했을 때: 이유를 알려 주는 안내(한도 초과·키 오류·모델 이름·서버 바쁨 등)를 창에 계속 보여 주고, [🔁 서버 AI 다시 시도] 버튼을 넣었어요(브라우저가 새 창을 막으면 한 번 누르는 버튼으로 이어져요). ② 관리자 → 설정 → AI 에 [🧪 서버 AI 연결 시험] 버튼 추가 — 키·모델·한도가 정상인지 바로 확인. ③ Gemini 2.5 Flash 가 ‘생각’에 토큰을 다 써서 빈 답을 보내던 경우를 줄이도록 생각 분량을 제한하고, 빈 답이면 종료 사유를 알려 줘요.
 ✨ v173 — 관리자 화면(/admin) 위쪽 큰 빈 공간 해결: 왼쪽 메뉴 목록이 한 칸을 길게 차지해 오른쪽 내용(공개 범위 띠·테마 화면 등)이 메뉴 높이만큼 아래로 밀리던 레이아웃 오류를 고쳤어요. 이제 어느 화면 크기·확대/축소에서도 내용이 맨 위(메뉴 바로 옆)부터 시작합니다. 휴대폰에서는 관리자 메뉴가 한 줄로 가로 스크롤돼요.
 ✨ v172 — ① 관리자 바로가기 아이콘: 관리자로 로그인하면 맨 위 띠에 🛠 관리자·📊 현황·🧭 메뉴·🎚 공개 관리·👤 회원·✍ 블로그·⚙ 설정·📦 가져오기·🤖 AI 도우미(/ai-helper) 아이콘이 한 줄로 나와요(좁은 화면은 아이콘만). ② 여백 정리: 위쪽 띠가 겹겹이 쌓여 본문이 아래로 밀리던 문제를 해결 — 휴대폰은 상단 바를 한 줄(☰·로고·검색·도움말)로, 관리자 띠·공개 범위 띠·5단계 막대는 얇게(안내문은 ⓘ로 접음), 메뉴 첫머리 설명은 한 줄(눌러서 펼침), 탭 버튼은 가로로 밀어 보기. 첫 화면 위쪽 빈 공간도 줄였어요. ③ AI 창 멈춤 방지: 도우미가 20초 안에 응답하지 않거나 4분 넘게 멈추면 자동으로 ‘직접 진행’ 화면(복사하면 자동 읽기)으로 바뀌고, [📥 답변 가져오기] 버튼을 추가했어요.
 ✨ v171 — 🤖 AI 완전 자동: 모든 메뉴의 [AI 분석]을 누르면 더는 창에서 버튼을 또 누르지 않아요. ① 관리자 로그인 + 서버 AI 키(GEMINI/ANTHROPIC/OPENAI)가 있으면 서버가 창·복사·붙여넣기 없이 직접 분석 → 읽기 → 저장 → 다음 단계(이미지·글·블로그 열기)까지 자동(형식이 어긋나면 서버 AI에 1회 자동 재요청, 서버 오류 시 AI 사이트 자동 열기로 전환). ② 키가 없거나 일반 이용자는 AI 사이트(설정한 AI)가 자동으로 열리고 도우미(v1.5.0)가 있으면 입력·전송·답변 복사·탭 닫기·저장까지 자동. 도우미 v1.5.0은 AI 탭·블로그 글쓰기 탭을 직접 열어 팝업 차단을 받지 않아요(다시 설치 필요). 브라우저가 새 탭을 막으면 ‘한 번만 누르라’는 안내가 떠요. [⚙ 설정 → AI 설정]에 ‘AI 분석 실행 방식’(완전 자동/브라우저 자동/수동) 추가. 서버 AI는 관리자만(일반 이용자 호출 차단).
@@ -355,7 +356,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v173"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v174"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4585,7 +4586,8 @@ function mnLoad(p){api('/admin/api/settings').then(function(d){if(cur!=='mn')ret
  var r0=el('div','bar');r0.appendChild(el('span',null,'AI 분석 실행 방식'));r0.appendChild(rm);a.appendChild(r0);a.appendChild(el('p','note','서버 자동 호출은 관리자 로그인 상태에서만 동작해요(API 사용료는 관리자 키로 청구). 일반 이용자는 항상 ‘브라우저 자동/수동’ 방식이에요.'));
  var sc=el('input');sc.type='checkbox';sc.checked=d.ai_search==='1';var r2=el('div','bar');r2.appendChild(sc);r2.appendChild(el('span',null,'웹검색 사용(Gemini·Claude) — 공시를 실제로 검색해 확인하려면 켜 두세요'));a.appendChild(r2);
  var md={};prov.forEach(function(x){var i=el('input');i.placeholder='기본: '+d.default_models[x];i.value=d['ai_model_'+x];i.style.width='260px';md[x]=i;var r=el('div','bar');r.appendChild(el('span',null,names[x]+' 모델'));r.appendChild(i);a.appendChild(r)});
- a.appendChild(bt('💾 AI 설정 저장','bt',function(){var o={ai_provider:sel.value,ai_run_mode:rm.value,ai_search:sc.checked?'1':'0'};prov.forEach(function(x){o['ai_model_'+x]=md[x].value.trim()});apiJ('/admin/api/settings',o).then(function(j){if(j.error)toast(j.error);else{toast('저장했어요');mnLoad(p)}})}));p.appendChild(a);
+ a.appendChild(bt('💾 AI 설정 저장','bt',function(){var o={ai_provider:sel.value,ai_run_mode:rm.value,ai_search:sc.checked?'1':'0'};prov.forEach(function(x){o['ai_model_'+x]=md[x].value.trim()});apiJ('/admin/api/settings',o).then(function(j){if(j.error)toast(j.error);else{toast('저장했어요');mnLoad(p)}})}));
+ var tr=el('p','note');tr.id='aiTestOut';a.appendChild(bt('🧪 서버 AI 연결 시험','bt2',function(){tr.textContent='시험 중… (최대 30초)';tr.className='note';apiJ('/admin/api/ai/test',{}).then(function(j){tr.textContent=j.ok?('✅ 정상 — '+j.provider+' · '+(j.ms/1000).toFixed(1)+'초 · 답: '+j.text+(j.note?' ('+j.note+')':'')):('❌ 실패 — '+(j.error||'알 수 없는 오류'));tr.className=j.ok?'note good':'note bad'}).catch(function(){tr.textContent='❌ 시험 요청 자체가 실패했어요(네트워크).';tr.className='note bad'})}));a.appendChild(tr);p.appendChild(a);
  var ss=el('div','c');ss.appendChild(el('b',null,'🔐 관리자 로그인 유지 시간'));
  ss.appendChild(el('p','note','길게 잡을수록 편하지만, 이 브라우저를 다른 사람이 쓰게 될 때 위험도 길어져요. 공용 PC에서는 짧게 두거나 쓰고 나서 [로그아웃]을 누르세요. 최대 유지 시간은 다음에 로그인할 때부터, 무활동 시간은 바로 적용돼요.'));
  function mkSel(opts,val){var x=el('select');opts.forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];x.appendChild(op)});x.value=val;return x}
@@ -5533,12 +5535,19 @@ def ai_complete(prompt, max_tokens=4096):
                     "generationConfig": {"temperature": 0.1, "maxOutputTokens": max_tokens}}
             if use_search:
                 body["tools"] = [{"google_search": {}}]
+            if "2.5" in model and "pro" not in model:
+                # 2.5 flash 는 '생각' 토큰이 출력 한도를 먹어 본문이 빈 채로 끝나는 일이 있어 생각 분량을 제한한다
+                body["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 1024}
             r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
                               headers={"x-goog-api-key": key, "Content-Type": "application/json"}, json=body, timeout=150)
             if r.status_code != 200:
                 raise RuntimeError(f"HTTP {r.status_code}: {r.text[:160]}")
-            parts = (((r.json().get("candidates") or [{}])[0].get("content") or {}).get("parts")) or []
-            return "".join(p.get("text", "") for p in parts)
+            cand = (r.json().get("candidates") or [{}])[0]
+            parts = ((cand.get("content") or {}).get("parts")) or []
+            txt = "".join(p.get("text", "") for p in parts)
+            if not txt.strip():
+                raise RuntimeError("AI가 빈 답을 보냈어요(종료 사유: %s)." % (cand.get("finishReason") or "알 수 없음"))
+            return txt
         if prov == "anthropic":
             body = {"model": model, "max_tokens": max_tokens, "temperature": 0.1,
                     "messages": [{"role": "user", "content": prompt}]}
@@ -5738,6 +5747,23 @@ def admin_api_ai_start():
     jid = _job_new("ai")
     threading.Thread(target=_ai_job_run, args=(jid, prompt, mt), daemon=True, name="ai-job").start()
     return _admin_json({"job": jid, "provider": ai_pick_provider()})
+
+
+@app.route("/admin/api/ai/test", methods=["POST"])
+def admin_api_ai_test():
+    """[v174] 서버 AI 연결 시험 — 아주 짧은 질문 하나로 키·모델·한도가 정상인지 확인(키 값은 응답에 넣지 않는다)."""
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    prov = ai_pick_provider()
+    if not prov:
+        return _admin_json({"ok": False, "error": "서버에 사용할 수 있는 AI API 키가 없어요(Render 환경변수 GEMINI_API_KEY 등)."})
+    t0 = time.time()
+    try:
+        text, note = ai_complete("한국어로 '연결 정상' 이라고만 답하세요.", max_tokens=1000)
+        return _admin_json({"ok": True, "provider": prov, "ms": int((time.time() - t0) * 1000), "text": (text or "").strip()[:80], "note": note})
+    except Exception as e:
+        return _admin_json({"ok": False, "provider": prov, "ms": int((time.time() - t0) * 1000), "error": str(e)[:240]})
 
 
 @app.route("/admin/api/flow/modes")

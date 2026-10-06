@@ -179,7 +179,7 @@ function run(opt){
  ensureStyle();
  var steps=(opt.steps||[]).filter(function(s){return s&&s.prompt});if(!steps.length)return;
  var cur=0,notice='',site=siteDefault(),armed=false,seen={},lastText='',busy=false,closed=false,doneSet={},curJob=null,gotMsg=false,hTm=null;
- var sTm=null,autoOn=false,needClick=false,srvRun=0,retried={},lastMsg=null,aLive=null,runMode='manual',runInfo=null,autoNote='';
+ var sTm=null,autoOn=false,needClick=false,srvRun=0,retried={},lastMsg=null,aLive=null,runMode='manual',runInfo=null,autoNote='';var srvErr='';
  var minLen=opt.minLen||60;
  var ov=el('div','ma-ov'),box=el('div','ma-box');ov.setAttribute('tabindex','-1');ov.appendChild(box);
  var h=el('div','ma-h');h.appendChild(el('b',null,opt.title||'AI로 분석하기'));var x=el('button','ma-x','✕');x.onclick=close;h.appendChild(x);box.appendChild(h);
@@ -195,6 +195,9 @@ function run(opt){
  function draw(){
   drawDots();body.innerHTML='';var s=steps[cur];
   if(notice){body.appendChild(el('div','ma-live ok',notice));notice=''}
+  if(srvErr&&!lastText){var eb=el('div','ma-live bad');eb.style.flexDirection='column';eb.style.alignItems='flex-start';eb.appendChild(el('div',null,'⚠ 서버 AI가 실패했어요 — '+srvErr));
+   if(runInfo&&runInfo.server){var rb=el('button','ma-btn','🔁 서버 AI 다시 시도');rb.style.marginTop='6px';rb.onclick=function(){srvErr='';runMode='server';autoOn=true;needClick=false;lastText='';startAuto()};eb.appendChild(rb)}
+   body.appendChild(eb)}
   aLive=null;
   if(autoOn){var ab=el('div','ma-step cur');var at=el('div');at.appendChild(el('span','ma-sn','🤖'));at.appendChild(el('span','ma-st','완전 자동 진행 중'+(steps.length>1?' ('+(cur+1)+'/'+steps.length+' · '+(s.label||'')+')':'')));ab.appendChild(at);
    ab.appendChild(el('div','ma-d',autoNote||''));aLive=el('div','ma-live ok');ab.appendChild(aLive);
@@ -249,7 +252,7 @@ function run(opt){
  // ── [v171] 완전 자동: 서버 AI(관리자+API 키) → 창 없이 실행 / 아니면 AI 사이트를 자동으로 열어 진행 ──
  function toManual(){srvRun++;autoOn=false;needClick=false;draw();if(!armed)setLive('직접 진행 모드예요. 위 버튼을 누르면 자동 감지가 시작됩니다.',null,false)}
  function postJ(u,o){return fetch(u,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':(runInfo&&runInfo.csrf)||''},body:JSON.stringify(o||{})}).then(function(r){return r.json().catch(function(){return {}}).then(function(j){if(!r.ok&&!j.error)j.error='HTTP '+r.status;return j})})}
- function runServer(s,extra){var tok=++srvRun;var pn=PROVN[runInfo&&runInfo.provider]||'AI';autoNote='서버가 '+pn+'로 직접 분석해요. 새 창·복사·붙여넣기 없이 끝까지 자동으로 진행돼요(보통 20~90초).';armed=false;draw();
+ function runServer(s,extra){var tok=++srvRun;srvErr='';var pn=PROVN[runInfo&&runInfo.provider]||'AI';autoNote='서버가 '+pn+'로 직접 분석해요. 새 창·복사·붙여넣기 없이 끝까지 자동으로 진행돼요(보통 20~90초).';armed=false;draw();
   var t0=Date.now();setLive('🤖 '+pn+'가 분석 중이에요…','ok',true);
   postJ('/admin/api/ai/start',{prompt:s.prompt+(extra||''),max_tokens:opt.maxTokens||12000}).then(function(j){if(tok!==srvRun||closed)return;if(!j.job)throw new Error(j.error||'시작하지 못했어요');poll(j.job,tok,t0,0)}).catch(function(e){if(tok!==srvRun||closed)return;srvFail(String((e&&e.message)||e),s)})}
  function poll(id,tok,t0,n){setTimeout(function(){if(tok!==srvRun||closed)return;
@@ -257,8 +260,15 @@ function run(opt){
     if(j.status==='running'){setLive('🤖 '+(PROVN[runInfo&&runInfo.provider]||'AI')+'가 분석 중이에요… '+Math.round((Date.now()-t0)/1000)+'초','ok',true);if(n>200)return srvFail('응답이 너무 오래 걸려요',steps[cur]);return poll(id,tok,t0,n+1)}
     if(j.status==='done'&&j.result&&j.result.text){lastRaw=j.result.text;onText(String(j.result.text).trim(),false,true);return}
     srvFail((j.errors&&j.errors[0])||j.error||'AI 응답 실패',steps[cur])}).catch(function(){if(tok!==srvRun||closed)return;if(n>200)srvFail('응답을 받지 못했어요',steps[cur]);else poll(id,tok,t0,n+1)})},n===0?1500:2500)}
+ function srvHint(m){m=String(m||'');var h='';
+  if(/429|quota|RESOURCE_EXHAUSTED|rate.?limit/i.test(m))h='AI 사용 한도(쿼터)를 넘었거나 결제 설정이 필요해요.';
+  else if(/401|403|API.?key|PERMISSION|unauthor/i.test(m))h='API 키가 틀렸거나 권한이 없어요(Render 환경변수 확인).';
+  else if(/404|not.?found|model/i.test(m))h='모델 이름이 맞지 않아요(관리자 → 설정 → AI의 모델 칸 확인).';
+  else if(/503|500|overload|UNAVAILABLE|timed? ?out/i.test(m))h='AI 서버가 바쁘거나 응답이 늦었어요. 잠시 뒤 다시 시도해 보세요.';
+  else if(/빈 답|MAX_TOKENS|SAFETY/i.test(m))h='AI가 답을 비워 보냈어요. 다시 시도해 보세요.';
+  return m.slice(0,200)+(h?' → '+h:'')}
  var lastRaw='';
- function srvFail(msg,s){srvRun++;
+ function srvFail(msg,s){srvRun++;srvErr=srvHint(msg);
   // 서버 AI가 안 되면 AI 사이트를 자동으로 열어 이어가기(브라우저 자동)
   runMode='browser';autoNote='서버 AI가 안 돼서(' + String(msg).slice(0,80) + ') AI 사이트를 자동으로 열어 진행해요.';setLive('⚠ 서버 AI 실패 — AI 사이트로 자동 전환합니다…','bad');openAI(s||steps[cur],true)}
  function startAuto(){if(closed||!autoOn)return;var s=steps[cur];retried[cur]=retried[cur]||0;
