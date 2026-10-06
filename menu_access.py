@@ -18,7 +18,7 @@ import json
 import re
 import secrets
 
-from flask import Blueprint, request
+from flask import Blueprint, request, redirect
 
 from menu_ctx import C
 import menu_ui as U
@@ -179,6 +179,16 @@ def member_menu(mid):
     tab = C.MENU_TAB.get(mid)
     if not m or not tab or tab not in C.ADMIN_TAB_JS:
         return "not found", 404
+    # [v182] 관리자로 로그인한 상태면 '이용자 모드'가 아니라 관리자 화면 그대로 보여 준다(관리자 메뉴로 보는 화면과 똑같이).
+    #        등급 미리보기(?as=…)나 이용자 모드 확인(?view=member)일 때만 이용자용 화면을 쓴다.
+    try:
+        ap = (m.get("admin_path") or "")
+        if ap and C.admin_viewer() and not request.args.get("as") and not request.args.get("view"):
+            base, _, hh = ap.partition("#")
+            q = "?embed=1" if request.args.get("embed") else ""
+            return redirect(base + q + (("#" + hh) if hh else ""))
+    except Exception:
+        pass
     nonce = secrets.token_urlsafe(16)
     html = C.render_template_string(shell_page(mid, tab), nonce=nonce, csrf="", version=C.APP_VERSION)
     resp = C.app.make_response(html)
