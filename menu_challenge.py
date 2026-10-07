@@ -1731,6 +1731,7 @@ function chEok(v){if(v==null||isNaN(v))return '-';var a=Math.abs(v),s=v<0?'-':''
 function chFe(v){if(v==null||isNaN(v))return '-';v=Number(v);return (v>0?'+':'')+Math.round(v).toLocaleString('ko-KR')+'억'}
 function chCls(v){return v>0?'chUp':(v<0?'chDn':'chZ')}
 function chPct(v,d){if(v==null||isNaN(v))return '-';return (v>0?'+':'')+Number(v).toFixed(d==null?2:d)+'%'}
+function chAiPicked(it){var t=String((CH.ai&&CH.ai.text)||'');if(!t||!it)return false;var m=/(^|\n)##\s+[^\n]*(두드러진|회복 신호)[^\n]*\n([\s\S]*?)(?=\n##\s[^#]|$)/.exec(t);var sec=m?m[3]:'';if(!sec)return false;return (it.name&&sec.indexOf(it.name)>=0)||(it.ticker&&sec.indexOf(it.ticker)>=0)}
 function chTk(node,t){if(typeof window.GoStock==='function'||typeof window.__openTicker==='function'){node.className=(node.className?node.className+' ':'')+'tkl';node.setAttribute('data-tk',t);node.title='눌러서 종목분석·심층분석 열기'}return node}
 function chQ(o){var a=[];Object.keys(o).forEach(function(k){if(o[k]!==''&&o[k]!=null)a.push(encodeURIComponent(k)+'='+encodeURIComponent(o[k]))});return a.join('&')}
 function chSel(bar,lbl,obj,key,opts,fn){var l=el('label','chL');l.appendChild(el('span',null,lbl));var s=el('select');opts.forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];s.appendChild(op)});s.value=obj[key];s.onchange=function(){obj[key]=s.value;if(fn)fn()};l.appendChild(s);bar.appendChild(l);return s}
@@ -1952,7 +1953,7 @@ function chTable(out,items,o){var det=!!o.detail,S=CH.ld;var w=el('div','chW'),t
  var ncol=heads.length+(o.sel?1:0);
  items.forEach(function(it,i){var tr=el('tr',S.sel[it.ticker]&&o.sel?'chSelR':'');
   if(o.sel){var c0=el('td');var cb=el('input');cb.type='checkbox';cb.checked=!!S.sel[it.ticker];cb.onchange=function(){S.sel[it.ticker]=cb.checked;chListDraw()};c0.appendChild(cb);tr.appendChild(c0)}
-  tr.appendChild(el('td','chZ',String(i+1)));var nm=el('td');nm.appendChild(chTk(el('span','nm',it.name),it.ticker));
+  tr.appendChild(el('td','chZ',String(i+1)));var nm=el('td');nm.appendChild(chTk(el('span','nm',it.name),it.ticker));if(chAiPicked(it)&&window.AiMark)nm.appendChild(window.AiMark({title:'AI가 회복 신호가 두드러진 종목으로 꼽았어요'}));
   if(o.explain){var tg=el('span','chZ',' ▾');tg.style.cursor='pointer';tg.title='그래프·점수 구성 보기';tg.setAttribute('data-ex',it.ticker);tg.onclick=function(){chToggle(it)};if(!ftOk('detail'))tg.title='🔒 그래프·상세';nm.appendChild(tg)}
   nm.appendChild(el('div','sb',it.ticker+(it.market?' · '+it.market:'')+(it.theme?' · '+it.theme:'')));tr.appendChild(nm);
   tr.appendChild(el('td','r',it.price?chN(it.price)+'원':'-'));tr.appendChild(el('td','r '+chCls(it.day_pct),chPct(it.day_pct)));
@@ -2052,7 +2053,7 @@ function chAiRun(){if(!window.MiniAI){toast('AI 도우미를 불러오지 못했
     return apiJ('/admin/api/challenge/ai',{text:CH.ai.text,label:j.label,tickers:tks}).then(function(z){var ok=!z.error;if(ok)CH.ai.date=z.date;chAiDraw();chSteps();
      if(ok)setTimeout(function(){if(window.MiniFlow)MiniFlow.run('challenge',CHFLOW,CHACTS,'ai')},60);
      return {message:ok?'AI 분석을 저장했어요. 다음 단계(이미지 → 블로그 글)로 이어져요.':'읽었지만 저장하지 못했어요: '+z.error}}).catch(function(){chAiDraw();chSteps();return {message:'읽었지만 저장하지 못했어요(네트워크).'}})}})})}
-function chAiDraw(){var out=$('chAiOut');if(!out)return;out.innerHTML='';var t=CH.ai.text;if(!t){out.appendChild(el('p','note','아직 AI 분석이 없어요. [AI 프롬프트 만들기]를 눌러 보세요.'));
+function chAiDraw(){try{if(CH.ld&&CH.ld.data&&(CH.ai.text||'').trim())chListDraw()}catch(e){}var out=$('chAiOut');if(!out)return;out.innerHTML='';var t=CH.ai.text;if(!t){out.appendChild(el('p','note','아직 AI 분석이 없어요. [AI 프롬프트 만들기]를 눌러 보세요.'));
   var o=CH.ai.old;if(o&&!MEMBER_MODE){var r0=el('div','bar');r0.appendChild(el('span','m','지난 AI 분석이 저장돼 있어요('+(o.date||'')+'). 지금 목록과 맞지 않을 수 있어요.'));r0.appendChild(bt('지난 분석 불러오기','bt3',function(){CH.ai.text=o.text;CH.ai.date=o.date;CH.ai.old=null;CH.flag.img=false;CH.flag.blog=false;chAiDraw();chSteps()}));out.appendChild(r0)}return}
  var box=el('div','chAiOut');t.split('\n').forEach(function(l){var m;var s=l.replace(/\*\*/g,'');if((m=/^##\s+(.*)$/.exec(s))){box.appendChild(el('span','h2',m[1]))}else if((m=/^###\s+(.*)$/.exec(s))){box.appendChild(el('span','h3',m[1]))}else{box.appendChild(document.createTextNode(s));box.appendChild(document.createElement('br'))}});out.appendChild(box);
  var r=el('div','bar');r.appendChild(bt('📋 해설 복사하기','bt3',function(){var ok=window.MiniAI&&window.MiniAI.copy?window.MiniAI.copy(CH.ai.text):false;toast(ok?'복사했어요':'복사가 막혔어요')}));r.appendChild(bt('✖ 지우기','bt3',function(){CH.ai.text='';CH.ai.date='';chAiDraw();chSteps()}));out.appendChild(r);
