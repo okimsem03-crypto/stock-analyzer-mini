@@ -81,6 +81,16 @@ def _ensure_tables(c, use_pg):
     c.execute(f"CREATE TABLE IF NOT EXISTS nw_log(id {pk}, created_at TEXT NOT NULL, title TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT '', "
               "content TEXT NOT NULL DEFAULT '', ai_text TEXT NOT NULL DEFAULT '', stocks_json TEXT NOT NULL DEFAULT '[]', kind TEXT NOT NULL DEFAULT 'stock')")
     c.execute("CREATE INDEX IF NOT EXISTS idx_nw_log_at ON nw_log(created_at)")
+    # [v186] 뉴스 보관함 — 가져온 뉴스를 분류해 쌓는다(추세 분석용)
+    c.execute(f"CREATE TABLE IF NOT EXISTS nw_arch(id {pk}, uid TEXT NOT NULL UNIQUE, title TEXT NOT NULL DEFAULT '', press TEXT NOT NULL DEFAULT '', url TEXT NOT NULL DEFAULT '', "
+              "pub_at TEXT NOT NULL DEFAULT '', pub_day TEXT NOT NULL DEFAULT '', senti TEXT NOT NULL DEFAULT 'z', pos_kw TEXT NOT NULL DEFAULT '', neg_kw TEXT NOT NULL DEFAULT '', "
+              "snippet TEXT NOT NULL DEFAULT '', srcs TEXT NOT NULL DEFAULT '', first_seen TEXT NOT NULL DEFAULT '', last_seen TEXT NOT NULL DEFAULT '', seen_n INTEGER NOT NULL DEFAULT 1, related INTEGER NOT NULL DEFAULT 0)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_nw_arch_day ON nw_arch(pub_day)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_nw_arch_senti ON nw_arch(senti)")
+    c.execute("CREATE TABLE IF NOT EXISTS nw_arch_tk(aid INTEGER NOT NULL, ticker TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', direct INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(aid, ticker))")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_nw_arch_tk_t ON nw_arch_tk(ticker)")
+    c.execute("CREATE TABLE IF NOT EXISTS nw_arch_th(aid INTEGER NOT NULL, theme TEXT NOT NULL, PRIMARY KEY(aid, theme))")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_nw_arch_th_t ON nw_arch_th(theme)")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -385,6 +395,8 @@ def _market_news(cat):
         note = "지금은 네이버 금융 뉴스를 가져오지 못했어요. 잠시 뒤 [새로 불러오기]를 눌러 주세요."
     out = (items[:25], note)
     _cache_set(key, out, 180 if items else 20)
+    if items:
+        archive_async(items[:25], "m:" + cat)             # [v186] 가져온 뉴스는 분류해서 보관함에 쌓는다
     return out
 
 
@@ -818,6 +830,350 @@ def api_save():
     _clear()
     _alog("news_save", f"{title[:40]} stocks={len(stocks)}")
     return _admin_json({"ok": True, "id": f"w{rows[0][0]}"})
+
+
+# ══════════════════════════════════════════════════════════════
+# 🗄 뉴스 보관함(v186) — 가져온 뉴스를 분류해 DB에 쌓는다(나중에 추세 분석용)
+#   · 뉴스를 가져올 때마다 자동으로 저장: 제목·언론사·링크·발행시각·짧은 발췌(원문 전문은 저장하지 않음)
+#   · 분류: 호재성/악재성(단어 기준) · 테마 · 관련 종목(검색한 종목 + 제목에 나온 종목) · 가져온 곳(주요/속보/많이 본/종목검색)
+#   · 같은 기사는 한 줄(기사 번호 기준) — 다시 보이면 '본 횟수'만 올라가요(여러 번 보도된 정도도 추세 자료)
+# ══════════════════════════════════════════════════════════════
+import hashlib
+import queue
+
+SENTI_NM = {"p": "호재성", "n": "악재성", "x": "혼재", "z": "중립"}
+_AQ = queue.Queue(maxsize=300)
+_ASEEN = {}
+_ALOCK = threading.Lock()
+_AWORKER = {"t": None}
+ARCH_ST = {"saved": 0, "last": "", "err": ""}
+
+
+def _arch_uid(it):
+    url = str(it.get("url") or "")
+    m = re.search(r"article/(\d+)/(\d+)", url) or re.search(r"office[Ii]d=(\d+).*?article[Ii]d=(\d+)", url) or re.search(r"oid=(\d+).*?aid=(\d+)", url)
+    if m:
+        return "n%s-%s" % (m.group(1), m.group(2))
+    raw = "%s|%s|%s" % (it.get("title", ""), it.get("press", ""), it.get("datetime", ""))
+    return "t" + hashlib.sha1(raw.encode("utf-8", "ignore")).hexdigest()[:20]
+
+
+def _arch_time(it):
+    dt = re.sub(r"\D", "", str(it.get("datetime") or ""))
+    if len(dt) >= 12:
+        return "%s-%s-%s %s:%s" % (dt[:4], dt[4:6], dt[6:8], dt[8:10], dt[10:12]), "%s-%s-%s" % (dt[:4], dt[4:6], dt[6:8])
+    now = _now_kst()
+    return now.strftime("%Y-%m-%d %H:%M"), now.strftime("%Y-%m-%d")
+
+
+def _aq(sql):
+    return sql.replace("?", "%s") if C._USE_PG else sql
+
+
+def archive_items(items, src, ticker="", tname=""):
+    """뉴스 목록을 보관함에 저장(동기). 저장·갱신한 건수를 돌려준다. 실패해도 예외를 밖으로 내지 않는다."""
+    if not items:
+        return 0
+    now = _now_kst().strftime("%Y-%m-%d %H:%M:%S")
+    todo = []
+    with _ALOCK:
+        if len(_ASEEN) > 8000:
+            for k in sorted(_ASEEN, key=lambda x: _ASEEN[x])[:4000]:
+                _ASEEN.pop(k, None)
+        for it in items[:60]:
+            title = _clean(it.get("title"), 200)
+            if not title:
+                continue
+            uid = _arch_uid(it)
+            key = (uid, ticker or "", src)
+            if time.time() - _ASEEN.get(key, 0) < 900:      # 15분 안에 같은 곳에서 본 기사는 다시 세지 않는다
+                continue
+            _ASEEN[key] = time.time()
+            todo.append((uid, title, it))
+    if not todo:
+        return 0
+    conn = None
+    n = 0
+    try:
+        conn = C._pg_get() if C._USE_PG else C._history_conn()
+        c = conn.cursor()
+        for uid, title, it in todo:
+            cl = classify(title)
+            snip = _clean(it.get("sn") or it.get("snippet") or "", 240)
+            full = title + " " + snip
+            themes = themes_of(full, 1)[:4]
+            tks = []
+            if ticker:
+                tks.append((ticker, tname or (_dict()["by_ticker"].get(ticker) or {}).get("name", ""), 1))
+            if src.startswith("m:"):                          # 시장 뉴스는 제목에 나온 종목도 찾는다(종목 검색 뉴스는 비용을 아끼려고 검색한 종목만)
+                try:
+                    for r in _db_extra(full, set(), 5):
+                        tks.append((r["ticker"], r["name"], 1))
+                except Exception:
+                    pass
+            pub_at, pub_day = _arch_time(it)
+            c.execute(_aq("SELECT id, srcs FROM nw_arch WHERE uid=?"), (uid,))
+            row = c.fetchone()
+            if row:
+                aid = row[0]
+                srcs = str(row[1] or "")
+                if ("," + src + ",") not in srcs:
+                    srcs = (srcs or ",") + src + ","
+                c.execute(_aq("UPDATE nw_arch SET last_seen=?, seen_n=seen_n+1, srcs=?, related=CASE WHEN related<? THEN ? ELSE related END WHERE id=?"),
+                          (now, srcs, int(it.get("related") or 0), int(it.get("related") or 0), aid))
+            else:
+                c.execute(_aq("INSERT INTO nw_arch(uid,title,press,url,pub_at,pub_day,senti,pos_kw,neg_kw,snippet,srcs,first_seen,last_seen,seen_n,related) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,?) ON CONFLICT(uid) DO NOTHING"),
+                          (uid, title, _clean(it.get("press"), 30), str(it.get("url") or "")[:400], pub_at, pub_day, cl["k"], ",".join(cl["pos"]), ",".join(cl["neg"]), snip,
+                           "," + src + ",", now, now, int(it.get("related") or 0)))
+                c.execute(_aq("SELECT id FROM nw_arch WHERE uid=?"), (uid,))
+                r2 = c.fetchone()
+                aid = r2[0] if r2 else 0
+            if not aid:
+                continue
+            for th in themes:
+                c.execute(_aq("INSERT INTO nw_arch_th(aid,theme) VALUES(?,?) ON CONFLICT(aid,theme) DO NOTHING"), (aid, th))
+            for tk, nm, dr in tks:
+                c.execute(_aq("INSERT INTO nw_arch_tk(aid,ticker,name,direct) VALUES(?,?,?,?) ON CONFLICT(aid,ticker) DO NOTHING"), (aid, tk, str(nm or "")[:40], dr))
+            n += 1
+        conn.commit()
+        ARCH_ST["saved"] += n
+        ARCH_ST["last"] = now
+        ARCH_ST["err"] = ""
+    except Exception as e:
+        ARCH_ST["err"] = str(e)[:120]
+        print(f"[뉴스보관] 저장 실패(무시): {e}")
+        try:
+            if conn:
+                conn.rollback()
+        except Exception:
+            pass
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+    return n
+
+
+def _arch_loop():
+    while True:
+        job = _AQ.get()
+        try:
+            archive_items(*job)
+        except Exception as e:
+            print(f"[뉴스보관] 작업 오류(무시): {e}")
+
+
+def archive_async(items, src, ticker="", tname=""):
+    """뉴스 수집을 느리게 만들지 않도록 뒤에서 저장한다(대기열이 가득 차면 이번 건은 건너뜀)."""
+    if not items:
+        return
+    with _ALOCK:
+        if _AWORKER["t"] is None or not _AWORKER["t"].is_alive():
+            t = threading.Thread(target=_arch_loop, daemon=True)
+            _AWORKER["t"] = t
+            t.start()
+    try:
+        _AQ.put_nowait((list(items), src, ticker, tname))
+    except queue.Full:
+        pass
+
+
+def _news_hook(source, ticker, items):
+    if source == "stock" and ticker:
+        archive_async(items, "s", ticker)
+
+
+def _arch_where(args):
+    """공통 조건 → (WHERE 문, 값 목록, JOIN 문). 쿼리 인자: days·senti·ticker·theme·q·day·press."""
+    where, vals, join = [], [], ""
+    days = args.get("days")
+    try:
+        days = int(days)
+    except Exception:
+        days = 30
+    if days > 0:
+        where.append("a.pub_day>=?")
+        vals.append((_now_kst() - __import__("datetime").timedelta(days=days)).strftime("%Y-%m-%d"))
+    sn = str(args.get("senti") or "")
+    if sn in SENTI_NM:
+        where.append("a.senti=?")
+        vals.append(sn)
+    tk = re.sub(r"[^0-9A-Za-z]", "", str(args.get("ticker") or ""))[:8]
+    if tk:
+        join += " JOIN nw_arch_tk k ON k.aid=a.id"
+        where.append("k.ticker=?")
+        vals.append(tk.upper())
+    th = _clean(args.get("theme"), 30)
+    if th:
+        join += " JOIN nw_arch_th h ON h.aid=a.id"
+        where.append("h.theme=?")
+        vals.append(th)
+    day = str(args.get("day") or "")
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", day):
+        where.append("a.pub_day=?")
+        vals.append(day)
+    press = _clean(args.get("press"), 30)
+    if press:
+        where.append("a.press=?")
+        vals.append(press)
+    q = _clean(args.get("q"), 40)
+    if q:
+        where.append("a.title LIKE ?")
+        vals.append("%" + q.replace("%", "").replace("_", "") + "%")
+    return (" WHERE " + " AND ".join(where)) if where else "", vals, join
+
+
+def _arch_rows(args, limit, offset=0):
+    w, vals, join = _arch_where(args)
+    rows = _dbx("SELECT a.id,a.title,a.press,a.url,a.pub_at,a.senti,a.pos_kw,a.neg_kw,a.srcs,a.seen_n,a.related FROM nw_arch a" + join + w +
+                " ORDER BY a.pub_at DESC, a.id DESC LIMIT %d OFFSET %d" % (limit, offset), vals, fetch=True) or []
+    total = (_dbx("SELECT COUNT(DISTINCT a.id) FROM nw_arch a" + join + w, vals, fetch=True) or [[0]])[0][0]
+    ids = [int(r[0]) for r in rows]
+    tk, th = {}, {}
+    if ids:
+        ph = ",".join("?" * len(ids))
+        for aid, t, nm in _dbx("SELECT aid,ticker,name FROM nw_arch_tk WHERE aid IN (%s)" % ph, ids, fetch=True) or []:
+            tk.setdefault(int(aid), []).append({"ticker": t, "name": nm})
+        for aid, t in _dbx("SELECT aid,theme FROM nw_arch_th WHERE aid IN (%s)" % ph, ids, fetch=True) or []:
+            th.setdefault(int(aid), []).append(t)
+    items = [{"id": int(r[0]), "title": r[1], "press": r[2], "url": r[3], "at": r[4], "senti": r[5], "label": SENTI_NM.get(r[5], ""), "pos": r[6], "neg": r[7],
+              "srcs": [x for x in str(r[8] or "").split(",") if x], "seen": int(r[9] or 1), "related": int(r[10] or 0),
+              "stocks": tk.get(int(r[0]), []), "themes": th.get(int(r[0]), [])} for r in rows]
+    return items, int(total or 0)
+
+
+def _arch_ok():
+    deny = _admin_deny()
+    if deny:
+        return deny
+    return None
+
+
+@bp.route("/admin/api/news/arch/summary")
+def api_arch_summary():
+    deny = _arch_ok()
+    if deny:
+        return deny
+    args = dict(request.args)
+    args.pop("ticker", None)
+    args.pop("theme", None)
+    w, vals, _j = _arch_where({"days": args.get("days", 30)})
+    try:
+        tot = (_dbx("SELECT COUNT(*), MIN(pub_day), MAX(pub_day) FROM nw_arch", (), fetch=True) or [[0, "", ""]])[0]
+        by = {r[0]: int(r[1]) for r in (_dbx("SELECT a.senti, COUNT(*) FROM nw_arch a" + w + " GROUP BY a.senti", vals, fetch=True) or [])}
+        perday = {}
+        for d, sn, n in _dbx("SELECT a.pub_day, a.senti, COUNT(*) FROM nw_arch a" + w + " GROUP BY a.pub_day, a.senti ORDER BY a.pub_day", vals, fetch=True) or []:
+            perday.setdefault(d, {"day": d, "p": 0, "n": 0, "x": 0, "z": 0})[sn] = int(n)
+        agg = "COUNT(*), SUM(CASE WHEN a.senti='p' THEN 1 ELSE 0 END), SUM(CASE WHEN a.senti='n' THEN 1 ELSE 0 END)"
+        th = [{"name": r[0], "n": int(r[1]), "p": int(r[2] or 0), "neg": int(r[3] or 0)} for r in (_dbx(
+            "SELECT h.theme, " + agg + " FROM nw_arch_th h JOIN nw_arch a ON a.id=h.aid" + w + " GROUP BY h.theme ORDER BY 2 DESC LIMIT 30", vals, fetch=True) or [])]
+        tk = [{"ticker": r[0], "name": r[1] or "", "n": int(r[2]), "p": int(r[3] or 0), "neg": int(r[4] or 0)} for r in (_dbx(
+            "SELECT k.ticker, MAX(k.name), " + agg + " FROM nw_arch_tk k JOIN nw_arch a ON a.id=k.aid" + w + " GROUP BY k.ticker ORDER BY 3 DESC LIMIT 40", vals, fetch=True) or [])]
+        pr = [{"name": r[0], "n": int(r[1]), "p": int(r[2] or 0), "neg": int(r[3] or 0)} for r in (_dbx(
+            "SELECT a.press, " + agg + " FROM nw_arch a" + w + (" AND" if w else " WHERE") + " a.press<>'' GROUP BY a.press ORDER BY 2 DESC LIMIT 15", vals, fetch=True) or [])]
+        today = (_dbx("SELECT COUNT(*) FROM nw_arch WHERE pub_day=?", (_now_kst().strftime("%Y-%m-%d"),), fetch=True) or [[0]])[0][0]
+    except Exception as e:
+        return _err("보관함을 읽지 못했어요: %s" % str(e)[:60], 500)
+    return _admin_json({"ok": True, "total": int(tot[0] or 0), "first": tot[1] or "", "last": tot[2] or "", "today": int(today or 0), "by": by, "n": sum(by.values()),
+                        "days": sorted(perday.values(), key=lambda x: x["day"]), "themes": th, "stocks": tk, "press": pr,
+                        "state": {"saved": ARCH_ST["saved"], "last": ARCH_ST["last"], "err": ARCH_ST["err"]}})
+
+
+@bp.route("/admin/api/news/arch/list")
+def api_arch_list():
+    deny = _arch_ok()
+    if deny:
+        return deny
+    size = _int_arg("size", 50, 10, 100)
+    page = _int_arg("page", 1, 1, 2000)
+    try:
+        items, total = _arch_rows(request.args, size, (page - 1) * size)
+    except Exception as e:
+        return _err("보관함을 읽지 못했어요: %s" % str(e)[:60], 500)
+    return _admin_json({"ok": True, "items": items, "total": total, "page": page, "size": size})
+
+
+@bp.route("/admin/api/news/arch/csv")
+def api_arch_csv():
+    deny = _arch_ok()
+    if deny:
+        return deny
+    try:
+        items, total = _arch_rows(request.args, 20000, 0)
+    except Exception as e:
+        return _err("보관함을 읽지 못했어요: %s" % str(e)[:60], 500)
+
+    def q(x):
+        return '"' + str(x if x is not None else "").replace('"', '""') + '"'
+    lines = ["발행시각,제목,언론사,호재악재,테마,종목,근거단어,가져온곳,본횟수,링크"]
+    for x in items:
+        lines.append(",".join([q(x["at"]), q(x["title"]), q(x["press"]), q(x["label"]), q("|".join(x["themes"])), q("|".join("%s:%s" % (s["ticker"], s["name"]) for s in x["stocks"])),
+                               q(" ".join(filter(None, [x["pos"], x["neg"]]))), q("|".join(x["srcs"])), q(x["seen"]), q(x["url"])]))
+    from flask import Response
+    resp = Response("\ufeff" + "\n".join(lines), mimetype="text/csv; charset=utf-8")
+    resp.headers["Content-Disposition"] = 'attachment; filename="news_archive_%s.csv"' % _now_kst().strftime("%Y%m%d")
+    return C._admin_headers(resp)
+
+
+@bp.route("/admin/api/news/arch/reclass", methods=["POST"])
+def api_arch_reclass():
+    """관리자 전용 — 분류 단어를 고친 뒤, 저장된 뉴스의 호재/악재·테마를 새 기준으로 다시 매긴다."""
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    conn = None
+    n = 0
+    try:
+        conn = C._pg_get() if C._USE_PG else C._history_conn()
+        c = conn.cursor()
+        c.execute("SELECT id,title,snippet FROM nw_arch")
+        rows = c.fetchall()
+        for aid, title, snip in rows:
+            cl = classify(title)
+            c.execute(_aq("UPDATE nw_arch SET senti=?,pos_kw=?,neg_kw=? WHERE id=?"), (cl["k"], ",".join(cl["pos"]), ",".join(cl["neg"]), aid))
+            c.execute(_aq("DELETE FROM nw_arch_th WHERE aid=?"), (aid,))
+            for th in themes_of(str(title) + " " + str(snip or ""), 1)[:4]:
+                c.execute(_aq("INSERT INTO nw_arch_th(aid,theme) VALUES(?,?) ON CONFLICT(aid,theme) DO NOTHING"), (aid, th))
+            n += 1
+        conn.commit()
+    except Exception as e:
+        return _err("다시 분류하지 못했어요: %s" % str(e)[:60], 500)
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+    _alog("news_arch_reclass", "n=%d" % n)
+    return _admin_json({"ok": True, "n": n})
+
+
+@bp.route("/admin/api/news/arch/prune", methods=["POST"])
+def api_arch_prune():
+    """관리자 전용 — N일보다 오래된 기사를 지운다(기본 180일)."""
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    d = _json_body()
+    try:
+        days = max(30, min(3650, int(d.get("days") or 180)))
+    except Exception:
+        days = 180
+    cut = (_now_kst() - __import__("datetime").timedelta(days=days)).strftime("%Y-%m-%d")
+    try:
+        ids = [r[0] for r in (_dbx("SELECT id FROM nw_arch WHERE pub_day<?", (cut,), fetch=True) or [])]
+        for i in range(0, len(ids), 400):
+            part = ids[i:i + 400]
+            ph = ",".join("?" * len(part))
+            _dbx("DELETE FROM nw_arch_tk WHERE aid IN (%s)" % ph, part)
+            _dbx("DELETE FROM nw_arch_th WHERE aid IN (%s)" % ph, part)
+            _dbx("DELETE FROM nw_arch WHERE id IN (%s)" % ph, part)
+    except Exception as e:
+        return _err("지우지 못했어요: %s" % str(e)[:60], 500)
+    _alog("news_arch_prune", "days=%d n=%d" % (days, len(ids)))
+    return _admin_json({"ok": True, "n": len(ids), "days": days})
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1671,8 +2027,8 @@ def api_leader_prompt():
 # 화면 (JS) — 관리자 탭과 이용자 화면(/m/news)이 같은 코드를 쓴다
 # ══════════════════════════════════════════════════════════════
 TAB_JS = r"""
-var NW={view:'latest',cat:'main',lead:{days:21,min:2,ans:{}},theme:{days:14},board:{q:'',page:1},pre:null,cur:null,parsed:null,parsedFor:'',res:null,css:false};
-var NWV=[['latest','📰 뉴스룸','latest'],['stock','🔎 종목 뉴스','stock'],['cls','🏷 분류 체험','classify'],['theme','🧩 테마·이슈','themes'],['lead','📈 긍정뉴스 지속','leader'],['board','🗂 보관함','board'],['ai','🤖 AI 해석','ai']];
+var NW={view:'latest',arch:{days:'30',view:'stock',ticker:'',tname:'',theme:'',senti:'',day:'',press:'',q:'',page:1},cat:'main',lead:{days:21,min:2,ans:{}},theme:{days:14},board:{q:'',page:1},pre:null,cur:null,parsed:null,parsedFor:'',res:null,css:false};
+var NWV=[['latest','📰 뉴스룸','latest'],['stock','🔎 종목 뉴스','stock'],['cls','🏷 분류 체험','classify'],['theme','🧩 테마·이슈','themes'],['lead','📈 긍정뉴스 지속','leader'],['arch','🗄 뉴스 DB','archive'],['board','🗂 보관함','board'],['ai','🤖 AI 해석','ai']];
 var NWCSS='.nwH{background:linear-gradient(135deg,#0f172a,#1e3a8a);color:#fff;border-radius:16px;padding:16px 18px;margin-bottom:10px}.nwH h2{margin:0;font-size:22px}.nwH p{margin:6px 0 0;font-size:13px;color:#cbd5e1;line-height:1.55}'+
 '.nwWarn{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:10px;padding:8px 12px;font-size:12.5px;line-height:1.55;margin:8px 0}.nwWarn.sm{font-size:12px;padding:6px 10px}'+
 '.nwTabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;margin-bottom:6px;-webkit-overflow-scrolling:touch}.nwTabs button{flex:0 0 auto;border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 13px;font-size:13px;cursor:pointer;white-space:nowrap}.nwTabs button.on{background:#0f172a;color:#fff;border-color:#0f172a}.nwTabs button.lk{opacity:.7}'+
@@ -1715,8 +2071,54 @@ function nwLoad(p){nwCss();p.innerHTML='';
 function nwShow(v){NW.view=v;var tabs=$('nwTabs'),body=$('nwBody');if(!tabs||!body)return;tabs.innerHTML='';
  NWV.forEach(function(x){var ok=ftOk(x[2]);var b=el('button',(x[0]===v?'on':'')+(ok?'':' lk'),(ok?'':'🔒 ')+x[1]);b.onclick=function(){nwShow(x[0])};tabs.appendChild(b)});
  body.innerHTML='';var box=el('div');body.appendChild(box);
- var fn={latest:nrRoom,stock:nwVStock,cls:nwVCls,theme:nwVTheme,lead:nwVLead,board:nwVBoard,ai:nwVAI}[v];if(fn)fn(box)}
+ var fn={latest:nrRoom,stock:nwVStock,cls:nwVCls,theme:nwVTheme,lead:nwVLead,arch:nwVArch,board:nwVBoard,ai:nwVAI}[v];if(fn)fn(box)}
 function nwLocked(s,fid,sample){s.appendChild(el('p','note',sample));ftSec(s,fid)}
+/* ══ 🗄 뉴스 DB(v186): 가져온 뉴스를 분류해 쌓아 둔 보관함 — 종목별·테마별·호재/악재·날짜·언론사 ══ */
+function nwArchQ(extra){var A=NW.arch,o={days:A.days,ticker:A.ticker,theme:A.theme,senti:A.senti,day:A.day,press:A.press,q:A.q};if(extra)Object.keys(extra).forEach(function(k){o[k]=extra[k]});var a=[];Object.keys(o).forEach(function(k){if(o[k]!==''&&o[k]!=null)a.push(encodeURIComponent(k)+'='+encodeURIComponent(o[k]))});return a.join('&')}
+function nwVArch(box){var A=NW.arch;var s=nwSec(box,'🗄 뉴스 DB — 분류해서 쌓아 둔 뉴스','뉴스를 가져올 때마다(주요·속보·많이 본 뉴스, 종목 뉴스, 종목분석 화면의 뉴스) 호재/악재·테마·관련 종목과 함께 자동 저장돼요. 나중에 종목·테마별 추세를 보려는 자료예요. 제목·언론사·링크·발행시각만 저장하고 기사 원문은 저장하지 않아요.');
+ if(!ftOk('archive')){nwLocked(s,'archive','예) 종목별·테마별·호재/악재별 뉴스 건수와 날짜별 추세를 볼 수 있어요.');return}
+ var sum=el('div');sum.id='nwAS';s.appendChild(sum);var fl=el('div');fl.id='nwAF';s.appendChild(fl);var out=el('div');out.id='nwAL';s.appendChild(out);
+ nwArchSum()}
+function nwArchSum(){var A=NW.arch,sum=$('nwAS');if(!sum)return;nwWait(sum,'뉴스 DB를 읽는 중…');
+ api('/admin/api/news/arch/summary?days='+A.days).then(function(j){sum=$('nwAS');if(!sum)return;sum.innerHTML='';if(j.error){NeedNote(sum,j.error,'','note bad');return}
+  var bar=el('div','bar');[['7','7일'],['14','14일'],['30','30일'],['90','90일'],['0','전체']].forEach(function(x){var b=el('button','thCh'+(A.days===x[0]?' on':''),x[1]);b.type='button';b.onclick=function(){A.days=x[0];A.page=1;nwArchSum()};bar.appendChild(b)});sum.appendChild(bar);
+  var tl=el('div','nwTiles');[['저장된 뉴스',j.total.toLocaleString('ko-KR')+'건'],['보관 기간',j.first?(j.first.slice(5)+' ~ '+j.last.slice(5)):'-'],['오늘 발행',j.today+'건'],['선택 기간',j.n.toLocaleString('ko-KR')+'건'],['호재성',(j.by.p||0)+'건'],['악재성',(j.by.n||0)+'건']].forEach(function(x){var t=el('div','nwTile');t.appendChild(el('div','l',x[0]));t.appendChild(el('div','v',x[1]));tl.appendChild(t)});sum.appendChild(tl);
+  if(!j.total){sum.appendChild(el('p','note','아직 저장된 뉴스가 없어요. [📰 뉴스룸]에서 뉴스를 불러오거나 종목 뉴스를 검색하면 이 자리에 쌓이기 시작해요.'))}
+  if(j.state&&j.state.err)sum.appendChild(el('p','note bad','⚠ 마지막 저장 오류: '+j.state.err));
+  /* 날짜별 추세(호재·악재 쌓임 막대) */
+  if(j.days.length){var c=el('div','nwSecC');c.appendChild(el('div','t','📅 날짜별 뉴스 건수 (눌러서 그날 뉴스 보기)'));var mx=1;j.days.forEach(function(d){mx=Math.max(mx,d.p+d.n+d.x+d.z)});
+   var w=el('div');w.style.cssText='display:flex;align-items:flex-end;gap:3px;height:96px;overflow-x:auto;padding-bottom:2px';
+   j.days.forEach(function(d){var tot=d.p+d.n+d.x+d.z;var col=el('div');col.style.cssText='flex:1 0 14px;max-width:34px;display:flex;flex-direction:column;justify-content:flex-end;height:100%;cursor:pointer'+(A.day===d.day?';outline:2px solid #0f172a;outline-offset:1px':'');col.title=d.day+' · 전체 '+tot+'건 (호재 '+d.p+' / 악재 '+d.n+')';
+    [['z','#cbd5e1'],['x','#fcd34d'],['n','#3b82f6'],['p','#ef4444']].forEach(function(k){if(!d[k[0]])return;var i=document.createElement('i');i.style.cssText='display:block;width:100%;background:'+k[1]+';height:'+Math.max(2,Math.round(d[k[0]]*82/mx))+'px';col.appendChild(i)});
+    col.onclick=function(){A.day=(A.day===d.day?'':d.day);A.page=1;nwArchSum()};w.appendChild(col)});c.appendChild(w);
+   c.appendChild(el('div','mt','🟥 호재성 · 🟦 악재성 · 🟨 혼재 · ⬜ 중립 — 맨 왼쪽이 가장 오래된 날'));sum.appendChild(c)}
+  /* 분류 표 */
+  var tabs=el('div','bar');var V=[['stock','🏷 종목별'],['theme','🧩 테마별'],['senti','👍👎 호재·악재'],['press','📰 언론사별']];V.forEach(function(x){var b=el('button','thCh'+(A.view===x[0]?' on':''),x[1]);b.type='button';b.onclick=function(){A.view=x[0];nwArchSum()};tabs.appendChild(b)});sum.appendChild(tabs);
+  var rows=[];if(A.view==='stock')rows=j.stocks.map(function(x){return {k:x.ticker,name:(x.name||x.ticker)+' ('+x.ticker+')',n:x.n,p:x.p,neg:x.neg,set:function(){A.ticker=x.ticker;A.tname=x.name}}});
+  else if(A.view==='theme')rows=j.themes.map(function(x){return {k:x.name,name:x.name,n:x.n,p:x.p,neg:x.neg,set:function(){A.theme=x.name}}});
+  else if(A.view==='press')rows=j.press.map(function(x){return {k:x.name,name:x.name,n:x.n,p:x.p,neg:x.neg,set:function(){A.press=x.name}}});
+  else rows=[['p','호재성'],['n','악재성'],['x','혼재'],['z','중립']].map(function(x){return {k:x[0],name:x[1],n:j.by[x[0]]||0,p:x[0]==='p'?(j.by.p||0):0,neg:x[0]==='n'?(j.by.n||0):0,set:function(){A.senti=x[0]}}});
+  if(!rows.length){sum.appendChild(el('p','note','이 기간에는 해당 분류가 없어요.'))}else{
+   var T=el('div','nwTw'),t=el('table','nwT'),h=el('tr');['이름','뉴스','호재','악재','호재 비율'].forEach(function(x,i){h.appendChild(el('th',i?'r':'',x))});t.appendChild(h);
+   rows.forEach(function(r){var tr=el('tr');tr.style.cursor='pointer';tr.appendChild(el('td',null,r.name));tr.appendChild(el('td','r',String(r.n)));tr.appendChild(el('td','r',String(r.p)));tr.appendChild(el('td','r',String(r.neg)));var d=r.p+r.neg;tr.appendChild(el('td','r',d?Math.round(r.p*100/d)+'%':'-'));tr.onclick=function(){r.set();A.page=1;nwArchFilt();nwArchList()};t.appendChild(tr)});T.appendChild(t);sum.appendChild(T);
+   sum.appendChild(el('p','note','호재 비율 = 호재성 ÷ (호재성+악재성). 제목의 단어를 기준으로 한 참고 분류라 틀릴 수 있어요. 행을 누르면 그 분류의 뉴스를 아래에 보여 줘요.'))}
+  nwArchFilt();nwArchList()})}
+function nwArchFilt(){var A=NW.arch,f=$('nwAF');if(!f)return;f.innerHTML='';var bar=el('div','bar');var inp=el('input','nwIn');inp.type='text';inp.placeholder='제목 검색';inp.maxLength=40;inp.value=A.q;bar.appendChild(inp);
+ bar.appendChild(bt('검색','bt3',function(){A.q=inp.value.trim();A.page=1;nwArchList()}));inp.onkeydown=function(e){if(e.key==='Enter'){A.q=inp.value.trim();A.page=1;nwArchList()}};
+ function chip(txt,fn){var c=nwChip('a',txt+' ✕');c.style.cursor='pointer';c.onclick=function(){fn();A.page=1;nwArchSum()};bar.appendChild(c)}
+ if(A.ticker)chip('종목 '+(A.tname||A.ticker),function(){A.ticker='';A.tname=''});if(A.theme)chip('테마 '+A.theme,function(){A.theme=''});if(A.senti)chip({p:'호재성',n:'악재성',x:'혼재',z:'중립'}[A.senti],function(){A.senti=''});if(A.day)chip('날짜 '+A.day,function(){A.day=''});if(A.press)chip('언론사 '+A.press,function(){A.press=''});
+ var a=el('a','bt3','📄 CSV 내려받기');a.href='/admin/api/news/arch/csv?'+nwArchQ();a.setAttribute('download','');a.style.cssText='text-decoration:none;display:inline-block';bar.appendChild(a);
+ if(!MEMBER_MODE){bar.appendChild(bt('♻ 다시 분류','bt3',function(){if(!confirm('분류 단어를 고친 뒤 저장된 모든 뉴스의 호재/악재·테마를 새 기준으로 다시 매길까요?'))return;apiJ('/admin/api/news/arch/reclass',{}).then(function(z){toast(z.error?z.error:(z.n+'건을 다시 분류했어요'));nwArchSum()})}));
+  bar.appendChild(bt('🗑 오래된 뉴스 지우기','bt3',function(){var d=prompt('몇 일보다 오래된 뉴스를 지울까요? (최소 30일)','180');if(!d)return;apiJ('/admin/api/news/arch/prune',{days:Number(d)||180}).then(function(z){toast(z.error?z.error:(z.n+'건을 지웠어요'));nwArchSum()})}))}
+ f.appendChild(bar)}
+function nwArchList(){var A=NW.arch,out=$('nwAL');if(!out)return;var f=$('nwAF');if(f){var a=f.querySelector('a');if(a)a.href='/admin/api/news/arch/csv?'+nwArchQ()}
+ nwWait(out,'뉴스를 불러오는 중…');api('/admin/api/news/arch/list?'+nwArchQ({page:A.page,size:50})).then(function(j){out=$('nwAL');if(!out)return;out.innerHTML='';if(j.error){NeedNote(out,j.error,'','note bad');return}
+  out.appendChild(el('p','note','조건에 맞는 뉴스 '+j.total.toLocaleString('ko-KR')+'건'));if(!j.items.length)return;
+  j.items.forEach(function(x){var r=el('div','nwIt');var h=el('div');h.appendChild(nwChip(x.senti,x.label));x.themes.forEach(function(t){h.appendChild(nwChip('t',t))});x.stocks.forEach(function(sk){var c=nwChip('a',sk.name||sk.ticker);nwTk(c,sk.ticker);h.appendChild(c)});
+   h.appendChild(x.url?nwLink(x.url,x.title,'tt'):el('span','tt',x.title));r.appendChild(h);
+   r.appendChild(el('div','mt',[x.press,x.at,(x.seen>1?'본 횟수 '+x.seen:''),(x.related?'관련 기사 '+x.related+'건':'')].filter(Boolean).join(' · ')));
+   if(x.pos||x.neg)r.appendChild(el('div','sn','근거 단어: '+[x.pos,x.neg].filter(Boolean).join(', ')));out.appendChild(r)});
+  var pg=el('div','bar');if(A.page>1)pg.appendChild(bt('◀ 이전','bt3',function(){A.page--;nwArchList()}));if(j.page*j.size<j.total)pg.appendChild(bt('다음 ▶','bt3',function(){A.page++;nwArchList()}));out.appendChild(pg)}).catch(function(){nwFail(out)})}
 /* 뉴스 목록(최신·종목 공통) */
 function nwItems(out,j){out.innerHTML='';if(j.error){NeedNote(out,j.error,'','note bad');return}
  var it=j.items||[];if(!it.length){NeedNote(out,j.note,'가져온 뉴스가 없어요.');return}
@@ -2139,6 +2541,10 @@ window.NwImg={dash:function(D,scale){var it=[{idx:1,label:'뉴스 대시보드',
 
 def register():
     C.register_table_hook(_ensure_tables)
+    try:
+        C.register_news_hook(_news_hook)
+    except Exception as e:
+        print(f"[뉴스보관] 훅 등록 실패(무시): {e}")
     C.register_menu({"id": "news", "label": "뉴스분석", "icon": "📰", "public_path": "/m/news", "admin_path": "/admin#nw",
                      "desc": "최신 뉴스·종목 뉴스 제목 모아보기, 호재성/악재성·테마 키워드 분류(참고용), 저장된 분석 기록·AI 해석(수동)", "access": "admin"})
     C.register_prompt("news_analyze", {
@@ -2167,6 +2573,8 @@ def register():
                        endpoints=["/admin/api/news/classify"])
     C.register_feature(MENU, "themes", "테마·이슈 요약", "저장된 뉴스 분석 기록을 모아 본 테마·업종·언급 종목 요약", default="member", endpoints=["/admin/api/news/themes"])
     C.register_feature(MENU, "leader", "긍정뉴스 지속 종목", "직접 언급되며 호재로 분류된 날이 많은 종목 순위(참고용)", default="member", endpoints=["/admin/api/news/leader"])
+    C.register_feature(MENU, "archive", "뉴스 DB(분류 저장)", "가져온 뉴스를 종목·테마·호재/악재·날짜로 분류해 쌓아 둔 보관함 — 추세 분석용(관리자 전용)", default="admin",
+                       endpoints=["/admin/api/news/arch/summary", "/admin/api/news/arch/list", "/admin/api/news/arch/csv"])
     C.register_feature(MENU, "board", "분석 기록 보관함", "저장된 뉴스 분석의 제목·출처·AI 분석문 열람과 검색", default="L2",
                        endpoints=["/admin/api/news/log/list", "/admin/api/news/log/detail"])
     C.register_feature(MENU, "ai", "AI 뉴스 해석(수동)", "뉴스를 붙여 넣어 AI 프롬프트를 만들고, 받은 답을 종목·분류 표로 정리", default="L2", kind="ai",

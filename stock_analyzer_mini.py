@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v186 — ① 관리자 화면 한 곳으로: 상단 [관리자] 버튼·왼쪽 메뉴·바로가기 아이콘·숨김 메뉴가 모두 /admin 으로 이동해요(메인 화면 안 탭으로 따로 열려 화면이 두 가지로 보이던 문제 해결). ② 네이버테마에 📡 실시간 탭 추가 — 네이버 증권의 업종·테마·그룹사를 일간·주간·월간으로 그대로 본떠 지금 이 시각 값을 받아 와요(거래량·거래대금·상승률·시가총액 TOP 카드, 코스피/코스닥·정렬 칩, 종목 표, 30초 자동 새로고침, 저장 안 함). 기존 ‘가져와서 저장한’ 화면은 💾 쌓아 둔 탭으로 이름을 바꿨어요. ③ 오늘추천: 스캔 시점의 외국인·기관 수급(5일)을 점수·표에 함께 반영하고 스캔 당시 값으로 저장해요(예전 기록과 섞이지 않게 기준일 표시). 가장 최근 스캔이 지난 거래일보다 오래됐으면 노란 경고를 띄워요. ④ 🗄 뉴스 DB: 뉴스를 가져올 때마다(주요·속보·많이 본·종목 뉴스·종목분석 화면) 제목·언론사·링크·발행시각을 호재/악재·테마·관련 종목과 함께 자동 저장하고(기사 원문은 저장 안 함), 종목별·테마별·호재악재·언론사별 집계, 날짜별 추세 막대, 검색, CSV 내려받기, 다시 분류·오래된 뉴스 지우기(관리자)를 제공해요. ⑤ AI 창: 종목분석·메뉴 모두 AI 사이트를 ‘작은 팝업 창’ 하나로 열어요(같은 창을 다시 쓰고 2.5초 안의 중복 호출은 무시해 두 번 열리지 않으며, 답변이 들어오면 자동으로 닫혀요. 팝업이 막히면 예전처럼 새 탭). ⑥ 블로그 그림: 만든 그림 전체(최대 10장)를 도우미에 넘겨 모두 순서대로 올려요(AI 도우미 1.5.11 — 재설치 필요, 옛 버전은 1장만 올려요).
 ✨ v185 — 네이버테마 자료가 ‘그대로’이던 문제: ① 장 시작 전(08~09시)에는 네이버가 테마·종목 등락률을 0으로 비워 주는데 이걸 그대로 저장해 어제 자료를 지우던 것을 막았어요(이럴 땐 저장하지 않고 이유를 알려 줘요) ② 일별 이력을 ‘누른 날짜’가 아니라 네이버가 알려 주는 시세 기준일(거래일)로 쌓아요 — 휴일에 눌러도 가짜 하루가 생기지 않아요 ③ 화면에 ‘시세 기준일’ 표시, 마지막 시도가 저장 안 됐으면 가져오기 카드에 이유 표시 ④ 장이 열리는 순간의 일시적 404는 3번까지 다시 시도.
 ✨ v184 — 뉴스분석 ⚡한 번에/자동 진행 끊김 수정(AI 분석 직후 이미지 화면이 아직 안 만들어진 순간에 다음 단계가 조용히 멈추던 문제 — 이제 만들어질 때까지 기다렸다 이어가요). AI 도우미 1.5.10: ① AI 답변을 받으면 사이트 쪽 도우미가 AI 탭을 직접 닫아요(AI 탭 스스로 닫기가 막혀도 닫혀요) ② 화면에 보이는 입력창만 골라 쓰고, 입력이 안 들어가면 방법을 바꿔 최대 9번 다시 시도(뒤쪽 탭·제미나이 여러 탭에서도 안정) ③ 같은 사이트의 다른 탭이 가져간 작업은 가로채지 않음 ④ 실패 배너에 [다시 시도] 버튼.
 ✨ v183 — 가져오기 화면 단순화: 시장수급·네이버테마는 [오늘 ○○ 가져오기] 큰 버튼 하나로 끝나고, 기간·범위·직접 붙여넣기·지우기는 ‘자세히’ 안에 접어 뒀어요. 오늘추천은 [오늘 스캔하기]·[옵션]만 보이고 [중단]은 스캔 중일 때만 나와요. 5단계 막대도 한 줄로 작게 바꿨어요. AI 도우미 1.5.9: AI 답변을 보낸 뒤 AI 탭이 자동으로 닫히지 않던 문제 수정(탭 닫기 권한 추가 — 도우미를 다시 설치/업데이트해야 적용돼요).
@@ -367,7 +368,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v185"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v186"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -1928,6 +1929,21 @@ NEWS_DAYS = 14
 NEWS_LIMIT = 12
 
 
+NEWS_HOOKS = []          # [v186] 뉴스를 가져올 때마다 불리는 함수들(뉴스 보관함이 등록): fn(source, ticker, items)
+
+
+def register_news_hook(fn):
+    NEWS_HOOKS.append(fn)
+
+
+def _fire_news_hooks(source, ticker, items):
+    for h in list(NEWS_HOOKS):
+        try:
+            h(source, ticker, [dict(x) for x in (items or [])])
+        except Exception as e:
+            print(f"[뉴스훅] 오류(무시): {e}")
+
+
 def _naver_news(ticker):
     import html as _html
     cutoff = (_now_kst() - timedelta(days=NEWS_DAYS)).strftime("%Y%m%d%H%M")
@@ -1961,7 +1977,10 @@ def _naver_news(ticker):
     except Exception as e:
         print(f"[뉴스] {ticker} 조회 오류(무시): {e}")
     items.sort(key=lambda x: x["datetime"], reverse=True)
-    return items[:NEWS_LIMIT]
+    out = items[:NEWS_LIMIT]
+    if out and NEWS_HOOKS:
+        _fire_news_hooks("stock", ticker, out)
+    return out
 
 
 def _fetch_all_parallel(ticker, need_price=True):
@@ -7179,7 +7198,7 @@ HTML_TEMPLATE = r"""
       </ol>
     </div>
     <div class="disclaimerFoot">
-      <a id="aiGoLink" class="aiGoBtn" href="#" target="_blank" rel="noopener" onclick="onAiGo()">AI 열기</a>
+      <a id="aiGoLink" class="aiGoBtn" href="#" target="_blank" rel="noopener" onclick="return onAiGo()">AI 열기</a>
       <div class="aiBtnRow" style="margin:0 0 10px;">
         <button class="btn btn-ghost" onclick="recopyPrompt()">📋 다시 복사</button>
         <button class="btn btn-ghost" onclick="closeAiGuide()">닫기</button>
@@ -8087,7 +8106,23 @@ function _copyText(text){
   return ok;
 }
 
+// 🪟 [v186] AI 사이트는 '작은 팝업 창' 하나로 열어요 — 같은 이름의 창을 다시 쓰고 2.5초 안의 중복 호출은 무시해서 두 번 열리지 않고, 답변이 들어오면 자동으로 닫아요.
+let _AIWIN = null, _AIWIN_T = 0;
+function _openAiWin(url){
+  try{
+    const now = Date.now();
+    if(_AIWIN && !_AIWIN.closed && now - _AIWIN_T < 2500){ try{ _AIWIN.focus(); }catch(e){} return true; }
+    const sw = screen.availWidth || 1200, sh = screen.availHeight || 800, w = Math.min(540, sw - 40), h = Math.min(780, sh - 80);
+    const l = Math.max(0, (screen.availLeft || 0) + sw - w - 16), t = Math.max(0, (screen.availTop || 0) + 40);
+    const win = window.open(url, 'mini_ai_win', 'popup=yes,width=' + w + ',height=' + h + ',left=' + l + ',top=' + t + ',resizable=yes,scrollbars=yes');
+    if(win){ _AIWIN = win; _AIWIN_T = now; try{ win.focus(); }catch(e){} return true; }
+  }catch(e){}
+  return false;
+}
+function _closeAiWin(){ try{ const w = _AIWIN; _AIWIN = null; if(w && !w.closed) setTimeout(function(){ try{ w.close(); }catch(e){} }, 1200); }catch(e){} }
+
 function _openExternal(url){
+  if(/^https:\/\/(gemini\.google\.com|chatgpt\.com|claude\.ai|www\.perplexity\.ai)\//.test(url) && _openAiWin(url)) return;
   // <a target="_blank"> 클릭 방식이 window.open()보다 데스크톱 창 앱(pywebview) 환경에서
   // 기본 브라우저로 안정적으로 열리는 경우가 많아 이 방식을 사용한다.
   const a = document.createElement('a');
@@ -8184,6 +8219,10 @@ function onAiGo(){
   try{ if(document.getElementById('aiGuideSkip').checked) localStorage.setItem(AI_GUIDE_SKIP_KEY, '1'); }catch(e){}
   _markAiPending();
   setTimeout(closeAiGuide, 150);
+  // 작은 팝업으로 열었으면 링크의 기본 동작(새 탭)은 막아 두 번 열리지 않게 한다. 팝업이 막히면 링크가 평소처럼 새 탭으로 열린다.
+  const href = (document.getElementById('aiGoLink') || {}).href || '';
+  if(href && href.indexOf('http') === 0 && _openAiWin(href)) return false;
+  return true;
 }
 
 function recopyPrompt(){
@@ -8199,6 +8238,7 @@ function _looksLikeAnswer(txt){
     && !(prompt && txt.slice(0, 60) === prompt.slice(0, 60));
 }
 function _applyPastedAnswer(txt){
+  _closeAiWin();
   aiPasteBoxEl.value = txt;
   renderAiResult();
   AI_PENDING = null;
@@ -8623,15 +8663,8 @@ document.addEventListener('keydown', function(e){
 //   숨김 메뉴(🔒)·관리자 화면도 별도 창이 아니라 이 화면 안에서 실행된다. 종목을 누르면 종목분석 탭 + 심층분석 탭이 함께 열린다.
 window.name = window.name || 'mini_main';
 function openAdminWin(hash){
-  if(window.MiniTabs && MiniTabs.admin()){ return MiniTabs.openAdmin(hash || ''); }
-  var url = '/admin' + (hash || '');
-  var w = null;
-  try{
-    var W = Math.min(1320, screen.availWidth - 60), H = Math.min(920, screen.availHeight - 60);
-    w = window.open(url, 'mini_admin', 'popup=yes,width=' + W + ',height=' + H + ',left=40,top=30,resizable=yes,scrollbars=yes');
-  }catch(e){}
-  if(!w){ w = window.open(url, 'mini_admin'); }
-  if(w){ try{ w.focus(); }catch(e){} }
+  /* [v186] 관리자 화면은 언제나 /admin 한 곳으로 — 메인 화면 안 탭·팝업으로 따로 열지 않아요(화면이 두 가지로 보이던 혼란 제거) */
+  location.href = '/admin' + (hash || '');
   return false;
 }
 var MiniTabs = (function(){
@@ -8762,7 +8795,7 @@ var MiniTabs = (function(){
     var sp = document.createElement('span'); sp.className = 'lb'; sp.textContent = m.label; a.appendChild(sp);
     if(m.title) a.title = m.title;
     a.setAttribute('data-lbl', m.label);
-    a.onclick = function(e){ if(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); ddClose(); open(m.id); document.body.classList.remove('sbOpen'); };
+    a.onclick = function(e){ if(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); ddClose(); document.body.classList.remove('sbOpen'); if(m.nav){ location.href = m.href; return; } open(m.id); };
     return a;
   }
   function init(w, b){
@@ -8793,7 +8826,7 @@ var MiniTabs = (function(){
       return;
     }
     if(d.miniRelay === 'blogjob' && d.id && d.html && e.source !== window){
-      try{ var bb = { id: String(d.id), title: String(d.title || ''), html: String(d.html), img: String(d.img || ''), open: String(d.open || '') }; window.postMessage({ miniHelper: 'blogjob', id: bb.id, title: bb.title, html: bb.html, img: bb.img, open: bb.open }, location.origin); bridge('blogjob', bb); }catch(x){}
+      try{ var bb = { id: String(d.id), title: String(d.title || ''), html: String(d.html), img: String(d.img || ''), imgs: (Array.isArray(d.imgs) ? d.imgs.slice(0, 10) : []), open: String(d.open || '') }; window.postMessage({ miniHelper: 'blogjob', id: bb.id, title: bb.title, html: bb.html, img: bb.img, imgs: bb.imgs, open: bb.open }, location.origin); bridge('blogjob', bb); }catch(x){}
       return;
     }
     if(e.source === window && d.miniHelper && d.miniHelper !== 'job' && d.miniHelper !== 'blogjob'){
@@ -8821,7 +8854,7 @@ var MiniTabs = (function(){
     pub.forEach(function(m){
       shown[m.id] = 1;
       var apx = isAdm && AM[m.id] && AM[m.id].admin_path;   /* [v182] 관리자 로그인 상태면 이용자 모드가 아니라 관리자 화면 그대로(관리자 메뉴로 보는 화면과 동일) */
-      if(apx){ var hi2 = apx.indexOf('#'), b2 = hi2 >= 0 ? apx.slice(0, hi2) : apx, h2 = hi2 >= 0 ? apx.slice(hi2) : ''; list.push({ id: m.id, label: m.label, icon: m.icon, url: b2 + '?embed=1' + h2, href: apx, group: m.group || 'etc' }); }
+      if(apx){ var hi2 = apx.indexOf('#'), b2 = hi2 >= 0 ? apx.slice(0, hi2) : apx, h2 = hi2 >= 0 ? apx.slice(hi2) : ''; list.push({ id: m.id, label: m.label, icon: m.icon, url: b2 + '?embed=1' + h2, href: apx, nav: true, group: m.group || 'etc' }); }
       else list.push({ id: m.id, label: m.label, icon: m.icon, url: embedUrl(m.path) + (PREVIEW && adm && adm.admin ? '&view=member' : ''), href: m.path, group: m.group || 'etc' });
     });
     if(isAdm){
@@ -8830,7 +8863,7 @@ var MiniTabs = (function(){
         var ap = m.admin_path || '', url, href;
         if(ap){ var hi = ap.indexOf('#'), base = hi >= 0 ? ap.slice(0, hi) : ap, hh = hi >= 0 ? ap.slice(hi) : ''; url = base + '?embed=1' + hh; href = ap; }
         else { url = embedUrl(m.preview_path || m.public_path || m.path); href = m.preview_path || m.public_path || m.path; }
-        list.push({ id: m.id, label: m.label, icon: m.icon, url: url, href: href, hidden: true, admin_path: ap, group: m.group || 'etc', title: '관리자에게만 보이는 메뉴입니다(일반 이용자에게는 보이지 않아요)' });
+        list.push({ id: m.id, label: m.label, icon: m.icon, url: url, href: href, hidden: true, admin_path: ap, nav: !!ap, group: m.group || 'etc', title: '관리자에게만 보이는 메뉴입니다(일반 이용자에게는 보이지 않아요)' });
       });
     }
     MiniTabs.setMenus(list, isAdm);
@@ -8865,7 +8898,7 @@ var MiniTabs = (function(){
         items.forEach(function(m){ bx.appendChild(MiniTabs.makeItem(m)); });
       });
       if(isAdm){
-        var adminItem = { id: 'adm_', label: '관리자', icon: '🛠', url: '/admin?embed=full', href: '/admin', title: '관리자 화면(모든 설정)을 이 화면 안에서 엽니다' };
+        var adminItem = { id: 'adm_', label: '관리자', icon: '🛠', url: '/admin?embed=full', href: '/admin', nav: true, title: '관리자 화면(/admin)으로 이동합니다' };
         MiniTabs.setMenus(list.concat([adminItem]), true);
         boxOf('admin', '').appendChild(MiniTabs.makeItem(adminItem));
       }

@@ -688,10 +688,191 @@ def api_delete():
 
 
 # ══════════════════════════════════════════════════════════════
+# 실시간 — 네이버 증권(stock.naver.com)의 업종·테마·그룹사 화면을 그대로 본뜸
+#   목록: /api/stockSecurity/rankings/v2/domestic/{themes|industries|groups}?period=daily|weekly|monthly (100개씩 cursor)
+#   상세: /api/domestic/market/{theme|upjong|group}/<코드>/info , /stocklist?marketType=ALL|KOSPI|KOSDAQ&startIdx&pageSize=100
+#   저장하지 않고 보는 순간의 값을 20초 동안만 기억한다(서버가 네이버를 너무 자주 부르지 않게).
+# ══════════════════════════════════════════════════════════════
+LIVE_BASE = "https://stock.naver.com/api"
+LIVE_HEAD = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+             "Referer": "https://stock.naver.com/", "Accept": "application/json, text/plain, */*", "Accept-Language": "ko-KR,ko;q=0.9"}
+LIVE_TTL = 20
+LIVE_KIND = {"theme": ("themes", "theme"), "industry": ("industries", "upjong"), "group": ("groups", "group")}
+_LIVE = {}
+_LIVE_LOCK = None
+
+
+def _live_get(url, params=None):
+    """네이버 JSON 한 번 받기(실패하면 한 번 더). 끝내 안 되면 예외."""
+    last = None
+    for _ in range(2):
+        try:
+            r = C._RAW_HTTP.get(url, params=params, timeout=(5, 12), headers=dict(LIVE_HEAD), _redirects=0)
+            if r.status_code == 200:
+                return r.json()
+            last = RuntimeError("네이버 응답 %s" % r.status_code)
+            if r.status_code in (400, 401, 403, 404, 410):
+                break
+        except Exception as e:
+            last = e
+        time.sleep(0.5)
+    raise last or RuntimeError("요청 실패")
+
+
+def _live_cached(key, fn):
+    now = time.time()
+    hit = _LIVE.get(key)
+    if hit and now - hit[0] < LIVE_TTL:
+        return hit[1], int(now - hit[0])
+    try:
+        v = fn()
+    except Exception:
+        if hit and now - hit[0] < 600:       # 네이버가 잠깐 안 되면 10분 안의 지난 값을 그대로 보여 준다(나이를 같이 알려 줌)
+            return hit[1], int(now - hit[0])
+        raise
+    if len(_LIVE) > 80:
+        for k in sorted(_LIVE, key=lambda x: _LIVE[x][0])[:40]:
+            _LIVE.pop(k, None)
+    _LIVE[key] = (now, v)
+    return v, 0
+
+
+def _lv_top(arr, scale=1.0):
+    out = []
+    for x in (arr or [])[:3]:
+        try:
+            out.append({"code": str(x.get("code") or ""), "name": _s(x.get("name"), 30), "v": round(_n(x.get("value")) * scale, 2)})
+        except Exception:
+            continue
+    return out
+
+
+def _live_rank(kind, period):
+    seg = LIVE_KIND[kind][0]
+    items, cur, upd = [], None, ""
+    for _ in range(6):
+        p = {"sortType": "changeRate", "size": 100, "period": period}
+        if cur:
+            p["cursor"] = cur
+        j = _live_get("%s/stockSecurity/rankings/v2/domestic/%s" % (LIVE_BASE, seg), p)
+        for x in (j.get("items") or []):
+            upd = max(upd, str(x.get("updatedAt") or ""))
+            items.append({"code": str(x.get("code") or ""), "name": _s(x.get("name"), 40), "rate": round(_n(x.get("changeRate")), 2),
+                          "rise": int(_n(x.get("risingCount"))), "fall": int(_n(x.get("fallingCount"))), "flat": int(_n(x.get("unchangedCount"))),
+                          "cap": round(_n(x.get("totalMarketCap")) / 1e8), "vol": int(_n(x.get("totalTradingVolume"))), "val": round(_n(x.get("totalTradingValue")) / 1e8, 1),
+                          "t_rate": _lv_top(x.get("topByChangeRate")), "t_cap": _lv_top(x.get("topByMarketCap"), 1e-8), "t_val": _lv_top(x.get("topByTradingValue"), 1e-8),
+                          "t_vol": _lv_top(x.get("topByTradingVolume"))})
+        cur = j.get("cursor")
+        if not j.get("hasNext") or not cur:
+            break
+    return {"items": items, "updated": upd}
+
+
+@bp.route("/admin/api/theme/live/list", methods=["GET"])
+def api_live_list():
+    deny = _admin_deny()
+    if deny:
+        return deny
+    kind = _arg("kind", tuple(LIVE_KIND), "theme")
+    period = _arg("period", ("daily", "weekly", "monthly"), "daily")
+    sort = _arg("sort", ("rate", "rate_asc", "val", "vol", "cap", "rise"), "rate")
+    q = _s(request.args.get("q"), 30).lower()
+    try:
+        d, age = _live_cached(("rank", kind, period), lambda: _live_rank(kind, period))
+    except Exception as e:
+        return _admin_json({"error": "네이버에서 받지 못했어요(%s). 잠시 뒤 다시 눌러 주세요." % str(e)[:60]}, 502)
+    its = [dict(x) for x in d["items"]]
+    allr = its
+    up = sum(1 for x in allr if x["rate"] > 0)
+    dn = sum(1 for x in allr if x["rate"] < 0)
+    avg = round(sum(x["rate"] for x in allr) / len(allr), 2) if allr else 0
+    for i, x in enumerate(sorted(its, key=lambda t: -t["rate"]), 1):
+        x["rank"] = i
+    if q:
+        its = [x for x in its if q in x["name"].lower() or any(q in (s["name"] or "").lower() for k in ("t_rate", "t_cap", "t_val", "t_vol") for s in x[k])]
+    key = {"rate": lambda x: (-x["rate"], x["name"]), "rate_asc": lambda x: (x["rate"], x["name"]), "val": lambda x: (-x["val"], x["name"]), "vol": lambda x: (-x["vol"], x["name"]),
+           "cap": lambda x: (-x["cap"], x["name"]), "rise": lambda x: (-x["rise"], x["name"])}[sort]
+    its.sort(key=key)
+    return _admin_json({"ok": True, "kind": kind, "period": period, "sort": sort, "items": its[:_iarg("top", 5, 400, 300)], "matched": len(its), "count": len(allr), "up": up, "down": dn, "avg": avg,
+                        "updated": d["updated"], "age": age, "now": _now_kst().strftime("%Y-%m-%d %H:%M:%S")})
+
+
+def _live_row(x, inv):
+    price = int(_n(x.get("nowPrice")))
+    rate = round(_n(x.get("prevChangeRate")), 2)
+    gb = str(x.get("upDownGb") or "")
+    chg = int(_n(x.get("prevChangePrice")))
+    if gb in ("4", "5") and chg > 0:
+        chg = -chg
+    if gb == "3":
+        chg = 0
+    tk = str(x.get("itemcode") or "")
+    row = {"ticker": tk, "name": _s(x.get("itemname"), 30), "market": "코스닥" if str(x.get("sosok")) == "1" else "코스피", "price": price, "chg": chg, "rate": rate,
+           "vol": int(_n(x.get("tradeVolume"))), "val": round(_n(x.get("tradeAmount")) / 1e8, 1), "cap": round(_n(x.get("marketSum")) / 1e8), "frgn": round(_n(x.get("frgnHoldRate")), 2),
+           "per": (round(_n(x.get("per")), 2) if x.get("per") not in (None, "", "0", "0.0") else None), "pbr": (round(_n(x.get("pbr")), 2) if x.get("pbr") not in (None, "", "0", "0.0") else None),
+           "hi52": int(_n(x.get("week52HighPrice"))), "lo52": int(_n(x.get("week52LowPrice"))),
+           "halt": bool(str(x.get("tradeStopYn") or "N") == "Y"), "status": str(x.get("marketStatus") or "")}
+    iv = inv.get(tk)
+    row["f5"], row["i5"] = ((iv["f5"], iv["i5"]) if iv else (None, None))
+    row["f1"], row["i1"] = ((iv["f1"], iv["i1"]) if iv else (None, None))
+    return row
+
+
+def _live_detail(kind, code, market):
+    seg = LIVE_KIND[kind][1]
+    info = _live_get("%s/domestic/market/%s/%s/info" % (LIVE_BASE, seg, code), {"marketType": market})
+    rows, start = [], 0
+    for _ in range(6):
+        arr = _live_get("%s/domestic/market/%s/%s/stocklist" % (LIVE_BASE, seg, code), {"marketType": market, "orderType": "priceTop", "startIdx": start, "pageSize": 100})
+        if not isinstance(arr, list) or not arr:
+            break
+        rows.extend(arr)
+        if len(arr) < 100:
+            break
+        start += 100
+    return {"info": {"name": _s(info.get("name"), 60), "desc": str(info.get("categoryInfo") or "")[:1200], "vol": int(_n(info.get("totalTradeVolume"))),
+                     "val": round(_n(info.get("totalTradeAmount")) / 1e8, 1), "cap": round(_n(info.get("totalMarketSum")) / 1e8)}, "rows": rows}
+
+
+@bp.route("/admin/api/theme/live/detail", methods=["GET"])
+def api_live_detail():
+    deny = _admin_deny()
+    if deny:
+        return deny
+    kind = _arg("kind", tuple(LIVE_KIND), "theme")
+    market = _arg("market", ("ALL", "KOSPI", "KOSDAQ"), "ALL")
+    code = re.sub(r"[^0-9A-Za-z]", "", str(request.args.get("code") or ""))[:12]
+    if not code:
+        return _admin_json({"error": "코드가 없어요."}, 400)
+    try:
+        d, age = _live_cached(("det", kind, code, market), lambda: _live_detail(kind, code, market))
+    except Exception as e:
+        return _admin_json({"error": "네이버에서 받지 못했어요(%s). 잠시 뒤 다시 눌러 주세요." % str(e)[:60]}, 502)
+    try:
+        inv = _load()["inv"]
+    except Exception:
+        inv = {}
+    rows = [_live_row(x, inv) for x in d["rows"]]
+    up = sum(1 for r in rows if r["rate"] > 0)
+    dn = sum(1 for r in rows if r["rate"] < 0)
+    avg = round(sum(r["rate"] for r in rows) / len(rows), 2) if rows else 0
+    def top(k, rev=True, n=3):
+        return [{"ticker": r["ticker"], "name": r["name"], "v": r[k]} for r in sorted(rows, key=lambda r: (-r[k] if rev else r[k], r["name"]))[:n]]
+    sort = _arg("sort", ("rate", "rate_asc", "val", "vol", "cap", "name"), "rate")
+    key = {"rate": lambda r: (-r["rate"], r["name"]), "rate_asc": lambda r: (r["rate"], r["name"]), "val": lambda r: (-r["val"], r["name"]), "vol": lambda r: (-r["vol"], r["name"]),
+           "cap": lambda r: (-r["cap"], r["name"]), "name": lambda r: (r["name"], "")}[sort]
+    srt = sorted(rows, key=key)
+    return _admin_json({"ok": True, "kind": kind, "code": code, "market": market, "sort": sort, "info": d["info"], "items": srt, "n": len(rows), "up": up, "down": dn, "avg": avg,
+                        "cards": {"vol": top("vol"), "val": top("val"), "rate": top("rate"), "cap": top("cap")}, "age": age,
+                        "inv_note": "외국인·기관 열은 [수급 가져오기]로 저장해 둔 값(최근 기준일)이에요. 실시간이 아니에요.",
+                        "now": _now_kst().strftime("%Y-%m-%d %H:%M:%S")})
+
+
+# ══════════════════════════════════════════════════════════════
 # 화면
 # ══════════════════════════════════════════════════════════════
-TAB_JS = r"""var TH={sec:'board',css:false,per:'5',bd:{q:'',sort:'rate',side:'all',no:0,det:null,sk:'',sd:-1,open:{}},q:'',sort:'rate',side:'all',top:'60',ls:null,no:0,det:null,fl:{per:'5',side:'buy'},flD:null,tr:{side:'up',days:'10'},trD:null,ai:{text:'',date:'',old:null},flag:{img:false,blog:false,posted:false},imgPanel:null,blogPanel:null,diag:null,job:null,jtm:0,jwas:false,memGo:null,chain:false,cl:{lim:'0',skip:true}};
-var TH_SECS=[['board','🏷 테마·종목·수급','list'],['list','테마 순위표','list'],['flow','💰 테마별 수급','flow'],['trend','📈 일별 추이','trend'],['ai','🤖 AI 해설','ai'],['img','🖼 테마 이미지','img'],['blog','📝 블로그 쓰기','blog'],['guide','📘 읽는 법','guide']];
+TAB_JS = r"""var TH={sec:'live',lv:{kind:'theme',per:'daily',q:'',sort:'rate',mk:'ALL',st:'rate',no:'',items:[],det:null,meta:null,auto:false,tm:0},css:false,per:'5',bd:{q:'',sort:'rate',side:'all',no:0,det:null,sk:'',sd:-1,open:{}},q:'',sort:'rate',side:'all',top:'60',ls:null,no:0,det:null,fl:{per:'5',side:'buy'},flD:null,tr:{side:'up',days:'10'},trD:null,ai:{text:'',date:'',old:null},flag:{img:false,blog:false,posted:false},imgPanel:null,blogPanel:null,diag:null,job:null,jtm:0,jwas:false,memGo:null,chain:false,cl:{lim:'0',skip:true}};
+var TH_SECS=[['live','📡 실시간 (네이버)','live'],['board','💾 쌓아 둔 테마·수급','list'],['list','💾 쌓아 둔 순위표','list'],['flow','💰 테마별 수급','flow'],['trend','📈 일별 추이','trend'],['ai','🤖 AI 해설','ai'],['img','🖼 테마 이미지','img'],['blog','📝 블로그 쓰기','blog'],['guide','📘 읽는 법','guide']];
 var TH_COL=['#e11d48','#f59e0b','#10b981','#3b82f6','#8b5cf6','#14b8a6','#f97316','#64748b','#ec4899','#84cc16'];
 var TH_CSS='.thHd{padding:14px 16px}.thHd h2{margin:0 0 4px;font-size:18px}'+
 '.thNav{display:flex;gap:2px;flex-wrap:wrap;margin:10px 0 8px;border-bottom:1.5px solid #e2e8f0}.thNav button{border:0;border-bottom:3px solid transparent;margin-bottom:-1.5px;background:transparent;color:#64748b;border-radius:0;padding:8px 11px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}.thNav button:hover{color:#1e293b}.thNav button.thOn{border-bottom-color:#c2410c;color:#c2410c}'+
@@ -733,8 +914,8 @@ function thNaverLink(tk,nm){if(window.StockName)return window.StockName(tk,nm);v
 
 /* ── 화면 뼈대 ── */
 function thLoad(p){thCss();p.innerHTML='';
- var hd=el('div','c thHd');hd.appendChild(el('h2',null,'🏷 네이버테마 — 오늘의 강세·약세 테마'));
- hd.appendChild(el('div','m','네이버 증권 테마가 오늘 얼마나 올랐는지, 어떤 종목이 끌었는지, 외국인·기관이 어느 테마에 몰렸는지 보여 줘요. 정보 제공용이며 투자 권유가 아니에요.'));
+ var hd=el('div','c thHd');hd.appendChild(el('h2',null,'🏷 네이버테마 — 업종·테마·그룹사 실시간'));
+ hd.appendChild(el('div','m','네이버 증권의 업종·테마·그룹사가 지금 얼마나 올랐는지, 어떤 종목이 끌었는지 실시간으로 보여 줘요(아래 ‘쌓아 둔’ 탭은 가져와서 모아 둔 자료). 정보 제공용이며 투자 권유가 아니에요.'));
  var sb=el('div');sb.id='thSum';hd.appendChild(sb);p.appendChild(hd);
  var ad=el('div','c');ad.id='thAdm';p.appendChild(adm(ad));var sp=el('div','thStp');sp.id='thSteps';p.appendChild(sp);var nv=el('div','thNav');nv.id='thNav';p.appendChild(nv);var bd=el('div');bd.id='thBody';p.appendChild(bd);
  p.appendChild(el('p','note','※ 테마 등락률·종목은 네이버 증권이 주는 값이에요. 테마별 수급은 [수급 가져오기]로 받은 종목(전종목·테마 종목)의 ‘순매수 수량×종가’ 합이라 실제 거래소 집계와 차이가 있어요. 테마는 단기 관심이 몰리는 묶음이라 변동이 크고, 투자 판단과 책임은 이용자 본인에게 있어요.'));
@@ -766,15 +947,73 @@ var THACTS={
  img:function(next){if(TH.flag.img){next();return}thEnsure().then(function(){thGo('img');if(!TH.imgPanel)return;return TH.imgPanel.gen(true).then(function(){if(TH.imgPanel&&TH.imgPanel.items())next()})}).catch(function(){})},
  blog:function(next){if(TH.flag.blog&&TH.sec==='blog'&&TH.blogPanel&&TH.blogPanel.built()){next();return}thEnsure().then(function(){TH.flag.blog=false;thGo('blog');if(!TH.blogPanel)return;return TH.blogPanel.rebuild().then(function(j){if(j&&!j.error)next()})}).catch(function(){})},
  post:function(next){if(thPostGo(true))next()}};
+function thChrome(){var live=TH.sec==='live';['thAdm','thSteps'].forEach(function(i){var e=$(i);if(e)e.style.display=(live||(MEMBER_MODE&&i==='thAdm'))?'none':''})}
 function thGo(sec){TH.sec=sec;thNavDraw();thShow()}
-function thShow(){var b=$('thBody');if(!b)return;b.innerHTML='';var box=el('div');b.appendChild(box);
- var m={board:thSecBoard,list:thSecList,flow:thSecFlow,trend:thSecTrend,ai:thSecAi,img:thSecImg,blog:thSecBlog,guide:thSecGuide}[TH.sec],fid=TH_SECS.filter(function(s){return s[0]===TH.sec})[0][2];
+function thShow(){var b=$('thBody');if(!b)return;thChrome();if(TH.sec!=='live'&&TH.lv&&TH.lv.tm){clearInterval(TH.lv.tm);TH.lv.tm=0}b.innerHTML='';var box=el('div');b.appendChild(box);
+ var m={live:thSecLive,board:thSecBoard,list:thSecList,flow:thSecFlow,trend:thSecTrend,ai:thSecAi,img:thSecImg,blog:thSecBlog,guide:thSecGuide}[TH.sec],fid=TH_SECS.filter(function(s){return s[0]===TH.sec})[0][2];
  if(!ftOk(fid)){var f=FEATS&&FEATS[fid];thPlace(box,fid,'🔒 '+(f?f.label:'잠긴 기능'));return}m(box)}
 function thListQ(){return thQ({q:TH.q,sort:TH.sort,side:TH.side,top:TH.top})}
 function thEnsure(){if(thHas())return Promise.resolve(TH.ls);return api('/admin/api/theme/list?'+thQ({top:'300'})).then(function(j){if(j.error)throw new Error(j.error);if(j.empty)throw new Error(j.msg||'테마 자료가 없어요.');TH.ls=j;thSteps();return j})}
 function thStatus(){var b=$('thSum');if(!b)return;b.innerHTML='';var j=TH.ls;if(!j||j.empty)return;var st=el('div');st.style.cssText='display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 0';
  function chip(t,on){var c=el('span',null,t);c.style.cssText='display:inline-block;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;border:1px solid '+(on?'#fed7aa':'#e2e8f0')+';background:'+(on?'#fff7ed':'#f1f5f9')+';color:'+(on?'#c2410c':'#334155');return c}
  st.appendChild(chip('테마 '+j.count+'개',true));st.appendChild(chip('상승 '+j.up+' · 하락 '+j.down));st.appendChild(chip('평균 '+thPct(j.avg)));if(j.trade_date)st.appendChild(chip('시세 기준일 '+j.trade_date,true));if(j.fetched_at)st.appendChild(chip('가져온 때 '+j.fetched_at.slice(0,16)));st.appendChild(chip('일별 이력 '+j.dates+'일'));b.appendChild(st)}
+
+/* ── ⓪ 실시간 (네이버 증권 업종·테마·그룹사 본뜸) ── */
+var LV_KIND=[['theme','테마'],['industry','업종'],['group','그룹사']],LV_PER=[['daily','일간'],['weekly','주간'],['monthly','월간']];
+var LV_ST=[['cap','시가총액'],['val','거래대금 상위'],['rate','상승'],['rate_asc','하락'],['vol','거래량 상위']];
+function thVol(v){v=Number(v)||0;if(v>=1e8)return (v/1e8).toFixed(1)+'억주';if(v>=1e4)return Math.round(v/1e4).toLocaleString('ko-KR')+'만주';return v.toLocaleString('ko-KR')+'주'}
+function thMoney(v){v=Number(v)||0;if(!v)return '0';if(v>=10000)return (v/10000).toFixed(1)+'조';return Math.round(v).toLocaleString('ko-KR')+'억'}
+function thArrow(c){return c>0?'▲':(c<0?'▼':'')}
+function lvTimer(){if(TH.lv.tm){clearInterval(TH.lv.tm);TH.lv.tm=0}
+ if(!TH.lv.auto)return;TH.lv.tm=setInterval(function(){if(TH.sec!=='live'||!$('thLvL')){clearInterval(TH.lv.tm);TH.lv.tm=0;return}if(document.hidden)return;lvList(true)},30000)}
+function thSecLive(box){var V=TH.lv;
+ var bar=el('div','bar');thChips(bar,'',V,'kind',LV_KIND,function(){V.no='';V.det=null;V.q='';thShow()});thChips(bar,'',V,'per',LV_PER,function(){lvList()});box.appendChild(bar);
+ var b2=el('div','bar');var q=el('input');q.type='search';q.placeholder=(V.kind==='group'?'그룹사':(V.kind==='industry'?'업종':'테마'))+'·종목 이름 검색';q.value=V.q;q.id='thLvQ';q.onkeydown=function(e){if(e.key==='Enter'){V.q=q.value.trim();lvList()}};b2.appendChild(q);b2.appendChild(bt('검색','bt3',function(){V.q=q.value.trim();lvList()}));
+ thSel(b2,'정렬',V,'sort',[['rate','등락률 높은 순'],['rate_asc','등락률 낮은 순'],['val','거래대금'],['vol','거래량'],['cap','시가총액'],['rise','상승 종목 수']],function(){lvList()});
+ b2.appendChild(bt('🔄 새로고침','bt3',function(){lvList(true)}));
+ var au=el('label','thL');var cb=document.createElement('input');cb.type='checkbox';cb.checked=!!V.auto;cb.onchange=function(){V.auto=cb.checked;lvTimer();if(V.auto)lvList(true)};au.style.cssText='flex-direction:row;align-items:center;gap:4px';au.appendChild(cb);au.appendChild(el('span',null,'30초마다 자동'));b2.appendChild(au);box.appendChild(b2);
+ var st=el('div','m');st.id='thLvS';st.style.margin='6px 0';box.appendChild(st);
+ var g=el('div','thBd');var L=el('div','thLs');L.id='thLvL';var R=el('div');R.id='thLvR';g.appendChild(L);g.appendChild(R);box.appendChild(g);
+ box.appendChild(el('p','note','※ 네이버 증권(stock.naver.com)의 업종·테마·그룹사 화면과 같은 자료를 이 화면을 열 때마다 받아 와요(서버는 20초 동안만 기억해요). 저장하지 않으니 지금 이 시각의 값이에요. 주간·월간은 목록의 등락률·거래량·거래대금만 기간 기준이고, 종목 표는 항상 오늘 시세예요. 네이버가 주는 값은 지연·오류가 있을 수 있고 투자 권유가 아니에요.'));
+ lvList();lvTimer()}
+function lvList(quiet){var L=$('thLvL');if(!L)return;var V=TH.lv;if(!quiet){L.innerHTML='';L.appendChild(el('p','note','⏳ 네이버에서 불러오는 중…'))}
+ var my=V.kind+V.per+V.sort+V.q;
+ api('/admin/api/theme/live/list?'+thQ({kind:V.kind,period:V.per,sort:V.sort,q:V.q,top:'400'})).then(function(j){if(j.error){var S=$('thLvS');if(S)S.textContent='⚠ '+j.error;return}
+  if(my!==V.kind+V.per+V.sort+V.q)return;L=$('thLvL');if(!L)return;L.innerHTML='';V.items=j.items;V.meta=j;
+  var S=$('thLvS');if(S){S.innerHTML='';var nmk=({theme:'테마',industry:'업종',group:'그룹사'})[V.kind];S.appendChild(document.createTextNode('📡 네이버 '+nmk+' '+j.count+'개 · 상승 '+j.up+' · 하락 '+j.down+' · 평균 '+thPct(j.avg)+' · 받은 시각 '+j.now.slice(11)+(j.age>2?' ('+j.age+'초 전 값)':'')+(j.updated?' · 네이버 갱신 '+String(j.updated).replace('T',' ').slice(5,16):'')))}
+  if(!j.items.length){L.appendChild(el('p','note','조건에 맞는 항목이 없어요.'));var R0=$('thLvR');if(R0)R0.innerHTML='';return}
+  if(!V.no||!j.items.some(function(t){return t.code===V.no})){V.no=j.items[0].code;V.det=null}
+  j.items.forEach(function(t){var r=el('div','thLi'+(t.code===V.no?' on':''));r.setAttribute('data-code',t.code);r.setAttribute('role','button');r.tabIndex=0;
+   r.appendChild(el('span','n',t.name));r.appendChild(el('span','r '+thCls(t.rate),thPct(t.rate)));r.appendChild(el('span','s','▲'+t.rise+' ▼'+t.fall+(t.flat?' ='+t.flat:'')));r.appendChild(el('span','f thZ','대금 '+thMoney(t.val)));
+   function pick(){V.no=t.code;V.det=null;Array.prototype.forEach.call(L.querySelectorAll('.thLi'),function(x){x.classList.toggle('on',x===r)});lvDet();if(window.innerWidth<=860){var R1=$('thLvR');if(R1&&R1.scrollIntoView)R1.scrollIntoView({behavior:'smooth',block:'start'})}}
+   r.onclick=pick;r.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();pick()}};L.appendChild(r)});
+  lvDet(quiet)})}
+function lvCard(title,arr,fmt){var c=el('div','thTile');c.style.textAlign='left';c.appendChild(el('div','l',title));(arr||[]).slice(0,3).forEach(function(x,i){var r=el('div');r.style.cssText='display:flex;justify-content:space-between;gap:6px;font-size:12.5px;margin-top:3px';r.appendChild(el('span',null,(i+1)+' '+x.name));var v=el('b',fmt==='rate'?thCls(x.v):'',fmt==='rate'?thPct(x.v):(fmt==='vol'?thVol(x.v):thMoney(x.v)));r.appendChild(v);c.appendChild(r)});return c}
+function lvDet(quiet){var R=$('thLvR');if(!R)return;var V=TH.lv;if(!V.no){R.innerHTML='';return}
+ var t=V.items.filter(function(x){return x.code===V.no})[0];
+ if(V.det&&V.det.code===V.no&&V.det.kind===V.kind&&V.det.market===V.mk){lvDraw(R,t,V.det);if(!quiet)return}
+ else{R.innerHTML='';if(t)lvHead(R,t,null);R.appendChild(el('p','note','⏳ 종목을 불러오는 중…'))}
+ var code=V.no,kind=V.kind,mk=V.mk;
+ api('/admin/api/theme/live/detail?'+thQ({kind:kind,code:code,market:mk})).then(function(j){if(j.error||V.no!==code||V.kind!==kind||V.mk!==mk)return;R=$('thLvR');if(!R)return;V.det=j;lvDraw(R,t,j)})}
+function lvHead(R,t,j){var h=el('div','thCard');h.appendChild(el('h3',null,t.name+'  '));var sp=el('span',thCls(t.rate),thPct(t.rate));sp.style.fontSize='15px';h.firstChild.appendChild(sp);
+ var d=(j&&j.info&&j.info.desc)||'';if(d){var dd=el('details');dd.appendChild(el('summary',null,'설명 보기'));var p=el('p','note',d);p.style.margin='4px 0 0';dd.appendChild(p);dd.style.fontSize='12.5px';h.appendChild(dd)}
+ var tl=el('div','thTiles');tl.style.gridTemplateColumns='repeat(auto-fit,minmax(150px,1fr))';
+ var ct=j?j.cards:null;
+ tl.appendChild(lvCard('거래량 TOP',ct?ct.vol.map(function(x){return {name:x.name,v:x.v}}):t.t_vol,'vol'));tl.appendChild(lvCard('거래대금 TOP',ct?ct.val.map(function(x){return {name:x.name,v:x.v}}):t.t_val,'val'));
+ tl.appendChild(lvCard('상승률 TOP',ct?ct.rate.map(function(x){return {name:x.name,v:x.v}}):t.t_rate,'rate'));tl.appendChild(lvCard('시가총액 TOP',ct?ct.cap.map(function(x){return {name:x.name,v:x.v}}):t.t_cap,'cap'));h.appendChild(tl);R.appendChild(h)}
+function lvDraw(R,t,j){R.innerHTML='';var V=TH.lv;if(!t)t={name:j.info.name,rate:j.avg,t_vol:[],t_val:[],t_rate:[],t_cap:[]};lvHead(R,t,j);
+ var tile=el('div','thTiles');tile.style.gridTemplateColumns='repeat(auto-fit,minmax(96px,1fr))';[['종목 수',j.n+'개',''],['상승',j.up+'개','thUp'],['하락',j.down+'개','thDn'],['평균 등락률',thPct(j.avg),thCls(j.avg)],['거래대금',thMoney(j.info.val),''],['시가총액',thMoney(j.info.cap),'']].forEach(function(x){var c=el('div','thTile');c.appendChild(el('div','l',x[0]));c.appendChild(el('div','v '+x[2],x[1]));tile.appendChild(c)});R.appendChild(tile);
+ var bar=el('div','bar');thChips(bar,'',V,'mk',[['ALL','전체'],['KOSPI','코스피'],['KOSDAQ','코스닥']],function(){V.det=null;lvDet()});thChips(bar,'',V,'st',LV_ST,function(){lvTbl()});R.appendChild(bar);
+ var w=el('div');w.id='thLvT';R.appendChild(w);lvTbl()}
+function lvTbl(){var w=$('thLvT'),j=TH.lv.det;if(!w||!j)return;w.innerHTML='';var st=TH.lv.st;
+ var rows=j.items.slice();var key={cap:function(a,b){return b.cap-a.cap},val:function(a,b){return b.val-a.val},rate:function(a,b){return b.rate-a.rate},rate_asc:function(a,b){return a.rate-b.rate},vol:function(a,b){return b.vol-a.vol}}[st];rows.sort(key);
+ if(!rows.length){w.appendChild(el('p','note','이 조건에 해당하는 종목이 없어요.'));return}
+ var T=thTbl(['종목명','현재가','전일대비','등락률','거래량','거래대금','시가총액','외인보유','외+기 5일(저장)'],['','r','r','r','r','r','r','r','r']);T.t.className='thT thT2';
+ rows.forEach(function(r){var tr=document.createElement('tr');var c0=el('td','nmc');c0.appendChild(thNm(r.ticker,r.name));c0.appendChild(el('div','sb',r.ticker+' · '+r.market+(r.halt?' · 거래정지':'')));tr.appendChild(c0);
+  tr.appendChild(el('td','r',r.price?r.price.toLocaleString('ko-KR'):'-'));tr.appendChild(el('td','r '+thCls(r.chg),(r.chg?thArrow(r.chg)+' '+Math.abs(r.chg).toLocaleString('ko-KR'):'0')));tr.appendChild(el('td','r '+thCls(r.rate),thPct(r.rate)));
+  tr.appendChild(el('td','r',thVol(r.vol)));tr.appendChild(el('td','r',thMoney(r.val)));tr.appendChild(el('td','r',thMoney(r.cap)));tr.appendChild(el('td','r',r.frgn?r.frgn.toFixed(2)+'%':'-'));
+  var fl=(r.f5==null)?null:(r.f5+r.i5);tr.appendChild(el('td','r '+(fl==null?'thZ':thCls(fl)),fl==null?'-':thFe(fl)));T.t.appendChild(tr)});
+ w.appendChild(T.wrap);w.appendChild(el('p','note','표는 전체 '+rows.length+'종목이에요. [외+기 5일(저장)]은 [수급 가져오기]로 저장해 둔 값이라 실시간이 아니에요('+(TH.ls&&TH.ls.base_date?'기준 '+TH.ls.base_date:'저장분 없으면 -')+').'))}
 
 /* ── ① 테마 순위 ── */
 function thSecList(box){
@@ -1022,6 +1261,7 @@ def register():
         {"id": "blog", "label": "④ 블로그 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."},
         {"id": "post", "label": "⑤ 블로그 복사·열기", "desc": "글이 만들어지면 서식을 복사하고 블로그 글쓰기 화면을 새 창으로 열어요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요. 브라우저가 복사·새 창을 막으면 [📋 복사하고 블로그 열기]를 한 번 눌러 주세요."}])
     F = C.register_feature
+    F(MENU, "live", "실시간 업종·테마·그룹사", "네이버 증권의 업종·테마·그룹사를 일간·주간·월간 등락률 순위와 종목 표(거래량·거래대금·상승률·시가총액)로 실시간 보기(저장하지 않음)", default="public", endpoints=["/admin/api/theme/live/list", "/admin/api/theme/live/detail"])
     F(MENU, "list", "테마 순위", "오늘 등락률 기준 강세·약세 테마 순위, 상승/하락 종목 수, 연속 강세 일수, 전일 대비 순위 변화", default="public", endpoints=["/admin/api/theme/list"])
     F(MENU, "guide", "읽는 법", "테마 등락률·연속 일수·테마별 수급 용어와 자료 출처 해설(서버 호출 없음)", default="public", endpoints=[])
     F(MENU, "detail", "테마 안 종목", "테마를 눌러 안에 든 종목의 등락률·외국인·기관·개인 수급 합계 보기", default="member", endpoints=["/admin/api/theme/detail", "/admin/api/theme/days"])

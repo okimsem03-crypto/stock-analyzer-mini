@@ -122,6 +122,11 @@ K.topImage=function(menu,ticker,maxAge){var L=K._last;if(!L||!L.items||!L.items.
  if(menu&&L.menu&&menu!==L.menu)return null;if(ticker&&L.ticker&&K.PER_STOCK[menu||L.menu]&&String(ticker)!==L.ticker)return null;
  var src=L.items[0].canvas;if(!src)return null;var w=Math.min(1080,src.width),h=Math.round(src.height*w/src.width),cv=document.createElement('canvas');cv.width=w;cv.height=h;var c=cv.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,w,h);c.drawImage(src,0,0,w,h);
  var u=cv.toDataURL('image/png');if(u.length>2800000)u=cv.toDataURL('image/jpeg',0.88);return u};
+/* [v186] 블로그에 올릴 그림 전체: 방금 만든 그림(같은 메뉴·종목) 모두를 1080px 폭 데이터 주소 목록으로(최대 max장·합계 약 9MB, 넘으면 JPEG 로 줄임). 없으면 []. */
+K.allImages=function(menu,ticker,maxAge,max){var L=K._last;if(!L||!L.items||!L.items.length)return [];if(Date.now()-L.ts>(maxAge||3*3600*1000))return [];
+ if(menu&&L.menu&&menu!==L.menu)return [];if(ticker&&L.ticker&&K.PER_STOCK[menu||L.menu]&&String(ticker)!==L.ticker)return [];
+ var out=[],tot=0,lim=max||10;L.items.slice(0,lim).forEach(function(it){var src=it.canvas;if(!src)return;var w=Math.min(1080,src.width),h=Math.round(src.height*w/src.width),cv=document.createElement('canvas');cv.width=w;cv.height=h;var c=cv.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,w,h);c.drawImage(src,0,0,w,h);
+  var u=cv.toDataURL('image/png');if(u.length>1400000)u=cv.toDataURL('image/jpeg',0.86);if(tot+u.length>9000000)return;tot+=u.length;out.push(u)});return out};
 K.toBlob=function(canvas){return new Promise(function(res){canvas.toBlob(function(b){res(b)},'image/png')})};
 /* ── 캔버스 도우미 ── */
 K.rr=function(c,x,y,w,h,r){r=Math.min(r,w/2,h/2);c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()};

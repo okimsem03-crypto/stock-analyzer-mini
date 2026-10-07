@@ -35,7 +35,7 @@ for _n in _CORE_FUNCS:
 E = B.E
 TICKER_RE = B.TICKER_RE
 HZ_DAYS = {"단기": 7, "중기": 30, "장기": 90}
-DEFAULT_CFG = {"markets": ["KOSPI", "KOSDAQ"], "cap_top": 200, "min_score": 50, "count": 50, "kospi_ratio": 0}   # kospi_ratio 0 = 합쳐서 시총 순
+DEFAULT_CFG = {"markets": ["KOSPI", "KOSDAQ"], "cap_top": 300, "min_score": 50, "count": 50, "kospi_ratio": 0}   # kospi_ratio 0 = 합쳐서 시총 순
 
 
 def _f(v, d=None):
@@ -97,6 +97,17 @@ def _ensure_tables(c, use_pg):
               f"price {real}, day_pct {real}, per {real}, pbr {real}, cap_eok BIGINT, rsi {real}, score INTEGER NOT NULL DEFAULT 0, dip_score INTEGER NOT NULL DEFAULT 0, "
               f"ma_align TEXT NOT NULL DEFAULT '', pos52 {real}, vol_ratio {real}, pct52 {real}, disc_flags TEXT NOT NULL DEFAULT '', "
               f"f5 {real}, i5 {real}, f20 {real}, i20 {real}, PRIMARY KEY(scan_date, ticker))")
+    # [v186] 스캔 '당시'의 수급 스냅샷·점수 구성(기술/수급)을 같이 저장 — 나중에 보아도 그날의 근거가 그대로 남도록
+    for col, typ in (("tech_score", "INTEGER"), ("flow_score", "INTEGER"), ("f1", real), ("i1", real), ("flow_base", "TEXT")):
+        try:
+            if use_pg:
+                c.execute(f"ALTER TABLE dly_pick ADD COLUMN IF NOT EXISTS {col} {typ}")
+            else:
+                have = {r[1] for r in c.execute("PRAGMA table_info(dly_pick)").fetchall()}
+                if col not in have:
+                    c.execute(f"ALTER TABLE dly_pick ADD COLUMN {col} {typ}")
+        except Exception as e:
+            print(f"[오늘추천] 열 추가 건너뜀({col}): {e}")
     c.execute("CREATE TABLE IF NOT EXISTS dly_ai(scan_date TEXT PRIMARY KEY, result TEXT NOT NULL DEFAULT '', market_context TEXT NOT NULL DEFAULT '', "
               "picks TEXT NOT NULL DEFAULT '[]', updated BIGINT NOT NULL DEFAULT 0)")
     c.execute(f"CREATE TABLE IF NOT EXISTS dly_track(pick_date TEXT NOT NULL, ticker TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', horizon TEXT NOT NULL DEFAULT '', "
@@ -121,7 +132,7 @@ def _clean_cfg(d):
             return int(max(lo, min(hi, int(float(d.get(k, DEFAULT_CFG[k]))))))
         except Exception:
             return DEFAULT_CFG[k]
-    return {"markets": mk, "cap_top": iv("cap_top", 30, 600), "min_score": iv("min_score", 0, 95), "count": iv("count", 5, 150), "kospi_ratio": iv("kospi_ratio", 0, 100)}
+    return {"markets": mk, "cap_top": iv("cap_top", 30, 800), "min_score": iv("min_score", 0, 95), "count": iv("count", 5, 150), "kospi_ratio": iv("kospi_ratio", 0, 100)}
 
 
 def get_cfg():
@@ -143,12 +154,14 @@ def _row(d):
             "rsi": _f(d.get("rsi")), "score": int(_f(d.get("score"), 0) or 0), "dip": int(_f(d.get("dip_score"), 0) or 0), "align": d.get("ma_align") or "",
             "pos52": _f(d.get("pos52")), "vr": _f(d.get("vol_ratio")), "pct52": _f(d.get("pct52")),
             "flags": [x for x in str(d.get("disc_flags") or "").split(",") if x],
-            "f5": _f(d.get("f5")), "i5": _f(d.get("i5")), "f20": _f(d.get("f20")), "i20": _f(d.get("i20"))}
+            "f5": _f(d.get("f5")), "i5": _f(d.get("i5")), "f20": _f(d.get("f20")), "i20": _f(d.get("i20")),
+            "f1": _f(d.get("f1")), "i1": _f(d.get("i1")), "tech": (None if d.get("tech_score") is None else int(_f(d.get("tech_score"), 0) or 0)),
+            "flow": (None if d.get("flow_score") is None else int(_f(d.get("flow_score"), 0) or 0)), "flow_base": d.get("flow_base") or ""}
 
 
 def _web_rows(date):
     cols = ["scan_date", "ticker", "name", "market", "price", "day_pct", "per", "pbr", "cap_eok", "rsi", "score", "dip_score", "ma_align", "pos52", "vol_ratio", "pct52",
-            "disc_flags", "f5", "i5", "f20", "i20"]
+            "disc_flags", "f5", "i5", "f20", "i20", "f1", "i1", "tech_score", "flow_score", "flow_base"]
     try:
         rows = _dbrows(f"SELECT {', '.join(cols)} FROM dly_pick WHERE scan_date=? ORDER BY score DESC, ticker", cols, (date,))
     except Exception:
@@ -251,7 +264,7 @@ def live_prices(tickers):
 
 
 # ── 회원 화면(gateway) 보호 도우미 — 한 주소가 여러 기능의 자료를 섞어 내보내므로 서버가 잠긴 부분을 뺀다 ──
-DETAIL_KEYS = ("per", "pbr", "rsi", "dip", "align", "pos52", "vr", "pct52", "flags", "f5", "i5", "f20", "i20", "streak", "since", "now", "now_pct")
+DETAIL_KEYS = ("per", "pbr", "rsi", "dip", "align", "pos52", "vr", "pct52", "flags", "f5", "i5", "f20", "i20", "f1", "i1", "tech", "flow", "flow_base", "streak", "since", "now", "now_pct")
 
 
 def _gw():
@@ -328,11 +341,11 @@ def api_list():
 # ══════════════════════════════════════════════════════════════
 # 스캔 (뒤에서 도는 작업 + 진행률)
 # ══════════════════════════════════════════════════════════════
-_JOB = {"running": False, "cancel": False, "total": 0, "done": 0, "kept": 0, "current": "", "started": 0, "finished": 0, "error": "", "scan_date": "", "saved": 0}
+_JOB = {"note": "", "running": False, "cancel": False, "total": 0, "done": 0, "kept": 0, "current": "", "started": 0, "finished": 0, "error": "", "scan_date": "", "saved": 0}
 
 
 def _scan_view():
-    return {k: _JOB[k] for k in ("running", "total", "done", "kept", "current", "started", "finished", "error", "scan_date", "saved")}
+    return {k: _JOB[k] for k in ("running", "total", "done", "kept", "current", "started", "finished", "error", "scan_date", "saved", "note")}
 
 
 def _ranking(mk, want):
@@ -379,7 +392,8 @@ def _universe(cfg):
     return out
 
 
-def _eval_one(item, min_score):
+def _eval_one(item):
+    """기술 지표 평가(통과 여부는 수급을 더한 뒤에 정한다 — 기술 점수가 조금 낮아도 수급이 강한 종목이 걸러지지 않게)."""
     p = get_price_data(item["ticker"])
     if not p or not p.get("price"):
         return None
@@ -392,16 +406,53 @@ def _eval_one(item, min_score):
     if (p.get("pos52") or 0) >= 95:
         disc.append("신고가권")
     day = p.get("day_pct", 0) or 0
-    is_dip = day < 0 and dp >= 60
-    if not (sc >= min_score or is_dip or (disc and sc >= max(0, min_score - 10))):
-        return None
     return {"ticker": item["ticker"], "name": item["name"], "market": item["market"], "cap_eok": int(item["cap"] or 0) or None, "price": p["price"], "day_pct": day,
-            "rsi": p.get("rsi"), "score": sc, "dip_score": dp, "ma_align": p.get("ma_align") or "", "pos52": p.get("pos52"), "vol_ratio": p.get("vol_ratio"),
-            "pct52": p.get("pct52"), "flags": disc, "last": p.get("last_trade_date") or "", "per": None, "pbr": None, "f5": None, "i5": None, "f20": None, "i20": None}
+            "rsi": p.get("rsi"), "tech": sc, "score": sc, "dip_score": dp, "ma_align": p.get("ma_align") or "", "pos52": p.get("pos52"), "vol_ratio": p.get("vol_ratio"),
+            "pct52": p.get("pct52"), "flags": disc, "last": p.get("last_trade_date") or "", "per": None, "pbr": None,
+            "f1": None, "i1": None, "f5": None, "i5": None, "f20": None, "i20": None, "flow": None, "flow_base": ""}
+
+
+def flow_score(f5, i5, f20, i20, cap_eok):
+    """수급 점수(0~100) — 외국인+기관 순매수를 '시가총액 대비 %'로 봐서, 덩치 큰 종목만 유리해지지 않게 한다. 자료가 없으면 None."""
+    if f5 is None or i5 is None or not cap_eok:
+        return None
+    cap = max(float(cap_eok), 100.0)
+    x5 = (f5 + i5) / cap * 100.0
+    x20 = ((f20 or 0.0) + (i20 or 0.0)) / cap * 100.0
+    cl = lambda v: max(-1.0, min(1.0, v))
+    raw = 0.6 * cl(x5 / 0.5) + 0.4 * cl(x20 / 1.5)          # 5일 시총의 0.5% · 20일 1.5% 순매수면 만점
+    sc = 50 + 50 * raw
+    if f5 > 0 and i5 > 0:
+        sc += 8
+        if f20 is not None and i20 is not None and f20 > 0 and i20 > 0:
+            sc += 4
+    return int(max(0, min(100, round(sc))))
+
+
+def _flow_flags(r):
+    f5, i5, f20, i20 = r.get("f5"), r.get("i5"), r.get("f20"), r.get("i20")
+    if f20 is not None and i20 is not None and f5 is not None and i5 is not None:
+        if f20 > 0 and i20 > 0:
+            r["flags"].append("쌍끌이")
+        if (f20 <= 0 < f5) or (i20 <= 0 < i5):
+            r["flags"].append("수급전환")
+
+
+def _flow_cache():
+    """시장수급·테마 [가져오기]가 모아 둔 전 종목 수급(원 → 억원). {ticker: {f1,i1,f5,i5,f20,i20,base}}"""
+    out = {}
+    try:
+        rows = _dbx("SELECT ticker,foreign_1,inst_1,foreign_5,inst_5,foreign_20,inst_20,base_date FROM investor_scan_cache", fetch=True) or []
+    except Exception:
+        return out
+    e = lambda v: round((_f(v, 0.0) or 0.0) / 1e8, 2)
+    for t, f1, i1, f5, i5, f20, i20, bd in rows:
+        out[str(t).zfill(6)] = {"f1": e(f1), "i1": e(i1), "f5": e(f5), "i5": e(i5), "f20": e(f20), "i20": e(i20), "base": str(bd or "")}
+    return out
 
 
 def _enrich(r):
-    """통과한 종목만 PER·PBR·시총과 수급(외국인·기관 5일/20일)을 더한다."""
+    """통과한 종목만 PER·PBR·시총을 더하고, 수급 자료가 비어 있으면 종목별로 받아 채운다."""
     try:
         integ = _naver_mobile_integration(r["ticker"]) or {}
         im = {x.get("code"): x.get("value") for x in (integ.get("totalInfos") or [])}
@@ -411,21 +462,23 @@ def _enrich(r):
             r["cap_eok"] = cap
     except Exception:
         pass
-    try:
-        sp = L.supply_analysis(L._trend_rows(r["ticker"]))
-        if sp:
-            for n, a, b in ((5, "f5", "i5"), (20, "f20", "i20")):
-                x = sp["per"].get(str(n))
-                if x and x.get("days", 0) >= n:
-                    r[a], r[b] = x["foreign_eok"], x["inst_eok"]
-            f5, i5, f20, i20 = r["f5"], r["i5"], r["f20"], r["i20"]
-            if f20 is not None and i20 is not None:
-                if f20 > 0 and i20 > 0:
-                    r["flags"].append("쌍끌이")
-                if (f20 <= 0 < f5) or (i20 <= 0 < i5):
-                    r["flags"].append("수급전환")
-    except Exception:
-        pass
+    if r.get("f5") is None:
+        try:
+            sp = L.supply_analysis(L._trend_rows(r["ticker"]))
+            if sp:
+                for n, a, b in ((5, "f5", "i5"), (20, "f20", "i20")):
+                    x = sp["per"].get(str(n))
+                    if x and x.get("days", 0) >= n:
+                        r[a], r[b] = x["foreign_eok"], x["inst_eok"]
+                if r.get("f5") is not None:
+                    r["flags"] = [x for x in r["flags"] if x not in ("쌍끌이", "수급전환")]
+                    _flow_flags(r)
+                    fs = flow_score(r["f5"], r["i5"], r["f20"], r["i20"], r.get("cap_eok"))
+                    if fs is not None:
+                        r["flow"] = fs
+                        r["score"] = int(round(0.6 * r["tech"] + 0.4 * fs))
+        except Exception:
+            pass
     return r
 
 
@@ -441,7 +494,7 @@ def _scan_run(cfg):
             return
         results = []
         with ThreadPoolExecutor(max_workers=5) as ex:
-            futs = {ex.submit(_eval_one, u, cfg["min_score"]): u for u in uni}
+            futs = {ex.submit(_eval_one, u): u for u in uni}
             for f in as_completed(futs):
                 u = futs[f]
                 job["done"] += 1
@@ -461,6 +514,31 @@ def _scan_run(cfg):
             job["error"] = "중단했어요(저장하지 않았어요)."
             return
         if len(results) == 0 and job["done"] > 0:
+            job["error"] = "종목 시세를 받지 못했어요. 잠시 뒤 다시 시도해 주세요."
+            return
+        # ── 수급 반영: 스캔하는 그 시점에 저장돼 있는 수급(외국인·기관)을 붙이고 점수에 섞는다 ──
+        flows = _flow_cache()
+        joined, bases = 0, {}
+        for r in results:
+            fv = flows.get(r["ticker"])
+            if fv:
+                r.update(f1=fv["f1"], i1=fv["i1"], f5=fv["f5"], i5=fv["i5"], f20=fv["f20"], i20=fv["i20"], flow_base=fv["base"])
+                _flow_flags(r)
+                fs = flow_score(fv["f5"], fv["i5"], fv["f20"], fv["i20"], r.get("cap_eok"))
+                if fs is not None:
+                    r["flow"] = fs
+                    r["score"] = int(round(0.6 * r["tech"] + 0.4 * fs))
+                    joined += 1
+                    if fv["base"]:
+                        bases[fv["base"]] = bases.get(fv["base"], 0) + 1
+        flow_base = max(bases, key=bases.get) if bases else ""
+        if joined:
+            job["note"] = f"수급 반영 {joined}/{len(results)}종목(수급 기준일 {flow_base})"
+        else:
+            job["note"] = "수급 자료가 없어 기술 점수만으로 골랐어요 — [시장수급]/[테마]에서 ‘오늘 가져오기’를 먼저 하면 수급이 점수에 반영돼요"
+        mn = cfg["min_score"]
+        results = [r for r in results if r["score"] >= mn or (r["day_pct"] < 0 and r["dip_score"] >= 60) or (r["flags"] and r["score"] >= max(0, mn - 10))]
+        if not results and job["done"] > 0:
             job["error"] = "조건을 통과한 종목이 없어요. 최소 점수를 낮춰 보세요."
             return
         results.sort(key=lambda x: (-x["score"], x["ticker"]))
@@ -480,10 +558,11 @@ def _scan_run(cfg):
         job["scan_date"] = scan_date
         _dbx("DELETE FROM dly_pick WHERE scan_date=?", (scan_date,))
         for r in top:
-            _dbx("INSERT INTO dly_pick(scan_date,ticker,name,market,price,day_pct,per,pbr,cap_eok,rsi,score,dip_score,ma_align,pos52,vol_ratio,pct52,disc_flags,f5,i5,f20,i20) "
-                 "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            _dbx("INSERT INTO dly_pick(scan_date,ticker,name,market,price,day_pct,per,pbr,cap_eok,rsi,score,dip_score,ma_align,pos52,vol_ratio,pct52,disc_flags,f5,i5,f20,i20,"
+                 "f1,i1,tech_score,flow_score,flow_base) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                  (scan_date, r["ticker"], r["name"], r["market"], r["price"], r["day_pct"], r["per"], r["pbr"], r["cap_eok"], r["rsi"], r["score"], r["dip_score"],
-                  r["ma_align"], r["pos52"], r["vol_ratio"], r["pct52"], ",".join(dict.fromkeys(r["flags"])), r["f5"], r["i5"], r["f20"], r["i20"]))
+                  r["ma_align"], r["pos52"], r["vol_ratio"], r["pct52"], ",".join(dict.fromkeys(r["flags"])), r["f5"], r["i5"], r["f20"], r["i20"],
+                  r["f1"], r["i1"], r["tech"], r["flow"], r.get("flow_base") or flow_base))
         job["saved"] = len(top)
         job["current"] = f"완료 — {len(top)}종목 저장"
     except Exception as e:
@@ -493,7 +572,7 @@ def _scan_run(cfg):
         job["running"] = False
         job["finished"] = int(time.time())
         try:
-            setting_set("daily_last_scan", json.dumps({"date": job["scan_date"], "saved": job["saved"], "total": job["total"], "finished": job["finished"], "error": job["error"]}, ensure_ascii=False))
+            setting_set("daily_last_scan", json.dumps({"date": job["scan_date"], "saved": job["saved"], "total": job["total"], "finished": job["finished"], "error": job["error"], "note": job.get("note", "")}, ensure_ascii=False))
         except Exception:
             pass
 
@@ -507,7 +586,7 @@ def api_scan():
         return _admin_json({"error": "이미 스캔 중이에요."}, 409)
     cfg = _clean_cfg(_json_body() or {})
     setting_set("daily_cfg", json.dumps(cfg, ensure_ascii=False))
-    _JOB.update(running=True, cancel=False, total=0, done=0, kept=0, current="종목 목록 가져오는 중…", started=int(time.time()), finished=0, error="", scan_date="", saved=0)
+    _JOB.update(running=True, cancel=False, total=0, done=0, kept=0, current="종목 목록 가져오는 중…", started=int(time.time()), finished=0, error="", scan_date="", saved=0, note="")
     threading.Thread(target=_scan_run, args=(cfg,), daemon=True).start()
     _alog("daily_scan", json.dumps(cfg, ensure_ascii=False))
     return _admin_json({"ok": True, "cfg": cfg})
@@ -1137,24 +1216,26 @@ function dyLoad(p){dyCss();p.innerHTML='';DY.ai={};DY.picks={};DY.lk=[];var hd=e
  if(!ftOk('list')){hd.appendChild(el('div','kk','DAILY PICK'));hd.appendChild(el('h2',null,'🌟 오늘의 후보'));hd.appendChild(el('div','sub','기술 지표로 자동 선별한 후보 목록·AI 정리·성과 기록을 보여줘요. 투자 권유가 아닌 참고 자료예요.'));dyLockBox(mid,'list','후보 종목 목록');return}
  api('/admin/api/daily/state').then(function(j){if(cur!=='dy')return;DY.st=j;DY.dates=j.dates||[];dyHeadDraw();if(j.scan&&j.scan.running)dyPoll();
   var d0=DY.date||(DY.dates[0]&&DY.dates[0].date)||'';if(d0)dyOpen(d0);else dyMainDraw()})}
-function dyHeadDraw(){var hd=$('dyHead');if(!hd)return;hd.innerHTML='';var c=(DY.st.cfg&&DY.st.cfg.markets)?DY.st.cfg:{markets:['KOSPI','KOSDAQ'],cap_top:200,min_score:50,count:50,kospi_ratio:0},last=DY.st.last||{};hd.appendChild(el('div','kk','DAILY PICK'));hd.appendChild(el('h2',null,'🌟 오늘의 추천'));
+function dyHeadDraw(){var hd=$('dyHead');if(!hd)return;hd.innerHTML='';var c=(DY.st.cfg&&DY.st.cfg.markets)?DY.st.cfg:{markets:['KOSPI','KOSDAQ'],cap_top:300,min_score:50,count:50,kospi_ratio:0},last=DY.st.last||{};hd.appendChild(el('div','kk','DAILY PICK'));hd.appendChild(el('h2',null,'🌟 오늘의 추천'));
  hd.appendChild(el('div','sub','기술 지표로 자동 선별한 오늘의 후보예요. 위험(상장폐지·거래정지) 신호 종목은 자동으로 빠져요. 참고 자료이며 투자 권유가 아니에요.'));
+ var lt=DY.dates.length?DY.dates[0].date:'';if(lt){var nd=new Date(Date.now()+9*3600*1000),z=function(n){return ('0'+n).slice(-2)};while(nd.getUTCDay()===0||nd.getUTCDay()===6)nd=new Date(nd.getTime()-86400000);var td=nd.getUTCFullYear()+'-'+z(nd.getUTCMonth()+1)+'-'+z(nd.getUTCDate());
+  if(lt<td){var sb=el('div','sub','⚠ 가장 최근 스캔이 '+lt+'(원본·지난 기록)이라 지금 시세와 달라요. [🔍 오늘 스캔하기]로 새로 만들어야 오늘 기준 후보가 나와요.');sb.style.cssText='background:#fef3c7;color:#92400e;border-radius:8px;padding:6px 10px;font-weight:700';hd.appendChild(sb)}}
  var r=el('div','dyHr');
  if(DY.dates.length){var sel=el('select');sel.id='dySel';sel.onchange=function(){DY.rows=[];DY.live=false;dyOpen(sel.value)};r.appendChild(sel)}
  var go=el('button','dyGo','🔍 오늘 스캔하기');go.id='dyGo';r.appendChild(ADMIN_REAL?go:adm(go));
  var ob=el('button','dyGh','⚙ 옵션');ob.title='스캔 범위·점수 기준 바꾸기';r.appendChild(ADMIN_REAL?ob:adm(ob));var cb=el('button','dyGh','■ 중단');cb.id='dyStop';cb.style.display='none';cb.onclick=function(){apiJ('/admin/api/daily/scan-cancel',{}).then(function(){toast('중단을 요청했어요')})};r.appendChild(ADMIN_REAL?cb:adm(cb));hd.appendChild(r);
  var op=el('div','dyOpt');op.style.display='none';var ck={};['KOSPI','KOSDAQ'].forEach(function(m){var l=el('label');var i=el('input');i.type='checkbox';i.checked=c.markets.indexOf(m)>=0;ck[m]=i;l.appendChild(i);l.appendChild(document.createTextNode(' '+m));op.appendChild(l)});
  function num(lbl,val,mn,mx){var l=el('label');l.appendChild(document.createTextNode(lbl+' '));var i=el('input');i.type='number';i.value=val;i.min=mn;i.max=mx;l.appendChild(i);op.appendChild(l);return i}
- var ct=num('시총 상위',c.cap_top,30,600),ms=num('최소 점수',c.min_score,0,95),cn=num('저장 개수',c.count,5,150),kr=num('코스피 비중%(0=합쳐서)',c.kospi_ratio,0,100);
- op.appendChild(el('div',null,'시총 순으로 점수를 매겨 기준 넘는 종목만 저장해요(1~3분, 화면을 떠나도 계속 돌아요).'));hd.appendChild(adm(op));ob.onclick=function(){op.style.display=op.style.display==='none'?'block':'none'};
+ var ct=num('시총 상위',c.cap_top,30,800),ms=num('최소 점수',c.min_score,0,95),cn=num('저장 개수',c.count,5,150),kr=num('코스피 비중%(0=합쳐서)',c.kospi_ratio,0,100);
+ op.appendChild(el('div',null,'시총 상위 종목을 기술 지표로 평가하고, 저장돼 있는 수급을 더해 점수를 매겨요(수급은 [시장수급]/[테마]에서 먼저 가져와 두면 반영돼요). 2~5분 걸리며 화면을 떠나도 계속 돌아요.'));hd.appendChild(adm(op));ob.onclick=function(){op.style.display=op.style.display==='none'?'block':'none'};
  go.onclick=function(){var mk=Object.keys(ck).filter(function(k){return ck[k].checked});if(!mk.length){toast('시장을 하나 이상 고르세요');return}
   apiJ('/admin/api/daily/scan',{markets:mk,cap_top:+ct.value,min_score:+ms.value,count:+cn.value,kospi_ratio:+kr.value}).then(function(j){if(j.error){toast(j.error);return}DY.st.cfg=j.cfg;toast('스캔을 시작했어요');dyPoll()})};
- dySelSync();var pg=el('div','dyPg');pg.id='dyProg';hd.appendChild(adm(pg));if(last.date)pg.appendChild(el('div',null,'마지막 스캔: '+last.date+' · '+(last.saved||0)+'종목 저장'+(last.error?' · ⚠ '+last.error:'')))}
+ dySelSync();var pg=el('div','dyPg');pg.id='dyProg';hd.appendChild(adm(pg));if(last.date)pg.appendChild(el('div',null,'마지막 스캔: '+last.date+' · '+(last.saved||0)+'종목 저장'+(last.error?' · ⚠ '+last.error:'')+(last.note?' · '+last.note:'')))}
 function dySelSync(){var sel=$('dySel');if(!sel)return;sel.innerHTML='';DY.dates.slice(0,30).forEach(function(d){var o=el('option',null,d.date+' ('+d.n+'종목)'+(d.src==='orig'?' · 원본':''));o.value=d.date;if(d.date===DY.date)o.selected=true;sel.appendChild(o)})}
 function dyStopShow(v){var b=$('dyStop');if(b)b.style.display=v?'':'none'}
 function dyPoll(){clearInterval(DY._poll);var g=$('dyGo');if(g){g.disabled=true;g.textContent='⏳ 스캔 중…'}dyStopShow(true);DY._poll=setInterval(function(){if(cur!=='dy'){clearInterval(DY._poll);return}
   api('/admin/api/daily/scan-status').then(function(s){var pg=$('dyProg');if(!pg)return;pg.innerHTML='';var pc=s.total?Math.round(s.done/s.total*100):0;var b=el('div','bar');var i=el('i');i.style.width=pc+'%';b.appendChild(i);pg.appendChild(b);
-   pg.appendChild(el('div',null,(s.running?'⏳ ':'')+(s.current||'')+' · 통과 '+s.kept+'종목'));
+   pg.appendChild(el('div',null,(s.running?'⏳ ':'')+(s.current||'')+' · 평가 '+s.kept+'종목'));if(s.note)pg.appendChild(el('div',null,'ℹ '+s.note));
    if(!s.running){clearInterval(DY._poll);dyStopShow(false);var g2=$('dyGo');if(g2){g2.disabled=false;g2.textContent='🔍 오늘 스캔하기'}if(s.error){pg.appendChild(el('div',null,'⚠ '+s.error))}else if(s.scan_date){toast('스캔 완료 — '+s.saved+'종목을 저장했어요');
     api('/admin/api/daily/state').then(function(j){DY.st=j;DY.dates=j.dates;DY.date=s.scan_date;dyHeadDraw();DY._chain=1;dyOpen(s.scan_date)})}}})},1500)}
 function dyOpen(date,live){DY.date=date;if(live!=null)DY.live=live;var m=$('dyMain');if(m&&!DY.rows.length)m.innerHTML='<div class="c">⏳ 불러오는 중…</div>';
@@ -1201,6 +1282,8 @@ function dyMainDraw(){var m=$('dyMain');if(!m)return;m.innerHTML='';dySteps();
 function dyList(b){var rows=DY.rows;
  var avg=rows.length?Math.round(rows.reduce(function(s,r){return s+r.score},0)/rows.length):0,s70=rows.filter(function(r){return r.score>=70}).length,al=rows.filter(function(r){return r.align==='정배열'}).length,up=rows.filter(function(r){return (r.day_pct||0)>0}).length,nw=rows.filter(function(r){return r.new}).length;
  var T=el('div','dyTiles');[['후보',rows.length+'종목'],['평균 점수',avg+'점'],['70점 이상',s70+'개'],['정배열',al+'개'],['상승 / 하락',up+' / '+(rows.length-up)],['🆕 신규',nw?nw+'개':'-']].forEach(function(x){var t=el('div','dyTile');t.appendChild(el('div','l',x[0]));t.appendChild(el('div','v',x[1]));T.appendChild(t)});b.appendChild(T);
+ (function(){var fb={},n=0,t=0;rows.forEach(function(r){if(r.flow!=null){n++;if(r.flow_base)fb[r.flow_base]=(fb[r.flow_base]||0)+1}if(r.tech!=null)t++});var k=Object.keys(fb).sort(function(a,c){return fb[c]-fb[a]})[0];
+  if(t&&DY.src==='web'){b.appendChild(el('p','note','점수 = 기술 60% + 수급 40%(외국인·기관 순매수를 시가총액 대비로 환산). 이 스캔 당시 저장돼 있던 수급을 그대로 기록해 둔 값이에요'+(n?' · 수급 반영 '+n+'/'+rows.length+'종목'+(k?' · 수급 기준일 '+k:''):' · ⚠ 이 날은 수급 자료가 없어 기술 점수만 쓰였어요')+'.'))}})();
  if(DY.excl)b.appendChild(el('p','note','⚠ 거래 상태 유의 신호가 확인된 '+DY.excl+'개 종목은 자동으로 빠졌어요(확정 판단이 아닌 자동 점검 결과).'));
  var f=DY.f,tb=el('div','dyTb');var q=el('input');q.type='text';q.placeholder='종목 검색';q.value=f.q;q.style.width='120px';q.oninput=function(){f.q=q.value;body()};tb.appendChild(q);
  var ms=el('input');ms.type='number';ms.value=f.min;ms.style.width='64px';ms.title='최소 점수';ms.oninput=function(){f.min=+ms.value||0;body()};tb.appendChild(el('span','m','점수≥'));tb.appendChild(ms);
@@ -1223,7 +1306,7 @@ function dyListBody(lb){lb.innerHTML='';var a=dyFiltered();var shown=a.slice(0,1
   var fl=el('div');fl.style.marginTop='6px';if(DT)fl.appendChild(dyChips(r.flags));c.appendChild(fl);var ac=el('div');ac.style.marginTop='8px';ac.appendChild(bt('📈 종목분석·🏛 심층분석','bt3',function(){window.GoStock(r.ticker)}));c.appendChild(ac);g.appendChild(c)});lb.appendChild(g)}
  else{var t=el('table','dyt'),h=el('tr');['#','종목','점수','등락'].concat(hasSince?['스캔 후']:[]).concat(DT?['RSI','이평','52주(%)','수급 5일 외/기(억)','신호','']:['']).forEach(function(x){h.appendChild(el('th',null,x))});t.appendChild(h);
   shown.forEach(function(r,i){var tr=el('tr');var c0=el('td');c0.appendChild(el('span','rk'+(i<3?' t':''),String(i+1)));tr.appendChild(c0);var nm=el('td');nm.appendChild(dyTk(el('b',null,r.name),r.ticker));nm.appendChild(el('div','m',r.ticker+(r.market?' · '+r.market:'')+(r.new?' 🆕':'')+(r.streak>1?' · '+r.streak+'일 연속':'')));tr.appendChild(nm);
-   var sc=el('td');var w=el('div','dySc');var b1=el('b',null,r.score);b1.style.color=dyCol(r.score);w.appendChild(b1);var trk=el('div','tr');var fi=el('i');fi.style.width=r.score+'%';fi.style.background=dyCol(r.score);trk.appendChild(fi);w.appendChild(trk);sc.appendChild(w);tr.appendChild(sc);
+   var sc=el('td');var w=el('div','dySc');if(r.tech!=null)w.title='기술 '+r.tech+(r.flow!=null?' · 수급 '+r.flow:' · 수급 자료 없음');var b1=el('b',null,r.score);b1.style.color=dyCol(r.score);w.appendChild(b1);var trk=el('div','tr');var fi=el('i');fi.style.width=r.score+'%';fi.style.background=dyCol(r.score);trk.appendChild(fi);w.appendChild(trk);if(r.flow!=null){var fs2=el('span','m','수급 '+r.flow);fs2.style.cssText='font-size:11px;color:#64748b;white-space:nowrap';w.appendChild(fs2)}sc.appendChild(w);tr.appendChild(sc);
    var pc=r.now_pct!=null?r.now_pct:r.day_pct;tr.appendChild(el('td',pc>0?'up':(pc<0?'dn':''),pc==null?'-':(pc>0?'+':'')+pc.toFixed(2)+'%'));
    if(hasSince)tr.appendChild(el('td',r.since>0?'up':(r.since<0?'dn':''),r.since==null?'-':(r.since>0?'+':'')+r.since.toFixed(2)+'%'));
    if(DT){tr.appendChild(el('td',null,dyN(r.rsi)));tr.appendChild(el('td',null,r.align||'-'));tr.appendChild(el('td',null,r.pos52==null?'-':dyN(r.pos52,0)));tr.appendChild(el('td','m',r.f5==null?'-':dyN(r.f5,0)+' / '+dyN(r.i5,0)));
