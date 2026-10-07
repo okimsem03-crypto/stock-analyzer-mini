@@ -855,17 +855,17 @@ function secDisc(c,x){var s=el('div','lsec');s.appendChild(el('h4',null,'📄 �
  if(x.news&&x.news.length){var n=el('div');n.style.marginTop='8px';x.news.slice(0,5).forEach(function(z){var p=el('div','note');p.textContent='▪ '+z.title+' ('+z.press+' '+z.date+')';n.appendChild(p)});s.appendChild(n)}
  s.appendChild(el('div','note','※ 공시는 제목 키워드로 분류한 것으로 호재·악재 판단이 아니에요. 원문은 KRX·DART에서 확인하세요.'));c.appendChild(s)}
 function pubText(){var b=document.getElementById('aiPasteBox');return b?String(b.value||'').trim():''}
-function pubState(){var t=pubText();return t?('✅ 하단 AI 분석 있음 ('+t.length.toLocaleString()+'자) — 블로그 글에 포함돼요.'):'하단 AI 분석이 아직 없어요. [AI 한 번에 진행]을 쓰면 같이 만들어져요.'}
-function secAI(c,x){var s=el('div','lsec');s.id='labS2';s.appendChild(el('h4',null,'② 🤖 AI 분석 + AI 종합 리포트'));
- s.appendChild(el('div','note','화면 하단의 [AI 분석](기업 소개·밸류에이션·실적)과 이 분석실의 [AI 종합 리포트]를 이어서 한 번에 진행해요. 첫 답변을 복사하고 돌아오면 하단 카드에 자동으로 채우고, 이어서 두 번째 질문으로 넘어갑니다. 두 결과 모두 블로그 글에 들어가요.'));
- var r=el('div','lrow'),b0=el('button','p','🤖 AI 한 번에 진행 (분석 + 리포트)');b0.onclick=runBoth;r.appendChild(b0);var b=el('button',null,'AI 리포트만');b.onclick=runAI;r.appendChild(b);s.appendChild(r);
+function pubState(){var t=pubText();return t?('✅ 하단 AI 분석 있음 ('+t.length.toLocaleString()+'자) — 블로그 글에 포함돼요.'):'하단 AI 분석이 아직 없어요. [AI 분석 진행]을 눌러 주세요.'}
+function secAI(c,x){var s=el('div','lsec');s.id='labS2';s.appendChild(el('h4',null,'② 🤖 AI 분석'));
+ s.appendChild(el('div','note','화면 하단의 [AI 분석](기업 소개·밸류에이션·실적) 질문 하나만 보내요. 답변을 복사하고 돌아오면 하단 카드에 자동으로 채우고 블로그 글에도 들어가요. 아래 [AI 종합 리포트]는 필요할 때만 따로 쓰는 선택 기능이에요(기본 흐름에서는 보내지 않아요).'));
+ var r=el('div','lrow'),b0=el('button','p','🤖 AI 분석 진행');b0.onclick=runBoth;r.appendChild(b0);var b=el('button',null,'AI 종합 리포트(선택)');b.onclick=runAI;r.appendChild(b);s.appendChild(r);
  var ps=el('div','note');ps.id='labPubState';ps.textContent=pubState();s.appendChild(ps);
- var has=LAB.ai[LAB.tk];var st=el('div','note');st.id='labAiState';st.textContent=has?('✅ AI 종합 리포트 저장됨 ('+has.length.toLocaleString()+'자) — 아래 블로그 글에 포함돼요.'):'아직 AI 종합 리포트가 없어요(없어도 블로그 글은 만들 수 있어요).';s.appendChild(st);
- var ta=el('textarea');ta.id='labAiTa';ta.placeholder='AI 종합 리포트 답변을 직접 붙여넣어도 됩니다.';ta.value=has||'';ta.oninput=function(){LAB.ai[LAB.tk]=ta.value;var z=document.getElementById('labAiState');if(z)z.textContent=ta.value.trim()?('✍ 직접 입력/붙여넣기 ('+ta.value.length.toLocaleString()+'자)'):'아직 AI 종합 리포트가 없어요(없어도 블로그 글은 만들 수 있어요).'};s.appendChild(ta);c.appendChild(s)}
+ var has=LAB.ai[LAB.tk];var st=el('div','note');st.id='labAiState';st.textContent=has?('✅ AI 종합 리포트 저장됨 ('+has.length.toLocaleString()+'자) — 아래 블로그 글에 포함돼요.'):'AI 종합 리포트는 선택 사항이에요(없어도 블로그 글은 만들 수 있어요).';s.appendChild(st);
+ var ta=el('textarea');ta.id='labAiTa';ta.placeholder='(선택) AI 종합 리포트 답변을 직접 붙여넣어도 됩니다.';ta.value=has||'';ta.oninput=function(){LAB.ai[LAB.tk]=ta.value;var z=document.getElementById('labAiState');if(z)z.textContent=ta.value.trim()?('✍ 직접 입력/붙여넣기 ('+ta.value.length.toLocaleString()+'자)'):'AI 종합 리포트는 선택 사항이에요(없어도 블로그 글은 만들 수 있어요).'};s.appendChild(ta);c.appendChild(s)}
 /* 단계 자동 진행([⚙ 설정] 의 단계 진행 방식): 분석 열기 → AI → 이미지 → 글 → 블로그에 쓰기. 수동으로 둔 단계에서는 멈춘다. */
 var LABFLOW=['ai','img','blog','post'];
 var LABACTS={
- ai:function(next){if(pubText()&&LAB.ai[LAB.tk]&&String(LAB.ai[LAB.tk]).trim()){next();return}scrollTo2('labS2');runBoth()},
+ ai:function(next){if(pubText()||(LAB.ai[LAB.tk]&&String(LAB.ai[LAB.tk]).trim())){next();return}scrollTo2('labS2');runBoth()},
  img:function(next){if(LAB.st.img){next();return}if(!LAB.imgPanel)return;scrollTo2('labS3');LAB.imgPanel.gen(true).then(function(){if(LAB.st.img)next()},function(){})},
  blog:function(next){if(LAB.st.blog){next();return}if(!LAB.blogPanel)return;scrollTo2('labS4');LAB.blogPanel.rebuild()},
  post:function(next){if(LAB.st.blog&&LAB.blogPanel){if(!LAB.blogPanel.built()){LAB.blogPanel.rebuild().then(function(j){if(j){LAB.blogPanel.copyOpen(true);next()}});return}LAB.blogPanel.copyOpen(true);next()}}};
@@ -879,11 +879,11 @@ function pubPrompt(){var p=null;try{p=(typeof CUR_PROMPT!=='undefined')?CUR_PROM
  try{return _fetchAiPrompt().then(function(d){return (d&&d.prompt)||''}).catch(function(){return ''})}catch(e){return Promise.resolve('')}}
 function runBoth(){if(!window.MiniAI){toast('AI 도우미를 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요.');return}
  Promise.all([pubPrompt(),api(BASE+'prompt',{ticker:LAB.tk})]).then(function(a){var pp=a[0],j=a[1];if(j.error){toast(j.error);return}if(!pp){toast('하단 AI 분석 질문을 만들지 못했어요. [AI 리포트만]으로 진행해 주세요.');return}
-  window.MiniAI.run({title:'AI 분석 + 종합 리포트 — '+j.name,key:'labboth',autoApply:true,minLen:300,
-   steps:[{label:'① AI 분석(하단)',prompt:pp,kind:'pub'},{label:'② AI 종합 리포트',prompt:j.prompt,kind:'lab'}],
-   hint:'답변이 끝나면 답변 전체를 복사하고 이 탭으로 돌아오세요. 자동으로 읽어와 저장하고 다음 질문으로 넘어갑니다.',
-   preview:function(t,st){return st&&st.kind==='lab'?prevLab(t):prevPub(t)},
-   apply:function(t,st){if(st&&st.kind==='lab'){applyLab(t);return Promise.resolve({message:'AI 분석과 종합 리포트를 모두 저장했어요. 아래 [블로그 글 만들기]를 누르세요.'})}applyPub(t);return Promise.resolve({message:'하단 AI 분석을 채웠어요.'})}})})}
+  window.MiniAI.run({title:'AI 분석 — '+j.name,key:'labpub',autoApply:true,minLen:300,
+   steps:[{label:'AI 분석(하단)',prompt:pp,kind:'pub'}],
+   hint:'답변이 끝나면 답변 전체를 복사하고 이 탭으로 돌아오세요. 자동으로 읽어와 저장합니다.',
+   preview:function(t){return prevPub(t)},
+   apply:function(t){applyPub(t);return Promise.resolve({message:'AI 분석을 저장했어요. 아래 [블로그 글 만들기]를 누르세요.'})}})})}
 function runAI(){if(!window.MiniAI){toast('AI 도우미를 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요.');return}
  api(BASE+'prompt',{ticker:LAB.tk}).then(function(j){if(j.error){toast(j.error);return}
   window.MiniAI.run({title:'AI 종합 리포트 — '+j.name,key:'lab',steps:[{label:j.name,prompt:j.prompt,kind:'lab'}],minLen:300,hint:'AI가 "## 1. 한줄 결론 …" 형식으로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
@@ -899,12 +899,12 @@ function secBlog(c,x){var s=el('div','lsec');s.id='labS4';s.appendChild(el('h4',
   build:function(inc,title){var pt=pubText();if(!pt)inc.pubai=false;return api(BASE+'blog',{ticker:LAB.tk,ai:(LAB.ai[LAB.tk]||''),pub_ai:pt,inc:inc,title:title})},
   onLogged:function(z){LAB.x.dup_warn=z.dup_warn}})}
 
-function stepDone(){var ai=(pubText()?1:0)+(LAB.ai[LAB.tk]&&String(LAB.ai[LAB.tk]).trim()?1:0);return [!!LAB.x,ai,!!LAB.st.img,!!LAB.st.blog,!!LAB.st.posted,ai]}
+function stepDone(){var ai=(pubText()||(LAB.ai[LAB.tk]&&String(LAB.ai[LAB.tk]).trim()))?1:0;return [!!LAB.x,ai,!!LAB.st.img,!!LAB.st.blog,!!LAB.st.posted,ai]}
 function scrollTo2(id){var e=document.getElementById(id);if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'start'})}
 function drawSteps(){var h=document.getElementById('labSteps');if(!h)return;h.innerHTML='';var d=stepDone(),ai=d[5];
  var acts=[
   {t:'분석 열기',sub:d[0]?'자동 완료 · 다시 불러오기':'불러오는 중',go:function(){load()}},
-  {t:'AI 분석 + 종합 리포트',sub:ai>=2?'둘 다 완료':(ai===1?'1/2 완료 · 이어서 진행':'눌러서 시작'),go:function(){scrollTo2('labS2');runBoth()}},
+  {t:'AI 분석',sub:ai>=1?'완료 · 다시 하기':'눌러서 시작',go:function(){scrollTo2('labS2');runBoth()}},
   {t:'이미지 만들기',sub:d[2]?'완료 · 다시 만들기':(window.ImgKit&&window.ImgKit.mode()==='auto'?'자동 저장 켜짐':'눌러서 만들기'),go:function(){scrollTo2('labS3');if(LAB.imgPanel)LAB.imgPanel.gen(true).then(function(){if(LAB.st.img)labFlow('img')},function(){})}},
   {t:'글 만들기',sub:d[3]?'완료 · 다시 만들기':'눌러서 만들기',go:function(){scrollTo2('labS4');if(LAB.blogPanel)LAB.blogPanel.rebuild()}},
   {t:'블로그에 쓰기',sub:d[4]?'복사·열기 완료':(d[3]?'복사하고 블로그 열기':'글을 먼저 만드세요'),go:function(){scrollTo2('labS4');if(LAB.blogPanel)LAB.blogPanel.copyOpen()}}];
@@ -940,7 +940,7 @@ def register():
         "vars": "{data}=종목 데이터 요약(필수) · {name} · {ticker} · {today}",
         "desc": "관리자 분석실에서 AI에게 보내는 종합 리포트 요청문. '## 1.' 형식 제목을 유지해야 블로그 글에 예쁘게 들어가요."})
     C.register_flow("stock", "📈 종목분석 (분석실)", "① 종목 분석 열기(분석이 열리면 자동으로 시작)", [
-        {"id": "ai", "label": "② AI 분석 + 종합 리포트", "desc": "분석이 열리면 AI 요청문 창을 자동으로 열어요. 답변을 복사해 돌아오면 다음 단계로 이어져요(이미 둘 다 있으면 건너뛰어요)."},
+        {"id": "ai", "label": "② AI 분석", "desc": "분석이 열리면 AI 요청문 창을 자동으로 열어요(질문 1개). 답변을 복사해 돌아오면 다음 단계로 이어져요(이미 있으면 건너뛰어요)."},
         {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 단계가 끝나면 이미지를 자동으로 그려요."},
         {"id": "blog", "label": "④ 글 만들기", "desc": "이미지 다음에 블로그용 글(HTML)을 자동으로 만들어요."},
         {"id": "post", "label": "⑤ 블로그 복사·열기", "desc": "글이 만들어지면 서식을 복사하고 블로그 글쓰기 화면을 새 창으로 열어요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요. 브라우저가 복사·새 창을 막으면 [📋 복사하고 블로그 열기]를 한 번 눌러 주세요."}])
