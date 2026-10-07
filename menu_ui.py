@@ -156,7 +156,7 @@ function helperOk(){return helperHas()&&verGE(helperVer(),'1.5.1')}
 function helperOn(){return helperOk()&&lsGet('mini_ai_helper')!=='0'}
 // 메뉴 화면은 메인 화면 안의 탭(iframe)으로 열리는데, 도우미는 맨 바깥 화면에만 붙어요 → 작업을 바깥 화면에 맡겼다가 결과를 다시 받아요(메인 화면의 중계)
 function bridge(kind,obj){try{var n=document.createElement('div');n.hidden=true;n.setAttribute('data-mini-bridge',kind);n.textContent=JSON.stringify(obj);document.documentElement.appendChild(n);setTimeout(function(){try{n.parentNode&&n.parentNode.removeChild(n)}catch(e){}},15000)}catch(e){}}
-function helperPost(job){try{if(ownAttr()){var jj={id:job.id,prompt:job.prompt,host:job.host,open:job.open||'',keep:!!job.keep};window.postMessage(Object.assign({miniHelper:'job'},jj),location.origin);bridge('job',jj)}else window.top.postMessage({miniRelay:'job',id:job.id,prompt:job.prompt,host:job.host,open:job.open||'',keep:!!job.keep},location.origin)}catch(e){}}
+function helperPost(job){try{if(ownAttr()){var jj={id:job.id,prompt:job.prompt,host:job.host,open:job.open||'',keep:!!job.keep,dup:job.dup?1:0};window.postMessage(Object.assign({miniHelper:'job'},jj),location.origin);bridge('job',jj)}else window.top.postMessage({miniRelay:'job',id:job.id,prompt:job.prompt,host:job.host,open:job.open||'',keep:!!job.keep,dup:job.dup?1:0},location.origin)}catch(e){}}
 function newJob(){var a='abcdefghijklmnopqrstuvwxyz0123456789',o='';for(var i=0;i<12;i++)o+=a.charAt(Math.floor(Math.random()*a.length));return o}
 function openUrl(u){var a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();document.body.removeChild(a)}
 function ensureStyle(){if(document.getElementById('ma-style-flag'))return;var f=el('span');f.id='ma-style-flag';f.style.display='none';document.body.appendChild(f);
@@ -183,12 +183,15 @@ function run(opt){
  var cur=0,notice='',site=siteDefault(),armed=false,seen={},lastText='',busy=false,closed=false,doneSet={},curJob=null,gotMsg=false,hTm=null;
  var sTm=null,autoOn=false,needClick=false,srvRun=0,retried={},lastMsg=null,aLive=null,runMode='manual',runInfo=null,autoNote='';var srvErr='',acked=false;
  var minLen=opt.minLen||60;
+ /* [v191] AI 창은 프로그램 전체에서 한 번에 하나만 — 다른 화면(탭)에서 열려 있던 AI 창이 있으면 먼저 닫아요.
+    (두 개가 동시에 돌면 AI 사이트 창도 두 개가 떠요) */
+ try{var W9=window.top||window,prev=W9.__miniAiOpen;if(prev&&prev.alive&&prev.alive())prev.close()}catch(e){}
  var ov=el('div','ma-ov'),box=el('div','ma-box');ov.setAttribute('tabindex','-1');ov.appendChild(box);
  var h=el('div','ma-h');h.appendChild(el('b',null,opt.title||'AI로 분석하기'));var x=el('button','ma-x','✕');x.onclick=close;h.appendChild(x);box.appendChild(h);
  var dots=el('div','ma-dots');box.appendChild(dots);var body=el('div','ma-b');box.appendChild(body);
  ov.addEventListener('mousedown',function(e){if(e.target===ov)ov._dn=1});ov.addEventListener('mouseup',function(e){if(e.target===ov&&ov._dn)close();ov._dn=0});
  document.body.appendChild(ov);document.body.style.overflow='hidden';
- function close(){if(closed)return;closed=true;armed=false;winClose();clearTimeout(hTm);clearTimeout(sTm);window.removeEventListener('message',onMsg);window.removeEventListener('focus',onBack);window.removeEventListener('pageshow',onBack);document.removeEventListener('pointerdown',onPtr,true);clearInterval(wTm);document.removeEventListener('visibilitychange',onVis);document.removeEventListener('keydown',onKey);document.body.removeChild(ov);document.body.style.overflow='';if(opt.onClose)opt.onClose()}
+ function close(){if(closed)return;closed=true;armed=false;try{var Wc=window.top||window;if(Wc.__miniAiOpen===api)Wc.__miniAiOpen=null}catch(e){}winClose();clearTimeout(hTm);clearTimeout(sTm);window.removeEventListener('message',onMsg);window.removeEventListener('focus',onBack);window.removeEventListener('pageshow',onBack);document.removeEventListener('pointerdown',onPtr,true);clearInterval(wTm);document.removeEventListener('visibilitychange',onVis);document.removeEventListener('keydown',onKey);document.body.removeChild(ov);document.body.style.overflow='';if(opt.onClose)opt.onClose()}
  function onKey(e){if(e.key==='Escape')close()}document.addEventListener('keydown',onKey);
  function drawDots(){dots.innerHTML='';if(steps.length<2)return;steps.forEach(function(s,i){var d=el('span','ma-dot'+(doneSet[i]?' done':(i===cur?' on':'')),(doneSet[i]?'✓ ':'')+(s.label||('프롬프트 '+(i+1))));dots.appendChild(d)})}
  var live,ta,pvBox,applyBtn,autoCb;
@@ -213,7 +216,7 @@ function run(opt){
   var rc=el('button','ma-btn','📋 다시 복사');rc.onclick=function(){armed=true;seen[norm(s.prompt)]=1;var k=copyText(s.prompt);setLive(k?'프롬프트를 다시 복사했어요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',k?'ok':'bad')};row.appendChild(rc);s1.appendChild(row);
   if(helperOk()){var hl=el('label','ma-sw');var hc=el('input');hc.type='checkbox';hc.checked=helperOn();hc.onchange=function(){lsSet('mini_ai_helper',hc.checked?'1':'0');draw()};hl.appendChild(hc);hl.appendChild(el('span',null,'🤖 AI 도우미 사용 — 입력·전송·답변 복사를 자동으로 (끄면 직접 붙여넣기)'));s1.appendChild(hl);
    s1.appendChild(el('div','ma-d','✅ 도우미 연결됨 (v'+helperVer()+')'))}
-  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode(helperHas()?'❌ 설치된 AI 도우미(v'+helperVer()+')가 옛 버전이라 작업을 받지 못해요 — [설치·점검 방법]에서 최신 버전(1.5.13)으로 업데이트(재설치)한 뒤 이 화면을 새로고침하세요. 그때까지는 ‘복사 → 붙여넣기’ 방식으로 진행돼요. ':'❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
+  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode(helperHas()?'❌ 설치된 AI 도우미(v'+helperVer()+')가 옛 버전이라 작업을 받지 못해요 — [설치·점검 방법]에서 최신 버전(1.5.14)으로 업데이트(재설치)한 뒤 이 화면을 새로고침하세요. 그때까지는 ‘복사 → 붙여넣기’ 방식으로 진행돼요. ':'❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
    var hr=el('button','ma-btn','🔄 다시 확인');hr.onclick=function(){if(helperHas()){draw()}else{hr.textContent='아직 감지 안 됨 — 새로고침이 필요해요'}};hn.appendChild(hr);hn.appendChild(document.createTextNode(' '));
    var ha=el('a',null,'설치·점검 방법');ha.href='/ai-helper';ha.target='_blank';ha.rel='noopener';hn.appendChild(ha);s1.appendChild(hn)}
   s1.appendChild(el('div','ma-d',helperOn()?SITES[site].n+' 새 탭이 열리면 도우미가 프롬프트 입력 → 전송 → 답변 복사까지 알아서 하고, 끝나면 탭을 닫으며 답변을 이 창으로 보내 줘요. 위쪽 🤖 띠에서 진행 상황을 볼 수 있어요.':(SITES[site].q&&encodeURIComponent(s.prompt).length<=PREFILL_MAX*3?SITES[site].n+'가 열리면 질문이 자동으로 입력됩니다. 입력이 비어 있으면 입력칸에 Ctrl+V 하세요.':SITES[site].n+'가 열리면 입력칸에 Ctrl+V(붙여넣기) 한 번만 하세요. 프롬프트는 이미 복사되어 있습니다.')));
@@ -234,20 +237,26 @@ function run(opt){
   if(showS3)body.appendChild(s3);if(lastText)preview(lastText,true);
   if(autoOn&&lastMsg)setLive(lastMsg.m,lastMsg.k,lastMsg.p)}
  /* [v186] AI 창은 '작은 팝업 창' 하나로만 열어요(같은 이름의 창을 다시 쓰므로 두 번 열리지 않고, 답변을 받으면 사이트가 직접 닫아요). 팝업이 막히면 false → 기존 방식(도우미/새 탭)으로. */
- function openWin(url){try{if(lsGet('mini_ai_popup')==='0')return false;var now=Date.now(),W=window.top||window,ex=W.__miniAiWin;if(ex&&!ex.closed&&now-(W.__miniAiWinT||0)<2500){try{ex.focus()}catch(e){}return true}
+ /* [v191] AI 사이트(제미나이·챗GPT·클로드)는 보안 설정(COOP) 때문에 '창을 열었는지'를 우리가 확인할 수 없어요.
+    그래서 창이 열렸는지는 '방금 열었다(시간)'로만 판단해요 — ex.closed 는 열려 있어도 true 로 보이기 때문이에요. */
+ function openWin(url){try{if(lsGet('mini_ai_popup')==='0')return false;var now=Date.now(),W=window.top||window,ex=W.__miniAiWin;if(W.__miniAiWinT&&now-W.__miniAiWinT<2500){try{if(ex)ex.focus()}catch(e){}return true}
   var sw=screen.availWidth||1200,sh=screen.availHeight||800,w=Math.min(540,sw-40),h=Math.min(780,sh-80),l=Math.max(0,(screen.availLeft||0)+sw-w-16),t=Math.max(0,(screen.availTop||0)+40);
   var win=window.open(url,'mini_ai_win','popup=yes,width='+w+',height='+h+',left='+l+',top='+t+',resizable=yes,scrollbars=yes');
-  if(!win)return false;W.__miniAiWin=win;W.__miniAiWinT=now;try{win.focus()}catch(e){}return true}catch(e){return false}}
- function winClose(){try{var W=window.top||window,w=W.__miniAiWin;if(w&&!w.closed)setTimeout(function(){try{w.close()}catch(e){}},1200);W.__miniAiWin=null}catch(e){}}
+  if(win===null||win===undefined)return false;W.__miniAiWin=win;W.__miniAiWinT=now;try{win.focus()}catch(e){}return true}catch(e){return false}}
+ function winClose(){try{var W=window.top||window,w=W.__miniAiWin;if(w)setTimeout(function(){try{w.close()}catch(e){}},1200);W.__miniAiWin=null;W.__miniAiWinT=0}catch(e){}}
  function openAI(s,auto){var ok=copyText(s.prompt);var S=SITES[site],u=S.u,viaHelper=false,blocked=false;
   var hv=helperVer(),hOpen=helperOn()&&hv&&verGE(hv,'1.5.1');
   if(helperOn()){curJob=newJob();var hostN='';try{hostN=new URL(S.u).hostname}catch(e){}
    var pl='';try{if(s.prompt.length<=24000)pl='&p='+btoa(unescape(encodeURIComponent(s.prompt))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(e){pl=''}
-   var more=cur<steps.length-1,hNew=!!(hv&&verGE(hv,'1.5.13')),keep=more&&hNew;
+   var more=cur<steps.length-1,hNew=!!(hv&&verGE(hv,'1.5.13')),hSafe=!!(hv&&verGE(hv,'1.5.14')),keep=more&&hNew;
    var tabUrl=S.u+'#miniai='+curJob+pl+(keep?'&k=1':'');
-   /* [v189] 2단계 이상이면 AI 창을 새로 열지 않고, 이미 열려 있는 같은 창(같은 대화)에서 다음 프롬프트를 이어서 보내요 */
-   var W0=window.top||window,reuse=!!(hNew&&cur>0&&W0.__miniAiWin&&!W0.__miniAiWin.closed);
-   var popOk=reuse?true:openWin(tabUrl);helperPost({id:curJob,prompt:s.prompt,host:hostN,open:(!popOk&&hOpen)?tabUrl:'',keep:keep});gotMsg=false;acked=false;clearTimeout(hTm);
+   /* [v189] 2단계 이상이면 AI 창을 새로 열지 않고, 이미 열려 있는 같은 창(같은 대화)에서 다음 프롬프트를 이어서 보내요.
+      [v191] 열려 있는지는 시간으로만 판단해요(COOP). 창이 사실 닫혀 있었다면 도우미가 아래 '아무도 안 가져가면 열기'로 살려 줘요. */
+   var W0=window.top||window,reuse=!!(hNew&&cur>0&&W0.__miniAiWinT&&Date.now()-W0.__miniAiWinT<20*60*1000);
+   var popOk=reuse?true:openWin(tabUrl);
+   /* [v191] AI 창이 두 번 열리던 원인: 우리가 연 창을 브라우저가 확인시켜 주지 않으면 도우미가 '안 열렸구나' 하고 또 열었어요.
+      이제 도우미에게 주소를 항상 넘기고(dup=우리가 열었다고 믿는 상태), 도우미는 몇 초 기다렸다가 아무 창도 이 작업을 가져가지 않았을 때만 열어요. */
+   helperPost({id:curJob,prompt:s.prompt,host:hostN,open:hSafe?tabUrl:((!popOk&&hOpen)?tabUrl:''),keep:keep,dup:(hSafe&&(popOk||reuse))?1:0});gotMsg=false;acked=false;clearTimeout(hTm);
    var w=null;if(popOk||hOpen)w=true;else{try{w=window.open(tabUrl,'_blank')}catch(e){w=null}}
    if(w){viaHelper=true;var jb=curJob;hTm=setTimeout(function(){if(!gotMsg&&!closed&&curJob===jb)fallbackManual((acked?'⚠ 도우미가 작업은 받았지만 20초가 지나도 '+S.n+' 탭에서 진행 신호가 없어요(로그인·화면 개편 여부 확인). 프롬프트는 복사돼 있으니 입력칸에 Ctrl+V 해서 이어가세요. 점검:':'⚠ 20초가 지나도 도우미 응답이 없어요. 프롬프트는 복사돼 있으니 '+S.n+' 입력칸에 Ctrl+V 해서 이어가세요. 도우미가 동작하게 하려면:')+' ① 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’ ② 같은 곳의 ‘사용자 스크립트 허용’ 켜기 ③ 열려 있는 AI 탭을 새로고침 ④ 이 화면도 새로고침 후 다시 시도.')},20000)}else{curJob=null;blocked=!tryOpen(u)}}
   else{var pre=false;if(S.q){var enc=encodeURIComponent(s.prompt);if(enc.length<=PREFILL_MAX*3){u=S.q+enc;pre=true}}
@@ -271,7 +280,7 @@ function run(opt){
     if(j.status==='running'){setLive('🤖 '+(PROVN[runInfo&&runInfo.provider]||'AI')+'가 분석 중이에요… '+Math.round((Date.now()-t0)/1000)+'초','ok',true);if(n>200)return srvFail('응답이 너무 오래 걸려요',steps[cur]);return poll(id,tok,t0,n+1)}
     if(j.status==='done'&&j.result&&j.result.text){lastRaw=j.result.text;onText(String(j.result.text).trim(),false,true);return}
     srvFail((j.errors&&j.errors[0])||j.error||'AI 응답 실패',steps[cur])}).catch(function(){if(tok!==srvRun||closed)return;if(n>200)srvFail('응답을 받지 못했어요',steps[cur]);else poll(id,tok,t0,n+1)})},n===0?1500:2500)}
- function oldHelperNote(){return (helperHas()&&!helperOk())?' ⚠ 설치된 AI 도우미(v'+helperVer()+')는 옛 버전이라 쓰지 않아요 — /ai-helper 에서 최신 버전(1.5.13)으로 업데이트(재설치)하면 완전 자동이 돼요.':''}
+ function oldHelperNote(){return (helperHas()&&!helperOk())?' ⚠ 설치된 AI 도우미(v'+helperVer()+')는 옛 버전이라 쓰지 않아요 — /ai-helper 에서 최신 버전(1.5.14)으로 업데이트(재설치)하면 완전 자동이 돼요.':''}
  function srvHint(m){m=String(m||'');var h='';
   if(/429|quota|RESOURCE_EXHAUSTED|rate.?limit/i.test(m))h='AI 사용 한도(쿼터)를 넘었거나 결제 설정이 필요해요.';
   else if(/401|403|API.?key|PERMISSION|unauthor/i.test(m))h='API 키가 틀렸거나 권한이 없어요(Render 환경변수 확인).';
@@ -339,7 +348,9 @@ function run(opt){
  autoOn=!opt.noAuto&&((lsGet('mini_ai_run')||cfgMode||'auto')!=='manual');autoNote='AI 실행 방식을 확인하는 중…';lastMsg={m:'🤖 자동 진행을 준비하고 있어요…',k:'ok',p:true};
  draw();
  if(!opt.noAuto)bootAuto();
- return {close:close};
+ var api={close:close,alive:function(){return !closed}};
+ try{(window.top||window).__miniAiOpen=api}catch(e){}
+ return api;
 }
 function verGE(a,b){var x=String(a||'0').split('.'),y=String(b).split('.');for(var i=0;i<3;i++){var p=parseInt(x[i]||0,10),q=parseInt(y[i]||0,10);if(p!==q)return p>q}return true}
 // 블로그 글쓰기 화면에 넣을 내용(제목·상단 이미지·본문)을 도우미에게 맡긴다. 돌려주는 값: sent | off | none(도우미 없음) | old(옛 버전) | err
@@ -474,7 +485,7 @@ def _js_str(s):
 HELPER_JS = r"""// ==UserScript==
 // @name         종목분석 미니 · AI 도우미
 // @namespace    __ORIGIN__
-// @version      1.5.13
+// @version      1.5.14
 // @updateURL    __ORIGIN__/assets/mini-ai-helper.user.js
 // @downloadURL  __ORIGIN__/assets/mini-ai-helper.user.js
 // @description  종목분석 미니에서 [AI 열기]를 누르면 AI 사이트에서 프롬프트 입력 → 전송 → 답변 복사 → 탭 닫기까지 자동으로 해 주고, 블로그 글쓰기 화면이 열리면 제목·상단 이미지·본문을 자동으로 넣어 줍니다(발행은 직접).
@@ -495,13 +506,13 @@ HELPER_JS = r"""// ==UserScript==
 // @grant        window.close
 // @run-at       document-start
 // ==/UserScript==
-/* 종목분석 미니 AI 도우미 v1.5.13
+/* 종목분석 미니 AI 도우미 v1.5.14
  * · 종목분석 미니 화면에서 보낸 작업(프롬프트)만 처리합니다. 다른 경로로 열린 AI 화면은 건드리지 않아요.
  * · 이 스크립트는 사용자의 브라우저 안에서만 동작하며, 로그인 정보·대화 내용을 어디로도 보내지 않습니다.
  * · AI 사이트 화면이 개편되면 자동 진행이 멈출 수 있어요. 그때는 프롬프트가 복사돼 있으니 직접 붙여넣으면 됩니다. */
 (function () {
   'use strict';
-  var ORIGIN = '__ORIGIN__', VER = '1.5.13';
+  var ORIGIN = '__ORIGIN__', VER = '1.5.14';
   function gget(k) { try { return Promise.resolve(GM_getValue(k, null)); } catch (e) { return Promise.resolve(null); } }
   function gset(k, v) { try { return Promise.resolve(GM_setValue(k, v)); } catch (e) { return Promise.resolve(); } }
   function gdel(k) { try { return Promise.resolve(GM_deleteValue(k)); } catch (e) { return Promise.resolve(); } }
@@ -536,13 +547,32 @@ HELPER_JS = r"""// ==UserScript==
       gset('job', { id: String(d.id), prompt: String(d.prompt), host: String(d.host || ''), ts: Date.now(), keep: !!d.keep });
       say(d.id, '도우미가 작업을 받았어요 — AI 탭을 여는 중…');
       /* 클릭 없이(자동 진행 중에도) AI 탭을 직접 열어요 — 브라우저 팝업 차단을 받지 않아요. 주소는 AI 사이트(https)만 허용 */
-      try {
-        var ou = String(d.open || '');
-        if (ou && /^https:\/\/(gemini\.google\.com|chatgpt\.com|claude\.ai|www\.perplexity\.ai)\//.test(ou)) {
+      var ou = String(d.open || '');
+      if (!(ou && /^https:\/\/(gemini\.google\.com|chatgpt\.com|claude\.ai|www\.perplexity\.ai)\//.test(ou))) return;
+      var openNow = function () {
+        try {
           var tb = GM_openInTab(ou, { active: true, insert: true, setParent: true });
           if (tb) opened[String(d.id)] = tb;   /* 답변이 오면 이 손잡이로 AI 탭을 닫아요(AI 탭 스스로 닫기가 막힌 브라우저에서도 닫혀요) */
-        }
-      } catch (e) { say(d.id, '도우미가 탭을 열지 못했어요(' + (e && e.message || e) + ')'); }
+        } catch (e) { say(d.id, '도우미가 탭을 열지 못했어요(' + (e && e.message || e) + ')'); }
+      };
+      /* [v1.5.14] AI 창이 두 번 열리던 문제의 해결:
+         화면(종목분석 미니)이 이미 AI 창을 열었다고 알려 주면(dup=1), 바로 열지 않고 4.5초 기다렸다가
+         '아무 AI 창도 이 작업을 가져가지 않았을 때'만 우리가 열어요. 이미 가져갔으면(claim) 열지 않아요 → 창은 늘 1개.
+         (브라우저 보안 때문에 화면 쪽에서는 자기가 연 창이 살아 있는지 확인할 수 없어서, 확인은 이쪽에서 해요.) */
+      if (!d.dup) { openNow(); return; }
+      if (!once('o', d.id)) return;
+      say(d.id, '열려 있는 AI 창을 확인하는 중…');
+      var tries = 0;
+      var look = function () {
+        gget('job').then(function (j) {
+          if (!j || String(j.id) !== String(d.id)) return;        /* 이미 진행·완료됐어요 */
+          if (j.claim || j.sent) return;                          /* AI 창이 작업을 가져갔어요 → 열지 않아요 */
+          if (++tries < 9) { setTimeout(look, 500); return; }     /* 4.5초까지 기다려 봐요 */
+          say(d.id, 'AI 창이 열리지 않은 것 같아 도우미가 열어요…');
+          openNow();
+        });
+      };
+      setTimeout(look, 500);
     }
     window.addEventListener('message', function (e) {
       if (e.origin !== ORIGIN) return;
@@ -1062,7 +1092,18 @@ HELPER_JS = r"""// ==UserScript==
     throw new Error('답변이 너무 오래 걸려서 멈췄어요');
   }
 
-  var WHY = '', TABID = Math.random().toString(36).slice(2);
+  /* [v1.5.14] 창(탭)마다 고유한 번호 — 새로고침해도 같은 번호를 쓰도록 sessionStorage 에 둬요(자기 작업을 '남의 것'으로 오해하지 않게) */
+  var WHY = '', TABID = (function () { try { var k = sessionStorage.getItem('miniAiTab'); if (!k) { k = Math.random().toString(36).slice(2); sessionStorage.setItem('miniAiTab', k); } return k; } catch (e) { return Math.random().toString(36).slice(2); } })();
+  /* 이 작업을 내가 진행해도 되는지 표시해요(claim). 다른 AI 창이 먼저 가져갔으면 false → 두 창이 같은 분석을 하지 않아요. */
+  async function claimJob(job) {
+    var cur = await gget('job');
+    if (cur && String(cur.id) === String(job.id) && cur.claim && cur.claim !== TABID && Date.now() - (cur.ts || 0) < 180000) return false;
+    job.claim = TABID; await gset('job', job); return true;
+  }
+  function closeSoon(msg) {
+    banner('✅ ' + msg, 'ok');
+    setTimeout(function () { for (var i = 0; i < 3; i++) { try { window.close(); } catch (e) {} } banner('✅ ' + msg + ' 이 창은 닫아 주세요.', 'ok'); }, 1500);
+  }
   async function findJob() {
     for (var i = 0; i < 40; i++) {   /* 최대 16초 기다려요(확장 프로그램 저장소 반영이 늦는 경우 대비) */
       var j = await gget('job');
@@ -1093,7 +1134,9 @@ HELPER_JS = r"""// ==UserScript==
   async function main() {
     if (JOB) banner('🤖 종목분석 미니 도우미 · 작업을 확인하는 중…');
     var job = HASHJOB;
-    if (job) await gset('job', job); else job = await findJob();
+    /* [v1.5.14] 같은 작업을 다른 AI 창이 이미 진행 중이면 이 창은 조용히 닫아요 — 창이 두 개 열려도 하나만 남아요 */
+    if (job) { if (!(await claimJob(job))) { closeSoon('같은 분석을 이미 다른 AI 창에서 진행 중이에요.'); return; } }
+    else job = await findJob();
     if (!job && !JOB) return;   /* 그냥 직접 연 AI 화면: 아무것도 하지 않아요 */
     if (!job) { rescue(); return; }
     /* 작업은 끝날 때까지 지우지 않아요: 화면이 새로고침돼 도우미가 다시 시작돼도 작업을 잃지 않게 */
@@ -1111,8 +1154,13 @@ HELPER_JS = r"""// ==UserScript==
     try {
       GM_addValueChangeListener('job', function (n, o, v, remote) {
         if (busy || !remote || !v || !v.prompt || v.sent || v.id === JOB || v.host !== location.hostname) return;
+        /* [v1.5.14] 다음 단계를 다른 AI 창이 가져갔으면(새 창이 열렸던 경우) 이 창은 비켜 주고 닫아요 — 두 창이 같이 돌지 않아요 */
+        if (v.claim && v.claim !== TABID) { busy = true; closeSoon('다음 단계는 다른 AI 창에서 진행돼요.'); return; }
         busy = true; JOB = v.id; NEXTWAIT = false;
-        runJob(v);
+        claimJob(v).then(function (mine) {
+          if (!mine) { closeSoon('다음 단계는 다른 AI 창에서 진행돼요.'); return; }
+          runJob(v);
+        });
       });
     } catch (e) {}
     setTimeout(function () { if (!busy) banner('다음 단계가 오지 않아 대기를 끝냈어요. 이 창은 닫아도 돼요.', 'bad'); }, 15 * 60 * 1000);
@@ -1126,7 +1174,7 @@ HELPER_JS = r"""// ==UserScript==
       inp = await fillPrompt(job.prompt);
       var base = answers().length;
       status('전송하는 중…');
-      await gset('job', { id: job.id, prompt: job.prompt, host: job.host, ts: Date.now(), sent: true });
+      await gset('job', { id: job.id, prompt: job.prompt, host: job.host, ts: Date.now(), sent: true, claim: TABID });
       var btn = null;
       try { btn = await waitFor(function () { var b = pick(P.send); if (b && !disabled(b)) return b; return genericSend(inp); }, 12000, '전송 버튼'); } catch (e) { btn = null; }
       if (btn) btn.click(); else enter(inp);
@@ -1151,7 +1199,7 @@ HELPER_JS = r"""// ==UserScript==
       banner('✅ 답변을 복사해서 종목분석 미니로 보냈어요 (' + text.length.toLocaleString() + '자). 이 탭은 곧 닫혀요.', 'ok');
       await sleep(1600);
       for (var ci = 0; ci < 3; ci++) { try { window.close(); } catch (e) {} await sleep(500); }
-      banner('✅ 답변을 종목분석 미니로 보냈어요. 이 탭은 닫고 돌아가세요. (자동으로 안 닫히면 도우미를 최신 버전(1.5.13)으로 다시 설치해 주세요)', 'ok');
+      banner('✅ 답변을 종목분석 미니로 보냈어요. 이 탭은 닫고 돌아가세요. (자동으로 안 닫히면 도우미를 최신 버전(1.5.14)으로 다시 설치해 주세요)', 'ok');
     } catch (err) {
       var msg = String((err && err.message) || err);
       await gset('result', { id: JOB, error: msg, ts: Date.now() });
@@ -1236,7 +1284,7 @@ def helper_page():
         '</div></div>'
     )
     script = ("function ahChk(last){var s=document.documentElement.getAttribute('data-mini-helper');var e=document.getElementById('ahState');"
-              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5||(old[1]===5&&(old[2]||0)<8));e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.13)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
+              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5||(old[1]===5&&(old[2]||0)<14));e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.14)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
               "ahChk(false);setTimeout(function(){ahChk(false)},300);setTimeout(function(){ahChk(true)},1200);")
     resp = C.app.make_response(page("AI 도우미", body, icon="🤖", subtitle="AI 입력·전송·답변 복사를 자동으로 해 주는 선택 도구", script=script))
     resp.headers["Cache-Control"] = "no-cache"

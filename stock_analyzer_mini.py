@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v191 — AI 창이 두 번 뜨던 문제를 원인부터 고쳤어요. 원인: 제미나이·챗GPT 같은 AI 사이트는 보안 설정 때문에 '우리가 연 창이 살아 있는지'를 프로그램 쪽에서 확인할 수 없어요. 그래서 창이 열렸는데도 도우미가 '안 열렸구나' 하고 한 번 더 열거나, 2단계 분석에서 이미 열려 있는 창을 못 보고 새 창을 또 열었어요. 고친 내용: ① 도우미(1.5.14)는 AI 창을 바로 열지 않고, 몇 초 기다렸다가 아무 AI 창도 그 분석을 가져가지 않았을 때만 열어요. ② AI 창은 자기 분석에 '내가 맡았다'는 표시를 남기고, 같은 분석을 하려고 늦게 열린 창은 "이미 다른 창에서 진행 중이에요" 안내 후 스스로 닫혀요. ③ 2단계 분석은 열려 있는 같은 창에서 이어 하고, 그 창이 닫혀 있었다면 도우미가 새로 열어 줘요. ④ AI 창은 프로그램 전체에서 한 번에 하나만 열려요(다른 메뉴에서 열려 있던 AI 창은 자동으로 닫혀요). ⑤ 종목분석에서 프롬프트를 준비하는 동안 버튼을 두 번 눌러도 한 번만 진행돼요. ⚠ 도우미를 1.5.14로 다시 설치해야 ①②③이 동작해요.
 ✨ v190 — ① 종목분석 → 심층분석 연결: 종목분석 결과 아래에 [🔎 심층분석으로 이어서] 버튼이 생겼어요(심층분석 메뉴가 있을 때). 종목을 분석할 때마다 심층분석도 그 종목으로 맞춰져, 심층분석 탭을 누르면 마지막으로 분석한 종목이 바로 열려요. ② AI 창이 두 번 뜨던 문제: 2단계(예: 종합→세부) AI 분석을 같은 AI 창·같은 대화에서 이어서 진행해요(도우미 1.5.13 필요 — 도우미를 다시 설치해 주세요, 예전 도우미는 그대로 두 번 열려요). ③ '핵심 제품 구성은 데이터 없음' 문제: 기업개요 원문을 못 가져오면 AI가 '데이터 없음'으로 끝내지 않고 일반 지식으로 설명하되 "AI 일반 지식 기반" 표시와 '확인 필요'를 달도록 요청문을 고쳤고, FnGuide 기업개요도 함께 가져와요. '데이터 없음'이 담긴 글은 기업개요로 저장되지 않고, 이미 저장된 것도 무시돼요.
 ✨ v189 — AI 추천 표시 아이콘: AI가 골라준 종목에 작은 🤖 배지(단기·중기·장기 글자 포함, 마우스를 올리면 추천 이유)를 붙였어요. 오늘추천은 표·카드 모두, 날짜 목록에서는 AI 추천이 저장된 날 앞에 🤖가 붙고, [🤖 AI 추천만] 필터로 추천주만 골라 볼 수 있어요. 낙폭회복은 AI가 ‘회복 신호가 두드러진 종목’으로 꼽은 종목에 🤖가 붙어요. 아이콘은 공통 부품(AiMark)이라 다른 메뉴에도 같은 모양으로 쓸 수 있어요.
 ✨ v188 — 블로그 그림 여러 장 자동 올리기 보강(AI 도우미 1.5.12 — 재설치 필요): ① 그림이 2장 이상이면 네이버 [사진]에서 여러 장을 한 번에 고르듯 ‘한꺼번에’ 먼저 넣고(드롭·붙여넣기·파일 칸 순서로 시도), 편집기가 일부만 받으면 나머지는 한 장씩 이어서 넣어요. ② 그래도 못 넣은 그림은 도우미 띠의 [🖼 이미지 복사]를 누를 때마다 다음 그림이 복사돼 Ctrl+V 로 차례로 붙일 수 있어요. ③ 설치된 도우미가 옛 버전이라 그림이 1장만 올라가는 경우, 블로그 복사 안내에 “그림 N장 중 1장만 올라가요 — 최신(1.5.12)으로 다시 설치”가 바로 표시돼요.
@@ -372,7 +373,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v190"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v191"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -8147,11 +8148,14 @@ function _aiViaMini(){
     });
   };
   if(CUR_PROMPT){ go(CUR_PROMPT); return true; }
+  if(_aiViaMini._busy) return true;            // [v191] 프롬프트를 받아오는 동안 또 누르면 AI 창이 두 번 열렸다 — 한 번만 진행한다
+  _aiViaMini._busy = true;
   showToast('⏳ 프롬프트를 준비하는 중이에요…');
   _fetchAiPrompt().then(function(d){
+    _aiViaMini._busy = false;
     if(d && d.prompt){ CUR_PROMPT = d.prompt; document.getElementById('aiPromptBox').value = d.prompt; go(d.prompt); }
     else showToast('⚠ ' + ((d && d.error) || '프롬프트를 만들지 못했습니다.'));
-  }).catch(function(){ showToast('⚠ 프롬프트 생성 중 오류가 발생했습니다.'); });
+  }).catch(function(){ _aiViaMini._busy = false; showToast('⚠ 프롬프트 생성 중 오류가 발생했습니다.'); });
   return true;
 }
 function aiPrimary(){
@@ -8919,7 +8923,7 @@ var MiniTabs = (function(){
     if(e.origin !== location.origin) return;
     var d = e.data; if(!d || typeof d !== 'object') return;
     if(d.miniRelay === 'job' && d.id && d.prompt && e.source !== window){
-      try{ var jj = { id: String(d.id), prompt: String(d.prompt), host: String(d.host || ''), open: String(d.open || ''), keep: !!d.keep }; window.postMessage({ miniHelper: 'job', id: jj.id, prompt: jj.prompt, host: jj.host, open: jj.open, keep: jj.keep }, location.origin); bridge('job', jj); }catch(x){}
+      try{ var jj = { id: String(d.id), prompt: String(d.prompt), host: String(d.host || ''), open: String(d.open || ''), keep: !!d.keep, dup: d.dup ? 1 : 0 }; window.postMessage({ miniHelper: 'job', id: jj.id, prompt: jj.prompt, host: jj.host, open: jj.open, keep: jj.keep, dup: jj.dup }, location.origin); bridge('job', jj); }catch(x){}
       return;
     }
     if(d.miniRelay === 'blogjob' && d.id && d.html && e.source !== window){
