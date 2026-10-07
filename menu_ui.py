@@ -502,7 +502,7 @@ def page(title, body, icon="", subtitle="", script="", active="", disclaimer=Tru
             f'<link rel="stylesheet" href="/assets/mini-ui.css?v={ver}"></head><body class="mu">'
             f'<header class="mu-top"><div class="mu-top-in"><a class="mu-brand" href="/">종목분석 <i>미니</i></a>{nav}</div></header>'
             f'{hero}<main class="mu-wrap">{body}</main>{foot}'
-            f'<script src="/assets/mini-ui.js?v={ver}"></script><script>{nav_js}\n{script}</script></body></html>')
+            f'<script src="/assets/mini-feedback.js?v={ver}"></script><script src="/assets/mini-ui.js?v={ver}"></script><script>{nav_js}\n{script}</script></body></html>')
 
 
 def _js_str(s):
@@ -1361,6 +1361,95 @@ def _asset(text, mime):
     resp.headers["Content-Type"] = mime + "; charset=utf-8"
     resp.headers["Cache-Control"] = "public, max-age=3600"
     return resp
+
+
+# ══════════════════════════════════════════════════════════════
+# [v195] 버튼 반응 표시 — 저장·실행 버튼을 누르면 곧바로 "눌렀어요 → 처리 중(초) → 완료/실패" 알림을 화면 오른쪽 위에 보여준다.
+#   · 모든 화면(메인·관리자·설정·메뉴 페이지)이 같이 쓰는 공용 스크립트라 화면별로 따로 고치지 않아도 돼요.
+#   · 기존 설정·저장 값은 건드리지 않고, 화면에 알림만 덧붙여요(저장 방식·코드는 그대로).
+# ══════════════════════════════════════════════════════════════
+FB_JS = r"""
+(function(){
+if(window.__miniFb) return; window.__miniFb=1;
+var box=null, hideT=0, tickT=0, seq=0, cur=null, lastClick={t:0,id:0,label:''};
+var SKIP=/^(닫기|✕|×|x|X|접기|펼치기|이전|다음|◀|▶|‹|›|<|>)$/;
+function ensure(){
+  if(box&&box.parentNode) return box;
+  box=document.createElement('div'); box.id='miniFb'; box.setAttribute('role','status'); box.setAttribute('aria-live','polite');
+  box.style.cssText='position:fixed;top:12px;right:12px;max-width:min(360px,calc(100vw - 24px));z-index:2147483600;padding:10px 14px;border-radius:12px;font:700 13px/1.45 -apple-system,BlinkMacSystemFont,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;color:#fff;background:#1e293b;box-shadow:0 6px 24px rgba(0,0,0,.28);display:none;pointer-events:none;word-break:keep-all;';
+  (document.body||document.documentElement).appendChild(box); return box;
+}
+function paint(msg,kind){
+  var b=ensure(); b.textContent=msg;
+  b.style.background=kind==='ok'?'#047857':(kind==='bad'?'#b91c1c':(kind==='busy'?'#1d4ed8':'#1e293b'));
+  b.style.display='block';
+}
+function hideLater(ms){ clearTimeout(hideT); hideT=setTimeout(function(){ if(box) box.style.display='none' }, ms); }
+function labelOf(n){
+  var t='';
+  try{ t=(n.getAttribute('data-fb')||n.getAttribute('aria-label')||n.innerText||n.textContent||n.value||n.title||'').replace(/\s+/g,' ').trim(); }catch(e){}
+  if(t.length>26) t=t.slice(0,25)+'…';
+  return t||'버튼';
+}
+function pickBtn(t){
+  while(t&&t!==document.body&&t.nodeType===1){
+    var tg=t.tagName;
+    if(tg==='BUTTON'||(tg==='INPUT'&&/^(button|submit|reset)$/i.test(t.type))||t.getAttribute('role')==='button'||(tg==='A'&&/\bbtn\b|\bbutton\b|\bgo\b/.test(t.className||''))) return t;
+    t=t.parentNode;
+  }
+  return null;
+}
+function finishCur(){
+  var c=cur; if(!c||c.fin) return; c.fin=true; clearInterval(tickT);
+  if(c.bad){ paint('⚠ '+c.label+' — 실패: '+c.bad,'bad'); hideLater(5200); }
+  else { paint('✅ '+c.label+' — 완료','ok'); hideLater(2200); }
+}
+function startTick(c){
+  clearInterval(tickT); var t0=Date.now();
+  tickT=setInterval(function(){
+    if(cur!==c||c.fin){clearInterval(tickT);return}
+    var sec=Math.round((Date.now()-t0)/1000);
+    paint('⏳ '+c.label+' — 처리 중… '+sec+'초','busy');
+  },1000);
+}
+document.addEventListener('click',function(e){
+  var b=pickBtn(e.target); if(!b||b.getAttribute('data-nofb')!==null||b.id==='miniFb') return;
+  var label=labelOf(b); if(SKIP.test(label)) return;
+  if(b.disabled||b.getAttribute('aria-disabled')==='true'){ paint('⏳ '+label+' — 이미 처리 중이에요. 잠시만 기다려 주세요.','busy'); hideLater(2200); return; }
+  var id=++seq; lastClick={t:Date.now(),id:id,label:label};
+  cur={id:id,label:label,n:0,done:0,bad:'',fin:false};
+  paint('▶ '+label+' — 눌렀어요','info'); hideLater(1600);
+},true);
+if(window.fetch&&!window.__miniFbFetch){
+  window.__miniFbFetch=1; var of=window.fetch;
+  window.fetch=function(){
+    var args=arguments, c=null, tied=false;
+    try{
+      if(cur&&!cur.fin&&lastClick.id===cur.id&&Date.now()-lastClick.t<1500&&!cur.closed){ c=cur; tied=true; }
+    }catch(e){}
+    var p=of.apply(this,args);
+    if(!tied) return p;
+    c.n++; clearTimeout(hideT); paint('⏳ '+c.label+' — 처리 중…','busy'); startTick(c);
+    function one(bad){ c.done++; if(bad&&!c.bad) c.bad=bad; if(c.done>=c.n){ setTimeout(function(){ if(c.done>=c.n) finishCur() },250) } }
+    p.then(function(r){
+      try{
+        if(!r.ok){ one('서버 응답 '+r.status); return; }
+        var ct=(r.headers&&r.headers.get&&r.headers.get('content-type'))||'';
+        if(/json/i.test(ct)){ r.clone().json().then(function(j){ var m=j&&typeof j==='object'&&j.error; one(m?String(typeof m==='string'?m:'오류').slice(0,60):''); },function(){ one('') }); return; }
+      }catch(e){}
+      one('');
+    },function(err){ one((err&&err.message)?String(err.message).slice(0,60):'네트워크 오류'); });
+    return p;
+  };
+}
+/* 클릭 뒤 1.5초 안에 요청이 없으면(화면만 바뀌는 버튼) '눌렀어요' 알림만 잠깐 보였다가 사라진다 */
+})();
+"""
+
+
+@bp.route("/assets/mini-feedback.js")
+def fb_js():
+    return _asset(FB_JS, "application/javascript")
 
 
 @bp.route("/assets/mini-ui.css")

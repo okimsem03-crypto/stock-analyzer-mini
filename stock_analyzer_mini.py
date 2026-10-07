@@ -214,6 +214,8 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v197 — 관리자 [⚡ 초단기(장전)] 신규(menu_scalp.py): 오늘추천의 최근 스캔(전일 종가 기준)에 ①장 환경(미국 증시·VIX·원/달러 → 공격/중립/관망/휴식, 추천 개수·기준 점수 조절) ②수급 30·거래/가격 모멘텀 25·추세 위치 20·테마 15·뉴스(제목) 10점 ③전일 종가 기준 진입·손절·목표(호가 단위, 손익비 1:2, 갭 상승 추격 금지선) 를 겹쳐 장 시작 전에 살필 후보를 규칙으로 골라요. 후보는 기록해 두었다가 다음 거래일 시가·고가·저가·종가로 승률·평균 손익을 확인하고, AI 요청문 복사도 지원. 자료가 없으면 지어내지 않고 ‘자료 없음’으로 표시. 참고 자료이며 투자 권유가 아니에요.
+✨ v196 — ① 오늘의 추천 옵션 기본값 ‘시총 상위’ 300→1000(최대 2000까지 입력 가능, 이전에 기본값 300으로만 저장돼 있던 경우에만 한 번 1000으로 바뀌고 직접 바꿔 둔 값·다른 옵션은 그대로 유지). 옵션은 [💾 옵션 저장] 또는 스캔 시작 때 저장돼 다음에도 그대로 쓰여요. ② 모든 화면(메인·설정·관리자·메뉴)의 버튼을 누르면 오른쪽 위에 ‘눌렀어요 → 처리 중(초) → 완료/실패’ 알림이 떠서 반응 여부를 바로 알 수 있어요(공용 스크립트 /assets/mini-feedback.js, 기존 설정·저장 값은 건드리지 않음).
 ✨ v195 — 종목분석(분석실): [AI 한 번에 진행]이 AI 질문을 두 번(① 하단 AI 분석 → ② AI 종합 리포트) 연달아 보내던 것을 질문 1개(하단 AI 분석)만 보내도록 변경. AI 종합 리포트(‘## 1. 한줄 결론’ 형식, 블로그 글의 ‘AI 종합 분석’ 섹션)는 [AI 종합 리포트(선택)] 버튼으로 필요할 때만 사용. 작업 순서·단계 표시·블로그 만들기는 종합 리포트 없이도 그대로 진행.
 ✨ v194 — 뉴스분석 → 블로그 글에서 ‘뉴스 핵심 요약’이 이미지에만 있고 글(텍스트)에서는 빠지던 문제. 원인 세 가지를 고쳤어요. ① ‘한 줄 요약’ 줄을 글에서 지우는 규칙과 박스로 꺼내는 규칙이 달라서, AI가 **한 줄 요약** — 문장 / **한 줄 요약** 문장 처럼 콜론 없이 쓰면 글에서는 지워지고 박스도 안 생겨 요약이 사라졌어요(이미지는 다른 규칙이라 그대로 나왔어요) → 두 규칙을 하나로 합쳐 굵게·콜론·줄표·글머리·다음 줄 어떤 모양이든 꺼내 박스로 보여 주고, 못 꺼내면 줄을 지우지 않아요. 화면의 분석 결과·이미지도 같은 규칙을 써요. ② AI 답변이 ``` 코드 블록으로 감싸여 오면 블록 안의 글이 통째로 지워졌어요 → 종목 JSON 블록만 지우고 나머지는 표시만 벗겨 글을 살려요. ③ 번호 없는 앞부분(뉴스 핵심 요약)이 번호 섹션 카드 뒤 맨 아래로 밀리던 것을 원래 순서(맨 앞)로, 같은 번호 제목이 두 번 나오면 앞 내용을 덮어써 지우던 것을 이어 붙이도록 고쳤어요(다른 메뉴의 블로그 글에도 적용).
 ✨ v193 — 종목분석 AI 분석이 두 번 반복되던 문제 보강(AI 도우미 1.5.16 — 재설치 필요, 화면 쪽 수정은 재설치 없이도 적용). 원인 후보를 코드에서 찾아 모두 막았어요. ① 화면 쪽 도우미가 작업을 저장하면서 AI 창이 먼저 적어 둔 ‘내가 맡았다’ 표시를 덮어써 지우면, 4.5초 뒤 ‘아무도 안 가져갔네’ 하고 AI 창을 한 번 더 열어 같은 분석이 두 창에서 돌았어요 → 표시를 이어 받고, 기다리는 시간도 9.5초로 늘렸어요. ② 두 창이 거의 동시에 ‘내가 맡았다’를 적으면 둘 다 자기가 맡은 줄 알았어요(저장소는 읽고 쓰기가 한 번에 안 돼요) → 쓴 뒤 다시 읽어 마지막에 남은 창만 진행해요(모의 실험: 동시 300회 중 중복 165회 → 0회). ③ 입력칸에 프롬프트가 일부 들어간 상태에서 ‘붙여넣기’ 방식이 덧붙으면 프롬프트가 겹쳐 AI가 같은 분석을 두 번 쓰고, 겹친 채로 전송됐어요 → 붙이기 전에 비우고 전체 선택하며, 입력이 기대 길이의 1.3배를 넘으면 비우고 다시 넣어요(모의 실험: 입력 150% → 100%). ④ 전송 뒤 AI 사이트가 입력칸을 새로 그리면 예전 칸에 글자가 남은 것처럼 보여 ‘전송 안 됨’으로 오판하고 같은 질문을 한 번 더 보냈어요 → 매번 지금 화면의 입력칸을 새로 찾아 확인해요. ⑤ [AI 열기]가 6초 안에 겹쳐 들어오면(더블클릭·자동 진행+직접 클릭) 작업 번호가 새로 만들어져 AI 창이 둘 다 분석했어요 → 같은 단계의 열기 요청은 한 번만 처리해요. 종목분석 [AI로 분석하기]도 0.8초 안의 중복 클릭을 무시해요. ⑥ AI 답변 글이 통째로 2~3번 이어 붙어 읽힌 경우(글자 하나까지 똑같이 반복될 때만) 한 번만 남겨 보여 줘요. ⚠ 도우미는 1.5.16으로 다시 설치해 주세요.
@@ -377,7 +379,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v195"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v197"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4432,6 +4434,7 @@ input:focus{outline:none;border-color:#fbbf24}.again{font-size:12px}.again a{col
 <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="00000000">
 <button id="go">로그인</button><p class="again"><a href="#" id="again">코드 다시 받기</a></p></div>
 <div id="msg" class="msg"></div></div>
+<script nonce="{{ nonce }}" src="/assets/mini-feedback.js?v={{ version }}"></script>
 <script nonce="{{ nonce }}">
 var $=function(i){return document.getElementById(i)};
 function say(t,ok){var m=$('msg');m.textContent=t||'';m.className='msg'+(ok?' ok':'')}
@@ -4489,6 +4492,7 @@ textarea{border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-size:12.5px
 <a href="/" class="home">🏠 메인 화면</a><button id="lo">로그아웃</button><button id="loall" class="red">모든 세션 종료</button></header>
 <div id="mbar"><b id="mbt"></b><span id="mbs"></span><a href="/" target="_top">🏠 종목분석</a><a href="/menus" target="_top">전체 메뉴</a><a href="/plans" target="_top">등급 안내</a><a id="mbl" href="/member" target="_top">로그인·가입</a></div>
 <div class="w"><nav id="nav"></nav><div id="accbar"></div><div id="pane"></div></div><div id="toast"></div>
+<script nonce="{{ nonce }}" src="/assets/mini-feedback.js?v={{ version }}"></script>
 <script nonce="{{ nonce }}">
 var CSRF="{{ csrf }}";var cur='sum';var EXT={};
 try{if(window.self!==window.top){document.body.classList.add('emb');if(!/embed=full/.test(location.search))document.body.classList.add('one')}}catch(e){}
@@ -4527,7 +4531,7 @@ var HIDTAB={mm:1,fe:1};var WB=null;
 function wbLoad(){if(MEMBER_MODE)return;api('/admin/api/workbench').then(function(j){if(j&&j.items){WB=j;nav()}}).catch(function(){})}
 function wbItems(){var out=[];var seenT={};
  if(WB&&WB.items){WB.items.forEach(function(i){var t=i.tab&&TABS.filter(function(x){return x[0]===i.tab})[0];if(t){out.push({tab:t[0],label:t[1],badge:i.badge,rank:i.rank,off:!i.on&&!i.admin_only});seenT[t[0]]=1}})}
- TABS.forEach(function(t){if(['dp','nw','dl','mk','th','fl','dy','ch'].indexOf(t[0])>=0&&!seenT[t[0]])out.push({tab:t[0],label:t[1],badge:WB?'':'',rank:-1})});return out}
+ TABS.forEach(function(t){if(['dp','nw','dl','mk','th','fl','dy','sc','ch'].indexOf(t[0])>=0&&!seenT[t[0]])out.push({tab:t[0],label:t[1],badge:WB?'':'',rank:-1})});return out}
 function accBar(){var b=$('accbar');if(!b)return;b.innerHTML='';if(MEMBER_MODE||!WB){b.style.display='none';return}
  var it=WB.items.filter(function(i){return i.tab===cur})[0];if(!it){b.style.display='none';return}b.style.display='flex';
  b.appendChild(el('b',null,it.icon+' '+it.label));var bg=el('span','accb r'+(it.rank===0?'0':(it.rank>=99?'x':'m')),(it.rank===0?'🌐 ':(it.rank>=99?'🔒 ':'🟢 '))+it.badge+(it.on||it.admin_only?'':' (숨김)'));b.appendChild(bg);
@@ -6261,6 +6265,7 @@ HTML_TEMPLATE = r"""
 <script>window.__APP_VER__ = "{{ app_version }}"; window.__SITE_URL__ = "{{ site_url }}"; window.__AI_SITE__ = "{{ ai_site }}"; window.__MA_CSS_URL__ = "/assets/mini-ai.css?v={{ app_version }}";
   window.__BRAND_URL__ = "{{ brand_url }}"; window.__BRAND_LABEL__ = "{{ site_label }}"; window.__BLOG_URL__ = "{{ blog_url }}";
   window.__ADS__ = {{ 'true' if ad_client else 'false' }};</script>
+<script src="/assets/mini-feedback.js?v={{ app_version }}"></script>
 <script src="/assets/mini-ui.js?v={{ app_version }}" defer></script>
 {% if ad_client %}<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ ad_client }}" crossorigin="anonymous"></script>{% endif %}
 {% macro ad_slot(name) -%}
@@ -9324,6 +9329,9 @@ HELP_HTML = r"""
         4. AI 답변이 끝나면 답변 아래 복사 버튼을 누르고 이 화면으로 돌아오세요. 답변이 AI 분석 칸에 자동으로 들어가 보기 좋게 정리됩니다.<br>
         5. 자동으로 안 들어오면(브라우저가 클립보드 읽기를 막는 경우) [📥 복사한 답변 붙여넣기]를 누르거나 칸을 누르고 Ctrl+V 하세요.</span>
       </dd>
+      <dt>버튼을 눌렀는데 반응이 없는 것 같아요 (v196)</dt>
+      <dd>버튼을 누르면 화면 오른쪽 위에 "눌렀어요 → 처리 중… N초 → 완료(또는 실패 사유)" 알림이 나타납니다. 알림이 계속 "처리 중"이면 서버가
+        일하는 중이니 잠시 기다려 주세요. 알림이 아예 안 뜨면 페이지를 새로고침(Ctrl+F5) 해 주세요.</dd>
       <dt>주의할 점</dt>
       <dd>이 AI 리포트는 외국인·기관 수급과 공시 원문을 포함하지 않고, 뉴스는 제목만 참고합니다(공개판 한계). 투자 결정 전 반드시
         별도로 확인하시고, 리포트 내용은 투자 추천이 아닌 참고 의견입니다.</dd>

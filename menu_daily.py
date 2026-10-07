@@ -35,7 +35,7 @@ for _n in _CORE_FUNCS:
 E = B.E
 TICKER_RE = B.TICKER_RE
 HZ_DAYS = {"단기": 7, "중기": 30, "장기": 90}
-DEFAULT_CFG = {"markets": ["KOSPI", "KOSDAQ"], "cap_top": 300, "min_score": 50, "count": 50, "kospi_ratio": 0}   # kospi_ratio 0 = 합쳐서 시총 순
+DEFAULT_CFG = {"markets": ["KOSPI", "KOSDAQ"], "cap_top": 1000, "min_score": 50, "count": 50, "kospi_ratio": 0}   # kospi_ratio 0 = 합쳐서 시총 순
 
 
 def _f(v, d=None):
@@ -132,12 +132,20 @@ def _clean_cfg(d):
             return int(max(lo, min(hi, int(float(d.get(k, DEFAULT_CFG[k]))))))
         except Exception:
             return DEFAULT_CFG[k]
-    return {"markets": mk, "cap_top": iv("cap_top", 30, 800), "min_score": iv("min_score", 0, 95), "count": iv("count", 5, 150), "kospi_ratio": iv("kospi_ratio", 0, 100)}
+    return {"markets": mk, "cap_top": iv("cap_top", 30, 2000), "min_score": iv("min_score", 0, 95), "count": iv("count", 5, 150), "kospi_ratio": iv("kospi_ratio", 0, 100)}
 
 
 def get_cfg():
+    """저장된 옵션을 그대로 돌려준다. [v195] 기본 시총 상위를 300→1000 으로 올리면서, 예전 기본값(300)이
+    그대로 저장돼 있는 경우에만 딱 한 번 1000 으로 바꾼다(직접 바꿔 둔 값·다른 옵션은 그대로 유지)."""
     try:
-        return _clean_cfg(json.loads(setting_get("daily_cfg") or "{}"))
+        d = json.loads(setting_get("daily_cfg") or "{}")
+        if setting_get("daily_cap_mig", "") != "1":
+            if isinstance(d, dict) and d and int(float(d.get("cap_top", 300))) == 300:
+                d["cap_top"] = 1000
+                setting_set("daily_cfg", json.dumps(_clean_cfg(d), ensure_ascii=False))
+            setting_set("daily_cap_mig", "1")
+        return _clean_cfg(d)
     except Exception:
         return dict(DEFAULT_CFG)
 
@@ -359,7 +367,7 @@ def _scan_view():
 def _ranking(mk, want):
     """네이버 모바일 시가총액 순위(상위 want개). 거래정지·ETF 등은 건너뛴다."""
     rows = []
-    pages = min(15, (want + 59) // 60 + 1)
+    pages = min(40, (want + 59) // 60 + 1)
     for page in range(1, pages + 1):
         try:
             r = _http().get(f"https://m.stock.naver.com/api/stocks/marketValue/{mk}", params={"page": page, "pageSize": 60}, headers=C.NAVER_M_HEADERS, timeout=8)
@@ -594,9 +602,23 @@ def api_scan():
         return _admin_json({"error": "이미 스캔 중이에요."}, 409)
     cfg = _clean_cfg(_json_body() or {})
     setting_set("daily_cfg", json.dumps(cfg, ensure_ascii=False))
+    setting_set("daily_cap_mig", "1")
     _JOB.update(running=True, cancel=False, total=0, done=0, kept=0, current="종목 목록 가져오는 중…", started=int(time.time()), finished=0, error="", scan_date="", saved=0, note="")
     threading.Thread(target=_scan_run, args=(cfg,), daemon=True).start()
     _alog("daily_scan", json.dumps(cfg, ensure_ascii=False))
+    return _admin_json({"ok": True, "cfg": cfg})
+
+
+@bp.route("/admin/api/daily/cfg-save", methods=["POST"])
+def api_cfg_save():
+    """[v195] 스캔하지 않고 옵션(시장·시총 상위·최소 점수·저장 개수·코스피 비중)만 저장한다."""
+    deny = _admin_deny(write=True)
+    if deny:
+        return deny
+    cfg = _clean_cfg(_json_body() or {})
+    setting_set("daily_cfg", json.dumps(cfg, ensure_ascii=False))
+    setting_set("daily_cap_mig", "1")
+    _alog("daily_cfg", json.dumps(cfg, ensure_ascii=False))
     return _admin_json({"ok": True, "cfg": cfg})
 
 
@@ -1224,7 +1246,7 @@ function dyLoad(p){dyCss();p.innerHTML='';DY.ai={};DY.picks={};DY.lk=[];var hd=e
  if(!ftOk('list')){hd.appendChild(el('div','kk','DAILY PICK'));hd.appendChild(el('h2',null,'🌟 오늘의 후보'));hd.appendChild(el('div','sub','기술 지표로 자동 선별한 후보 목록·AI 정리·성과 기록을 보여줘요. 투자 권유가 아닌 참고 자료예요.'));dyLockBox(mid,'list','후보 종목 목록');return}
  api('/admin/api/daily/state').then(function(j){if(cur!=='dy')return;DY.st=j;DY.dates=j.dates||[];dyHeadDraw();if(j.scan&&j.scan.running)dyPoll();
   var d0=DY.date||(DY.dates[0]&&DY.dates[0].date)||'';if(d0)dyOpen(d0);else dyMainDraw()})}
-function dyHeadDraw(){var hd=$('dyHead');if(!hd)return;hd.innerHTML='';var c=(DY.st.cfg&&DY.st.cfg.markets)?DY.st.cfg:{markets:['KOSPI','KOSDAQ'],cap_top:300,min_score:50,count:50,kospi_ratio:0},last=DY.st.last||{};hd.appendChild(el('div','kk','DAILY PICK'));hd.appendChild(el('h2',null,'🌟 오늘의 추천'));
+function dyHeadDraw(){var hd=$('dyHead');if(!hd)return;hd.innerHTML='';var c=(DY.st.cfg&&DY.st.cfg.markets)?DY.st.cfg:{markets:['KOSPI','KOSDAQ'],cap_top:1000,min_score:50,count:50,kospi_ratio:0},last=DY.st.last||{};hd.appendChild(el('div','kk','DAILY PICK'));hd.appendChild(el('h2',null,'🌟 오늘의 추천'));
  hd.appendChild(el('div','sub','기술 지표로 자동 선별한 오늘의 후보예요. 위험(상장폐지·거래정지) 신호 종목은 자동으로 빠져요. 참고 자료이며 투자 권유가 아니에요.'));
  var lt=DY.dates.length?DY.dates[0].date:'';if(lt){var nd=new Date(Date.now()+9*3600*1000),z=function(n){return ('0'+n).slice(-2)};while(nd.getUTCDay()===0||nd.getUTCDay()===6)nd=new Date(nd.getTime()-86400000);var td=nd.getUTCFullYear()+'-'+z(nd.getUTCMonth()+1)+'-'+z(nd.getUTCDate());
   if(lt<td){var sb=el('div','sub','⚠ 가장 최근 스캔이 '+lt+'(원본·지난 기록)이라 지금 시세와 달라요. [🔍 오늘 스캔하기]로 새로 만들어야 오늘 기준 후보가 나와요.');sb.style.cssText='background:#fef3c7;color:#92400e;border-radius:8px;padding:6px 10px;font-weight:700';hd.appendChild(sb)}}
@@ -1234,8 +1256,9 @@ function dyHeadDraw(){var hd=$('dyHead');if(!hd)return;hd.innerHTML='';var c=(DY
  var ob=el('button','dyGh','⚙ 옵션');ob.title='스캔 범위·점수 기준 바꾸기';r.appendChild(ADMIN_REAL?ob:adm(ob));var cb=el('button','dyGh','■ 중단');cb.id='dyStop';cb.style.display='none';cb.onclick=function(){apiJ('/admin/api/daily/scan-cancel',{}).then(function(){toast('중단을 요청했어요')})};r.appendChild(ADMIN_REAL?cb:adm(cb));hd.appendChild(r);
  var op=el('div','dyOpt');op.style.display='none';var ck={};['KOSPI','KOSDAQ'].forEach(function(m){var l=el('label');var i=el('input');i.type='checkbox';i.checked=c.markets.indexOf(m)>=0;ck[m]=i;l.appendChild(i);l.appendChild(document.createTextNode(' '+m));op.appendChild(l)});
  function num(lbl,val,mn,mx){var l=el('label');l.appendChild(document.createTextNode(lbl+' '));var i=el('input');i.type='number';i.value=val;i.min=mn;i.max=mx;l.appendChild(i);op.appendChild(l);return i}
- var ct=num('시총 상위',c.cap_top,30,800),ms=num('최소 점수',c.min_score,0,95),cn=num('저장 개수',c.count,5,150),kr=num('코스피 비중%(0=합쳐서)',c.kospi_ratio,0,100);
- op.appendChild(el('div',null,'시총 상위 종목을 기술 지표로 평가하고, 저장돼 있는 수급을 더해 점수를 매겨요(수급은 [시장수급]/[테마]에서 먼저 가져와 두면 반영돼요). 2~5분 걸리며 화면을 떠나도 계속 돌아요.'));hd.appendChild(adm(op));ob.onclick=function(){op.style.display=op.style.display==='none'?'block':'none'};
+ var ct=num('시총 상위',c.cap_top,30,2000),ms=num('최소 점수',c.min_score,0,95),cn=num('저장 개수',c.count,5,150),kr=num('코스피 비중%(0=합쳐서)',c.kospi_ratio,0,100);
+ op.appendChild(el('div',null,'시총 상위 종목을 기술 지표로 평가하고, 저장돼 있는 수급을 더해 점수를 매겨요(수급은 [시장수급]/[테마]에서 먼저 가져와 두면 반영돼요). 시총 상위가 클수록 오래 걸려요(300개 2~5분, 1000개는 10분 안팎). 화면을 떠나도 계속 돌아요. 바꾼 옵션은 [💾 옵션 저장]이나 스캔을 시작할 때 저장돼서 다음에도 그대로 쓰여요.'));var sv=el('button','dyGh','💾 옵션 저장');sv.type='button';sv.style.marginTop='8px';sv.onclick=function(){var mk=Object.keys(ck).filter(function(k){return ck[k].checked});if(!mk.length){toast('시장을 하나 이상 고르세요');return}
+  toast('⏳ 옵션을 저장하는 중…');apiJ('/admin/api/daily/cfg-save',{markets:mk,cap_top:+ct.value,min_score:+ms.value,count:+cn.value,kospi_ratio:+kr.value}).then(function(j){if(j.error){toast('⚠ 옵션 저장 실패: '+j.error);return}DY.st.cfg=j.cfg;ct.value=j.cfg.cap_top;ms.value=j.cfg.min_score;cn.value=j.cfg.count;kr.value=j.cfg.kospi_ratio;toast('✅ 옵션을 저장했어요 (시총 상위 '+j.cfg.cap_top+' · 최소 점수 '+j.cfg.min_score+' · 저장 개수 '+j.cfg.count+')')},function(){toast('⚠ 옵션 저장에 실패했어요. 네트워크를 확인해 주세요.')})};op.appendChild(el('div'));op.appendChild(sv);hd.appendChild(adm(op));ob.onclick=function(){op.style.display=op.style.display==='none'?'block':'none'};
  go.onclick=function(){var mk=Object.keys(ck).filter(function(k){return ck[k].checked});if(!mk.length){toast('시장을 하나 이상 고르세요');return}
   apiJ('/admin/api/daily/scan',{markets:mk,cap_top:+ct.value,min_score:+ms.value,count:+cn.value,kospi_ratio:+kr.value}).then(function(j){if(j.error){toast(j.error);return}DY.st.cfg=j.cfg;toast('스캔을 시작했어요');dyPoll()})};
  dySelSync();var pg=el('div','dyPg');pg.id='dyProg';hd.appendChild(adm(pg));if(last.date)pg.appendChild(el('div',null,'마지막 스캔: '+last.date+' · '+(last.saved||0)+'종목 저장'+(last.error?' · ⚠ '+last.error:'')+(last.note?' · '+last.note:'')))}
