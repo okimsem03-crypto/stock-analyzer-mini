@@ -1858,17 +1858,47 @@ def api_mini():
 #   기사 원문은 담지 않는다(출처 이름과 원문 링크만). 화면에서 보내 준 분석문·종목만 쓰고 서버에 저장하지 않는다.
 # ══════════════════════════════════════════════════════════════
 BLOG_SECS = (("summary", "한 줄 요약"), ("stocks", "관련 종목·시세"), ("ai", "AI 분석 본문"), ("src", "출처·원문 링크"))
-_FENCE = re.compile(r"```.*?```", re.S)
+_FENCE = re.compile(r"```([A-Za-z0-9_+-]*)[ \t]*\n?(.*?)```", re.S)
+# [v194] '한 줄 요약' 줄 — 굵게(**)·콜론(:：)·줄표(—-)·글머리(-•>)가 어떤 모양이든 같은 규칙으로 찾는다.
+#   (예전에는 '지우는 규칙'과 '꺼내는 규칙'이 달라서, **한 줄 요약** — 문장 처럼 콜론이 없으면 글에서는 지워지고 박스로도 안 나왔다 → 이미지에만 남았다)
+_SUM_LINE = re.compile(r"^[ \t>\-*•·]*\**[ \t]*한[ \t]*줄[ \t]*요약(?![가-힣A-Za-z0-9])[ \t]*\**[ \t]*[:：\-–—]?[ \t]*\**[ \t]*(.*)$")
+
+
+def _fence_repl(m):
+    """AI 답변 속 ``` 블록: 종목 JSON(메타 정보)만 지우고, 그 밖의 블록은 감싼 표시만 벗겨 안의 글을 살린다."""
+    lang, body = (m.group(1) or "").lower(), m.group(2) or ""
+    if lang == "json" or (re.match(r"\s*\{", body) and re.search(r'"(mentioned|related|sentiment|title_ko)"', body)):
+        return ""
+    return "\n" + body.strip("\n") + "\n"
+
+
+def _blog_split(text):
+    """AI 분석문 → (한 줄 요약, 요약 줄을 뺀 본문). 요약을 뽑지 못했으면 줄을 지우지 않는다(글에서 사라지지 않게)."""
+    t = _FENCE.sub(_fence_repl, str(text or "")[:40000]).replace("```", "").replace("\r", "")
+    lines = t.split("\n")
+    for i, ln in enumerate(lines):
+        m = _SUM_LINE.match(ln)
+        if not m:
+            continue
+        sm, drop = re.sub(r"\*\*", "", m.group(1)).strip(), [i]
+        if not sm:                                   # '**한 줄 요약**' 만 있고 문장은 다음 줄에 있는 모양
+            for j in range(i + 1, min(i + 4, len(lines))):
+                if lines[j].strip():
+                    if not re.match(r"^\s*#", lines[j]):
+                        sm, drop = re.sub(r"\*\*", "", lines[j]).strip(" >-•·"), [i, j]
+                    break
+        if sm:
+            return sm[:200], "\n".join(l for k, l in enumerate(lines) if k not in drop).strip()
+        break
+    return "", t.strip()
 
 
 def _blog_clean(text):
-    t = _FENCE.sub("", str(text or "")[:40000])
-    return "\n".join(l for l in t.replace("\r", "").split("\n") if not re.match(r"^\s*\*\*한 줄 요약\*\*", l)).strip()
+    return _blog_split(text)[1]
 
 
 def _blog_sum(text):
-    m = re.search(r"\*\*한 줄 요약\*\*\s*[:：]\s*(.+)", str(text or ""))
-    return re.sub(r"\*\*", "", m.group(1)).strip()[:200] if m else ""
+    return _blog_split(text)[0]
 
 
 def build_news_blog(d):
@@ -1881,8 +1911,7 @@ def build_news_blog(d):
     inc = d.get("inc") if isinstance(d.get("inc"), dict) else {}
     inc = {k: bool(inc.get(k, True)) for k, _ in BLOG_SECS}
     ai_raw = str(d.get("ai_text") or "")[:40000]
-    ai = _blog_clean(ai_raw)
-    sm = _blog_sum(ai_raw)
+    sm, ai = _blog_split(ai_raw)
     ntitle = str(d.get("news_title") or "").strip()[:150]
     source = str(d.get("source") or "").strip()[:40]
     url = str(d.get("url") or "").strip()
@@ -1934,15 +1963,14 @@ def build_news_blog(d):
         h.append('<p style="font-size:11.5px;color:#9ca3af;margin:4px 0 0;">호재·악재 분류는 AI 또는 단어 규칙의 참고 값이며, 특정 종목을 권유하는 내용이 아닙니다. 뉴스에 언급됐다고 주가가 오르거나 내리는 것은 아닙니다.</p>')
     if inc["ai"] and ai:
         secs = B.split_sections(ai)
-        used = False
-        for num in sorted(k for k in secs if k > 0):
-            ttl, body = secs[num]
-            if body.strip():
-                h.append(B.section_card("&#128240;", ttl or f"분석 {num}", "", body, "#1e3a8a", "#f5f8ff"))
-                used = True
+        nums = [k for k in sorted(secs) if k > 0 and secs[k][1].strip()]
         pre = secs.get(0, ("", ""))[1].strip()
-        if pre or not used:
-            h.append(B.ai_to_html(pre if used else ai))
+        # [v194] 번호가 없는 앞부분(뉴스 핵심 요약 등)은 번호 섹션 '앞'에 둔다 — 예전에는 맨 아래로 밀려 있었다
+        if pre or not nums:
+            h.append(B.ai_to_html(pre if nums else ai))
+        for num in nums:
+            ttl, body = secs[num]
+            h.append(B.section_card("&#128240;", ttl or f"분석 {num}", "", body, "#1e3a8a", "#f5f8ff"))
     if inc["src"] and (url or source):
         lk = (f'<a href="{E(url)}" target="_blank" style="color:#1d4ed8;font-weight:700;">기사 원문 보기</a>' if url else "")
         h.append(f'<p style="font-size:12px;color:#6b7280;margin:14px 0 0;">&#128279; 출처: {E(source or "네이버 금융")}{" · " + lk if lk else ""} · 기사 내용은 저작권이 언론사에 있어 원문을 싣지 않고 링크로만 안내합니다. 공시는 DART·KIND에서 직접 확인하세요.</p>')
@@ -2194,7 +2222,14 @@ function nrStockCards(parent,stocks){var g=el('div','nrSg');var tks=[];
   if(s.reason)c.appendChild(el('div','sn',s.reason));g.appendChild(c);tks.push(s.ticker)});
  parent.appendChild(g);setTimeout(function(){nrFetchMinis(tks)},0)}
 /* 한 줄 요약·본문 줄 뽑기(이미지용) */
-function nrSum(t){var m=/\*\*한 줄 요약\*\*\s*[:：]\s*(.+)/.exec(t||'');if(m)return m[1].replace(/\*\*/g,'').trim();var ls=String(t||'').split(/\r?\n/).map(function(s){return s.trim()}).filter(function(s){return s&&!/^#/.test(s)});return ls[0]?ls[0].replace(/\*\*/g,''):''}
+/* [v194] 서버(_blog_split)와 같은 규칙 — '한 줄 요약' 줄이 어떤 모양이든(**…**:, **…** —, 콜론 없음, 글머리) 같은 방식으로 찾는다 */
+var NR_SUMRE=/^[ \t>\-*•·]*\**[ \t]*한[ \t]*줄[ \t]*요약(?![가-힣A-Za-z0-9])[ \t]*\**[ \t]*[:：\-–—]?[ \t]*\**[ \t]*(.*)$/;
+function nrSumSplit(t){var ls=String(t||'').replace(/\r/g,'').split('\n');
+ for(var i=0;i<ls.length;i++){var m=NR_SUMRE.exec(ls[i]);if(!m)continue;var s=m[1].replace(/\*\*/g,'').trim(),drop=[i];
+  if(!s){for(var j=i+1;j<Math.min(i+4,ls.length);j++){if(ls[j].trim()){if(!/^\s*#/.test(ls[j])){s=ls[j].replace(/\*\*/g,'').replace(/^[\s>\-•·]+/,'').trim();drop=[i,j]}break}}}
+  if(s)return {sm:s.slice(0,200),body:ls.filter(function(l,k){return drop.indexOf(k)<0}).join('\n')};break}
+ return {sm:'',body:ls.join('\n')}}
+function nrSum(t){var r=nrSumSplit(t);if(r.sm)return r.sm;var ls=String(t||'').split(/\r?\n/).map(function(s){return s.trim()}).filter(function(s){return s&&!/^#/.test(s)});return ls[0]?ls[0].replace(/\*\*/g,''):''}
 function nrLines(t,max){var out=[];String(t||'').split(/\r?\n/).forEach(function(s){s=s.trim();if(!s||/^#/.test(s)||/한 줄 요약/.test(s)||/^```/.test(s))return;s=s.replace(/\*\*/g,'').replace(/^[-•*]\s+/,'• ');if(out.length<max&&s.length>3)out.push(s)});return out}
 /* 판 */
 function nrRoom(box){nrEnv();
@@ -2291,7 +2326,7 @@ function nrResult(R,rs){var j=rs.j,ctx=rs.ctx;var c=el('div','nwS nrRes');var h=
  if(ctx.url){var ol=el('div','mt','원문: ');ol.appendChild(nrOrig(ctx.url));c.appendChild(ol)}
  if(j.stocks&&j.stocks.length){c.appendChild(el('h4','nwH4','📊 관련 종목 '+j.stocks.length+'개 · 최근 30일 시세'));nrStockCards(c,j.stocks)}else c.appendChild(el('p','note','확인된 종목이 없어요.'));
  (j.warnings||[]).forEach(function(w){c.appendChild(el('p','note bad','⚠ '+w))});
- var body=el('div');nwMd(body,String(j.ai_text||'').split(/\r?\n/).filter(function(l){return !/^\*\*한 줄 요약\*\*/.test(l)}).join('\n'));c.appendChild(body);
+ var body=el('div');nwMd(body,nrSumSplit(j.ai_text).body);c.appendChild(body);
  var ab=el('div','bar');ab.appendChild(bt('분석문 복사','bt2',function(){copyTxt(j.ai_text)}));
  ab.appendChild(adm(bt('💾 보관함에 저장 (관리자)','bt',function(){apiJ('/admin/api/news/save',{title:j.title_ko||ctx.title||'',source:ctx.source||'',excerpt:ctx.excerpt||'',ai_text:j.ai_text,stocks:j.stocks,kind:'stock'}).then(function(z){if(z.error){toast(z.error);return}toast('보관함에 저장했어요')})})));
  var bi=el('button','bt3','🖼 이미지 만들기');if(MEMBER_MODE)ab.appendChild(bi);c.appendChild(ab);var ib=el('div','nrImg');ib.id='nrImgR';c.appendChild(ib);nrBlogMount(c,rs,j,ctx);R.appendChild(c);

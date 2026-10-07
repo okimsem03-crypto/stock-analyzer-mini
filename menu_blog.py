@@ -456,13 +456,24 @@ def split_sections(text):
         m = re.match(r"^#{1,4}\s*(\d+)[.)]?\s*(.*)$", ln.strip())
         if m:
             if buf or title:
-                out[cur] = (title, "\n".join(buf).strip())
+                _put_section(out, cur, title, buf)
             cur, title, buf = int(m.group(1)), m.group(2).strip(), []
         else:
             buf.append(ln)
     if buf or title:
-        out[cur] = (title, "\n".join(buf).strip())
+        _put_section(out, cur, title, buf)
     return out
+
+
+def _put_section(out, num, title, buf):
+    """같은 번호가 두 번 나오면(하위 제목 번호가 겹치는 경우 등) 앞 내용을 덮어써 지우지 않고 뒤에 이어 붙인다."""
+    body = "\n".join(buf).strip()
+    if num in out and (out[num][1] or out[num][0]):
+        old_t, old_b = out[num]
+        extra = (("### " + title + "\n") if title else "") + body
+        out[num] = (old_t, (old_b + "\n\n" + extra).strip())
+    else:
+        out[num] = (title, body)
 
 
 def extract_titles(ai_text):
