@@ -336,7 +336,7 @@ def _universe(limit, with_theme=True):
                 if str(it.get("stockEndType") or "stock") not in ("stock", ""):
                     continue
                 pool[tk] = {"ticker": tk, "name": str(it.get("stockName") or tk)[:40], "market": _mkt(it) or mk,
-                            "price": _num(it.get("closePrice")), "pct": _fl(it.get("fluctuationsRatio")), "cap": _cap_eok(it.get("marketValue"))}
+                            "price": _num(it.get("closePrice")), "pct": (None if str(it.get("marketStatus") or "").upper() == "PREOPEN" else _fl(it.get("fluctuationsRatio"))), "cap": _cap_eok(it.get("marketValue"))}
                 got += 1
             tc = data.get("totalCount")
             if tc is not None and seen_n >= int(tc or 0):
@@ -669,13 +669,18 @@ def _theme_list_html():
 
 def _theme_list():
     """테마 목록 → (목록, 어디서 받았는지). 모바일 JSON을 먼저, 안 되면 PC 페이지."""
-    try:
-        got = _theme_list_json()
-        if got:
-            return got, "모바일 JSON"
-        _note_err("테마 목록(모바일)", "목록이 비어 있어요")
-    except Exception as e:
-        _note_err("테마 목록(모바일 /api/stocks/theme)", e)
+    for k in range(3):          # 장이 열리는 순간 등 네이버가 잠깐 404 를 주는 때가 있어 몇 초 간격으로 다시 시도
+        try:
+            got = _theme_list_json()
+            if got:
+                return got, "모바일 JSON"
+            _note_err("테마 목록(모바일)", "목록이 비어 있어요")
+            break
+        except Exception as e:
+            if k == 2:
+                _note_err("테마 목록(모바일 /api/stocks/theme)", e)
+            else:
+                time.sleep(2.5)
     try:
         got = _theme_list_html()
         if got:
@@ -715,8 +720,11 @@ def _row_of(s):
     if not (TICKER_RE.match(tk) and nm):
         return None
     mk = _mkt(s) or str(s.get("marketType") or s.get("market") or "").upper()
+    pct = _fl(s.get("fluctuationsRatio") if s.get("fluctuationsRatio") is not None else s.get("changeRate"))
+    if str(s.get("marketStatus") or "").upper() == "PREOPEN":
+        pct = None            # 장 시작 전에는 네이버가 등락률을 0.00 으로 비워 줘요 → 0으로 덮어쓰지 않고 '모름'으로 둔다(기존 값 유지)
     return {"tk": tk, "nm": nm[:40], "mk": mk if mk in ("KOSPI", "KOSDAQ") else "", "price": _num(s.get("closePrice") or s.get("price")),
-            "pct": _fl(s.get("fluctuationsRatio") if s.get("fluctuationsRatio") is not None else s.get("changeRate")), "cap": _cap_eok(s.get("marketValue"))}
+            "pct": pct, "cap": _cap_eok(s.get("marketValue")), "td": str(s.get("localTradedAt") or "")[:10]}
 
 
 _TH_JSON_TRIES = (("모바일 JSON(50개씩)", {"page": 1, "pageSize": 50}), ("모바일 JSON(20개씩)", {"page": 1, "pageSize": 20}), ("모바일 JSON(옵션 없이)", None))
@@ -804,9 +812,16 @@ def _theme_how():
     return _TH_JSON_TRIES[m[1]][0] if m[0] == "j" else "PC 페이지(예전 주소)"
 
 
-def _save_theme_day(themes):
-    """테마별 오늘 등락률을 날짜별로 쌓아 둔다(연속 강세·순위 변화용) — 실패해도 가져오기는 그대로 성공."""
-    day = _now_kst().strftime("%Y-%m-%d")
+def _trade_day(rows):
+    """가져온 종목들이 알려 준 '시세 기준일'(가장 많은 날짜) — 휴일·주말에는 직전 거래일이 나온다. 모르면 빈 문자열."""
+    from collections import Counter
+    c = Counter(str(r.get("td") or "")[:10] for r in rows if r.get("td") and r.get("pct"))
+    return c.most_common(1)[0][0] if c else ""
+
+
+def _save_theme_day(themes, day=""):
+    """테마별 등락률을 '시세 기준일'(거래일)별로 쌓아 둔다(연속 강세·순위 변화용). 휴일에 눌러도 가짜 하루가 생기지 않는다 — 실패해도 가져오기는 그대로 성공."""
+    day = day or _now_kst().strftime("%Y-%m-%d")
     ops = [("DELETE FROM theme_day WHERE date=?", (day,))]
     for th in themes:
         ops.append(("INSERT INTO theme_day(date,no,name,rate,rise,fall,steady) VALUES(?,?,?,?,?,?,?)", (day, th["no"], th["name"], th["rate"], th["rise"], th["fall"], th["steady"])))
@@ -828,6 +843,9 @@ def _theme_worker():
         if not themes:
             why = "; ".join(_ERRS[:3]) or "응답이 비어 있어요"
             return _end("테마 목록을 받지 못했어요 — " + why)
+        if not any(abs(th["rate"]) > 0 for th in themes):
+            # 모든 테마의 등락률이 0 → 장 시작 전(08~09시)에 네이버가 값을 비워 둔 상태. 이걸 저장하면 어제 자료가 0으로 지워진다.
+            return _end("지금은 네이버가 테마 등락률을 0으로 비워 두는 시간(장 시작 전)이에요. 기존 자료는 그대로 뒀어요. 09:00 이후(장중)나 마감 후(15:40~)에 다시 눌러 주세요.")
         _set(phase="stocks", total=len(themes), msg=f"② 테마 {len(themes)}개의 종목 받는 중… (목록: {src})")
         pairs, seen, price_rows, ok_names = [], set(), {}, set()
 
@@ -861,7 +879,7 @@ def _theme_worker():
                             seen.add((r["tk"], th["name"]))
                             pairs.append((r["tk"], r["nm"], r["mk"], th["name"]))
                         if r["price"] and r["tk"] not in price_rows:
-                            price_rows[r["tk"]] = {"ticker": r["tk"], "name": r["nm"], "market": r["mk"], "price": r["price"], "pct": r["pct"], "cap": r["cap"]}
+                            price_rows[r["tk"]] = {"ticker": r["tk"], "name": r["nm"], "market": r["mk"], "price": r["price"], "pct": r["pct"], "cap": r["cap"], "td": r.get("td", "")}
         snap = _snapshot()
         if _stopped():
             return _end()           # 멈춤: 일부만 받은 채로 기존 자료를 지우면 안 되므로 저장하지 않는다
@@ -892,8 +910,9 @@ def _theme_worker():
                 _save_prices(list(price_rows.values()))
             except Exception as e:
                 _note_err("시세 저장(무시)", e)
-        _save_theme_day(themes)
-        res = {"at": _stamp(), "themes": len(themes), "stocks": len(pairs), "uniq_tickers": len({p[0] for p in pairs}), "fail": snap["fail"], "ok": snap["ok"],
+        tday = _trade_day(list(price_rows.values()))
+        _save_theme_day(themes, tday)
+        res = {"at": _stamp(), "trade_date": tday, "themes": len(themes), "stocks": len(pairs), "uniq_tickers": len({p[0] for p in pairs}), "fail": snap["fail"], "ok": snap["ok"],
                "src": src, "how": _theme_how(), "errs": list(_ERRS[:4])}
         _last_set(KEY_THEME, res)
         _reload_flow()

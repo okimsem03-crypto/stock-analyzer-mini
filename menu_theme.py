@@ -286,7 +286,7 @@ def api_list():
     avg = round(sum(t["rate"] for t in allr) / len(allr), 2) if allr else 0
     links = sum(len(v) for v in d["members"].values())
     return _admin_json({"ok": True, "items": its[:top], "matched": len(its), "count": len(allr), "up": up, "down": dn, "avg": avg, "dates": len(d["dates"]),
-                        "fetched_at": d["fetched_at"], "base_date": d["base_date"], "sort": sort, "side": side, "per": per, "links": links, "inv_n": len(d["inv"])})
+                        "fetched_at": d["fetched_at"], "trade_date": (d["dates"][-1] if d["dates"] else ""), "base_date": d["base_date"], "sort": sort, "side": side, "per": per, "links": links, "inv_n": len(d["inv"])})
 
 
 @bp.route("/admin/api/theme/detail", methods=["GET"])
@@ -464,7 +464,7 @@ def _summary_text(d):
 
 
 def _base_label(d):
-    return (d["fetched_at"] or "")[:10] or _today()
+    return (d["dates"][-1] if d["dates"] else "") or (d["fetched_at"] or "")[:10] or _today()
 
 
 @bp.route("/admin/api/theme/prompt", methods=["GET"])
@@ -655,7 +655,14 @@ def api_diag():
         return deny
     d = _load(True)
     ai = _ai_get()
-    return _admin_json({"ok": True, "themes": len(d["themes"]), "links": sum(len(v) for v in d["members"].values()), "dates": d["dates"][-5:], "date_n": len(d["dates"]),
+    fail = {}
+    try:
+        f = _json_get("collect_fail_last")
+        if isinstance(f, dict) and f.get("kind") == "theme" and f.get("error"):
+            fail = {"at": str(f.get("at", ""))[:16], "error": str(f.get("error"))[:200]}
+    except Exception:
+        fail = {}
+    return _admin_json({"ok": True, "fail": fail, "trade_date": (d["dates"][-1] if d["dates"] else ""), "themes": len(d["themes"]), "links": sum(len(v) for v in d["members"].values()), "dates": d["dates"][-5:], "date_n": len(d["dates"]),
                         "fetched_at": d["fetched_at"], "price_n": len(d["price"]), "inv_n": len(d["inv"]), "inv_base": d["base_date"], "ai_date": ai.get("date", "")})
 
 
@@ -767,7 +774,7 @@ function thListQ(){return thQ({q:TH.q,sort:TH.sort,side:TH.side,top:TH.top})}
 function thEnsure(){if(thHas())return Promise.resolve(TH.ls);return api('/admin/api/theme/list?'+thQ({top:'300'})).then(function(j){if(j.error)throw new Error(j.error);if(j.empty)throw new Error(j.msg||'테마 자료가 없어요.');TH.ls=j;thSteps();return j})}
 function thStatus(){var b=$('thSum');if(!b)return;b.innerHTML='';var j=TH.ls;if(!j||j.empty)return;var st=el('div');st.style.cssText='display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 0';
  function chip(t,on){var c=el('span',null,t);c.style.cssText='display:inline-block;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;border:1px solid '+(on?'#fed7aa':'#e2e8f0')+';background:'+(on?'#fff7ed':'#f1f5f9')+';color:'+(on?'#c2410c':'#334155');return c}
- st.appendChild(chip('테마 '+j.count+'개',true));st.appendChild(chip('상승 '+j.up+' · 하락 '+j.down));st.appendChild(chip('평균 '+thPct(j.avg)));if(j.fetched_at)st.appendChild(chip('가져온 때 '+j.fetched_at.slice(0,16)));st.appendChild(chip('일별 이력 '+j.dates+'일'));b.appendChild(st)}
+ st.appendChild(chip('테마 '+j.count+'개',true));st.appendChild(chip('상승 '+j.up+' · 하락 '+j.down));st.appendChild(chip('평균 '+thPct(j.avg)));if(j.trade_date)st.appendChild(chip('시세 기준일 '+j.trade_date,true));if(j.fetched_at)st.appendChild(chip('가져온 때 '+j.fetched_at.slice(0,16)));st.appendChild(chip('일별 이력 '+j.dates+'일'));b.appendChild(st)}
 
 /* ── ① 테마 순위 ── */
 function thSecList(box){
@@ -934,7 +941,7 @@ function bars(c,x,y,w,title,sub,items,kind){var RH=58,h=96+items.length*RH+26;ca
   T(c,kind==='flow'?fe(v):pc(v),x+w-26,yy+32,{s:24,w:900,c:v>=0?UP:DN,a:'right'});if(kind!=='flow')T(c,'▲'+t.rise+' ▼'+t.fall,bx+bw+12,yy+32,{s:16,w:600,c:MUT});else T(c,'외'+fe(t.f)+' 기'+fe(t.i),bx+bw+12,yy+32,{s:14,w:600,c:MUT,max:170})});return h}
 function dash(ls,fl,scale){var W=1080,th=ls.items,top=th.slice(0,8),bt0=th.slice().reverse().filter(function(t){return t.rate<0}).slice(0,5),fi=fl&&fl.items?fl.items.slice(0,5):[];
  var H=210+30+120+30+(96+top.length*58+26)+30+(bt0.length?96+bt0.length*58+26+30:0)+(fi.length?96+fi.length*58+26+30:0)+118;var mk=K.make(W,H,scale),c=mk.c;c.fillStyle=PAPER;c.fillRect(0,0,W,H);
- band(c,W,'NAVER THEME','오늘의 강세 테마',(ls.fetched_at||'').slice(0,10)+' · 네이버 증권 테마 '+ls.count+'개 · 상승 '+ls.up+' · 하락 '+ls.down);
+ band(c,W,'NAVER THEME','오늘의 강세 테마',(ls.trade_date||(ls.fetched_at||'').slice(0,10))+' · 네이버 증권 테마 '+ls.count+'개 · 상승 '+ls.up+' · 하락 '+ls.down);
  var y=240,tl=[['1위 테마',th[0]?th[0].name:'-',INK],['1위 등락률',th[0]?pc(th[0].rate):'-',th[0]&&th[0].rate>=0?UP:DN],['상승 테마',ls.up+'개',UP],['하락 테마',ls.down+'개',DN]];
  var tw=(W-100-16*(tl.length-1))/tl.length;tl.forEach(function(t,i){var x=50+i*(tw+16);card(c,x,y,tw,120,18);T(c,t[0],x+tw/2,y+40,{s:20,w:700,c:MUT,a:'center'});T(c,t[1],x+tw/2,y+88,{s:t[1].length>6?28:36,w:900,c:t[2],a:'center',max:tw-16})});y+=150;
  y+=bars(c,50,y,W-100,'강세 테마 TOP '+top.length,'등락률(막대) · 상승/하락 종목 수',top,'rate')+30;
@@ -969,7 +976,8 @@ function thAdmDraw(){var b=$('thAdm');if(!b)return;var j=TH.diag;
  var C=window.CBar.make(b,{title:'📥 자료 가져오기',btn:{label:'🏷💧 오늘 테마·수급 가져오기',id:'thColB0',fn:function(){if(TH.job&&TH.job.running){toast('이미 가져오기가 실행 중이에요.');return}TH.chain=true;thStartTheme()}},
   stopId:'thColB3',stopFn:function(){TH.chain=false;apiJ('/admin/api/collect/stop',{}).then(function(z){if(z.error){toast(z.error);return}toast('멈추는 중이에요…');thJobPoll(true)})},stId:'thColSt',pgId:'thColPg'});
  if(!j||j.error){C.st.textContent='점검 정보를 읽지 못했어요.';return}
- C.st.textContent=j.themes?('✅ 테마 '+j.themes+'개 · 수급 '+(j.inv_n||0)+'종목(기준일 '+(j.inv_base||'-')+') · 일별 이력 '+(j.date_n||0)+'일'):'⚠ 아직 가져온 자료가 없어요 — 왼쪽 버튼을 한 번 눌러 주세요(테마 → 수급 순서로 이어서 받아요, 몇 분 걸려요).';
+ C.st.textContent=j.themes?('✅ 테마 '+j.themes+'개(시세 기준일 '+(j.trade_date||'-')+', 가져온 때 '+String(j.fetched_at||'').slice(5,16)+') · 수급 '+(j.inv_n||0)+'종목(기준일 '+(j.inv_base||'-')+') · 일별 이력 '+(j.date_n||0)+'일'):'⚠ 아직 가져온 자료가 없어요 — 왼쪽 버튼을 한 번 눌러 주세요(테마 → 수급 순서로 이어서 받아요, 몇 분 걸려요).';
+ if(j.fail&&j.fail.error&&String(j.fail.at||'')>String(j.fetched_at||'').slice(0,16)){var fe=el('div','note bad','⚠ 마지막 테마 가져오기('+j.fail.at.slice(5)+')가 저장되지 않았어요 — '+j.fail.error);C.st.appendChild(fe)}
  var d=C.inn;d.appendChild(el('p','note','버튼을 따로 누르고 싶을 때만 쓰세요. 하루 한 번이면 충분해요. 수급은 이어서 받기가 켜져 있으면 오늘 받은 종목은 건너뛰어요.'));
  var op=el('div','bar');thSel(op,'수급 범위',TH.cl,'lim',[['0','전종목(코스피+코스닥)'],['2000','시총 상위 2000'],['1000','시총 상위 1000'],['500','시총 상위 500'],['300','시총 상위 300']]);
  var cl=el('label','thL');var ck=el('input');ck.type='checkbox';ck.checked=!!TH.cl.skip;ck.onchange=function(){TH.cl.skip=ck.checked};cl.appendChild(el('span',null,'이어서 받기'));cl.appendChild(ck);op.appendChild(cl);d.appendChild(op);
