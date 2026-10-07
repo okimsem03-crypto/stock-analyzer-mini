@@ -23,7 +23,7 @@ for _n in _CORE_FUNCS:
 
 E = lambda s: _html.escape("" if s is None else str(s), quote=True)
 TICKER_RE = re.compile(r"^[0-9A-Za-z]{6}$")
-LOG_TICKER_RE = re.compile(r"^(?:[0-9A-Za-z]{6}|D[0-9]{6})$")      # 글 기록용: 종목코드 또는 오늘추천 날짜표(D+YYMMDD)
+LOG_TICKER_RE = re.compile(r"^(?:[0-9A-Za-z]{6}|[DS][0-9]{6})$")      # 글 기록용: 종목코드 또는 날짜표(D/S+YYMMDD — D=오늘추천 등, S=초단기)
 
 # ══════════════════════════════════════════════════════════════
 # 메뉴별 블로그 글쓰기 주소 (원본 DB 의 blog_menu_urls 를 기본값으로)
@@ -31,7 +31,7 @@ LOG_TICKER_RE = re.compile(r"^(?:[0-9A-Za-z]{6}|D[0-9]{6})$")      # 글 기록�
 DEFAULT_BLOG_ID = "okykr"
 # (키, 이름, 카테고리 번호) — 앞의 3개는 지금 쓰는 메뉴, 나머지는 원본에 있던 메뉴(앞으로 옮겨 올 때 바로 쓰도록 미리 준비)
 BLOG_MENUS = [
-    ("stock", "종목분석", 16), ("deepdive", "기업심층분석", 18), ("daily", "오늘추천", 16),
+    ("stock", "종목분석", 16), ("deepdive", "기업심층분석", 18), ("daily", "오늘추천", 16), ("scalp", "초단기 후보(장전)", 16),
     ("news", "뉴스분석 블로그", 19), ("challenge", "도전주 낙폭회복", 20), ("market", "시장수급 리포트", 20), ("theme", "네이버테마 리포트", 20), ("flow", "수급분석 리포트", 20), ("aiflow", "AI수급 리포트", 20),
     ("heatmap", "히트맵 블로그", 20), ("calendar", "경제캘린더", 20), ("sell", "매도신호", 20), ("macro", "거시경제 리포트", 20),
     ("all", "전체종목 리포트", 20), ("caution", "투자주의", 20), ("issue", "이슈분석", 20), ("risk", "위험종목", 20),
@@ -142,7 +142,7 @@ def api_urls_save():
 # ══════════════════════════════════════════════════════════════
 # 작성 이력 (표 이름은 v139 의 lab_blog_log 를 그대로 쓴다 — 이미 쌓인 기록 유지)
 # ══════════════════════════════════════════════════════════════
-KINDS = {"stock": "종목분석", "deepdive": "심층분석", "daily": "오늘추천", "caution": "투자주의", "news": "뉴스분석", "challenge": "도전주", "market": "시장수급", "theme": "네이버테마", "flow": "수급분석"}
+KINDS = {"stock": "종목분석", "deepdive": "심층분석", "daily": "오늘추천", "scalp": "초단기", "caution": "투자주의", "news": "뉴스분석", "challenge": "도전주", "market": "시장수급", "theme": "네이버테마", "flow": "수급분석"}
 
 
 def _ensure_table(c, use_pg):
