@@ -161,7 +161,7 @@ function newJob(){var a='abcdefghijklmnopqrstuvwxyz0123456789',o='';for(var i=0;
 function openUrl(u){var a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();document.body.removeChild(a)}
 function ensureStyle(){if(document.getElementById('ma-style-flag'))return;var f=el('span');f.id='ma-style-flag';f.style.display='none';document.body.appendChild(f);
  if(document.querySelector('link[href*="mini-ui.css"]'))return;
- if(!window.__MA_CSS__){var lk=document.createElement('link');lk.rel='stylesheet';lk.href='/assets/mini-ui.css';document.head.appendChild(lk);return}var nn='';var n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';
+ if(!window.__MA_CSS__){var lk=document.createElement('link');lk.rel='stylesheet';lk.href=window.__MA_CSS_URL__||'/assets/mini-ui.css';document.head.appendChild(lk);return}var nn='';var n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';
  var s=document.createElement('style');if(nn)s.setAttribute('nonce',nn);s.textContent=window.__MA_CSS__;document.head.appendChild(s)}
 var cfgSite=null;
 function siteDefault(){var s=lsGet('mini_ai_site');if(s&&SITES[s])return s;return (cfgSite&&SITES[cfgSite])?cfgSite:'gemini'}
@@ -378,9 +378,15 @@ function spCss(){if(document.getElementById('skPopCss'))return;var nn='',n=docum
 function spClose(){if(SPN){try{SPN.remove()}catch(e){}SPN=null}document.removeEventListener('keydown',spKey,true);document.removeEventListener('mousedown',spOut,true);document.removeEventListener('touchstart',spOut,true)}
 function spKey(e){if(e.key==='Escape')spClose()}
 function spOut(e){if(SPN&&!SPN.contains(e.target))spClose()}
+/* [v187] 종목 이동은 어디서든 '같은 창' — 메인 화면 탭(MiniTabs)이 있으면 그 탭으로, 없으면(관리자 화면·단독 메뉴 화면) 현재 창을 종목분석으로 바꿔요(새 창을 따로 띄우지 않아요). */
 window.GoStock=function(t,kind){t=String(t||'').trim().toUpperCase();if(!t)return false;
- try{var P=window.parent;if(P&&P!==window&&P.MiniTabs){if(kind==='deep'&&P.MiniTabs.openDeep){P.MiniTabs.openDeep(t);return true}if(kind==='stock'&&P.MiniTabs.openStock){P.MiniTabs.openStock(t,true);return true}if(!kind&&P.MiniTabs.openStock){P.MiniTabs.openStock(t);return true}}}catch(e){}
- try{window.open('/?t='+encodeURIComponent(t)+(kind==='deep'?'&m=deep':''),'mini_main')}catch(e){}return true};
+ var cands=[];try{if(window.parent&&window.parent!==window)cands.push(window.parent)}catch(e){}try{if(window.top&&window.top!==window&&cands.indexOf(window.top)<0)cands.push(window.top)}catch(e){}
+ for(var i=0;i<cands.length;i++){try{var P=cands[i];if(P.MiniTabs){if(kind==='deep'&&P.MiniTabs.openDeep){P.MiniTabs.openDeep(t);return true}if(kind==='stock'&&P.MiniTabs.openStock){P.MiniTabs.openStock(t,true);return true}if(!kind&&P.MiniTabs.openStock){P.MiniTabs.openStock(t);return true}}}catch(e){}}
+ var url='/?t='+encodeURIComponent(t)+(kind==='deep'?'&m=deep':'');
+ try{if(window.MiniTabs&&window.MiniTabs.openStock&&window.top===window){if(kind==='deep'&&window.MiniTabs.openDeep){window.MiniTabs.openDeep(t);return true}window.MiniTabs.openStock(t,kind==='stock');return true}}catch(e){}
+ try{if(window.top&&window.top!==window){window.top.location.href=url;return true}}catch(e){}
+ location.href=url;return true};
+window.GoMain=function(){try{if(window.top&&window.top!==window){window.top.location.href='/';return true}}catch(e){}location.href='/';return true};
 window.StockPop=function(t,name,anchor){t=String(t||'').trim().toUpperCase();if(!t)return false;spClose();spCss();
  var bx=el('div','skPop');bx.setAttribute('role','dialog');bx.setAttribute('aria-label','종목 이동 선택');SPN=bx;
  var hd=el('div','hd');hd.appendChild(el('b',null,name||t));hd.appendChild(el('i',null,t));var x=el('button','x','✕');x.type='button';x.setAttribute('aria-label','닫기');x.setAttribute('data-noconfirm','1');x.onclick=spClose;hd.appendChild(x);bx.appendChild(hd);
@@ -1121,6 +1127,12 @@ def _asset(text, mime):
 @bp.route("/assets/mini-ui.css")
 def ui_css():
     return _asset(UI_CSS, "text/css")
+
+
+@bp.route("/assets/mini-ai.css")
+def ai_css():
+    # 종목분석 메인 화면용 — 전체 공통 CSS(박스 모델·변수 등)는 빼고 'AI 창' 부분만 준다(메인 화면 모양이 바뀌지 않게).
+    return _asset("/* ── MiniAI" + UI_CSS.split("/* ── MiniAI")[1], "text/css")
 
 
 @bp.route("/assets/mini-ui.js")

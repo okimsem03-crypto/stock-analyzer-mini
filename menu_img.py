@@ -189,7 +189,7 @@ K.panel=function(box,o){ensureCss();box.innerHTML='';var P=el('div','ikp');box.a
  var st=el('div','ikn');var warn=el('div');var row=el('div','ikr'),view=el('div','ikv');
  var bGen=el('button','ikb p','🖼 이미지 만들기');var bAll=el('button','ikb','💾 둘 다 저장');bAll.style.display='none';
  var bSet=el('button','ikb','⚙ 저장 설정');
- bSet.onclick=function(){try{if(typeof TABS!=='undefined'&&typeof nav==='function'&&typeof load==='function'){cur='ik';nav();load();return}}catch(e){}try{if(typeof openAdminWin==='function'){openAdminWin('#ik');return}}catch(e){}window.open('/admin#ik','mini_admin')};
+ bSet.onclick=function(){try{if(typeof TABS!=='undefined'&&typeof nav==='function'&&typeof load==='function'){cur='ik';nav();load();return}}catch(e){}try{if(typeof openAdminWin==='function'){openAdminWin('#ik');return}}catch(e){}(window.top||window).location.href='/admin#ik'};
  row.appendChild(bGen);row.appendChild(bAll);row.appendChild(bSet);P.appendChild(row);P.appendChild(st);P.appendChild(warn);P.appendChild(view);
  function whereText(i){var p=i.supported&&i.name&&i.perm!=='none'?(i.name+'/'+K.dateDir()+'/'+K.menuFolder(o.menu)+'/'+(K.stockDir(o)?K.stockDir(o)+'/':'')):'브라우저 기본 다운로드 폴더';
   return '저장 위치: '+p+' · 모드: '+(K.mode()==='auto'?'자동 저장':'수동 저장(버튼)')}

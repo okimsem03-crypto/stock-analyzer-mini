@@ -214,6 +214,7 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v187 — ① AI 창을 프로그램 전체에서 한 가지 방식으로 통일: 종목분석 메인 화면의 [AI로 분석하기]·다른 AI 고르기도 이제 모든 메뉴와 같은 공통 AI 창(MiniAI)으로 열려요 — AI 사이트는 작은 팝업 1개로만 열리고(중복 클릭·재호출은 무시), 답변이 들어오면 자동으로 닫히며, 도우미·서버 AI·수동 방식도 메뉴와 똑같이 동작해요(예전 종목분석 전용 안내창 코드는 비상용으로만 남김). ② 종목 이동도 한 가지 방식으로 통일: 관리자 화면·단독 메뉴 화면에서 종목을 누르거나 [종목분석 열기]·[메인 화면]을 누르면 새 창이 아니라 지금 창이 종목분석으로 바뀌어요(메인 화면 안에서는 기존처럼 탭 이동). 뉴스·분석실·이미지 메뉴의 새 창 이동도 같은 창으로 바꿨어요.
 ✨ v186 — ① 관리자 화면 한 곳으로: 상단 [관리자] 버튼·왼쪽 메뉴·바로가기 아이콘·숨김 메뉴가 모두 /admin 으로 이동해요(메인 화면 안 탭으로 따로 열려 화면이 두 가지로 보이던 문제 해결). ② 네이버테마에 📡 실시간 탭 추가 — 네이버 증권의 업종·테마·그룹사를 일간·주간·월간으로 그대로 본떠 지금 이 시각 값을 받아 와요(거래량·거래대금·상승률·시가총액 TOP 카드, 코스피/코스닥·정렬 칩, 종목 표, 30초 자동 새로고침, 저장 안 함). 기존 ‘가져와서 저장한’ 화면은 💾 쌓아 둔 탭으로 이름을 바꿨어요. ③ 오늘추천: 스캔 시점의 외국인·기관 수급(5일)을 점수·표에 함께 반영하고 스캔 당시 값으로 저장해요(예전 기록과 섞이지 않게 기준일 표시). 가장 최근 스캔이 지난 거래일보다 오래됐으면 노란 경고를 띄워요. ④ 🗄 뉴스 DB: 뉴스를 가져올 때마다(주요·속보·많이 본·종목 뉴스·종목분석 화면) 제목·언론사·링크·발행시각을 호재/악재·테마·관련 종목과 함께 자동 저장하고(기사 원문은 저장 안 함), 종목별·테마별·호재악재·언론사별 집계, 날짜별 추세 막대, 검색, CSV 내려받기, 다시 분류·오래된 뉴스 지우기(관리자)를 제공해요. ⑤ AI 창: 종목분석·메뉴 모두 AI 사이트를 ‘작은 팝업 창’ 하나로 열어요(같은 창을 다시 쓰고 2.5초 안의 중복 호출은 무시해 두 번 열리지 않으며, 답변이 들어오면 자동으로 닫혀요. 팝업이 막히면 예전처럼 새 탭). ⑥ 블로그 그림: 만든 그림 전체(최대 10장)를 도우미에 넘겨 모두 순서대로 올려요(AI 도우미 1.5.11 — 재설치 필요, 옛 버전은 1장만 올려요).
 ✨ v185 — 네이버테마 자료가 ‘그대로’이던 문제: ① 장 시작 전(08~09시)에는 네이버가 테마·종목 등락률을 0으로 비워 주는데 이걸 그대로 저장해 어제 자료를 지우던 것을 막았어요(이럴 땐 저장하지 않고 이유를 알려 줘요) ② 일별 이력을 ‘누른 날짜’가 아니라 네이버가 알려 주는 시세 기준일(거래일)로 쌓아요 — 휴일에 눌러도 가짜 하루가 생기지 않아요 ③ 화면에 ‘시세 기준일’ 표시, 마지막 시도가 저장 안 됐으면 가져오기 카드에 이유 표시 ④ 장이 열리는 순간의 일시적 404는 3번까지 다시 시도.
 ✨ v184 — 뉴스분석 ⚡한 번에/자동 진행 끊김 수정(AI 분석 직후 이미지 화면이 아직 안 만들어진 순간에 다음 단계가 조용히 멈추던 문제 — 이제 만들어질 때까지 기다렸다 이어가요). AI 도우미 1.5.10: ① AI 답변을 받으면 사이트 쪽 도우미가 AI 탭을 직접 닫아요(AI 탭 스스로 닫기가 막혀도 닫혀요) ② 화면에 보이는 입력창만 골라 쓰고, 입력이 안 들어가면 방법을 바꿔 최대 9번 다시 시도(뒤쪽 탭·제미나이 여러 탭에서도 안정) ③ 같은 사이트의 다른 탭이 가져간 작업은 가로채지 않음 ④ 실패 배너에 [다시 시도] 버튼.
@@ -368,7 +369,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v186"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v187"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -4444,7 +4445,7 @@ body.mem header,body.mem nav{display:none}
 textarea{border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-size:12.5px;font-family:inherit;line-height:1.5}
 </style></head><body>
 <header><b>🛠 종목분석 미니 관리자 <span id="ver"></span></b>
-<a href="/" target="mini_main" class="home">🏠 메인 화면</a><button id="lo">로그아웃</button><button id="loall" class="red">모든 세션 종료</button></header>
+<a href="/" class="home">🏠 메인 화면</a><button id="lo">로그아웃</button><button id="loall" class="red">모든 세션 종료</button></header>
 <div id="mbar"><b id="mbt"></b><span id="mbs"></span><a href="/" target="_top">🏠 종목분석</a><a href="/menus" target="_top">전체 메뉴</a><a href="/plans" target="_top">등급 안내</a><a id="mbl" href="/member" target="_top">로그인·가입</a></div>
 <div class="w"><nav id="nav"></nav><div id="accbar"></div><div id="pane"></div></div><div id="toast"></div>
 <script nonce="{{ nonce }}">
@@ -4492,7 +4493,7 @@ function accBar(){var b=$('accbar');if(!b)return;b.innerHTML='';if(MEMBER_MODE||
  var cm=el('span','m accm',it.feats?('기능 '+it.feats+'개 · 누구나 '+it.cnt.all+' · 회원 '+it.cnt.member+' · 관리자 전용 '+it.cnt.admin):'기능별 공개 설정 없음');cm.title='관리자는 모든 기능(블로그 쓰기 포함)을 바로 실행해 볼 수 있어요';b.appendChild(cm);
  var go=bt('🎚 공개 설정','bt3',function(){var mi=-1;try{if(FE.S)FE.S.menus.forEach(function(m,i){if(m.id===it.id)mi=i})}catch(e){}if(typeof FE!=='undefined'&&mi>=0)FE.sel=mi;if(typeof PB!=='undefined')PB.sub='fe';cur='pb';nav();load()});b.appendChild(go);
  var sel=el('select');sel.setAttribute('aria-label','이용자 화면 미리보기');[['','👁 이용자 화면 미리보기…'],['guest','비회원으로'],].concat((WB.levels||[]).map(function(x){return [x.id,x.name+'으로']})).forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];sel.appendChild(op)});
- sel.onchange=function(){if(!sel.value)return;window.open(it.public_path+'?as='+sel.value,'mini_admin_view');sel.value=''};b.appendChild(sel)}
+ sel.onchange=function(){if(!sel.value)return;var u=it.public_path+'?as='+sel.value;sel.value='';location.href=u};b.appendChild(sel)}
 function nav(){var n=$('nav');n.innerHTML='';var seen={};
  function pill(t,box){var b=el('button',t[0]===cur?'on':'',t[1]);b.onclick=function(){cur=t[0];nav();load()};box.appendChild(b);seen[t[0]]=1}
  if(MEMBER_MODE||TABS.length<6){TABS.forEach(function(t){pill(t,n)});return}
@@ -4506,7 +4507,7 @@ function nav(){var n=$('nav');n.innerHTML='';var seen={};
   var gb=el('button','ngb'+(act?' on':''));gb.type='button';gb.appendChild(el('span',null,label));gb.appendChild(el('em',null,'▾'));
   var dd=el('div','ngd');var lastB=null;
   items.forEach(function(t){if(wb&&t[2]&&t[2].badge&&t[2].badge!==lastB){lastB=t[2].badge;dd.appendChild(el('div','ngh',(t[2].rank===0?'🌐 ':(t[2].rank>=99?'🔒 ':'🟢 '))+t[2].badge))}pill([t[0],t[1]+(wb&&t[2]&&t[2].off?' (숨김)':'')],dd)});
-  if(wb){dd.appendChild(el('div','ngh','📈 종목분석(메인 화면)'));var mb=el('button',null,'📈 종목분석 열기 ↗');mb.onclick=function(){window.open('/','mini_main')};dd.appendChild(mb)}
+  if(wb){dd.appendChild(el('div','ngh','📈 종목분석(메인 화면)'));var mb=el('button',null,'📈 종목분석 열기');mb.onclick=function(){location.href='/'};dd.appendChild(mb)}
   gb.onclick=function(e){e.stopPropagation();var was=box.classList.contains('open');navCloseAll();box.classList.toggle('open',!was)};
   box.appendChild(gb);box.appendChild(dd);n.appendChild(box)}}
 function navCloseAll(){[].forEach.call(document.querySelectorAll('.ng.open'),function(x){x.classList.remove('open')})}
@@ -6216,9 +6217,10 @@ HTML_TEMPLATE = r"""
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>종목분석 미니 {{ app_version }}</title>
-<script>window.__APP_VER__ = "{{ app_version }}"; window.__SITE_URL__ = "{{ site_url }}"; window.__AI_SITE__ = "{{ ai_site }}";
+<script>window.__APP_VER__ = "{{ app_version }}"; window.__SITE_URL__ = "{{ site_url }}"; window.__AI_SITE__ = "{{ ai_site }}"; window.__MA_CSS_URL__ = "/assets/mini-ai.css?v={{ app_version }}";
   window.__BRAND_URL__ = "{{ brand_url }}"; window.__BRAND_LABEL__ = "{{ site_label }}"; window.__BLOG_URL__ = "{{ blog_url }}";
   window.__ADS__ = {{ 'true' if ad_client else 'false' }};</script>
+<script src="/assets/mini-ui.js?v={{ app_version }}" defer></script>
 {% if ad_client %}<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ ad_client }}" crossorigin="anonymous"></script>{% endif %}
 {% macro ad_slot(name) -%}
   {%- set sid = ad_slots.get(name, '') -%}
@@ -8072,8 +8074,37 @@ function aiPick(which){
   _aiRelabel(); aiPrimary();
 }
 // 큰 버튼: 안내창 없이 곧바로 복사 + 열기. 답변을 복사하고 이 탭으로 돌아오면 아래 칸에 자동으로 들어간다.
+// 🧩 [v187] 모든 메뉴와 같은 'AI 창'(MiniAI)을 쓴다 — 작은 팝업 1개로만 열리고, 답변이 들어오면 자동으로 닫히며, 도우미·서버 AI·수동 모드도 메뉴와 똑같이 동작한다.
+let _AIPANEL = null;
+function _aiViaMini(){
+  if(!(window.MiniAI && typeof window.MiniAI.run === 'function') || !CUR) return false;
+  if(_AIPANEL && document.querySelector('.ma-ov')) return true;   // 이미 열려 있으면 두 번 열지 않는다
+  const tk = CUR.ticker;
+  const go = function(prompt){
+    if(!CUR || CUR.ticker !== tk) return;
+    if(_AIPANEL && document.querySelector('.ma-ov')) return;
+    _AIPANEL = window.MiniAI.run({
+      onClose: function(){ _AIPANEL = null; },
+      title: '🤖 AI로 분석하기 — ' + (CUR.name || tk), key: 'stock', minLen: 80, autoApply: true,
+      steps: [{ label: '종목 분석', prompt: prompt }],
+      apply: function(t){
+        aiPasteBoxEl.value = t; renderAiResult();
+        try{ document.getElementById('aiResult').scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
+        return Promise.resolve({ message: 'AI 답변을 아래 분석 칸에 정리했어요.' });
+      }
+    });
+  };
+  if(CUR_PROMPT){ go(CUR_PROMPT); return true; }
+  showToast('⏳ 프롬프트를 준비하는 중이에요…');
+  _fetchAiPrompt().then(function(d){
+    if(d && d.prompt){ CUR_PROMPT = d.prompt; document.getElementById('aiPromptBox').value = d.prompt; go(d.prompt); }
+    else showToast('⚠ ' + ((d && d.error) || '프롬프트를 만들지 못했습니다.'));
+  }).catch(function(){ showToast('⚠ 프롬프트 생성 중 오류가 발생했습니다.'); });
+  return true;
+}
 function aiPrimary(){
   if(!CUR){ showToast('먼저 종목을 분석해 주세요.'); return; }
+  if(_aiViaMini()) return;
   const which = _aiSite();
   if(!CUR_PROMPT){ copyAndOpenAI(which); return; }
   const ok = _copyText(CUR_PROMPT);
@@ -8176,6 +8207,8 @@ function _markAiPending(){
 
 function copyAndOpenAI(which){
   if(!CUR){ showToast('먼저 종목을 분석해 주세요.'); return; }
+  try{ if(which) localStorage.setItem('mini_ai_site', which); }catch(e){}
+  if(_aiViaMini()) return;
   _AI_WHICH = which;
   const svc = AI_SERVICE_NAMES[which] || which;
   if(!CUR_PROMPT){

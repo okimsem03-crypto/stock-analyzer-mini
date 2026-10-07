@@ -826,7 +826,7 @@ function card(){ensureCss();var s=slot();if(!s)return null;var c=document.getEle
 function head(c,x){c.innerHTML='';var h=el('div','lh');h.appendChild(el('b',null,'🧪 관리자 분석실'));h.appendChild(el('span','lt','관리자 전용'));c.appendChild(h);
  c.appendChild(el('div','ld','일반 이용자에게는 보이지 않는 관리자 전용 작업대예요. 종목을 분석하면 ① 분석이 자동으로 열리고, 아래 번호 순서대로 ② AI → ③ 이미지 → ④ 글 만들기 → ⑤ 블로그에 쓰기를 진행하세요.'))}
 function draw0(){var c=card();if(!c)return;head(c);var r=el('div','lrow');var b=el('button','p','🧪 분석실 펼치기 — '+(LAB.name||LAB.tk));b.onclick=load;r.appendChild(b);r.appendChild(deepBtn());c.appendChild(r)}
-function deepBtn(){var d=el('button',null,'🏛 심층분석 열기');d.onclick=function(){try{if(window.MiniTabs&&MiniTabs.openDeep(LAB.tk))return}catch(e){}try{localStorage.setItem('mini_deep_ticker',LAB.tk)}catch(e){}if(typeof openAdminWin==='function')openAdminWin('#dp');else window.open('/admin#dp','mini_admin')};return d}
+function deepBtn(){var d=el('button',null,'🏛 심층분석 열기');d.onclick=function(){try{if(window.MiniTabs&&MiniTabs.openDeep(LAB.tk))return}catch(e){}try{if(typeof window.GoStock==='function'&&window.parent!==window&&window.GoStock(LAB.tk,'deep'))return}catch(e){}try{localStorage.setItem('mini_deep_ticker',LAB.tk)}catch(e){}if(typeof openAdminWin==='function')openAdminWin('#dp');else (window.top||window).location.href='/admin#dp'};return d}
 function load(){var c=card();head(c);c.appendChild(el('div','note','⏳ 수급·공시·재무를 모으는 중… (처음 한 번 3~6초)'));
  api(BASE+'ext',{ticker:LAB.tk}).then(function(x){if(x.error){LAB.autoImg=false;head(c);c.appendChild(el('div','warn','⚠ '+x.error));var r=el('div','lrow'),b=el('button',null,'다시 시도');b.onclick=load;r.appendChild(b);c.appendChild(r);return}
   LAB.x=x;LAB.open=true;draw()})}

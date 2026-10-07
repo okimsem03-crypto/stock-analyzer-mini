@@ -2045,7 +2045,7 @@ var NWCSS='.nwH{background:linear-gradient(135deg,#0f172a,#1e3a8a);color:#fff;bo
 function nwCss(){if(NW.css||document.getElementById('nwCss'))return;NW.css=true;var nn='';var n=document.querySelector('style[nonce],script[nonce]');if(n)nn=n.nonce||n.getAttribute('nonce')||'';var s=document.createElement('style');s.id='nwCss';if(nn)s.setAttribute('nonce',nn);s.textContent=NWCSS;document.head.appendChild(s);nrEnv()}
 function nwSec(parent,title,desc){var s=el('div','nwS');s.appendChild(el('h3',null,title));if(desc)s.appendChild(el('p','ds',desc));parent.appendChild(s);return s}
 function nwTk(node,t){node.setAttribute('data-tk',t);node.className=(node.className?node.className+' ':'')+'tkl';node.title='눌러서 종목분석 열기';
- if(!window.GoStock){node.onclick=function(e){e.preventDefault();if(typeof window.__openTicker==='function'){window.__openTicker(t)}else{window.open('/?t='+encodeURIComponent(t),'mini_main')}}}return node}
+ if(!window.GoStock){node.onclick=function(e){e.preventDefault();if(typeof window.__openTicker==='function'){window.__openTicker(t)}else{(window.top||window).location.href='/?t='+encodeURIComponent(t)}}}return node}
 function nwLink(href,text,cls){var a=el('a',cls||null,text);if(/^https?:\/\//.test(href||'')){a.href=href;a.target='_blank';a.rel='noopener noreferrer'}return a}
 function nwChip(k,text,title){var c=el('span','nwCh '+k,text);if(title)c.title=title;return c}
 function nwSent(v){return v>0?nwChip('p','호재','AI/기록의 분류 값(참고용)'):(v<0?nwChip('n','악재','AI/기록의 분류 값(참고용)'):nwChip('z','중립'))}
