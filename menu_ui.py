@@ -200,6 +200,7 @@ function run(opt){
  var cur=0,notice='',site=siteDefault(),armed=false,seen={},lastText='',busy=false,closed=false,doneSet={},curJob=null,gotMsg=false,hTm=null;
  var sTm=null,autoOn=false,needClick=false,srvRun=0,retried={},lastMsg=null,aLive=null,runMode='manual',runInfo=null,autoNote='';var srvErr='',acked=false;
  var minLen=opt.minLen||60;
+ var lastOpenAt=0,lastOpenStep=-1;   /* [v193] 같은 단계에서 AI 열기가 짧은 시간에 두 번 들어와도 한 번만 처리해요 */
  /* [v191] AI 창은 프로그램 전체에서 한 번에 하나만 — 다른 화면(탭)에서 열려 있던 AI 창이 있으면 먼저 닫아요.
     (두 개가 동시에 돌면 AI 사이트 창도 두 개가 떠요) */
  try{var W9=window.top||window,prev=W9.__miniAiOpen;if(prev&&prev.alive&&prev.alive()){logAdd('열려 있던 AI 창을 닫고 새로 엽니다');prev.close()}}catch(e){}
@@ -234,7 +235,7 @@ function run(opt){
   var rc=el('button','ma-btn','📋 다시 복사');rc.onclick=function(){armed=true;seen[norm(s.prompt)]=1;var k=copyText(s.prompt);setLive(k?'프롬프트를 다시 복사했어요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',k?'ok':'bad')};row.appendChild(rc);s1.appendChild(row);
   if(helperOk()){var hl=el('label','ma-sw');var hc=el('input');hc.type='checkbox';hc.checked=helperOn();hc.onchange=function(){lsSet('mini_ai_helper',hc.checked?'1':'0');draw()};hl.appendChild(hc);hl.appendChild(el('span',null,'🤖 AI 도우미 사용 — 입력·전송·답변 복사를 자동으로 (끄면 직접 붙여넣기)'));s1.appendChild(hl);
    s1.appendChild(el('div','ma-d','✅ 도우미 연결됨 (v'+helperVer()+')'));var dn=helperDupNote();if(dn)s1.appendChild(el('div','ma-live bad',dn))}
-  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode(helperHas()?'❌ 설치된 AI 도우미(v'+helperVer()+')가 옛 버전이라 작업을 받지 못해요 — [설치·점검 방법]에서 최신 버전(1.5.15)으로 업데이트(재설치)한 뒤 이 화면을 새로고침하세요. 그때까지는 ‘복사 → 붙여넣기’ 방식으로 진행돼요. ':'❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
+  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode(helperHas()?'❌ 설치된 AI 도우미(v'+helperVer()+')가 옛 버전이라 작업을 받지 못해요 — [설치·점검 방법]에서 최신 버전(1.5.16)으로 업데이트(재설치)한 뒤 이 화면을 새로고침하세요. 그때까지는 ‘복사 → 붙여넣기’ 방식으로 진행돼요. ':'❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
    var hr=el('button','ma-btn','🔄 다시 확인');hr.onclick=function(){if(helperHas()){draw()}else{hr.textContent='아직 감지 안 됨 — 새로고침이 필요해요'}};hn.appendChild(hr);hn.appendChild(document.createTextNode(' '));
    var ha=el('a',null,'설치·점검 방법');ha.href='/ai-helper';ha.target='_blank';ha.rel='noopener';hn.appendChild(ha);s1.appendChild(hn)}
   s1.appendChild(el('div','ma-d',helperOn()?SITES[site].n+' 새 탭이 열리면 도우미가 프롬프트 입력 → 전송 → 답변 복사까지 알아서 하고, 끝나면 탭을 닫으며 답변을 이 창으로 보내 줘요. 위쪽 🤖 띠에서 진행 상황을 볼 수 있어요.':(SITES[site].q&&encodeURIComponent(s.prompt).length<=PREFILL_MAX*3?SITES[site].n+'가 열리면 질문이 자동으로 입력됩니다. 입력이 비어 있으면 입력칸에 Ctrl+V 하세요.':SITES[site].n+'가 열리면 입력칸에 Ctrl+V(붙여넣기) 한 번만 하세요. 프롬프트는 이미 복사되어 있습니다.')));
@@ -262,7 +263,11 @@ function run(opt){
   var win=window.open(url,'mini_ai_win','popup=yes,width='+w+',height='+h+',left='+l+',top='+t+',resizable=yes,scrollbars=yes');
   if(win===null||win===undefined)return false;W.__miniAiWin=win;W.__miniAiWinT=now;try{win.focus()}catch(e){}return true}catch(e){return false}}
  function winClose(){try{var W=window.top||window,w=W.__miniAiWin;if(w)setTimeout(function(){try{w.close()}catch(e){}},1200);W.__miniAiWin=null;W.__miniAiWinT=0}catch(e){}}
- function openAI(s,auto){var ok=copyText(s.prompt);var S=SITES[site],u=S.u,viaHelper=false,blocked=false;
+ function openAI(s,auto){
+  /* [v193] [AI 열기]가 겹쳐 두 번 들어오면(더블클릭, 자동 진행+직접 클릭, 서버 AI 실패 직후 재시도 등) 작업 번호가 새로 만들어지고 AI 창이 둘 다 분석을 했어요.
+     같은 단계의 열기 요청이 6초 안에 또 오면 무시해요. 6초 뒤의 [다시 열기]는 그대로 동작해요. */
+  var tNow=Date.now();if(!closed&&lastOpenStep===cur&&tNow-lastOpenAt<6000){logAdd('AI 사이트 열기 요청이 방금 요청과 겹쳐 무시했어요(두 번 열림·두 번 분석 방지)');return}
+  var ok=copyText(s.prompt);var S=SITES[site],u=S.u,viaHelper=false,blocked=false;
   var hv=helperVer(),hOpen=helperOn()&&hv&&verGE(hv,'1.5.1');
   if(helperOn()){curJob=newJob();var hostN='';try{hostN=new URL(S.u).hostname}catch(e){}
    var pl='';try{if(s.prompt.length<=24000)pl='&p='+btoa(unescape(encodeURIComponent(s.prompt))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(e){pl=''}
@@ -281,7 +286,7 @@ function run(opt){
   else{var pre=false;if(S.q){var enc=encodeURIComponent(s.prompt);if(enc.length<=PREFILL_MAX*3){u=S.q+enc;pre=true}}
    if(auto&&!ok&&!pre){blocked=true}else blocked=!tryOpen(u)}
   if(blocked&&auto){needClick=true;armed=false;draw();setLive('⚠ 브라우저가 새 탭 열기(또는 복사)를 막았어요. 아래 버튼을 한 번만 눌러 주세요 — 그다음부터는 자동이에요. (주소창 오른쪽 ‘팝업 차단됨’ 아이콘 → 이 사이트 항상 허용 → 다음부터는 누를 필요도 없어요)','bad');return}
-  needClick=false;armed=true;seen[norm(s.prompt)]=1;draw();
+  needClick=false;armed=true;seen[norm(s.prompt)]=1;lastOpenAt=tNow;lastOpenStep=cur;draw();
   if(viaHelper)setLive('🤖 도우미가 '+S.n+' 탭에서 진행 중이에요 — 입력·전송·답변 복사가 끝나면 자동으로 돌아와요. (안 되면 직접 Ctrl+V)','ok',true);
   else if(auto)setLive(ok||pre?'📋 '+S.n+'가 열렸어요 — 답변이 끝나면 복사 버튼만 누르고 이 탭으로 돌아오세요. 나머지(읽기·저장·다음 단계)는 자동이에요.':'복사가 막혔어요. 아래 [프롬프트 보기]에서 직접 복사해 주세요.',ok||pre?'ok':'bad',ok||pre);
   else setLive(ok?'📋 프롬프트 복사 완료 — '+S.n+'에서 답변을 받은 뒤 복사하고 돌아오세요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',ok?'ok':'bad',ok)}
@@ -299,7 +304,7 @@ function run(opt){
     if(j.status==='running'){setLive('🤖 '+(PROVN[runInfo&&runInfo.provider]||'AI')+'가 분석 중이에요… '+Math.round((Date.now()-t0)/1000)+'초','ok',true);if(n>200)return srvFail('응답이 너무 오래 걸려요',steps[cur]);return poll(id,tok,t0,n+1)}
     if(j.status==='done'&&j.result&&j.result.text){lastRaw=j.result.text;onText(String(j.result.text).trim(),false,true);return}
     srvFail((j.errors&&j.errors[0])||j.error||'AI 응답 실패',steps[cur])}).catch(function(){if(tok!==srvRun||closed)return;if(n>200)srvFail('응답을 받지 못했어요',steps[cur]);else poll(id,tok,t0,n+1)})},n===0?1500:2500)}
- function oldHelperNote(){return (helperHas()&&!helperOk())?' ⚠ 설치된 AI 도우미(v'+helperVer()+')는 옛 버전이라 쓰지 않아요 — /ai-helper 에서 최신 버전(1.5.15)으로 업데이트(재설치)하면 완전 자동이 돼요.':''}
+ function oldHelperNote(){return (helperHas()&&!helperOk())?' ⚠ 설치된 AI 도우미(v'+helperVer()+')는 옛 버전이라 쓰지 않아요 — /ai-helper 에서 최신 버전(1.5.16)으로 업데이트(재설치)하면 완전 자동이 돼요.':''}
  function srvHint(m){m=String(m||'');var h='';
   if(/429|quota|RESOURCE_EXHAUSTED|rate.?limit/i.test(m))h='AI 사용 한도(쿼터)를 넘었거나 결제 설정이 필요해요.';
   else if(/401|403|API.?key|PERMISSION|unauthor/i.test(m))h='API 키가 틀렸거나 권한이 없어요(Render 환경변수 확인).';
@@ -319,8 +324,13 @@ function run(opt){
   if(d.miniHelper==='result'){if(d.error){setLive('🤖 자동 진행이 멈췄어요('+d.error+'). 프롬프트는 복사돼 있어요 — AI 입력칸에 Ctrl+V 하고 직접 이어가세요.','bad');return}
    var t=stripPrompt(String(d.text||'').trim());if(t.length<minLen){setLive('🤖 답변이 너무 짧게 읽혔어요('+t.length+'자). AI 화면에서 직접 복사해 주세요.','bad');return}
    logAdd('도우미 답변 도착: 작업='+d.id+' '+t.length+'자');
-   if(seen[norm(t)]&&lastText&&norm(lastText)===norm(t))return;curJob=null;onText(t,false)}}
+   if(seen[norm(t)]&&lastText&&(norm(lastText)===norm(t)||norm(lastText)===norm(dedupeRepeat(t))))return;curJob=null;onText(t,false)}}
  window.addEventListener('message',onMsg);
+ /* [v193] 답변 글이 '같은 글이 통째로 2~3번 이어 붙은 모양'이면 한 번만 남겨요(같은 분석이 두 번 반복돼 보이는 경우). 글자 하나까지 똑같이 반복될 때만 줄여요. */
+ function dedupeRepeat(t){var s=String(t||'').trim(),ns=s.replace(/\s+/g,' ').trim();if(ns.length<400)return s;
+  for(var n=3;n>=2;n--){for(var sp=0;sp<=1;sp++){var rest=ns.length-sp*(n-1);if(rest%n)continue;var L=rest/n;if(L<200)continue;var A=ns.slice(0,L),ps=[],i;for(i=0;i<n;i++)ps.push(A);if(ns!==ps.join(sp?' ':''))continue;
+   var out=0,pv=false,cut=s.length;for(i=0;i<s.length;i++){if(/\s/.test(s.charAt(i))){if(!pv&&out>0)out++;pv=true}else{out++;pv=false}if(out>=L){cut=i+1;break}}return s.slice(0,cut).trim()}}
+  return s}
  function stripPrompt(t){var raw=String(t||'').trim();for(var i=0;i<steps.length;i++){var p=String(steps[i].prompt||'').trim();if(p.length<80)continue;var tail=p.slice(-48).replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+');
    try{var m=new RegExp(tail).exec(raw);if(m&&raw.slice(0,60).replace(/\s+/g,' ')===p.slice(0,60).replace(/\s+/g,' ')){var rest=raw.slice(m.index+m[0].length).trim();if(rest.length>=minLen)return rest}}catch(e){}}
   return raw}
@@ -342,7 +352,7 @@ function run(opt){
  function onVis(){if(document.visibilityState==='visible'){hinted=false;onBack()}}
  var wTm=setInterval(function(){if(closed){clearInterval(wTm);return}if(!armed||busy||lastText||document.visibilityState!=='visible')return;takeFocus();pullClip(false,0,true)},1000);
  window.addEventListener('focus',onBack);document.addEventListener('visibilitychange',onVis);window.addEventListener('pageshow',onBack);document.addEventListener('pointerdown',onPtr,true);
- function onText(t,fromPaste,fromSrv){if(!t)return;if(cur>=steps.length-1)winClose();t=stripPrompt(t);lastText=t;if(ta){ta.value=t;ta.classList.remove('glow')}seen[norm(t)]=1;setLive(autoOn?'✅ 답변을 받았어요 — 확인하고 저장하는 중…':'✅ 답변을 읽어왔어요. 아래 내용을 확인하세요.','ok',autoOn);
+ function onText(t,fromPaste,fromSrv){if(!t)return;if(cur>=steps.length-1)winClose();var t0=stripPrompt(t);t=dedupeRepeat(t0);seen[norm(t0)]=1;lastText=t;if(ta){ta.value=t;ta.classList.remove('glow')}seen[norm(t)]=1;setLive(autoOn?'✅ 답변을 받았어요 — 확인하고 저장하는 중…':'✅ 답변을 읽어왔어요. 아래 내용을 확인하세요.','ok',autoOn);
   preview(t,true).then(function(r){
    if(closed)return;
    if(r&&r.canApply&&opt.apply){if(autoOn||(r.strict!==false&&autoCb&&autoCb.checked))doApply();return}
@@ -505,7 +515,7 @@ def _js_str(s):
 HELPER_JS = r"""// ==UserScript==
 // @name         종목분석 미니 · AI 도우미
 // @namespace    __ORIGIN__
-// @version      1.5.15
+// @version      1.5.16
 // @updateURL    __ORIGIN__/assets/mini-ai-helper.user.js
 // @downloadURL  __ORIGIN__/assets/mini-ai-helper.user.js
 // @description  종목분석 미니에서 [AI 열기]를 누르면 AI 사이트에서 프롬프트 입력 → 전송 → 답변 복사 → 탭 닫기까지 자동으로 해 주고, 블로그 글쓰기 화면이 열리면 제목·상단 이미지·본문을 자동으로 넣어 줍니다(발행은 직접).
@@ -526,18 +536,18 @@ HELPER_JS = r"""// ==UserScript==
 // @grant        window.close
 // @run-at       document-start
 // ==/UserScript==
-/* 종목분석 미니 AI 도우미 v1.5.15
+/* 종목분석 미니 AI 도우미 v1.5.16
  * · 종목분석 미니 화면에서 보낸 작업(프롬프트)만 처리합니다. 다른 경로로 열린 AI 화면은 건드리지 않아요.
  * · 이 스크립트는 사용자의 브라우저 안에서만 동작하며, 로그인 정보·대화 내용을 어디로도 보내지 않습니다.
  * · AI 사이트 화면이 개편되면 자동 진행이 멈출 수 있어요. 그때는 프롬프트가 복사돼 있으니 직접 붙여넣으면 됩니다. */
 (function () {
   'use strict';
-  var ORIGIN = '__ORIGIN__', VER = '1.5.15';
+  var ORIGIN = '__ORIGIN__', VER = '1.5.16';
   function gget(k) { try { return Promise.resolve(GM_getValue(k, null)); } catch (e) { return Promise.resolve(null); } }
   function gset(k, v) { try { return Promise.resolve(GM_setValue(k, v)); } catch (e) { return Promise.resolve(); } }
   function gdel(k) { try { return Promise.resolve(GM_deleteValue(k)); } catch (e) { return Promise.resolve(); } }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-  /* [v1.5.15] 진행 과정을 남겨요 — '두 번 열림/두 번 질문' 같은 문제를 기록으로 확인할 수 있게 */
+  /* [v1.5.15→16] 진행 과정을 남겨요 — '두 번 열림/두 번 질문' 같은 문제를 기록으로 확인할 수 있게 */
   var WHERE = (location.origin === ORIGIN) ? '화면' : ('AI:' + location.hostname);
   function hlog(msg) {
     try {
@@ -584,7 +594,13 @@ HELPER_JS = r"""// ==UserScript==
       if (!once('j', d.id)) { hlog('같은 작업을 또 받아 무시했어요(' + d.id + ')'); return; }
       hlog('작업 받음 ' + d.id + ' (열기요청=' + (d.open ? 'O' : 'X') + ', 중복방지=' + (d.dup ? 'O' : 'X') + ')');
       gdel('result'); gdel('status');
-      gset('job', { id: String(d.id), prompt: String(d.prompt), host: String(d.host || ''), ts: Date.now(), keep: !!d.keep });
+      /* [v1.5.16] 화면 쪽 도우미가 작업을 저장하기 전에 AI 창이 먼저 '내가 맡았다(claim)'를 적어 둔 경우, 그 표시를 지우지 않고 이어 받아요.
+         (예전에는 여기서 작업을 통째로 덮어써서 claim 이 사라졌고, 그러면 아래에서 '아무도 안 가져갔네' 하고 AI 창을 한 번 더 열어 같은 분석이 두 번 돌았어요) */
+      gget('job').then(function (old) {
+        var nj = { id: String(d.id), prompt: String(d.prompt), host: String(d.host || ''), ts: Date.now(), keep: !!d.keep };
+        if (old && String(old.id) === String(d.id)) { if (old.claim) nj.claim = old.claim; if (old.sent) nj.sent = old.sent; }
+        return gset('job', nj);
+      });
       say(d.id, '도우미가 작업을 받았어요 — AI 탭을 여는 중…');
       /* 클릭 없이(자동 진행 중에도) AI 탭을 직접 열어요 — 브라우저 팝업 차단을 받지 않아요. 주소는 AI 사이트(https)만 허용 */
       var ou = String(d.open || '');
@@ -599,6 +615,7 @@ HELPER_JS = r"""// ==UserScript==
       /* [v1.5.14] AI 창이 두 번 열리던 문제의 해결:
          화면(종목분석 미니)이 이미 AI 창을 열었다고 알려 주면(dup=1), 바로 열지 않고 4.5초 기다렸다가
          '아무 AI 창도 이 작업을 가져가지 않았을 때'만 우리가 열어요. 이미 가져갔으면(claim) 열지 않아요 → 창은 늘 1개.
+         [v1.5.16] 기다리는 시간을 9.5초로 늘렸어요(AI 사이트가 느리게 떠도 창을 또 열지 않게).
          (브라우저 보안 때문에 화면 쪽에서는 자기가 연 창이 살아 있는지 확인할 수 없어서, 확인은 이쪽에서 해요.) */
       if (!d.dup) { openNow(); return; }
       if (!once('o', d.id)) return;
@@ -608,7 +625,7 @@ HELPER_JS = r"""// ==UserScript==
         gget('job').then(function (j) {
           if (!j || String(j.id) !== String(d.id)) return;        /* 이미 진행·완료됐어요 */
           if (j.claim || j.sent) { hlog('AI 창이 이미 작업을 맡았어요 → 새 창을 열지 않아요 ' + d.id); return; }
-          if (++tries < 9) { setTimeout(look, 500); return; }     /* 4.5초까지 기다려 봐요 */
+          if (++tries < 20) { setTimeout(look, 500); return; }    /* [v1.5.16] 9.5초까지 기다려 봐요(AI 사이트가 느리게 뜨는 경우에도 창을 또 열지 않게) */
           say(d.id, 'AI 창이 열리지 않은 것 같아 도우미가 열어요…');
           openNow();
         });
@@ -1023,14 +1040,25 @@ HELPER_JS = r"""// ==UserScript==
       if (k > 0) { clearInput(el); await sleep(300); }
       var mode = k % 3;   /* 0: 붙여넣기식 입력(기본) · 1: 붙여넣기 이벤트 · 2: 직접 DOM */
       if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || mode === 0) setInput(el, text);
-      else if (mode === 1) { try { el.focus(); var dt = new DataTransfer(); dt.setData('text/plain', text); el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); } catch (e) {} }
+      else if (mode === 1) {
+        try {
+          el.focus();
+          /* [v1.5.16] 붙여넣기는 덧붙이기라서, 앞 시도에서 일부라도 들어가 있으면 프롬프트가 겹쳐요 → 비우고 전체 선택 후 붙여요 */
+          if (inputText(el).replace(/\s+/g, '').length) clearInput(el);
+          var s1 = window.getSelection(), r1 = document.createRange(); r1.selectNodeContents(el); s1.removeAllRanges(); s1.addRange(r1);
+          var dt = new DataTransfer(); dt.setData('text/plain', text); el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+        } catch (e) {}
+      }
       else domFill(el, text);
       await sleep(800 + k * 150);
       var cur = pickVisible(P.input) || el;
       if (inputText(cur).replace(/\s+/g, '').length >= need) {
         await sleep(600);   /* 화면이 입력을 지워 버리는지 한 번 더 확인 */
         cur = pickVisible(P.input) || cur;
-        if (inputText(cur).replace(/\s+/g, '').length >= need) return cur;
+        var curLen = inputText(cur).replace(/\s+/g, '').length;
+        /* [v1.5.16] 너무 많이 들어가 있으면(프롬프트가 두 번 겹침) 그대로 보내면 AI가 같은 분석을 두 번 써요 → 비우고 다시 넣어요 */
+        if (curLen > need / 0.8 * 1.3) { hlog('입력칸에 프롬프트가 겹쳐 들어갔어요(' + curLen + '자 > 기대 ' + Math.round(need / 0.8) + '자) → 비우고 다시 넣어요'); status('입력이 겹쳐 들어가서 비우고 다시 넣어요… (' + (k + 1) + '/9)'); continue; }
+        if (curLen >= need) return cur;
       }
       status('입력이 안 들어가서 다시 시도해요… (' + (k + 1) + '/9)');
     }
@@ -1052,6 +1080,11 @@ HELPER_JS = r"""// ==UserScript==
     try { ok = document.execCommand('insertText', false, text); } catch (e) {}
     if (!ok || inputText(el).replace(/\s+/g, '').length < text.replace(/\s+/g, '').length * 0.9) {
       try {
+        /* [v1.5.16] 붙여넣기 신호는 '커서 위치에 덧붙이는' 동작이에요. 앞의 입력이 일부 들어가 있는 채로 붙이면 프롬프트가 두 번 겹쳐 들어가
+           AI가 같은 분석을 두 번 쓰게 돼요 → 먼저 입력칸을 비우고 전체를 선택한 뒤 붙여요. */
+        if (inputText(el).replace(/\s+/g, '').length) { clearInput(el); }
+        var sel2 = window.getSelection(), r2 = document.createRange();
+        el.focus(); r2.selectNodeContents(el); sel2.removeAllRanges(); sel2.addRange(r2);
         var dt = new DataTransfer(); dt.setData('text/plain', text);
         el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
       } catch (e) {}
@@ -1112,6 +1145,30 @@ HELPER_JS = r"""// ==UserScript==
     }
   }
   function toMarkdown(el) { return md(el, 0).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim(); }
+  /* [v1.5.16] 읽어 온 답변이 '같은 글이 통째로 2~3번 이어 붙은 모양'이면 한 번만 남겨요(AI 화면이 같은 답을 겹쳐 가지고 있는 경우 대비).
+     공백·줄바꿈 차이는 무시하고, 앞뒤가 글자 하나 다르지 않게 똑같이 반복될 때만 줄여요 — 평범한 답변은 건드리지 않아요. */
+  function dedupeRepeat(t) {
+    var s = String(t || '').trim();
+    var ns = s.replace(/\s+/g, ' ').trim();
+    if (ns.length < 400) return s;
+    for (var n = 3; n >= 2; n--) {
+      for (var sp = 0; sp <= 1; sp++) {
+        var rest = ns.length - sp * (n - 1);
+        if (rest % n) continue;
+        var L = rest / n; if (L < 200) continue;
+        var A = ns.slice(0, L), parts = [], i;
+        for (i = 0; i < n; i++) parts.push(A);
+        if (ns !== parts.join(sp ? ' ' : '')) continue;
+        var out = 0, prevSp = false, cut = s.length;
+        for (i = 0; i < s.length; i++) {
+          if (/\s/.test(s.charAt(i))) { if (!prevSp && out > 0) out++; prevSp = true; } else { out++; prevSp = false; }
+          if (out >= L) { cut = i + 1; break; }
+        }
+        return s.slice(0, cut).trim();
+      }
+    }
+    return s;
+  }
 
   function answers() { return pickAll(P.answer); }
   function lastAnswer(base) { var a = answers(); return a.length > base ? a[a.length - 1] : null; }
@@ -1139,7 +1196,13 @@ HELPER_JS = r"""// ==UserScript==
   async function claimJob(job) {
     var cur = await gget('job');
     if (cur && String(cur.id) === String(job.id) && cur.claim && cur.claim !== TABID && Date.now() - (cur.ts || 0) < 180000) return false;
-    job.claim = TABID; await gset('job', job); return true;
+    job.claim = TABID; await gset('job', job);
+    /* [v1.5.16] 두 창이 거의 동시에 '내가 맡았다'를 적으면 둘 다 자기가 맡은 줄 알고 같은 분석을 각자 돌렸어요(저장소는 '읽고 → 쓰기'가 한 번에 되지 않아요).
+       그래서 쓴 뒤 잠깐 기다렸다가 다시 읽어, 마지막에 남은 이름이 내 것일 때만 진행해요 — 둘 중 정확히 한 창만 남아요. */
+    await sleep(500 + Math.floor(Math.random() * 200));
+    var chk = await gget('job');
+    if (chk && String(chk.id) === String(job.id) && chk.claim && chk.claim !== TABID) return false;
+    return true;
   }
   /* [v1.5.14] 이 창(탭)에서 '같은 작업'을 두 번 하지 않게 막아요.
      표시를 화면(HTML) 속성에 남기기 때문에, 도우미가 두 개 설치돼 있어도(각각 따로 돌아요) 한쪽만 진행해요.
@@ -1249,21 +1312,25 @@ HELPER_JS = r"""// ==UserScript==
       if (btn) btn.click(); else enter(inp);
       await sleep(1500);
       var plen = job.prompt.replace(/\s+/g, '').length;
-      var sent = function () { return !!pick(P.stop) || answers().length > base || inputText(inp).replace(/\s+/g, '').length < plen * 0.3; };
+      /* [v1.5.16] 전송 뒤에는 AI 사이트가 입력칸을 새로 그리는 경우가 있어요. 예전 입력칸(inp)은 화면에서 떨어져 나가 '글자가 그대로 남은 것'처럼 보이고,
+         그러면 '전송이 안 됐다'고 잘못 판단해 같은 질문을 한 번 더 보냈어요. → 매번 지금 화면의 입력칸을 새로 찾아 읽고, 못 찾으면(전송 직후 바뀌는 중) '전송됨'으로 봐요. */
+      var liveLen = function () { var cur = pickVisible(P.input); return cur ? inputText(cur).replace(/\s+/g, '').length : 0; };
+      var sent = function () { return !!pick(P.stop) || answers().length > base || liveLen() < plen * 0.3; };
       /* [v1.5.14] 다시 보내기는 '입력칸에 질문이 그대로 남아 있을 때'만 해요. 전송은 됐는데 화면 표시가 늦어
          한 번 더 보내면 같은 질문이 두 번 올라가요 — 그래서 2.5초 더 기다려 확인한 뒤에만 다시 보내요. */
-      var stillTyped = function () { return inputText(inp).replace(/\s+/g, '').length >= plen * 0.7 && answers().length === base && !pick(P.stop); };
+      var stillTyped = function () { return liveLen() >= plen * 0.7 && answers().length === base && !pick(P.stop); };
       if (!sent()) {
         await sleep(2500);
         if (!sent() && stillTyped()) {
           status('전송이 안 된 것 같아 한 번 더 시도해요…');
           hlog('전송이 안 된 것 같아 다시 보냅니다 ' + job.id);
-          enter(inp); await sleep(1800);
-          if (!sent() && stillTyped()) { var b2 = genericSend(inp) || pick(P.send); if (b2 && !disabled(b2)) b2.click(); await sleep(1500); }
+          var inp2 = pickVisible(P.input) || inp;
+          enter(inp2); await sleep(1800);
+          if (!sent() && stillTyped()) { inp2 = pickVisible(P.input) || inp2; var b2 = genericSend(inp2) || pick(P.send); if (b2 && !disabled(b2)) b2.click(); await sleep(1500); }
         }
       }
       var a = await waitDone(base);
-      var text = toMarkdown(a);
+      var text = dedupeRepeat(toMarkdown(a));
       if (text.length < 20) throw new Error('답변 글을 읽지 못했어요');
       try { GM_setClipboard(text, 'text'); } catch (e) { try { navigator.clipboard.writeText(text); } catch (e2) {} }
       hlog('답변 완료 ' + JOB + ' ' + text.length + '자' + (job.keep ? ' (창 유지)' : ' (창 닫기)'));
@@ -1276,7 +1343,7 @@ HELPER_JS = r"""// ==UserScript==
       banner('✅ 답변을 복사해서 종목분석 미니로 보냈어요 (' + text.length.toLocaleString() + '자). 이 탭은 곧 닫혀요.', 'ok');
       await sleep(1600);
       for (var ci = 0; ci < 3; ci++) { try { window.close(); } catch (e) {} await sleep(500); }
-      banner('✅ 답변을 종목분석 미니로 보냈어요. 이 탭은 닫고 돌아가세요. (자동으로 안 닫히면 도우미를 최신 버전(1.5.15)으로 다시 설치해 주세요)', 'ok');
+      banner('✅ 답변을 종목분석 미니로 보냈어요. 이 탭은 닫고 돌아가세요. (자동으로 안 닫히면 도우미를 최신 버전(1.5.16)으로 다시 설치해 주세요)', 'ok');
     } catch (err) {
       var msg = String((err && err.message) || err);
       await gset('result', { id: JOB, error: msg, ts: Date.now() });
@@ -1362,7 +1429,7 @@ def helper_page():
     )
     script = ("function ahChk(last){var s=document.documentElement.getAttribute('data-mini-helper');var e=document.getElementById('ahState');"
               "var dn=parseInt(document.documentElement.getAttribute('data-mini-helper-n')||'0',10)||0;if(dn>1){e.textContent='⚠ AI 도우미가 '+dn+'개 설치돼 있어요 — 이러면 AI 창도, 질문 입력도 두 번씩 일어나요. Tampermonkey 대시보드에서 ‘종목분석 미니 AI 도우미’ 를 하나만 남기고 삭제한 뒤 이 화면을 새로고침하세요.';e.style.color='#b91c1c';return}"
-              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5||(old[1]===5&&(old[2]||0)<15));e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.15)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
+              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5||(old[1]===5&&(old[2]||0)<16));e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.16)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
               "ahChk(false);setTimeout(function(){ahChk(false)},300);setTimeout(function(){ahChk(true)},1200);")
     resp = C.app.make_response(page("AI 도우미", body, icon="🤖", subtitle="AI 입력·전송·답변 복사를 자동으로 해 주는 선택 도구", script=script))
     resp.headers["Cache-Control"] = "no-cache"
