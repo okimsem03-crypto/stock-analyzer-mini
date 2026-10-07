@@ -213,7 +213,7 @@ function run(opt){
   var rc=el('button','ma-btn','📋 다시 복사');rc.onclick=function(){armed=true;seen[norm(s.prompt)]=1;var k=copyText(s.prompt);setLive(k?'프롬프트를 다시 복사했어요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',k?'ok':'bad')};row.appendChild(rc);s1.appendChild(row);
   if(helperOk()){var hl=el('label','ma-sw');var hc=el('input');hc.type='checkbox';hc.checked=helperOn();hc.onchange=function(){lsSet('mini_ai_helper',hc.checked?'1':'0');draw()};hl.appendChild(hc);hl.appendChild(el('span',null,'🤖 AI 도우미 사용 — 입력·전송·답변 복사를 자동으로 (끄면 직접 붙여넣기)'));s1.appendChild(hl);
    s1.appendChild(el('div','ma-d','✅ 도우미 연결됨 (v'+helperVer()+')'))}
-  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode(helperHas()?'❌ 설치된 AI 도우미(v'+helperVer()+')가 옛 버전이라 작업을 받지 못해요 — [설치·점검 방법]에서 최신 버전(1.5.11)으로 업데이트(재설치)한 뒤 이 화면을 새로고침하세요. 그때까지는 ‘복사 → 붙여넣기’ 방식으로 진행돼요. ':'❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
+  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode(helperHas()?'❌ 설치된 AI 도우미(v'+helperVer()+')가 옛 버전이라 작업을 받지 못해요 — [설치·점검 방법]에서 최신 버전(1.5.12)으로 업데이트(재설치)한 뒤 이 화면을 새로고침하세요. 그때까지는 ‘복사 → 붙여넣기’ 방식으로 진행돼요. ':'❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
    var hr=el('button','ma-btn','🔄 다시 확인');hr.onclick=function(){if(helperHas()){draw()}else{hr.textContent='아직 감지 안 됨 — 새로고침이 필요해요'}};hn.appendChild(hr);hn.appendChild(document.createTextNode(' '));
    var ha=el('a',null,'설치·점검 방법');ha.href='/ai-helper';ha.target='_blank';ha.rel='noopener';hn.appendChild(ha);s1.appendChild(hn)}
   s1.appendChild(el('div','ma-d',helperOn()?SITES[site].n+' 새 탭이 열리면 도우미가 프롬프트 입력 → 전송 → 답변 복사까지 알아서 하고, 끝나면 탭을 닫으며 답변을 이 창으로 보내 줘요. 위쪽 🤖 띠에서 진행 상황을 볼 수 있어요.':(SITES[site].q&&encodeURIComponent(s.prompt).length<=PREFILL_MAX*3?SITES[site].n+'가 열리면 질문이 자동으로 입력됩니다. 입력이 비어 있으면 입력칸에 Ctrl+V 하세요.':SITES[site].n+'가 열리면 입력칸에 Ctrl+V(붙여넣기) 한 번만 하세요. 프롬프트는 이미 복사되어 있습니다.')));
@@ -268,7 +268,7 @@ function run(opt){
     if(j.status==='running'){setLive('🤖 '+(PROVN[runInfo&&runInfo.provider]||'AI')+'가 분석 중이에요… '+Math.round((Date.now()-t0)/1000)+'초','ok',true);if(n>200)return srvFail('응답이 너무 오래 걸려요',steps[cur]);return poll(id,tok,t0,n+1)}
     if(j.status==='done'&&j.result&&j.result.text){lastRaw=j.result.text;onText(String(j.result.text).trim(),false,true);return}
     srvFail((j.errors&&j.errors[0])||j.error||'AI 응답 실패',steps[cur])}).catch(function(){if(tok!==srvRun||closed)return;if(n>200)srvFail('응답을 받지 못했어요',steps[cur]);else poll(id,tok,t0,n+1)})},n===0?1500:2500)}
- function oldHelperNote(){return (helperHas()&&!helperOk())?' ⚠ 설치된 AI 도우미(v'+helperVer()+')는 옛 버전이라 쓰지 않아요 — /ai-helper 에서 최신 버전(1.5.11)으로 업데이트(재설치)하면 완전 자동이 돼요.':''}
+ function oldHelperNote(){return (helperHas()&&!helperOk())?' ⚠ 설치된 AI 도우미(v'+helperVer()+')는 옛 버전이라 쓰지 않아요 — /ai-helper 에서 최신 버전(1.5.12)으로 업데이트(재설치)하면 완전 자동이 돼요.':''}
  function srvHint(m){m=String(m||'');var h='';
   if(/429|quota|RESOURCE_EXHAUSTED|rate.?limit/i.test(m))h='AI 사용 한도(쿼터)를 넘었거나 결제 설정이 필요해요.';
   else if(/401|403|API.?key|PERMISSION|unauthor/i.test(m))h='API 키가 틀렸거나 권한이 없어요(Render 환경변수 확인).';
@@ -340,9 +340,9 @@ function run(opt){
 }
 function verGE(a,b){var x=String(a||'0').split('.'),y=String(b).split('.');for(var i=0;i<3;i++){var p=parseInt(x[i]||0,10),q=parseInt(y[i]||0,10);if(p!==q)return p>q}return true}
 // 블로그 글쓰기 화면에 넣을 내용(제목·상단 이미지·본문)을 도우미에게 맡긴다. 돌려주는 값: sent | off | none(도우미 없음) | old(옛 버전) | err
-function blogSend(job){try{if(lsGet('mini_blog_paste')==='0')return 'off';var v=helperVer();if(!v)return 'none';if(!verGE(v,'1.5.1'))return 'old';
+function blogSend(job){blogSend.last=null;try{if(lsGet('mini_blog_paste')==='0')return 'off';var v=helperVer();if(!v)return 'none';if(!verGE(v,'1.5.1'))return 'old';
  var op=(verGE(v,'1.5.1')&&job.open&&/^https:\/\/([a-z0-9-]+\.)?blog\.naver\.com\//.test(String(job.open)))?String(job.open):'';
- var id=newJob(),imgs=(job.imgs&&job.imgs.length)?job.imgs.slice(0,10):(job.img?[job.img]:[]),m={id:id,title:job.title||'',html:job.html||'',img:imgs[0]||job.img||'',imgs:imgs,open:op};
+ var id=newJob(),imgs=(job.imgs&&job.imgs.length)?job.imgs.slice(0,10):(job.img?[job.img]:[]),m={id:id,title:job.title||'',html:job.html||'',img:imgs[0]||job.img||'',imgs:imgs,open:op};blogSend.last={n:imgs.length,v:v,multi:verGE(v,'1.5.12'),one:!verGE(v,'1.5.11')};
  if(ownAttr()){window.postMessage({miniHelper:'blogjob',id:m.id,title:m.title,html:m.html,img:m.img,imgs:m.imgs,open:m.open},location.origin);bridge('blogjob',m)}else window.top.postMessage({miniRelay:'blogjob',id:m.id,title:m.title,html:m.html,img:m.img,imgs:m.imgs,open:m.open},location.origin);return op?'sentopen':'sent'}catch(e){return 'err'}}
 window.MiniAI={run:run,copy:copyText,sites:SITES,blogSend:blogSend,helperVer:helperVer};
 // 점수 오해 방지: '체력지표'가 기업 평가점수가 아님을 알리는 짧은 안내 + 자세히 보기 창
@@ -468,7 +468,7 @@ def _js_str(s):
 HELPER_JS = r"""// ==UserScript==
 // @name         종목분석 미니 · AI 도우미
 // @namespace    __ORIGIN__
-// @version      1.5.11
+// @version      1.5.12
 // @updateURL    __ORIGIN__/assets/mini-ai-helper.user.js
 // @downloadURL  __ORIGIN__/assets/mini-ai-helper.user.js
 // @description  종목분석 미니에서 [AI 열기]를 누르면 AI 사이트에서 프롬프트 입력 → 전송 → 답변 복사 → 탭 닫기까지 자동으로 해 주고, 블로그 글쓰기 화면이 열리면 제목·상단 이미지·본문을 자동으로 넣어 줍니다(발행은 직접).
@@ -489,13 +489,13 @@ HELPER_JS = r"""// ==UserScript==
 // @grant        window.close
 // @run-at       document-start
 // ==/UserScript==
-/* 종목분석 미니 AI 도우미 v1.5.11
+/* 종목분석 미니 AI 도우미 v1.5.12
  * · 종목분석 미니 화면에서 보낸 작업(프롬프트)만 처리합니다. 다른 경로로 열린 AI 화면은 건드리지 않아요.
  * · 이 스크립트는 사용자의 브라우저 안에서만 동작하며, 로그인 정보·대화 내용을 어디로도 보내지 않습니다.
  * · AI 사이트 화면이 개편되면 자동 진행이 멈출 수 있어요. 그때는 프롬프트가 복사돼 있으니 직접 붙여넣으면 됩니다. */
 (function () {
   'use strict';
-  var ORIGIN = '__ORIGIN__', VER = '1.5.11';
+  var ORIGIN = '__ORIGIN__', VER = '1.5.12';
   function gget(k) { try { return Promise.resolve(GM_getValue(k, null)); } catch (e) { return Promise.resolve(null); } }
   function gset(k, v) { try { return Promise.resolve(GM_setValue(k, v)); } catch (e) { return Promise.resolve(); } }
   function gdel(k) { try { return Promise.resolve(GM_deleteValue(k)); } catch (e) { return Promise.resolve(); } }
@@ -614,6 +614,7 @@ HELPER_JS = r"""// ==UserScript==
         if (data.html) dt.setData('text/html', data.html);
         if (data.text) dt.setData('text/plain', data.text);
         if (data.file) dt.items.add(data.file);
+        if (data.files) data.files.forEach(function (x) { dt.items.add(x); });
         var tgt = document.activeElement && document.activeElement !== document.body ? document.activeElement : node;
         var ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
         return tgt.dispatchEvent(ev);
@@ -683,17 +684,17 @@ HELPER_JS = r"""// ==UserScript==
             fire(el, 'pointerdown', PointerEvent, o); fire(el, 'mousedown', MouseEvent, o); try { (el.closest('[contenteditable="true"]') || el).focus(); } catch (e) {}
             o.buttons = 0; fire(el, 'pointerup', PointerEvent, o); fire(el, 'mouseup', MouseEvent, o); fire(el, 'click', MouseEvent, o); } catch (e) {}
         }
-        function mkDT(d) { var dt = new DataTransfer(); try { if (d.html) dt.setData('text/html', d.html); if (d.text) dt.setData('text/plain', d.text); if (d.file) dt.items.add(d.file); } catch (e) {} return dt; }
+        function mkDT(d) { var dt = new DataTransfer(); try { if (d.html) dt.setData('text/html', d.html); if (d.text) dt.setData('text/plain', d.text); if (d.file) dt.items.add(d.file); if (d.files) d.files.forEach(function (x) { dt.items.add(x); }); } catch (e) {} return dt; }
         function dropOn(el, d) { var dt = mkDT(d), r = el.getBoundingClientRect(), o = { dataTransfer: dt, clientX: r.left + 20, clientY: r.top + 10 }; ['dragenter', 'dragover', 'drop'].forEach(function (t) { fire(el, t, DragEvent, o); }); }
         function inputType(el, type, data, d) { try { var init = { inputType: type, bubbles: true, cancelable: true, composed: true }; if (data != null) init.data = data; if (d) init.dataTransfer = mkDT(d); var ev = new InputEvent('beforeinput', init); el.dispatchEvent(ev); return ev.defaultPrevented; } catch (e) { return false; } }
         function host(n) { return (n.closest && n.closest('[contenteditable="true"]')) || n; }
         var IMG = {   /* 이미지 넣는 방법들 */
-          drop_file: function (n, f) { realClick(n); dropOn(host(n), { file: f }); },
-          paste_file: function (n, f) { realClick(n); caretTo(n); pasteInto(n, { file: f }); },
-          paste_inputtype: function (n, f) { realClick(n); caretTo(n); inputType(host(n), 'insertFromPaste', null, { file: f }); },
+          drop_file: function (n, f) { realClick(n); dropOn(host(n), { files: [].concat(f) }); },
+          paste_file: function (n, f) { realClick(n); caretTo(n); pasteInto(n, { files: [].concat(f) }); },
+          paste_inputtype: function (n, f) { realClick(n); caretTo(n); inputType(host(n), 'insertFromPaste', null, { files: [].concat(f) }); },
           fileinput: function (n, f) {   /* 사진 버튼이 만드는 '파일 선택' 칸에 파일을 직접 꽂아요(창은 안 뜸) */
             realClick(n);
-            var put = function (inp) { try { var dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files; fire(inp, 'input', Event); fire(inp, 'change', Event); return true; } catch (e) { return false; } };
+            var put = function (inp) { try { var dt = new DataTransfer(); [].concat(f).forEach(function (x) { dt.items.add(x); }); inp.files = dt.files; fire(inp, 'input', Event); fire(inp, 'change', Event); return true; } catch (e) { return false; } };
             var ex = Array.prototype.slice.call(document.querySelectorAll('input[type="file"]')).filter(function (i) { return !i.accept || /image/.test(i.accept); })[0];
             if (ex) { put(ex); return; }
             var proto = uw.HTMLInputElement.prototype, orig = proto.click, used = false;
@@ -720,12 +721,34 @@ HELPER_JS = r"""// ==UserScript==
         REPORT = '';
         try {
           var IL = (job.imgs && job.imgs.length) ? job.imgs : (job.img ? [job.img] : []);
-          done.total = IL.length; done.n = 0;
-          for (var ii = 0; ii < IL.length && !abort; ii++) {   /* [v1.5.11] 그림을 한 장이 아니라 모두, 순서대로 올려요 */
-            var fimg = dataUrlToFile(IL[ii], 'img' + (ii + 1));
-            if (!fimg) continue;
-            var tgtIdx = ii;
-            var okI = await tryList('이미지', IMG, { tag: IL.length > 1 ? ' ' + (ii + 1) + '/' + IL.length : '', get: function () { var ps = bodyParas(); return [tgtIdx === 0 ? ps[0] : ps[ps.length - 1], fimg]; }, base: function () { return imgCount2(); } }, function (n0) { return imgCount2() > n0; }, 5000, 2500);
+          var FL = IL.map(function (u, k) { return dataUrlToFile(u, 'img' + (k + 1)); }).filter(function (x) { return !!x; });
+          done.total = FL.length; done.n = 0;
+          /* [v1.5.12] 1) 그림이 여러 장이면 먼저 '한꺼번에' 넣어요 — 사람이 [사진] 버튼에서 여러 장을 한 번에 고르는 것과 같아요(장마다 커서를 옮기다 막히는 일이 없어요) */
+          if (FL.length > 1) {
+            var keysB = Object.keys(IMG), memoB = await gget('stb');
+            if (memoB && IMG[memoB]) keysB = [memoB].concat(keysB.filter(function (k) { return k !== memoB; }));
+            for (var kb = 0; kb < keysB.length && !abort && !done.n; kb++) {
+              banner('이미지 ' + FL.length + '장을 한꺼번에 넣는 중… (방법 ' + (kb + 1) + '/' + keysB.length + ')', null, [SKIPB]);
+              var c0 = imgCount2(), pb = bodyParas();
+              try { IMG[keysB[kb]](pb[0], FL); } catch (e) {}
+              var tb0 = Date.now(), cl = c0, tl = Date.now();
+              while (!abort && Date.now() - tb0 < 8000 + 3000 * FL.length) {
+                var cc = imgCount2();
+                if (cc !== cl) { cl = cc; tl = Date.now(); }
+                if (cc >= c0 + FL.length) break;
+                if (cl > c0 && Date.now() - tl > 6000) break;
+                if (cl === c0 && Date.now() - tb0 > 5500) break;
+                await sleep(500);
+              }
+              var add = Math.min(imgCount2() - c0, FL.length);
+              REP.push('이미지(일괄):' + keysB[kb] + (add > 0 ? '✓' + add : '✗'));
+              if (add > 0) { done.n = add; gset('stb', keysB[kb]); await sleep(2500); }
+            }
+          }
+          /* 2) 남은 그림(또는 한 장뿐인 경우)은 한 장씩 차례로 */
+          for (var ii = done.n; ii < FL.length && !abort; ii++) {
+            var fimg = FL[ii], tgtIdx = ii;
+            var okI = await tryList('이미지', IMG, { tag: FL.length > 1 ? ' ' + (ii + 1) + '/' + FL.length : '', get: function () { var ps = bodyParas(); return [tgtIdx === 0 ? ps[0] : ps[ps.length - 1], fimg]; }, base: function () { return imgCount2(); } }, function (n0) { return imgCount2() > n0; }, 5000, 2500);
             if (okI) done.n++; else break;
           }
           if (done.total && done.n >= done.total) done.img = 1;
@@ -752,7 +775,7 @@ HELPER_JS = r"""// ==UserScript==
           if (!ok) { try { clipHtml(h, t); ok = true; } catch (e) {} }
           return ok;
         }
-        var note = '', lastSig = '', tStart = Date.now(), timer = null;
+        var note = '', lastSig = '', tStart = Date.now(), timer = null; var cpI = done.n || 0;
         function setNote(t) { note = t; draw(true); }
         function draw(force) {
           var im = imgNow(), bd = bodyHas(), tt = titleHas(), sig = [im, bd, tt, note].join('|');
@@ -766,7 +789,7 @@ HELPER_JS = r"""// ==UserScript==
           banner(parts.join(' · ') + (all ? ' — 확인 후 [발행]을 눌러 주세요.' : '') + (note ? ' · ' + note : ''), all ? 'ok' : (im ? null : 'warn'), [
             { label: '📋 본문 다시 복사', fn: function () { setNote(copyRich(job.html, plain) ? '본문(제목 포함)을 복사했어요.' : '복사가 막혔어요 — 사이트에서 [복사하고 블로그 열기]를 다시 눌러 주세요.'); } },
             { label: '📋 제목만 복사', fn: function () { clipText(job.title || '').then(function (ok) { setNote(ok ? '제목을 복사했어요 — 제목 칸에 Ctrl+V 하고, 본문은 [📋 본문 다시 복사]로 다시 복사하세요.' : '복사가 막혔어요.'); }); } }
-          ].concat(hasImg && !im ? [{ label: '🖼 이미지 복사', fn: function () { clipImage((job.imgs && job.imgs[done.n]) || job.img).then(function (ok) { setNote(ok ? '이미지를 복사했어요 — 본문 첫 줄에 Ctrl+V 후 [📋 본문 다시 복사].' : '이미지 복사가 막혔어요.'); }); } }] : []).concat([{ label: '🔍 구조 복사', fn: diag }]));
+          ].concat(hasImg && !im ? [{ label: '🖼 이미지 복사', fn: function () { var tot = (job.imgs && job.imgs.length) || 1, k = Math.min(cpI, tot - 1); clipImage((job.imgs && job.imgs[k]) || job.img).then(function (ok) { if (ok) cpI = Math.min(k + 1, tot); setNote(ok ? '이미지 ' + (k + 1) + '/' + tot + '번째를 복사했어요 — 본문에 Ctrl+V' + (k + 1 < tot ? ' 후 이 버튼을 다시 눌러 다음 그림, 마지막에 [📋 본문 다시 복사].' : ' 후 [📋 본문 다시 복사].') : '이미지 복사가 막혔어요.'); }); } }] : []).concat([{ label: '🔍 구조 복사', fn: diag }]));
         }
         draw(true);
         timer = setInterval(function () { if (Date.now() - tStart > 1800000) { clearInterval(timer); return; } draw(false); }, 700);
@@ -1104,7 +1127,7 @@ HELPER_JS = r"""// ==UserScript==
       banner('✅ 답변을 복사해서 종목분석 미니로 보냈어요 (' + text.length.toLocaleString() + '자). 이 탭은 곧 닫혀요.', 'ok');
       await sleep(1600);
       for (var ci = 0; ci < 3; ci++) { try { window.close(); } catch (e) {} await sleep(500); }
-      banner('✅ 답변을 종목분석 미니로 보냈어요. 이 탭은 닫고 돌아가세요. (자동으로 안 닫히면 도우미를 최신 버전(1.5.11)으로 다시 설치해 주세요)', 'ok');
+      banner('✅ 답변을 종목분석 미니로 보냈어요. 이 탭은 닫고 돌아가세요. (자동으로 안 닫히면 도우미를 최신 버전(1.5.12)으로 다시 설치해 주세요)', 'ok');
     } catch (err) {
       var msg = String((err && err.message) || err);
       await gset('result', { id: JOB, error: msg, ts: Date.now() });
@@ -1189,7 +1212,7 @@ def helper_page():
         '</div></div>'
     )
     script = ("function ahChk(last){var s=document.documentElement.getAttribute('data-mini-helper');var e=document.getElementById('ahState');"
-              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5||(old[1]===5&&(old[2]||0)<8));e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.11)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
+              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5||(old[1]===5&&(old[2]||0)<8));e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.12)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
               "ahChk(false);setTimeout(function(){ahChk(false)},300);setTimeout(function(){ahChk(true)},1200);")
     resp = C.app.make_response(page("AI 도우미", body, icon="🤖", subtitle="AI 입력·전송·답변 복사를 자동으로 해 주는 선택 도구", script=script))
     resp.headers["Cache-Control"] = "no-cache"
