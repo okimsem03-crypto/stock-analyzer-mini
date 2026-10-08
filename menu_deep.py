@@ -436,28 +436,62 @@ GLOSSARY = [("PER(주가수익비율)", "주가 ÷ 주당순이익. 이익 대�
 # ══════════════════════════════════════════════════════════════
 # 한 덩어리로
 # ══════════════════════════════════════════════════════════════
+DEEP_STAGES = [("기본 분석(시세·재무·뉴스)", 45), ("5개년 재무 정리", 8), ("동종업종(PEER) 비교", 17), ("점수·밸류에이션", 5), ("수급·공시", 15), ("기업 개요(DART)", 10)]
+
+
+def _pk():
+    """지금 요청의 주소 끝(deep/data 등)을 진행률 키로 쓴다. 요청 밖(시험 등)에서는 None."""
+    try:
+        from flask import request as _rq
+        return _rq.path.split("/admin/api/", 1)[1]
+    except Exception:
+        return None
+
+
+def _pg(pk, i, text=""):
+    if pk:
+        try:
+            C.prog_stage(pk, i, text)
+        except Exception:
+            pass
+
+
 def build_deep(ticker, custom_peers=None):
+    pk = _pk()
+    if pk:
+        try:
+            C.prog_begin(pk, "심층분석 자료 모으기", DEEP_STAGES)
+        except Exception:
+            pk = None
+    _pg(pk, 0, f"{ticker} 시세·재무·뉴스 분석 중")
     payload, _hit = _get_analysis(ticker)
     if not payload or payload.get("error"):
+        if pk:
+            C.prog_end(pk, False, "실패")
         return None, (payload or {}).get("error") or "분석 결과를 가져오지 못했어요."
+    _pg(pk, 1, "5개년 재무 정리 중")
     f = payload.get("fundamentals") or {}
     cache, cache_at = saved_quant(ticker)
     nyears = years_from_naver(payload)
     years = merge_years((cache or {}).get("years"), nyears)
     divs = build_divs(cache, years, f)
+    _pg(pk, 2, "같은 업종 종목 비교 자료 조회 중")
     peers = peer_metrics(peer_codes(ticker, payload, custom_peers))
+    _pg(pk, 3, "점수·밸류에이션 계산 중")
     valu = valuation(payload, peers)
     sc = score_card(years, divs)
     five = int(round(sc["prof"] * 0.25 + sc["stab"] * 0.20 + sc["grow"] * 0.20 + sc["gov"] * 0.15 + valu["score"] * 0.20))
     sc.update({"valu": valu["score"], "total": five, "grade": grade(five),
                "grades": {"prof": grade(sc["prof"]), "stab": grade(sc["stab"]), "grow": grade(sc["grow"]), "gov": grade(sc["gov"]), "valu": grade(valu["score"])},
                "orig_grade": grade(sc["orig_total"])})
+    _pg(pk, 4, "외국인·기관 수급과 공시 조회 중")
     sup = L.supply_analysis(L._trend_rows(ticker))
     disc = L.disclosures(ticker)
     news = ((payload.get("details") or {}).get("news") or [])[:10]
     profile, holders = (cache or {}).get("profile"), (cache or {}).get("holders") or []
     prof_src = "DART(원본 저장)" if profile else ""
     if not profile:
+        _pg(pk, 5, "DART 기업 개요 조회 중")
         try:
             profile, holders2 = dart_profile(ticker)
             holders = holders or holders2
@@ -478,6 +512,8 @@ def build_deep(ticker, custom_peers=None):
          "years_src": "원본 저장분(DART 5개년) + 네이버 최신" if cache else "네이버 재무(최근 연도 중심)",
          "links": {"naver": f"https://finance.naver.com/item/main.naver?code={ticker}", "dart": "https://dart.fss.or.kr/dsab007/main.do?option=corp&textCrpNm=" + ticker,
                    "kind": "https://kind.krx.co.kr/common/searchcorpname.do?method=searchCorpNameMain&searchCorpName=" + ticker}}
+    if pk:
+        C.prog_end(pk, True, "완료")
     return d, None
 
 
@@ -1080,6 +1116,8 @@ window.DpImg={build:function(d,scale){return [{idx:1,label:'메인 이미지',ca
 
 
 def register():
+    for _k, _l in ("deep/data", "심층분석 자료 모으기"), ("deep/prompt", "심층분석 AI 요청문 만들기"), ("deep/blog", "심층분석 블로그 글 만들기"):
+        C.prog_declare(_k, _l)
     C.register_menu({"id": "deep", "label": "심층분석", "icon": "🏛", "public_path": "/m/deep", "admin_path": "/admin#dp",
                      "desc": "종목 하나를 5개년 재무·5축 체력 진단·밸류에이션·PEER 비교·체크리스트·수급·공시까지 깊이 살펴봐요. 투자 권유가 아닌 참고용 정보예요.",
                      "access": "admin"})

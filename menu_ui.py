@@ -235,7 +235,7 @@ function run(opt){
   var rc=el('button','ma-btn','📋 다시 복사');rc.onclick=function(){armed=true;seen[norm(s.prompt)]=1;var k=copyText(s.prompt);setLive(k?'프롬프트를 다시 복사했어요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',k?'ok':'bad')};row.appendChild(rc);s1.appendChild(row);
   if(helperOk()){var hl=el('label','ma-sw');var hc=el('input');hc.type='checkbox';hc.checked=helperOn();hc.onchange=function(){lsSet('mini_ai_helper',hc.checked?'1':'0');draw()};hl.appendChild(hc);hl.appendChild(el('span',null,'🤖 AI 도우미 사용 — 입력·전송·답변 복사를 자동으로 (끄면 직접 붙여넣기)'));s1.appendChild(hl);
    s1.appendChild(el('div','ma-d','✅ 도우미 연결됨 (v'+helperVer()+')'));var dn=helperDupNote();if(dn)s1.appendChild(el('div','ma-live bad',dn))}
-  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode(helperHas()?'❌ 설치된 AI 도우미(v'+helperVer()+')가 옛 버전이라 작업을 받지 못해요 — [설치·점검 방법]에서 최신 버전(1.5.16)으로 업데이트(재설치)한 뒤 이 화면을 새로고침하세요. 그때까지는 ‘복사 → 붙여넣기’ 방식으로 진행돼요. ':'❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
+  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode(helperHas()?'❌ 설치된 AI 도우미(v'+helperVer()+')가 옛 버전이라 작업을 받지 못해요 — [설치·점검 방법]에서 최신 버전(1.5.17)으로 업데이트(재설치)한 뒤 이 화면을 새로고침하세요. 그때까지는 ‘복사 → 붙여넣기’ 방식으로 진행돼요. ':'❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
    var hr=el('button','ma-btn','🔄 다시 확인');hr.onclick=function(){if(helperHas()){draw()}else{hr.textContent='아직 감지 안 됨 — 새로고침이 필요해요'}};hn.appendChild(hr);hn.appendChild(document.createTextNode(' '));
    var ha=el('a',null,'설치·점검 방법');ha.href='/ai-helper';ha.target='_blank';ha.rel='noopener';hn.appendChild(ha);s1.appendChild(hn)}
   s1.appendChild(el('div','ma-d',helperOn()?SITES[site].n+' 새 탭이 열리면 도우미가 프롬프트 입력 → 전송 → 답변 복사까지 알아서 하고, 끝나면 탭을 닫으며 답변을 이 창으로 보내 줘요. 위쪽 🤖 띠에서 진행 상황을 볼 수 있어요.':(SITES[site].q&&encodeURIComponent(s.prompt).length<=PREFILL_MAX*3?SITES[site].n+'가 열리면 질문이 자동으로 입력됩니다. 입력이 비어 있으면 입력칸에 Ctrl+V 하세요.':SITES[site].n+'가 열리면 입력칸에 Ctrl+V(붙여넣기) 한 번만 하세요. 프롬프트는 이미 복사되어 있습니다.')));
@@ -304,7 +304,7 @@ function run(opt){
     if(j.status==='running'){setLive('🤖 '+(PROVN[runInfo&&runInfo.provider]||'AI')+'가 분석 중이에요… '+Math.round((Date.now()-t0)/1000)+'초','ok',true);if(n>200)return srvFail('응답이 너무 오래 걸려요',steps[cur]);return poll(id,tok,t0,n+1)}
     if(j.status==='done'&&j.result&&j.result.text){lastRaw=j.result.text;onText(String(j.result.text).trim(),false,true);return}
     srvFail((j.errors&&j.errors[0])||j.error||'AI 응답 실패',steps[cur])}).catch(function(){if(tok!==srvRun||closed)return;if(n>200)srvFail('응답을 받지 못했어요',steps[cur]);else poll(id,tok,t0,n+1)})},n===0?1500:2500)}
- function oldHelperNote(){return (helperHas()&&!helperOk())?' ⚠ 설치된 AI 도우미(v'+helperVer()+')는 옛 버전이라 쓰지 않아요 — /ai-helper 에서 최신 버전(1.5.16)으로 업데이트(재설치)하면 완전 자동이 돼요.':''}
+ function oldHelperNote(){return (helperHas()&&!helperOk())?' ⚠ 설치된 AI 도우미(v'+helperVer()+')는 옛 버전이라 쓰지 않아요 — /ai-helper 에서 최신 버전(1.5.17)으로 업데이트(재설치)하면 완전 자동이 돼요.':''}
  function srvHint(m){m=String(m||'');var h='';
   if(/429|quota|RESOURCE_EXHAUSTED|rate.?limit/i.test(m))h='AI 사용 한도(쿼터)를 넘었거나 결제 설정이 필요해요.';
   else if(/401|403|API.?key|PERMISSION|unauthor/i.test(m))h='API 키가 틀렸거나 권한이 없어요(Render 환경변수 확인).';
@@ -515,7 +515,7 @@ def _js_str(s):
 HELPER_JS = r"""// ==UserScript==
 // @name         종목분석 미니 · AI 도우미
 // @namespace    __ORIGIN__
-// @version      1.5.16
+// @version      1.5.17
 // @updateURL    __ORIGIN__/assets/mini-ai-helper.user.js
 // @downloadURL  __ORIGIN__/assets/mini-ai-helper.user.js
 // @description  종목분석 미니에서 [AI 열기]를 누르면 AI 사이트에서 프롬프트 입력 → 전송 → 답변 복사 → 탭 닫기까지 자동으로 해 주고, 블로그 글쓰기 화면이 열리면 제목·상단 이미지·본문을 자동으로 넣어 줍니다(발행은 직접).
@@ -536,13 +536,13 @@ HELPER_JS = r"""// ==UserScript==
 // @grant        window.close
 // @run-at       document-start
 // ==/UserScript==
-/* 종목분석 미니 AI 도우미 v1.5.16
+/* 종목분석 미니 AI 도우미 v1.5.17
  * · 종목분석 미니 화면에서 보낸 작업(프롬프트)만 처리합니다. 다른 경로로 열린 AI 화면은 건드리지 않아요.
  * · 이 스크립트는 사용자의 브라우저 안에서만 동작하며, 로그인 정보·대화 내용을 어디로도 보내지 않습니다.
  * · AI 사이트 화면이 개편되면 자동 진행이 멈출 수 있어요. 그때는 프롬프트가 복사돼 있으니 직접 붙여넣으면 됩니다. */
 (function () {
   'use strict';
-  var ORIGIN = '__ORIGIN__', VER = '1.5.16';
+  var ORIGIN = '__ORIGIN__', VER = '1.5.17';
   function gget(k) { try { return Promise.resolve(GM_getValue(k, null)); } catch (e) { return Promise.resolve(null); } }
   function gset(k, v) { try { return Promise.resolve(GM_setValue(k, v)); } catch (e) { return Promise.resolve(); } }
   function gdel(k) { try { return Promise.resolve(GM_deleteValue(k)); } catch (e) { return Promise.resolve(); } }
@@ -869,6 +869,7 @@ HELPER_JS = r"""// ==UserScript==
           if (!ok) { try { clipHtml(h, t); ok = true; } catch (e) {} }
           return ok;
         }
+        var autoTitle = (await gget('autotitle')) !== 0;   /* [v1.5.17] 본문을 붙이면 제목만 클립보드에 남겨 Ctrl+V 로 제목 칸에 붙일 수 있게(끄기 가능) */
         var note = '', lastSig = '', tStart = Date.now(), timer = null; var cpI = done.n || 0;
         function setNote(t) { note = t; draw(true); }
         function draw(force) {
@@ -877,14 +878,49 @@ HELPER_JS = r"""// ==UserScript==
           var parts = [];
           if (hasImg) parts.push(im ? (done.total > 1 ? '✅ 이미지 ' + done.n + '/' + done.total + '장' : '✅ 상단 이미지') : (done.total > 1 && done.n ? '⚠ 이미지 ' + done.n + '/' + done.total + '장만 들어갔어요(나머지는 [🖼 이미지 복사] 후 Ctrl+V)' : null) ||  '⚠ 상단 이미지는 자동으로 안 들어갔어요([🖼 이미지 복사] → 본문 첫 줄 클릭 → Ctrl+V, 필요 없으면 무시)');
           parts.push(bd ? '✅ 본문' : '📝 본문: 이미지 아래 빈 줄을 클릭하고 Ctrl+V (제목 포함 본문이 복사돼 있어요)');
-          parts.push(tt ? '✅ 제목' : '📝 제목: 본문 맨 위 제목 줄을 제목 칸으로 옮기거나 [📋 제목만 복사] 후 제목 칸에 Ctrl+V');
+          parts.push(tt ? '✅ 제목' : (autoTitle ? (bd ? '📝 제목: 제목이 복사돼 있어요 → 제목 칸을 클릭하고 Ctrl+V' : '📝 제목: 본문을 붙이면 제목이 자동으로 복사돼요 → 제목 칸을 클릭하고 Ctrl+V') : '📝 제목: 본문 맨 위 제목 줄을 제목 칸으로 옮기거나 [📋 제목만 복사] 후 제목 칸에 Ctrl+V'));
           var all = bd && tt && (im || !hasImg);
           if (all) { clearInterval(timer); }
           banner(parts.join(' · ') + (all ? ' — 확인 후 [발행]을 눌러 주세요.' : '') + (note ? ' · ' + note : ''), all ? 'ok' : (im ? null : 'warn'), [
             { label: '📋 본문 다시 복사', fn: function () { setNote(copyRich(job.html, plain) ? '본문(제목 포함)을 복사했어요.' : '복사가 막혔어요 — 사이트에서 [복사하고 블로그 열기]를 다시 눌러 주세요.'); } },
-            { label: '📋 제목만 복사', fn: function () { clipText(job.title || '').then(function (ok) { setNote(ok ? '제목을 복사했어요 — 제목 칸에 Ctrl+V 하고, 본문은 [📋 본문 다시 복사]로 다시 복사하세요.' : '복사가 막혔어요.'); }); } }
+            { label: '📋 제목만 복사', fn: function () { clipText(job.title || '').then(function (ok) { setNote(ok ? '제목을 복사했어요 — 제목 칸에 Ctrl+V 하고, 본문은 [📋 본문 다시 복사]로 다시 복사하세요.' : '복사가 막혔어요.'); }); } },
+            { label: autoTitle ? '🔁 제목 자동복사: 켬' : '🔁 제목 자동복사: 끔', fn: function () { autoTitle = !autoTitle; gset('autotitle', autoTitle ? 1 : 0); setNote(autoTitle ? '본문을 붙이면 제목이 자동으로 복사돼요.' : '제목 자동복사를 껐어요.'); } }
           ].concat(hasImg && !im ? [{ label: '🖼 이미지 복사', fn: function () { var tot = (job.imgs && job.imgs.length) || 1, k = Math.min(cpI, tot - 1); clipImage((job.imgs && job.imgs[k]) || job.img).then(function (ok) { if (ok) cpI = Math.min(k + 1, tot); setNote(ok ? '이미지 ' + (k + 1) + '/' + tot + '번째를 복사했어요 — 본문에 Ctrl+V' + (k + 1 < tot ? ' 후 이 버튼을 다시 눌러 다음 그림, 마지막에 [📋 본문 다시 복사].' : ' 후 [📋 본문 다시 복사].') : '이미지 복사가 막혔어요.'); }); } }] : []).concat([{ label: '🔍 구조 복사', fn: diag }]));
         }
+        /* [v1.5.17] 붙여넣기 감시 — ① 클립보드에 AI 원문(** 와 ## 가 그대로 보이는 글)이 남아 있으면 편집기에 들어가기 전에 막고 제목 포함 본문을 다시 복사해요.
+           ② 서식 있는 본문이 붙으면 끝난 뒤 제목만 클립보드에 올려, 제목 칸에서 Ctrl+V 만 하면 되게 해요(제목을 본문에서 따로 복사하지 않아도 돼요). */
+        function rawMd(t) { t = String(t || ''); return t.length > 150 && /\*\*[^*\n]+\*\*/.test(t) && (/(^|\n)\s*#{2,4}\s/.test(t) || /```/.test(t) || /(^|\n)\s*[-*]\s+\*\*/.test(t)); }
+        var titleBusy = false;
+        document.addEventListener('paste', function (ev) {
+          try {
+            var tg = ev.target, cd = ev.clipboardData, rt = q1(SEL.root);
+            if (!cd || !tg || !rt || !tg.nodeType) return;
+            var tgEl = tg.nodeType === 1 ? tg : tg.parentElement;
+            if (!tgEl || !(rt.contains(tgEl) || (tgEl.closest && tgEl.closest('[contenteditable="true"]'))) || inTitle(tgEl)) return;
+            var txt = cd.getData('text/plain') || '', htm = cd.getData('text/html') || '';
+            if (rawMd(txt)) {
+              ev.preventDefault(); ev.stopImmediatePropagation();
+              hlog('AI 원문 붙여넣기 차단');
+              var okc = copyRich(job.html, plain);
+              setNote('⚠ 클립보드에 AI 원문(** 와 ## 가 보이는 글)이 있어 붙여넣기를 막았어요. ' + (okc ? '제목 포함 본문을 다시 복사했어요 — 본문 빈 줄을 클릭하고 Ctrl+V 하세요.' : '[📋 본문 다시 복사]를 누른 뒤 본문 빈 줄을 클릭하고 Ctrl+V 하세요.'));
+              return;
+            }
+            if (autoTitle && !titleBusy && htm && txt.length > 200 && !titleHas()) {
+              titleBusy = true;
+              setTimeout(async function () {
+                try {
+                  var okb = await waitFn(function () { return bodyHas() ? true : null; }, 15000);
+                  if (!okb) return;
+                  await sleep(1000);
+                  if (titleHas()) return;
+                  var okt = await clipText(job.title || '');
+                  hlog('제목 자동 복사 ' + (okt ? '성공' : '실패'));
+                  setNote(okt ? '✅ 본문을 붙였어요 — 제목이 복사됐어요. 제목 칸을 클릭하고 Ctrl+V 하세요.' : '제목 자동 복사가 막혔어요 — [📋 제목만 복사]를 눌러 주세요.');
+                } catch (e2) {} finally { titleBusy = false; }
+              }, 300);
+            }
+          } catch (e) {}
+        }, true);
         draw(true);
         timer = setInterval(function () { if (Date.now() - tStart > 1800000) { clearInterval(timer); return; } draw(false); }, 700);
       }
@@ -1343,7 +1379,7 @@ HELPER_JS = r"""// ==UserScript==
       banner('✅ 답변을 복사해서 종목분석 미니로 보냈어요 (' + text.length.toLocaleString() + '자). 이 탭은 곧 닫혀요.', 'ok');
       await sleep(1600);
       for (var ci = 0; ci < 3; ci++) { try { window.close(); } catch (e) {} await sleep(500); }
-      banner('✅ 답변을 종목분석 미니로 보냈어요. 이 탭은 닫고 돌아가세요. (자동으로 안 닫히면 도우미를 최신 버전(1.5.16)으로 다시 설치해 주세요)', 'ok');
+      banner('✅ 답변을 종목분석 미니로 보냈어요. 이 탭은 닫고 돌아가세요. (자동으로 안 닫히면 도우미를 최신 버전(1.5.17)으로 다시 설치해 주세요)', 'ok');
     } catch (err) {
       var msg = String((err && err.message) || err);
       await gset('result', { id: JOB, error: msg, ts: Date.now() });
@@ -1371,18 +1407,36 @@ def _asset(text, mime):
 FB_JS = r"""
 (function(){
 if(window.__miniFb) return; window.__miniFb=1;
-var box=null, hideT=0, tickT=0, seq=0, cur=null, lastClick={t:0,id:0,label:''};
+var box=null,head=null,track=null,fill=null,sub=null,hideT=0,tickT=0,seq=0,cur=null,lastClick={t:0,id:0,label:''},decl={},of=window.fetch;
 var SKIP=/^(닫기|✕|×|x|X|접기|펼치기|이전|다음|◀|▶|‹|›|<|>)$/;
+var POLL=/(\/prog(\?|$)|status|\/job\/|whoami|\/api\/menus|\/counter|vote-top|\/api\/recent|healthz|\/api\/history|\/api\/stats|\/api\/diag|\/assets\/)/;
+var LABELS={'scalp/run':'초단기 후보 만들기','scalp/track':'초단기 지난 성과 확인','scalp/ai':'초단기 AI 분석 저장','scalp/blog':'초단기 블로그 글 만들기','winrate/refresh':'누적 승률 결과 갱신','winrate/state':'누적 승률 불러오기',
+ 'daily/scan':'오늘추천 스캔','daily/track':'오늘추천 성과 확인','deep/data':'심층분석 자료 모으기','market/fetch':'시장수급 가져오기','news/refresh':'뉴스 새로 받기','flow/reload':'수급분석 자료 다시 읽기','challenge/list':'도전주 후보 계산','collect/investor/start':'수급 수집 시작','collect/theme/start':'테마 수집 시작'};
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
+function durGet(k){try{var m=JSON.parse(ls('miniFbDur')||'{}');return m[k]}catch(e){return 0}}
+function durSet(k,sec){if(!k||!(sec>0.3))return;try{var m=JSON.parse(ls('miniFbDur')||'{}');m[k]=m[k]?Math.round((m[k]*0.5+sec*0.5)*10)/10:Math.round(sec*10)/10;var ks=Object.keys(m);if(ks.length>80)delete m[ks[0]];ls('miniFbDur',JSON.stringify(m))}catch(e){}}
+function parseUrl(u){
+  var p='',pre='';try{p=new URL(u,location.href).pathname}catch(e){return {key:'',prefix:''}}
+  var m=/^(\/admin\/api\/|\/mapi\/)(.+)$/.exec(p); if(m) return {key:m[2],prefix:m[1]};
+  m=/^\/api\/analyze\//.exec(p); if(m) return {key:'api/analyze',prefix:''};
+  return {key:'',prefix:''};
+}
+function css(n,t){n.style.cssText=t;return n}
 function ensure(){
   if(box&&box.parentNode) return box;
-  box=document.createElement('div'); box.id='miniFb'; box.setAttribute('role','status'); box.setAttribute('aria-live','polite');
-  box.style.cssText='position:fixed;top:12px;right:12px;max-width:min(360px,calc(100vw - 24px));z-index:2147483600;padding:10px 14px;border-radius:12px;font:700 13px/1.45 -apple-system,BlinkMacSystemFont,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;color:#fff;background:#1e293b;box-shadow:0 6px 24px rgba(0,0,0,.28);display:none;pointer-events:none;word-break:keep-all;';
+  box=css(document.createElement('div'),'position:fixed;top:12px;right:12px;min-width:min(250px,calc(100vw - 24px));max-width:min(380px,calc(100vw - 24px));z-index:2147483600;padding:10px 14px 11px;border-radius:12px;font:700 13px/1.45 -apple-system,BlinkMacSystemFont,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;color:#fff;background:#1e293b;box-shadow:0 6px 24px rgba(0,0,0,.28);display:none;pointer-events:none;word-break:keep-all;');
+  box.id='miniFb'; box.setAttribute('role','status'); box.setAttribute('aria-live','polite');
+  head=document.createElement('div'); track=css(document.createElement('div'),'height:7px;border-radius:5px;background:rgba(255,255,255,.28);margin:7px 0 4px;overflow:hidden;display:none');
+  fill=css(document.createElement('div'),'height:100%;width:0;border-radius:5px;background:#fff;transition:width .45s ease'); fill.id='miniFbFill'; track.appendChild(fill);
+  sub=css(document.createElement('div'),'font-size:11.5px;font-weight:600;opacity:.92;display:none');
+  box.appendChild(head); box.appendChild(track); box.appendChild(sub);
   (document.body||document.documentElement).appendChild(box); return box;
 }
-function paint(msg,kind){
-  var b=ensure(); b.textContent=msg;
+function paint(msg,kind,pct,subTxt){
+  var b=ensure(); head.textContent=msg;
   b.style.background=kind==='ok'?'#047857':(kind==='bad'?'#b91c1c':(kind==='busy'?'#1d4ed8':'#1e293b'));
-  b.style.display='block';
+  if(pct==null){track.style.display='none'}else{track.style.display='block';fill.style.width=Math.max(3,Math.min(100,pct))+'%'}
+  sub.textContent=subTxt||''; sub.style.display=subTxt?'block':'none'; b.style.display='block';
 }
 function hideLater(ms){ clearTimeout(hideT); hideT=setTimeout(function(){ if(box) box.style.display='none' }, ms); }
 function labelOf(n){
@@ -1399,50 +1453,124 @@ function pickBtn(t){
   }
   return null;
 }
+/* ── 진행률: 서버가 단계별로 알려주는 값(실제) → 없으면 지난번 걸린 시간으로 어림(예상) ── */
+function ensureDecl(prefix){
+  if(decl[prefix]) return decl[prefix];
+  decl[prefix]=of.call(window,prefix+'prog',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():{}}).then(function(j){return (j&&j.keys)||{}},function(){return {}});
+  return decl[prefix];
+}
+function pollReal(j){
+  if(!j.key||!j.prefix||j.polling) return; j.polling=true;
+  ensureDecl(j.prefix).then(function(k){
+    if(!k||!k[j.key]){j.polling=false;j.noreal=true;return}
+    return of.call(window,j.prefix+'prog?k='+encodeURIComponent(j.key),{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():{}}).then(function(e){
+      j.polling=false; if(!e||e.pct==null) return;
+      var since=(Date.now()-j.t0)/1000; if(e.since!=null&&e.since>since+2.5) return;     // 지난번 기록이면 무시
+      j.real=e; if(e.label) j.rlabel=e.label;
+    });
+  }).then(null,function(){j.polling=false});
+}
+function calc(j){
+  var el=(Date.now()-j.t0)/1000, est=j.est||6, pct, real=!!(j.real&&j.real.pct!=null&&(j.real.active||j.real.ago<3));
+  if(real) pct=j.real.pct; else pct=92*(1-Math.exp(-el/(est/1.6)));
+  if(j.n>1){ pct=((j.done+Math.min(.95,pct/100))/j.n)*100 }
+  if(pct<j.pct) pct=j.pct; if(pct>97&&!j.fin) pct=97; j.pct=pct;
+  var parts=[];
+  if(real&&j.real.n>1) parts.push('단계 '+(j.real.i+1)+'/'+j.real.n+' '+j.real.stage);
+  else if(real&&j.real.stage&&j.real.stage!=='진행') parts.push(j.real.stage);
+  if(real&&j.real.text) parts.push(j.real.text);
+  if(!real) parts.push('예상 진행률');
+  parts.push(Math.round(el)+'초');
+  if(el>4&&pct>8&&pct<96) parts.push('약 '+Math.max(1,Math.round(el*(100-pct)/pct))+'초 남음');
+  return {pct:pct,sub:parts.join(' · '),real:real};
+}
+function draw(j){
+  if(cur!==j||j.fin) return;
+  if(!j.shown){ if(Date.now()-j.t0<1200) return; j.shown=true; clearTimeout(hideT) }
+  if(Date.now()-(j.lastPoll||0)>700){ j.lastPoll=Date.now(); pollReal(j) }
+  var c=calc(j); paint('⏳ '+(j.rlabel&&j.auto&&j.label==='불러오는 중'?j.rlabel:j.label)+' — '+Math.round(c.pct)+'%','busy',c.pct,c.sub);
+}
+function startTick(j){ clearInterval(tickT); draw(j); tickT=setInterval(function(){ if(cur!==j||j.fin){clearInterval(tickT);return} draw(j) },500); }
 function finishCur(){
   var c=cur; if(!c||c.fin) return; c.fin=true; clearInterval(tickT);
-  if(c.bad){ paint('⚠ '+c.label+' — 실패: '+c.bad,'bad'); hideLater(5200); }
-  else { paint('✅ '+c.label+' — 완료','ok'); hideLater(2200); }
+  var sec=Math.round((Date.now()-c.t0)/100)/10;
+  if(!c.shown&&!c.bad&&c.auto){ return }          // 금방 끝난 자동 요청은 알림 없이 조용히
+  if(c.bad){ paint('⚠ '+c.label+' — 실패','bad',null,c.bad); hideLater(5200); }
+  else { durSet(c.key||c.label,sec); paint('✅ '+c.label+' — 완료 (100%)','ok',100,sec+'초 걸렸어요'); hideLater(2400); }
 }
-function startTick(c){
-  clearInterval(tickT); var t0=Date.now();
-  tickT=setInterval(function(){
-    if(cur!==c||c.fin){clearInterval(tickT);return}
-    var sec=Math.round((Date.now()-t0)/1000);
-    paint('⏳ '+c.label+' — 처리 중… '+sec+'초','busy');
-  },1000);
+function newJob(label,auto){
+  var j={id:++seq,label:label,n:0,done:0,bad:'',fin:false,t0:Date.now(),auto:!!auto,shown:!auto,pct:0,key:'',prefix:'',real:null,est:0};
+  return j;
 }
 document.addEventListener('click',function(e){
   var b=pickBtn(e.target); if(!b||b.getAttribute('data-nofb')!==null||b.id==='miniFb') return;
   var label=labelOf(b); if(SKIP.test(label)) return;
-  if(b.disabled||b.getAttribute('aria-disabled')==='true'){ paint('⏳ '+label+' — 이미 처리 중이에요. 잠시만 기다려 주세요.','busy'); hideLater(2200); return; }
+  if(b.disabled||b.getAttribute('aria-disabled')==='true'){ paint('⏳ '+label+' — 이미 처리 중이에요. 잠시만 기다려 주세요.','busy',null,''); hideLater(2200); return; }
   var id=++seq; lastClick={t:Date.now(),id:id,label:label};
-  cur={id:id,label:label,n:0,done:0,bad:'',fin:false};
-  paint('▶ '+label+' — 눌렀어요','info'); hideLater(1600);
+  clearInterval(tickT); cur=newJob(label,false); cur.id=id;
+  paint('▶ '+label+' — 눌렀어요','info',null,''); hideLater(1600);
 },true);
-if(window.fetch&&!window.__miniFbFetch){
-  window.__miniFbFetch=1; var of=window.fetch;
+if(of&&!window.__miniFbFetch){
+  window.__miniFbFetch=1;
   window.fetch=function(){
-    var args=arguments, c=null, tied=false;
+    var args=arguments, j=null;
     try{
-      if(cur&&!cur.fin&&lastClick.id===cur.id&&Date.now()-lastClick.t<1500&&!cur.closed){ c=cur; tied=true; }
-    }catch(e){}
+      var a0=args[0], url=typeof a0==='string'?a0:((a0&&a0.url)||''), pu=parseUrl(url);
+      if(!POLL.test(url)){
+        if(cur&&!cur.fin&&cur.n===0&&Date.now()-cur.t0>1600){ cur.fin=true; clearInterval(tickT) }
+        var click=cur&&!cur.fin&&lastClick.id===cur.id&&Date.now()-lastClick.t<1500;
+        if(click||(cur&&!cur.fin&&cur.n>0)){ j=cur; }
+        else if(!cur||cur.fin){
+          var lb=LABELS[pu.key]||((lastClick.t&&Date.now()-lastClick.t<120000)?lastClick.label:'불러오는 중');
+          j=newJob(lb,true); cur=j;
+        }
+        if(j){
+          if(!j.key&&pu.key){ j.key=pu.key; j.prefix=pu.prefix; if(LABELS[pu.key]&&!j.auto&&/^버튼$/.test(j.label)) j.label=LABELS[pu.key] }
+          if(!j.est) j.est=durGet(j.key||j.label)||(j.key&&/blog|prompt|save|delete/.test(j.key)?2:6);
+        }
+      }
+    }catch(e){ j=null }
     var p=of.apply(this,args);
-    if(!tied) return p;
-    c.n++; clearTimeout(hideT); paint('⏳ '+c.label+' — 처리 중…','busy'); startTick(c);
-    function one(bad){ c.done++; if(bad&&!c.bad) c.bad=bad; if(c.done>=c.n){ setTimeout(function(){ if(c.done>=c.n) finishCur() },250) } }
+    if(!j) return p;
+    j.n++; if(j.n===1||!tickT) startTick(j); else draw(j);
+    function one(bad){ j.done++; if(bad&&!j.bad) j.bad=bad; if(j.done>=j.n){ setTimeout(function(){ if(j.done>=j.n&&cur===j) finishCur() },250) } }
     p.then(function(r){
       try{
         if(!r.ok){ one('서버 응답 '+r.status); return; }
         var ct=(r.headers&&r.headers.get&&r.headers.get('content-type'))||'';
-        if(/json/i.test(ct)){ r.clone().json().then(function(j){ var m=j&&typeof j==='object'&&j.error; one(m?String(typeof m==='string'?m:'오류').slice(0,60):''); },function(){ one('') }); return; }
+        if(/json/i.test(ct)){ r.clone().json().then(function(x){ var m=x&&typeof x==='object'&&x.error; one(m?String(typeof m==='string'?m:'오류').slice(0,60):''); },function(){ one('') }); return; }
       }catch(e){}
       one('');
     },function(err){ one((err&&err.message)?String(err.message).slice(0,60):'네트워크 오류'); });
     return p;
   };
 }
-/* 클릭 뒤 1.5초 안에 요청이 없으면(화면만 바뀌는 버튼) '눌렀어요' 알림만 잠깐 보였다가 사라진다 */
+/* ── 화면 안에 막대를 붙이는 공용 부품: MiniProg.watch(칸, '서버키', 약속(promise), '이름') ── */
+window.MiniProg={
+  watch:function(host,key,promise,label,opt){
+    opt=opt||{}; if(!host) return {stop:function(){}};
+    var prefix=opt.prefix||(/^\/mapi\//.test(location.pathname)||window.MEMBER_MODE?'/mapi/':'/admin/api/');
+    var w=css(document.createElement('div'),'margin:8px 0;padding:9px 12px;border-radius:10px;background:#eef2ff;border:1.5px solid #c7d2fe;color:#1e1b4b;font-size:13px;font-weight:700;line-height:1.5');
+    w.className='miniProg'; var h=document.createElement('div'),tr=css(document.createElement('div'),'height:9px;border-radius:6px;background:#dbe3ff;margin:6px 0 4px;overflow:hidden'),fl=css(document.createElement('div'),'height:100%;width:2%;border-radius:6px;background:linear-gradient(90deg,#4f46e5,#2563eb);transition:width .45s ease'),sb=css(document.createElement('div'),'font-size:12px;font-weight:600;color:#475569');
+    tr.appendChild(fl); w.appendChild(h); w.appendChild(tr); w.appendChild(sb); host.insertBefore(w,host.firstChild);
+    var t0=Date.now(),est=durGet(key||label)||6,real=null,pct=0,fin=false,polling=false,lastP=0;
+    function tick(){
+      if(fin) return; var el=(Date.now()-t0)/1000;
+      if(Date.now()-lastP>700&&!polling&&key){ lastP=Date.now(); polling=true;
+        ensureDecl(prefix).then(function(k){ if(!k||!k[key]){polling=false;return} return of.call(window,prefix+'prog?k='+encodeURIComponent(key),{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():{}}).then(function(e){polling=false;if(e&&e.pct!=null&&!(e.since!=null&&e.since>el+2.5))real=e}) }).then(null,function(){polling=false}) }
+      var rl=!!(real&&(real.active||real.ago<3)), p=rl?real.pct:92*(1-Math.exp(-el/(est/1.6))); if(p<pct)p=pct; if(p>97)p=97; pct=p;
+      h.textContent='⏳ '+label+' — '+Math.round(p)+'%'; fl.style.width=Math.max(3,p)+'%';
+      var parts=[]; if(rl&&real.n>1)parts.push('단계 '+(real.i+1)+'/'+real.n+' '+real.stage); else if(rl&&real.stage&&real.stage!=='진행')parts.push(real.stage); if(rl&&real.text)parts.push(real.text); if(!rl)parts.push('예상 진행률'); parts.push(Math.round(el)+'초'); if(el>4&&p>8&&p<96)parts.push('약 '+Math.max(1,Math.round(el*(100-p)/p))+'초 남음'); sb.textContent=parts.join(' · ');
+    }
+    var iv=setInterval(tick,500); tick();
+    function end(bad){ if(fin) return; fin=true; clearInterval(iv); var sec=Math.round((Date.now()-t0)/100)/10;
+      if(bad){ w.style.background='#fef2f2'; w.style.borderColor='#fecaca'; w.style.color='#7f1d1d'; fl.style.background='#dc2626'; h.textContent='⚠ '+label+' — 실패'; sb.textContent=String(bad).slice(0,80) }
+      else { durSet(key||label,sec); fl.style.width='100%'; w.style.background='#ecfdf5'; w.style.borderColor='#a7f3d0'; w.style.color='#064e3b'; h.textContent='✅ '+label+' — 완료 (100%)'; sb.textContent=sec+'초 걸렸어요' }
+      setTimeout(function(){ if(w.parentNode) w.parentNode.removeChild(w) }, bad?7000:3500) }
+    if(promise&&promise.then) promise.then(function(r){ var m=r&&typeof r==='object'&&r.error; end(m?(typeof m==='string'?m:'오류'):'') },function(e){ end((e&&e.message)||'오류') });
+    return {stop:function(){end('')}};
+  }
+};
 })();
 """
 
@@ -1518,7 +1646,7 @@ def helper_page():
     )
     script = ("function ahChk(last){var s=document.documentElement.getAttribute('data-mini-helper');var e=document.getElementById('ahState');"
               "var dn=parseInt(document.documentElement.getAttribute('data-mini-helper-n')||'0',10)||0;if(dn>1){e.textContent='⚠ AI 도우미가 '+dn+'개 설치돼 있어요 — 이러면 AI 창도, 질문 입력도 두 번씩 일어나요. Tampermonkey 대시보드에서 ‘종목분석 미니 AI 도우미’ 를 하나만 남기고 삭제한 뒤 이 화면을 새로고침하세요.';e.style.color='#b91c1c';return}"
-              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5||(old[1]===5&&(old[2]||0)<16));e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.16)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
+              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5||(old[1]===5&&(old[2]||0)<17));e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.17)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
               "ahChk(false);setTimeout(function(){ahChk(false)},300);setTimeout(function(){ahChk(true)},1200);")
     resp = C.app.make_response(page("AI 도우미", body, icon="🤖", subtitle="AI 입력·전송·답변 복사를 자동으로 해 주는 선택 도구", script=script))
     resp.headers["Cache-Control"] = "no-cache"

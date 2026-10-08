@@ -247,12 +247,16 @@ def api_refresh():
     if deny or _gw():
         return deny or _admin_json({"error": "관리자만 쓸 수 있어요."}, 403)
     notes = []
+    PK = "winrate/refresh"
+    C.prog_begin(PK, "누적 승률 결과 갱신", [("초단기 지난 후보 결과 확인", 50), ("오늘추천 만기 평가", 35), ("승률 집계", 15)])
     try:
         import menu_scalp as S
-        done, wait = S.evaluate_pending()
+        C.prog_stage(PK, 0, "초단기 결과 확인 대상 찾는 중")
+        done, wait = S.evaluate_pending(PK)
         notes.append(f"초단기 {done}건 확인" + (f"({wait}건 대기)" if wait else ""))
     except Exception as e:
         notes.append("초단기 갱신 실패: " + str(e)[:40])
+    C.prog_stage(PK, 1, "오늘추천 만기 평가 중(현재가 조회)")
     try:
         import menu_daily as D
         D.api_track()                      # 만기가 지난 오늘추천을 그 시점 가격으로 확정(원래 [지난 추천 성과]가 하던 일)
@@ -260,8 +264,10 @@ def api_refresh():
     except Exception as e:
         notes.append("오늘추천 갱신 실패: " + str(e)[:40])
     _alog("winrate_refresh", " · ".join(notes))
+    C.prog_stage(PK, 2, "승률 집계 중")
     st = build_state(_days_arg(), request.args.get("ref") == "1")
     st["notes"] = notes
+    C.prog_end(PK, True, "완료")
     return _admin_json(st)
 
 
@@ -274,12 +280,12 @@ function wrSt(n,css){n.style.cssText=css;return n}
 function wrFmt(v,suf){return v==null?'-':(v+(suf||''))}
 function wrRet(v){return v==null?'-':((v>0?'+':'')+v.toFixed(2)+'%')}
 function wrCol(v){return v==null?'#64748b':(v>0?'#e11d48':(v<0?'#2563eb':'#64748b'))}
-function wrLoad(p){p.innerHTML='';var box=el('div');box.id='wrBox';p.appendChild(box);
+function wrLoad(p){p.innerHTML='';var ph=el('div');ph.id='wrProgHost';p.appendChild(ph);var box=el('div');box.id='wrBox';p.appendChild(box);
  if(MEMBER_MODE&&!ftOk('view')){var c=el('div','c');c.appendChild(el('b',null,'📈 누적 승률'));c.appendChild(el('div','note','추천일 기준 승률을 모아 보여주는 화면이에요. 참고 자료이며 투자 권유가 아니에요.'));box.appendChild(c);ftSec(c,'view');return}
  wrDraw();wrFetch()}
 function wrFetch(refresh){var u='/admin/api/winrate/'+(refresh?'refresh':'state')+'?days='+WR.days+'&ref='+(WR.ref?1:0);
  var h=$('wrStat');if(h)h.textContent='⏳ 불러오는 중…';
- var pr=refresh?apiJ(u,{}):api(u);
+ var pr=refresh?apiJ(u,{}):api(u);if(window.MiniProg)MiniProg.watch($('wrProgHost'),refresh?'winrate/refresh':'winrate/state',pr,refresh?'누적 승률 결과 갱신':'누적 승률 불러오기');
  return pr.then(function(j){if(j.error){toast('⚠ '+j.error);return}WR.st=j;if(refresh)toast('✅ 결과를 갱신했어요 — '+(j.notes||[]).join(' · '));wrDraw()},function(){toast('⚠ 불러오지 못했어요')})}
 function wrDraw(){var p=$('wrBox');if(!p)return;p.innerHTML='';
  var hd=el('div','c');wrSt(hd,'background:linear-gradient(135deg,#0a1228,#1b2f66);color:#fff;border:0');
@@ -347,6 +353,7 @@ def _register_builtin_sources():
 
 def register():
     _register_builtin_sources()
+    C.prog_declare("winrate/refresh", "누적 승률 결과 갱신")
     C.register_menu({"id": MENU, "label": "누적 승률", "icon": "📈", "public_path": "/m/winrate", "admin_path": "/admin#wr",
                      "desc": "오늘추천·초단기·도전주 등 추천을 추천일 기준으로 모아 승률·평균 수익률·누적 승률 그래프를 보여줘요. 참고 자료이며 투자 권유가 아니에요.",
                      "access": "admin"})

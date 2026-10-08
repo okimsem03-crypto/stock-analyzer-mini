@@ -554,6 +554,18 @@ def _fetch_idx_basic(mk):
     return {"price": px, "pct": _num(j.get("fluctuationsRatio")), "diff": _num(j.get("compareToPreviousClosePrice")), "at": str(j.get("localTradedAt") or "")[:10]}
 
 
+_MP = {}
+
+
+def _mkprog(mk, have, want):
+    """시장별로 쌓은 날짜 수를 합쳐 ‘수급 받기’ 진행률(진행률 장부)에 적는다."""
+    try:
+        _MP[mk] = min(have, want)
+        C.prog_item("market/fetch", sum(_MP.values()), want * len(MARKETS), f"{sum(_MP.values())}/{want * len(MARKETS)}일치 받음")
+    except Exception:
+        pass
+
+
 def _collect_market(mk, want):
     """오늘 값을 받고, 과거 날짜(bizdate)가 되는 만큼 거슬러 올라가 채운다. 이미 쌓인 날짜는 건너뛴다."""
     t0 = time.time()
@@ -564,6 +576,7 @@ def _collect_market(mk, want):
     _save_day(mk, t["date"], t["vals"], "index")
     added = 0 if t["date"] in have else 1
     have.add(t["date"])
+    _mkprog(mk, len(have), want)
     cur = datetime.strptime(t["date"], "%Y-%m-%d")
     misses = tries = 0
     while len(have) < want and misses < 3 and tries < want + 8 and time.time() - t0 < 45:
@@ -580,6 +593,7 @@ def _collect_market(mk, want):
             have.add(ds)
             added += 1
             misses = 0
+            _mkprog(mk, len(have), want)
         else:
             misses += 1
     return {"ok": True, "latest": t["date"], "added": added, "total": len(have), "actors": sorted(t["vals"]), "backfill": added > (0 if t["date"] in have else 1)}
@@ -599,8 +613,11 @@ def api_fetch():
     try:
         b = _json_body() or {}
         want = max(5, min(60, int(_n(b.get("days")) or 20)))
+        _MP.clear()
+        C.prog_begin("market/fetch", "시장수급 가져오기", [("코스피·코스닥 수급 받기", 85), ("지수 정보", 10), ("저장", 5)])
         with ThreadPoolExecutor(max_workers=2) as ex:
             res = dict(zip(MARKETS, ex.map(lambda m: _collect_market(m, want), MARKETS)))
+        C.prog_stage("market/fetch", 1, "지수 기본 정보 조회 중")
         idx = {}
         for mk in MARKETS:
             x = _fetch_idx_basic(mk)
@@ -608,10 +625,12 @@ def api_fetch():
                 idx[mk] = x
         if idx:
             _json_put(KEY_IDX, dict(idx, at=_stamp()))
+        C.prog_stage("market/fetch", 2, "저장 중")
         okn = sum(1 for r in res.values() if r.get("ok"))
         info = {"at": _stamp(), "res": res, "ok": okn, "want": want}
         _json_put(KEY_LAST, info)
         _alog("market_fetch", "ok=%d/%d" % (okn, len(MARKETS)))
+        C.prog_end("market/fetch", okn > 0, "완료" if okn else "실패")
         return _admin_json({"ok": okn > 0, "res": res, "at": info["at"], "error": "" if okn else "두 시장 모두 받지 못했어요. 잠시 뒤 다시 시도해 주세요(네이버 응답 없음·주소 변경 가능)."})
     finally:
         _LOCK.release()
@@ -1443,6 +1462,7 @@ function mkJobDraw(){var pg=$('mkColPg'),ls=$('mkColLast');var jb=MK.job||{},j=M
 
 def register():
     C.register_table_hook(_ensure_tables)
+    C.prog_declare("market/fetch", "시장수급 가져오기")
     C.register_menu({"id": MENU, "label": "시장수급", "icon": "📊", "public_path": "/m/market", "admin_path": "/admin#mk",
                      "desc": "코스피·코스닥의 그날 수급을 개인·외국인·기관(가능하면 금융투자·연기금 등 세부 주체까지)별로 보여 주고, 최근 흐름·연속 일수·종목별 상위·강세 테마를 한 화면에 정리해요. 정보 제공용이며 투자 권유가 아니에요.",
                      "access": "admin"})

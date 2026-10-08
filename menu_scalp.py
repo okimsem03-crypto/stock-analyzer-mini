@@ -75,6 +75,26 @@ SCALP_PROMPT_DEFAULT = """당신은 한국 주식 시장의 단기 매매를 돕
 """
 
 
+RUN_KEY = "scalp/run"
+TRACK_KEY = "scalp/track"
+RUN_STAGES = [("스캔 자료 읽기", 4), ("장 환경(미국 증시·환율)", 6), ("강세 테마 조회", 10), ("후보 1차 점수·현재가", 14), ("종목별 최신 수급 조회", 30), ("뉴스·재무 확인", 30), ("정리·저장", 6)]
+
+
+def _pg(i, text="", key=RUN_KEY):
+    """진행률 장부에 ‘지금 i번째 단계’를 적는다(실패해도 본 작업엔 영향 없음)."""
+    try:
+        C.prog_stage(key, i, text)
+    except Exception:
+        pass
+
+
+def _pi(done, total, text="", key=RUN_KEY):
+    try:
+        C.prog_item(key, done, total, text)
+    except Exception:
+        pass
+
+
 def _f(v, d=None):
     return D._f(v, d)
 
@@ -761,6 +781,7 @@ def build(scan_date=None):
     if not dates:
         return {"error": "저장된 스캔이 없어요. 먼저 [🌟 오늘추천]에서 스캔하세요."}
     scan_date = scan_date or dates[0]["date"]
+    _pg(0, f"{scan_date} 스캔 자료 읽는 중")
     rows, src = D.load_rows(scan_date)
     if not rows:
         return {"error": f"{scan_date} 스캔 자료가 비어 있어요."}
@@ -779,6 +800,7 @@ def build(scan_date=None):
     pool = [r for r in rows if r["ticker"] not in risk]
     fl_n, fl_base, fl_at = _flow_overlay(pool, want_last)
 
+    _pg(1, "미국 증시·VIX·원/달러 조회 중")
     try:
         mac = D.macro_snapshot()
     except Exception:
@@ -787,6 +809,7 @@ def build(scan_date=None):
     if gate["missing"]:
         warns.append("거시 지표(미국 증시·VIX·환율)를 받지 못해 장 환경은 ‘중립’으로 두었어요.")
 
+    _pg(2, "네이버 실시간 강세 테마 조회 중")
     tmap, info, tnote, tmeta = _theme_ctx(now)
     if tnote:
         warns.append(tnote)
@@ -796,6 +819,7 @@ def build(scan_date=None):
     fresh = [{"k": "스캔(기술 지표)", "asof": scan_date, "ok": not stale, "note": f"{len(rows)}종목 저장본" + ("" if not stale else " — 직전 거래일 기준이 아니에요")}]
 
     # 1차 점수 → 상위만 현재가 갱신 → 뉴스·재무 확인
+    _pg(3, f"{len(pool)}종목 1차 점수 계산 중")
     pre = []
     for r in pool:
         th = best_theme(r["ticker"], tmap, info)
@@ -804,6 +828,7 @@ def build(scan_date=None):
             pre.append((sum(b["parts"].values()), r, th, b))
     pre.sort(key=lambda x: -x[0])
     head = pre[:CHECK_TOP + 30]
+    _pg(3, f"상위 {len(head)}종목 현재가 확인 중")
     try:
         live = D.live_prices([x[1]["ticker"] for x in head])
     except Exception:
@@ -820,10 +845,14 @@ def build(scan_date=None):
     # [v200] 상위 후보는 종목별 최신 수급을 직접 조회해 다시 점수를 매기고 순위를 바꾼다
     cand = refreshed[:CHECK_TOP + 20]
     ffl = {}
+    _pg(4, f"상위 {len(cand)}종목 최신 수급 조회")
     with ThreadPoolExecutor(max_workers=8) as ex:
         futs = {ex.submit(_fresh_flow, r["ticker"], target): r["ticker"] for _, r, _, _ in cand}
+        _nd = 0
         try:
             for f in as_completed(futs, timeout=25):
+                _nd += 1
+                _pi(_nd, len(futs), f"수급 {_nd}/{len(futs)}종목")
                 try:
                     v = f.result()
                     if v:
@@ -890,11 +919,15 @@ def build(scan_date=None):
 
     def check(tk):
         return tk, _news_for(tk), _fin_for(tk)
+    _pg(5, f"상위 {len(top)}종목 뉴스·재무 확인")
     with ThreadPoolExecutor(max_workers=8) as ex:
         futs = [ex.submit(check, r["ticker"]) for _, r, _, _ in top]
         t_end = time.time() + 45
+        _nd = 0
         try:
             for f in as_completed(futs, timeout=max(1, t_end - time.time())):
+                _nd += 1
+                _pi(_nd, len(futs), f"뉴스·재무 {_nd}/{len(futs)}종목")
                 try:
                     tk, n, fn = f.result()
                     news[tk] = n
@@ -903,6 +936,7 @@ def build(scan_date=None):
                     pass
         except Exception:
             warns.append("뉴스·재무 조회가 오래 걸려 일부 종목은 해당 항목을 ‘자료 없음’으로 두었어요.")
+    _pg(6, "재무 점검·순위 정리 중")
     out, excluded = [], []
     for _, r, th, b in top:
         tk = r["ticker"]
@@ -1007,7 +1041,7 @@ def _pnl(res, stop_pct, target_pct, close_pct):
     return close_pct
 
 
-def evaluate_pending():
+def evaluate_pending(pkey=None):
     """결과가 비어 있는 기록(당일·2영업일)을 채운다. 반환 (새로 채운 건수, 아직 기다려야 하는 건수)."""
     now = _now_kst()
     today = now.strftime("%Y-%m-%d")
@@ -1046,8 +1080,14 @@ def evaluate_pending():
             return j, bars
         except Exception:
             return j, None
+    _nj = len(jobs[:90])
+    _pi(0, max(_nj, 1), f"결과 확인 대상 {_nj}건" if _nj else "확인할 건 없음", key=pkey) if pkey else None
+    _ni = 0
     with ThreadPoolExecutor(max_workers=6) as ex:
         for j, bars in ex.map(one, jobs[:90]):
+            _ni += 1
+            if pkey:
+                _pi(_ni, max(_nj, 1), f"{_ni}/{_nj}건 확인", key=pkey)
             d, tk, base, sp, tp, tdp, res0, res2 = j
             if bars is None:
                 wait += 1
@@ -1106,7 +1146,7 @@ def stats():
         it = {"date": str(d), "ticker": tk, "name": nm, "main": int(main or 0), "score": int(sc or 0), "gate": g,
               "day": {"res": r0, **m0, "pnl": round(_pnl(r0, sp, tdp, m0["close"]), 2)}}
         day.append({"main": it["main"], "gate": g, "res": r0, **m0, "pnl": it["day"]["pnl"]})
-        if r2 and r2 != "nodata" and _f(c2):
+        if r2 and r2 != "nodata" and _f(c2) and _f(h1) and _f(l1) and _f(c1) and _f(h2) and _f(l2):   # [v202] 중간 값이 비어 있는 기록은 건너뛰어 화면이 500 으로 깨지지 않게
             _, m2 = classify_window([(o, h, l, c), (o, _f(h1), _f(l1), _f(c1)), (o, _f(h2), _f(l2), _f(c2))], sp, tp)
             it["two"] = {"res": r2, **m2, "pnl": round(_pnl(r2, sp, tp, m2["close"]), 2)}
             two.append({"main": it["main"], "gate": g, "res": r2, **m2, "pnl": it["two"]["pnl"]})
@@ -1302,15 +1342,19 @@ def api_run():
     if deny or _gw():
         return deny or _admin_json({"error": "관리자만 쓸 수 있어요."}, 403)
     b = _json_body() or {}
+    C.prog_begin(RUN_KEY, "초단기 후보 만들기", RUN_STAGES)
     try:
         res = build(str(b.get("date") or "") or None)
     except Exception as e:
+        C.prog_end(RUN_KEY, False, "오류")
         print(f"[초단기] 만들기 오류: {type(e).__name__}: {e}")
         return _admin_json({"error": "후보를 만드는 중 오류가 났어요: " + str(e)[:80]}, 500)
     if res.get("error"):
+        C.prog_end(RUN_KEY, False, "자료 없음")
         return _admin_json(res, 400)
     res["diff"] = _diff_with_prev(res)
     _save(res)
+    C.prog_end(RUN_KEY, True, "완료")
     _alog("scalp_run", f"{res['target_date']} {res['gate']['label']} {len(res['picks'])}")
     return _admin_json(dict(res, ai=_ai_get(res["target_date"])))
 
@@ -1320,11 +1364,17 @@ def api_track():
     deny = _admin_deny(write=True)
     if deny or _gw():
         return deny or _admin_json({"error": "관리자만 쓸 수 있어요."}, 403)
+    C.prog_begin(TRACK_KEY, "초단기 지난 성과 확인", [("확인할 기록 찾기", 5), ("종가 확인", 85), ("승률 집계", 10)])
     try:
-        done, wait = evaluate_pending()
+        _pg(1, "결과 확인 대상 찾는 중", TRACK_KEY)
+        done, wait = evaluate_pending(TRACK_KEY)
+        _pg(2, "승률 집계 중", TRACK_KEY)
+        st = stats()
     except Exception as e:
+        C.prog_end(TRACK_KEY, False, "오류")
         return _admin_json({"error": "성과 확인 중 오류: " + str(e)[:80]}, 500)
-    return _admin_json({"ok": True, "done": done, "wait": wait, "stats": stats()})
+    C.prog_end(TRACK_KEY, True, "완료")
+    return _admin_json({"ok": True, "done": done, "wait": wait, "stats": st})
 
 
 @bp.route("/admin/api/scalp/prompt", methods=["GET"])
@@ -1397,7 +1447,7 @@ var SCACTS={
 function scPostGo(auto){var P=SC.blogPanel;if(!P)return false;if(P.built()){P.copyOpen(auto);return true}
  if(!SC.flag.blog){if(!auto)toast('먼저 글 만들기를 해 주세요');return false}
  P.rebuild().then(function(j){if(j)P.copyOpen(auto)});return true}
-function scLoad(p){p.innerHTML='';var box=el('div');box.id='scBox';p.appendChild(box);
+function scLoad(p){p.innerHTML='';var ph=el('div');ph.id='scProgHost';p.appendChild(ph);var box=el('div');box.id='scBox';p.appendChild(box);
  if(MEMBER_MODE&&!ftOk('list')){var c=el('div','c');c.appendChild(scSt(el('b',null,'⚡ 초단기 후보 — 장 시작 전'),'font-size:18px'));c.appendChild(el('div','note','후보 종목·장 환경·가격 관찰선을 보여주는 기능이에요. 참고 자료이며 투자 권유가 아니에요.'));box.appendChild(c);ftSec(c,'list');return}
  scDraw();
  api('/admin/api/scalp/state').then(function(j){if(cur!=='sc'&&!MEMBER_MODE)return;SC.last=j.last;SC.stats=j.stats;SC.ai=j.ai||'';SC.target=j.target;scDraw()}).catch(function(){})}
@@ -1492,9 +1542,10 @@ function scStats(p){var S=SC.stats;if(!S)return;var c=el('div','c');c.appendChil
  var det=el('details');det.appendChild(el('summary',null,'최근 기록 '+S.recent.length+'건'));var nm={win:'🎯 목표',loss:'🛑 손절',flat_up:'➕ 플러스',flat_dn:'➖ 마이너스'};
  S.recent.forEach(function(x){var d=el('div','note',x.date+' '+(x.main?'★':' ')+' '+x.name+' · 당일 종가 '+scPct(x.day.close)+' ('+(nm[x.day.res]||x.day.res)+')'+(x.two?' · 2영업일 '+scPct(x.two.close)+' ('+(nm[x.two.res]||x.two.res)+')':' · 2영업일 결과 대기'));det.appendChild(d)});c.appendChild(det);p.appendChild(c)}
 function scRun(btn,then){if(SC.busy){toast('이미 만드는 중이에요');return}SC.busy=true;btn.disabled=true;btn.textContent='⏳ 만드는 중… (최대 1분)';toast('⏳ 후보를 만드는 중이에요 (수급·테마·뉴스·재무 확인, 최대 1분)');
- apiJ('/admin/api/scalp/run',{}).then(function(j){SC.busy=false;if(j.error){toast('⚠ '+j.error);scDraw();return}SC.last=j;SC.ai=j.ai||'';toast('✅ 후보 '+j.picks.length+'종목을 만들었어요 (장 환경: '+j.gate.label+')');
+ var prRun=apiJ('/admin/api/scalp/run',{});if(window.MiniProg)MiniProg.watch($('scProgHost'),'scalp/run',prRun,'초단기 후보 만들기');
+ prRun.then(function(j){SC.busy=false;if(j.error){toast('⚠ '+j.error);scDraw();return}SC.last=j;SC.ai=j.ai||'';toast('✅ 후보 '+j.picks.length+'종목을 만들었어요 (장 환경: '+j.gate.label+')');
   api('/admin/api/scalp/state').then(function(s){SC.stats=s.stats}).catch(function(){}).then(function(){scDraw();if(then){setTimeout(then,100)}else{setTimeout(function(){MiniFlow.run('scalp',SCFLOW,SCACTS)},200)}})},function(){SC.busy=false;toast('⚠ 후보 만들기에 실패했어요');scDraw()})}
-function scTrack(){toast('⏳ 지난 후보의 결과를 가져오는 중이에요');apiJ('/admin/api/scalp/track',{}).then(function(j){if(j.error){toast('⚠ '+j.error);return}SC.stats=j.stats;toast('✅ '+j.done+'건 확인 완료'+(j.wait?' · '+j.wait+'건은 아직 결과가 없어요':''));var ai=SC.ai;scDraw()},function(){toast('⚠ 성과 확인에 실패했어요')})}
+function scTrack(){toast('⏳ 지난 후보의 결과를 가져오는 중이에요');var prTr=apiJ('/admin/api/scalp/track',{});if(window.MiniProg)MiniProg.watch($('scProgHost'),'scalp/track',prTr,'초단기 지난 성과 확인');prTr.then(function(j){if(j.error){toast('⚠ '+j.error);return}SC.stats=j.stats;toast('✅ '+j.done+'건 확인 완료'+(j.wait?' · '+j.wait+'건은 아직 결과가 없어요':''));var ai=SC.ai;scDraw()},function(){toast('⚠ 성과 확인에 실패했어요')})}
 function scPrompt(){api('/admin/api/scalp/prompt').then(function(j){if(j.error){toast('⚠ '+j.error);return}var t=j.prompt,ok=false;try{var ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.select();ok=document.execCommand('copy');document.body.removeChild(ta)}catch(e){}
   try{if(!ok&&navigator.clipboard){navigator.clipboard.writeText(t);ok=true}}catch(e){}toast(ok?'✅ AI 요청문을 복사했어요 ('+t.length.toLocaleString()+'자) — AI 창에 붙여 넣으세요':'⚠ 복사하지 못했어요. 브라우저 권한을 확인해 주세요')},function(){toast('⚠ 요청문을 만들지 못했어요')})}
 
@@ -1547,6 +1598,8 @@ window.ScImg={build:function(L,ai,scale){var out=[{idx:1,label:'장 환경·관�
 
 def register():
     C.register_table_hook(_ensure_tables)
+    C.prog_declare(RUN_KEY, "초단기 후보 만들기")
+    C.prog_declare(TRACK_KEY, "초단기 지난 성과 확인")
     C.register_settings({"scalp_last": ""})
     C.register_menu({"id": MENU, "label": "초단기(장전)", "icon": "⚡", "public_path": "/m/scalp", "admin_path": "/admin#sc",
                      "desc": "전일 종가·수급·테마·뉴스·재무·미국 증시를 겹쳐 오늘 시가 부근에서 당일 오후 또는 1~2영업일 안에 살펴볼 후보를 규칙으로 골라요. 재무가 나쁜 종목은 제외해요. 참고 자료이며 투자 권유가 아니에요.",

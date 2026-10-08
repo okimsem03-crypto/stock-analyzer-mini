@@ -214,6 +214,9 @@ finance.naver.com 페이지가 무력화되어, 개편과 무관한 네이버 �
 ✨ v140 — 관리자: 메뉴별 블로그 주소 미리 설정(원본 DB의 블로그 아이디·카테고리 반영, [✍ 블로그 주소] 탭)·복사하고 블로그 바로 열기, [🏛 심층분석](5축 점수·밸류에이션·PEER·체크리스트·AI·블로그), [🌟 오늘추천](스캔·AI 추천주·성과 추적·블로그). 두 메뉴는 관리자 전용.
 ✨ v141 — 관리자 분석실: [AI 한 번에 진행](하단 AI 분석 + AI 종합 리포트를 이어서 자동 저장), 블로그 글에 하단 AI 분석 포함, [🖼 이미지] ①메인(종합점수 게이지 중심 프리미엄 디자인)·②통합(주가·재무 차트·동일업종·기술지표) 이미지 만들기, [🖼 이미지 저장] 탭에서 다운로드 폴더 지정·자동/수동 저장(20261002/종목분석/① 종목명_코드.png).
 ✨ v144 — ① '이 종목, 지금 사고 싶으세요?'·'이 종목 이야기'를 처음부터 펼쳐진 왼쪽 떠 있는 패널로(접기 가능·기억함, 스마트폰은 본문 속 펼친 카드+이동 버튼) ② 분석실 단계가 끝나면 위쪽 작업 순서 줄로 자동 이동 ③ 상장폐지·거래정지 위험 신호가 있으면 블로그 글 위·아래에 단정하지 않는 표현으로 강하게 경고(분석실·심층분석·오늘추천) ④ 모든 저장에 '✅ 저장 완료' 안내(큰 알림+버튼 옆 시각+상단 마지막 저장 시각) ⑤ AI 도우미: 답변 자동 저장 후 [✅ 저장 완료]로 표시(버튼 비활성 오해 수정) ⑥ 심층분석 화면 전면 새 디자인(점수 링·5축 레이더·재무 막대 그래프·밸류에이션 밴드)+이미지 3장 저장 ⑦ 오늘추천 3단계로 단순화(후보 표/카드 → AI 추천 → 이미지·블로그)+표·AI 추천 이미지 저장.
+✨ v204 — 네이버 블로그 붙여넣기 개선(AI 도우미 1.5.17 — 재설치 필요): ①본문을 붙여넣으면 끝난 뒤 도우미가 ‘제목만’ 클립보드에 올려 두어, 제목 칸을 클릭하고 Ctrl+V 만 하면 돼요(본문에서 제목을 따로 복사하지 않아도 됨, 띠의 [🔁 제목 자동복사]로 끄고 켤 수 있어요). ②가끔 서식 있는 본문 대신 AI 원문(** 와 ## 가 그대로 보이는 글, JSON 포함)이 붙던 문제: 클립보드에 AI 원문이 남아 있는 채로 본문 칸에 붙이면 편집기에 들어가기 전에 막고 ‘제목 포함 본문’을 다시 복사한 뒤 안내해요. 기존 설정은 모두 그대로 유지.
+✨ v203 — [뉴스분석 → 블로그 쓰기] ‘📰 뉴스 핵심 요약’ 제목 아래가 비어 있고 한 줄 요약이 이미지에만 남던 문제 수정: AI 본문이 글에 들어가면 ‘📝 한 줄 요약 — …’ 문장을 본문 속 제 자리(핵심 요약 제목 바로 아래)에 글자(텍스트)로 그대로 두어 복사·붙여넣기에 함께 들어가요(AI 본문을 뺀 글에서만 위쪽 요약 상자를 써요, ‘한 줄 요약’ 체크를 끄면 글에서 빠져요). 기존 설정은 모두 그대로 유지.
+✨ v202 — 모든 메뉴에 진행 막대(프로그래스바) 도입: ①공용 알림창(menu_ui.py mini-feedback.js)에 막대·%·단계·남은 시간 표시(눌린 버튼·자동 불러오기 모두, 지난번 걸린 시간을 기억해 ‘예상 진행률’로 어림). ②서버 진행률 장부(prog_declare/prog_begin/prog_stage/prog_item/prog_end, /admin/api/prog)를 만들고 초단기 후보 만들기(7단계·종목별 건수)·성과 확인, 누적 승률 갱신, 오늘추천 성과 확인, 심층분석 자료/요청문/블로그, 시장수급 가져오기에 실제 단계 진행률 연결. ③화면 안 막대(MiniProg.watch): 초단기·누적 승률 탭. ④5단계 막대(FlowBar)에 ‘전체 진행 n/m단계’ 막대, 종목 분석 로딩 카드에 막대. ⑤초단기 [지난 성과]에서 중간 값이 빈 기록 때문에 화면이 500 오류로 깨질 수 있던 문제 수정. 기존 설정은 모두 그대로 유지.
 ✨ v201 — ①블로그 쓰기 이미지 불러오기 수정: [심층분석]은 블로그 쪽 이름(deepdive)과 이미지 쪽 이름(deep), [투자주의]는 caution↔delist 가 서로 달라 만든 이미지 3장이 한 장도 블로그로 넘어가지 않던 원인을 고쳤어요(이름 별칭 처리, menu_img.py). ②[⚡ 초단기(장전)]에 ‘이미지 만들기’ 단계 추가: ‘장 환경·관찰 후보 TOP’(점수 구성 막대·가격 관찰선), ‘가격 관찰선 표’, ‘AI 장전 분석 요약’(AI 답변이 있을 때) 3장을 만들어 블로그 복사·열기 때 함께 올라가요(흐름: 후보→AI 분석→이미지→글→블로그, 이미지 저장 폴더 ‘초단기’ 기본 추가). ③이미지 없이 블로그로 보내면 ‘올릴 그림이 없어요’ 안내가 뜨도록 했어요. 전 메뉴(종목분석·심층분석·오늘추천·투자주의·도전주·수급분석·시장수급·테마·뉴스·초단기)의 이미지↔블로그 연결을 점검했어요. 기존 설정은 모두 그대로 유지.
 ✨ v200 — ①[⚡ 초단기(장전)] 실시간 반영: 강세 테마를 ‘쌓아 둔’ 저장본(며칠 전 값) 대신 네이버 실시간 테마 순위(네이버테마 메뉴 실시간 탭과 같은 자료)로 계산하고, 상위 후보는 종목별 최신 외국인·기관 수급을 네이버에서 바로 조회해 점수·순위를 다시 매겨요(따로 [가져오기] 불필요, 실패하면 저장본으로 대체하고 ⚠ 표시). ②[📈 누적 승률] 신규(menu_winrate.py): 오늘추천·초단기(당일/2영업일)·도전주를 추천일 기준으로 모아 건수·승률·수익 비율·평균 수익률·최근 20건 승률, 추천일별 표(눌러서 종목별 결과), 누적 승률 꺾은선 그래프를 보여주고 [🔄 결과 갱신]으로 초단기 결과·오늘추천 만기 평가를 반영해요(기본 관리자만, 공개 범위는 [기능 공개]). 추천 종류는 register_source 로 추가 가능. 기존 설정은 모두 그대로 유지. 참고 자료이며 투자 권유가 아니에요.
 ✨ v199 — [⚡ 초단기(장전)] 신뢰도 보강: ①[시장수급 가져오기]로 새로 받은 외국인·기관 수급을 후보 만들 때 바로 덮어써서 점수에 반영(이전에는 스캔 때 저장된 전일 수급을 그대로 써서 다시 받아도 변화가 없었음) ②‘📅 자료 기준’ 카드 신설 — 스캔·수급·테마·거시·뉴스/재무가 각각 어느 날짜·시각 자료인지, 오래됐으면 ⚠로 표시 ③강세 테마에 기준일 표시(장 시작 전 네이버 테마 등락률은 전일 값이라는 안내 포함)와 ‘후보에 많이 든 테마’ 추가 ④다시 만들면 직전 후보 대비 점수 변화·새로 진입/탈락 종목·장 환경 변화를 요약 ⑤뉴스 캐시 30분→10분. 기존 설정은 모두 그대로 유지.
@@ -383,7 +386,7 @@ try:
 except Exception:
     PG_OK = False
 
-APP_VERSION_HARDCODED = "v201"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
+APP_VERSION_HARDCODED = "v204"  # ⚠️ 이 프로그램의 진짜 버전. 새 버전을 낼 때마다 반드시 이 값을
                                   # 올리세요 — GitHub 자동 업데이트의 버전 비교가 이 값을 기준으로
                                   # 동작합니다(아래 설명 참고).
 
@@ -402,7 +405,7 @@ APP_VERSION_HARDCODED = "v201"  # ⚠️ 이 프로그램의 진짜 버전. 새 
 #    본문은 손대지 않고 이 값만 같이 올렸다(그래야 "오래됐을 수 있음" 배너가 잘못 뜨지 않음).
 # 💡 v116~v118도 마찬가지 — AI 링크 속도 개선과 "최근 본 종목" 기록은 증권 용어가 아니라
 #    도움말 본문을 바꿀 내용이 없으므로, 이 값만 같이 올렸다.
-HELP_CONTENT_ASOF = "v138"
+HELP_CONTENT_ASOF = "v204"
 
 # 📣 슬로건 — 화면 상단(로고 옆)과 첫 화면 안내문에 그대로 표시된다.
 # 더 좋은 문구가 떠오르면 이 한 줄만 바꾸면 된다(코드의 다른 곳은 전혀 손댈 필요 없음).
@@ -4861,6 +4864,7 @@ FB.CSS+='.fbx .fbRow{align-items:center;gap:6px}.fbx .stp{flex:0 0 auto;min-widt
 +'.cbx .cbBtn{font:inherit;font-size:14px;font-weight:800;color:#fff;background:#312e81;border:0;border-radius:11px;padding:9px 18px;cursor:pointer}.cbx .cbBtn:disabled{opacity:.5;cursor:default}'
 +'.cbx .cbStop{font:inherit;font-size:12.5px;font-weight:700;color:#475569;background:#fff;border:1px solid #cbd5e1;border-radius:9px;padding:6px 11px;cursor:pointer}.cbx .cbStop:disabled{display:none}'
 +'.cbx .cbSt{flex:1 1 220px;font-size:12.5px;color:#475569;line-height:1.5}.cbx .cbPg{margin-top:6px}.cbx details{margin-top:8px;border-top:1px dashed #e2e8f0;padding-top:6px}.cbx summary{cursor:pointer;font-size:12.5px;font-weight:700;color:#475569;padding:4px 0}'
++'.fbx .fbPgW{display:flex;align-items:center;gap:10px;margin:7px 2px 0}.fbx .fbPg{flex:1 1 auto;height:7px;border-radius:5px;background:#e0e7ff;overflow:hidden}.fbx .fbPg i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#4f46e5,#16a34a);transition:width .4s ease}.fbx .fbPgT{flex:0 0 auto;font-size:11.5px;font-weight:700;color:#475569}@media(max-width:760px){.fbx .fbPgT{display:none}}'
 +'.cbx .cbIn{padding:4px 0 2px}.cbx .cbIn .bar{margin:6px 0}.cbx .cbIn details{border:0;margin-top:6px;padding-top:0}.cbx .cbIn .mkCard,.cbx .cbIn .thCard{border:0;background:#f8fafc;margin:8px 0}'
 +'@media(max-width:760px){.cbx .cbBtn{flex:1 1 100%}}';
 FB.draw=function(host,o){if(!host)return;FB.inj();
@@ -4872,6 +4876,10 @@ FB.draw=function(host,o){if(!host)return;FB.inj();
   var nn2=document.createElement('span');nn2.className='n';nn2.textContent=a.done?'✓':String(i+1);b.appendChild(nn2);var t=document.createElement('span');t.appendChild(document.createTextNode(a.t));b.appendChild(t);b.onclick=function(){if(a.go)a.go()};row.appendChild(b)});
  if(o.runAll&&!M.member()){var all=document.createElement('button');all.type='button';all.className='fbAll';all.setAttribute('data-noconfirm','1');all.textContent=o.allLabel||'⚡ 한 번에';all.title='AI 해설 → 이미지 → 글 → 블로그 복사·열기를 끝까지 이어서 해요';all.onclick=function(){o.runAll()};row.appendChild(all)}
  host.appendChild(row);
+ /* [v202] 전체 진행 막대 — 끝난 단계 수 / 전체 단계 수 */
+ var dn=steps.filter(function(x){return x.done}).length,tot=steps.length||1,pc=Math.round(dn/tot*100);
+ var pg=document.createElement('div');pg.className='fbPgW';var tr=document.createElement('div');tr.className='fbPg';tr.setAttribute('role','progressbar');tr.setAttribute('aria-valuemin','0');tr.setAttribute('aria-valuemax','100');tr.setAttribute('aria-valuenow',String(pc));var fi=document.createElement('i');fi.style.width=Math.max(pc,3)+'%';tr.appendChild(fi);
+ var tx=document.createElement('span');tx.className='fbPgT';tx.textContent='전체 진행 '+dn+'/'+tot+'단계 · '+pc+'%'+(dn>=tot?' — 모두 끝났어요':(cur>=0?' · 다음: '+steps[cur].t:''));pg.appendChild(tr);pg.appendChild(tx);host.appendChild(pg);
  if(o.note){var nt=document.createElement('div');nt.className='fbNote';nt.textContent=o.note;var ib=document.createElement('button');ib.type='button';ib.className='fbI';ib.textContent='ⓘ';ib.title='이 버튼들이 하는 일 보기';ib.setAttribute('data-noconfirm','1');ib.onclick=function(){host.classList.toggle('noteOn')};row.appendChild(ib);host.appendChild(nt)}};
 /* 가져오기 카드: CBar.make(host,{title,btn:{label,id,fn},stopId,stopFn,stId,pgId}) → {st,pg,inn,btn,stop} */
 window.CBar={make:function(host,o){FB.inj();host.innerHTML='';host.className=(host.className||'').replace(/\bcbx\b/,'')+' cbx';var top=document.createElement('div');top.className='cbTop';
@@ -5804,6 +5812,102 @@ def admin_api_settings():
 
 
 
+# ══════════════════════════════════════════════════════════════
+# [v202] 진행률(프로그래스바) 공용 — 오래 걸리는 처리가 "지금 몇 % · 어느 단계"인지 화면에 알려주는 작은 장부.
+#   · 처리 쪽: prog_declare(키,이름) 로 등록 → prog_begin(키, 이름, [(단계이름, 비중), …]) → prog_stage(키, 번호, 글) /
+#     prog_item(키, 한 일, 전체, 글) → prog_end(키). 키는 보통 주소 끝('scalp/run')과 같게 둔다.
+#   · 화면 쪽: mini-feedback.js 가 눌린 버튼의 요청 주소와 같은 키가 있으면 /admin/api/prog 를 0.7초마다 물어 막대를 그린다.
+#   · 장부에는 단계 이름·건수·글만 들어 있고(종목·개인 정보 없음) 서버 재시작 때 비워진다.
+# ══════════════════════════════════════════════════════════════
+_PROG = {}
+_PROG_DECL = {}
+_PROG_LOCK = threading.Lock()
+
+
+def prog_declare(key, label):
+    _PROG_DECL[str(key)] = str(label)
+
+
+def prog_begin(key, label="", stages=None):
+    st = [(str(a), float(b)) for a, b in (stages or [])] or [("진행", 1.0)]
+    with _PROG_LOCK:
+        _PROG[key] = {"k": key, "label": label or _PROG_DECL.get(key, key), "names": [a for a, _ in st], "w": [b for _, b in st],
+                      "i": 0, "frac": 0.0, "text": "", "t0": time.time(), "t1": 0.0, "upd": time.time(), "active": True, "ok": True}
+        if len(_PROG) > 200:
+            for k in sorted(_PROG, key=lambda x: _PROG[x]["upd"])[:80]:
+                _PROG.pop(k, None)
+
+
+def prog_stage(key, i, text=""):
+    e = _PROG.get(key)
+    if not e or not e["active"]:
+        return
+    e["i"] = max(0, min(int(i), len(e["w"]) - 1))
+    e["frac"] = 0.0
+    if text:
+        e["text"] = str(text)[:80]
+    e["upd"] = time.time()
+
+
+def prog_item(key, done, total, text=""):
+    e = _PROG.get(key)
+    if not e or not e["active"]:
+        return
+    try:
+        e["frac"] = max(0.0, min(1.0, float(done) / float(total))) if total else 0.0
+    except Exception:
+        e["frac"] = 0.0
+    e["text"] = (str(text)[:80] if text else "%d/%d" % (done, total))
+    e["upd"] = time.time()
+
+
+def prog_end(key, ok=True, text=""):
+    e = _PROG.get(key)
+    if not e or not e["active"]:
+        return
+    e["active"] = False
+    e["ok"] = bool(ok)
+    e["t1"] = time.time()
+    e["upd"] = e["t1"]
+    if text:
+        e["text"] = str(text)[:80]
+
+
+def _prog_view(e):
+    w = e["w"]
+    tot = sum(w) or 1.0
+    base = sum(w[:e["i"]]) / tot
+    pct = base + (w[e["i"]] / tot) * e["frac"]
+    now = time.time()
+    if e["active"] and now - e["upd"] > 180:      # 3분 넘게 소식이 없으면 멈춘 것으로 본다
+        e["active"] = False
+        e["ok"] = False
+        e["t1"] = now
+    if not e["active"] and e["ok"]:
+        pct = 1.0
+    return {"k": e["k"], "label": e["label"], "active": e["active"], "ok": e["ok"], "pct": round(pct * 100, 1), "i": e["i"], "n": len(w),
+            "stage": e["names"][e["i"]], "stages": e["names"], "text": e["text"], "elapsed": round((e["t1"] or now) - e["t0"], 1),
+            "ago": round(now - e["t1"], 1) if e["t1"] else 0, "since": round(now - e["t0"], 1)}
+
+
+@app.route("/admin/api/prog")
+def admin_api_prog():
+    if request.environ.get("mini.gateway"):
+        if not _gw_rate_ok(limit=400):
+            return _admin_json({"error": "요청이 너무 많아요."}, 429)
+    else:
+        deny = _admin_deny()
+        if deny:
+            return deny
+    k = (request.args.get("k") or "").strip()
+    if not k:
+        return _admin_json({"keys": _PROG_DECL})
+    e = _PROG.get(k)
+    if not e:
+        return _admin_json({})
+    return _admin_json(_prog_view(e))
+
+
 @app.route("/admin/api/ai/status")
 def admin_api_ai_status():
     deny = _admin_deny()
@@ -6421,6 +6525,9 @@ HTML_TEMPLATE = r"""
   @keyframes spin{to{transform:rotate(360deg);}}
   .loadingMsg{font-size:14px; font-weight:700; color:var(--navy);}
   .loadingSub{font-size:12px; color:var(--muted); margin-top:2px;}
+  .loadBar{height:8px; border-radius:6px; background:#e3e8f0; margin-top:8px; overflow:hidden; min-width:200px;}
+  .loadBar i{display:block; height:100%; width:3%; border-radius:6px; background:linear-gradient(90deg,#1e3a8a,#2563eb); transition:width .45s ease;}
+  .loadPct{font-size:11.5px; color:var(--muted); margin-top:3px; font-weight:700;}
   #result.dim{opacity:.45; transition:opacity .15s;}
   .errorCard{display:none; background:#fff1f2; border:1px solid #fecdd3; border-radius:var(--radius); padding:16px 20px; margin:0 0 16px;}
   .errorCard.show{display:block;}
@@ -6964,7 +7071,8 @@ HTML_TEMPLATE = r"""
   </div>
   <div id="loadingCard" class="loadingCard"><div class="spinner"></div>
     <div><div class="loadingMsg" id="loadingMsg">📈 주가 데이터를 불러오는 중…</div>
-    <div class="loadingSub" id="loadingSub">보통 2~3초면 끝나요</div></div></div>
+    <div class="loadingSub" id="loadingSub">보통 2~3초면 끝나요</div>
+    <div class="loadBar" id="loadBar"><i id="loadBarFill"></i></div><div class="loadPct" id="loadPct"></div></div></div>
 
   <div id="emptyState" class="empty">
     <div class="big">🔍</div>
@@ -7480,19 +7588,33 @@ const _LOADING_STEPS = ['📈 주가 데이터를 불러오는 중…', '🏢 �
 function _showLoading(on){
   const card = document.getElementById('loadingCard');
   clearInterval(_loadingTimer);
-  if(!on){ card.classList.remove('show'); document.getElementById('result').classList.remove('dim'); return; }
+  if(!on){
+    try{ if(window._loadStart){ const sec = (Date.now() - window._loadStart) / 1000; const old = parseFloat(localStorage.getItem('stockLoadDur')) || sec; localStorage.setItem('stockLoadDur', String(Math.round((old * 0.5 + sec * 0.5) * 10) / 10)); window._loadStart = 0; } }catch(e){}
+    const f = document.getElementById('loadBarFill'); if(f) f.style.width = '100%';
+    card.classList.remove('show'); document.getElementById('result').classList.remove('dim'); return; }
   let i = 0, started = Date.now();
   document.getElementById('loadingMsg').textContent = _LOADING_STEPS[0];
   document.getElementById('loadingSub').textContent = '보통 2~3초면 끝나요';
   card.classList.add('show');
   document.getElementById('result').classList.add('dim');
   window.scrollTo({top: 0, behavior: 'smooth'});
+  // [v202] 진행률 막대 — 지난번 걸린 시간(이 브라우저에 기억)으로 어림한 ‘예상’ 진행률이에요.
+  let est = 3; try{ est = parseFloat(localStorage.getItem('stockLoadDur')) || 3; }catch(e){}
+  window._loadStart = started;
+  const fill = document.getElementById('loadBarFill'), pctEl = document.getElementById('loadPct');
+  const paintBar = ()=>{
+    const el = (Date.now() - started) / 1000, p = Math.min(95, 92 * (1 - Math.exp(-el / (est / 1.6))));
+    fill.style.width = Math.max(3, p) + '%';
+    pctEl.textContent = '예상 진행률 ' + Math.round(p) + '% · ' + Math.round(el) + '초' + (el > 4 && p > 8 ? ' · 약 ' + Math.max(1, Math.round(el * (100 - p) / p)) + '초 남음' : '');
+  };
+  paintBar();
   _loadingTimer = setInterval(()=>{
     i = Math.min(i + 1, _LOADING_STEPS.length - 1);
     document.getElementById('loadingMsg').textContent = _LOADING_STEPS[i];
     if(Date.now() - started > 7000)
       document.getElementById('loadingSub').textContent = '평소보다 오래 걸리고 있어요. 네이버 응답을 기다리는 중입니다…';
   }, 900);
+  const bt = setInterval(()=>{ if(!card.classList.contains('show')){ clearInterval(bt); return; } paintBar(); }, 400);
 }
 
 function analyze(ticker){
@@ -9336,6 +9458,19 @@ HELP_HTML = r"""
       <dt>버튼을 눌렀는데 반응이 없는 것 같아요 (v196)</dt>
       <dd>버튼을 누르면 화면 오른쪽 위에 "눌렀어요 → 처리 중… N초 → 완료(또는 실패 사유)" 알림이 나타납니다. 알림이 계속 "처리 중"이면 서버가
         일하는 중이니 잠시 기다려 주세요. 알림이 아예 안 뜨면 페이지를 새로고침(Ctrl+F5) 해 주세요.</dd>
+      <dt>블로그 붙여넣기 — 제목 자동 복사·AI 원문 차단 (v204 · AI 도우미 1.5.17)</dt>
+      <dd>[복사하고 블로그 열기] 뒤 네이버 글쓰기 화면에서 본문 빈 줄을 클릭하고 Ctrl+V 로 본문을 붙이면, 도우미가 끝난 것을 확인한 뒤 <b>제목만 자동으로 복사</b>해 둬요.
+        그다음 제목 칸을 클릭하고 Ctrl+V 만 하면 됩니다(위쪽 띠의 [🔁 제목 자동복사]로 끌 수 있어요). 또 클립보드에 서식 없는 AI 원문(** 나 ## 가 그대로 보이는 글)이 남아 있으면
+        도우미가 붙여넣기를 막고 제목 포함 본문을 다시 복사해 줘요. 이 기능은 /ai-helper 에서 도우미를 1.5.17로 다시 설치해야 적용돼요.</dd>
+      <dt>뉴스 블로그 글의 ‘뉴스 핵심 요약’ (v203)</dt>
+      <dd>뉴스분석에서 [블로그 글 만들기]를 하면 ‘📰 뉴스 핵심 요약’ 제목 바로 아래에 <b>‘📝 한 줄 요약 — …’</b> 문장이 글자로 들어가요(이미지에만 있던 요약이 복사되지 않던 문제를 고쳤어요).
+        요약을 글에서 빼고 싶으면 글 만들기 옵션의 ‘한 줄 요약’ 체크를 끄세요.</dd>
+      <dt>진행 막대(프로그래스바)는 어떻게 보나요? (v202)</dt>
+      <dd>오래 걸리는 버튼(후보 만들기·성과 확인·자료 가져오기·심층분석 등)을 누르면 오른쪽 위 알림과 화면 위쪽에 <b>막대와 %</b>가 함께 나와요.
+        초단기 후보 만들기·성과 확인, 누적 승률 갱신, 오늘추천 성과 확인, 심층분석 자료 모으기, 시장수급 가져오기는 서버가 알려 주는 <b>실제 진행률</b>
+        (예: “단계 5/7 종목별 최신 수급 조회 · 24/57종목”)을 보여 줘요. 그 밖의 버튼은 지난번 걸린 시간을 기억해 두었다가 맞춘 <b>‘예상 진행률’</b>이라 실제와 조금 다를 수 있어요
+        (끝나면 100%로 바뀌고 걸린 시간이 기록돼 다음에 더 잘 맞아요). 종목 분석 화면도 분석 중에 막대가 나오고, [4단계·5단계 막대(후보→AI→이미지→글→블로그)] 아래에는
+        ‘전체 진행 3/5단계’ 막대가 붙어요. 막대가 오래 한 자리에 머물면 데이터 사이트(네이버 등) 응답을 기다리는 중이에요.</dd>
       <dt>⚡ 초단기(장전) 후보 (v198 · 관리자 전용, 공개는 설정에서)</dt>
       <dd>오늘추천에서 저장한 최근 스캔(전일 종가 기준)에 미국 증시·VIX·환율(장 환경), 외국인·기관 수급, 테마, 뉴스 제목, 재무 상태를 겹쳐 ‘오늘 시가 부근에서 사서
         당일 오후에 정리하거나 1~2영업일 안에 오를 가능성이 있는’ 종목을 규칙으로 골라요. 재무가 나쁜 종목(2년 연속 영업적자·자본잠식 의심·부채비율 500% 이상 등)은 빠지고,

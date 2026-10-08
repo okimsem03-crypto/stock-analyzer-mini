@@ -1872,7 +1872,7 @@ def _fence_repl(m):
     return "\n" + body.strip("\n") + "\n"
 
 
-def _blog_split(text):
+def _blog_split(text, keep=False):
     """AI 분석문 → (한 줄 요약, 요약 줄을 뺀 본문). 요약을 뽑지 못했으면 줄을 지우지 않는다(글에서 사라지지 않게)."""
     t = _FENCE.sub(_fence_repl, str(text or "")[:40000]).replace("```", "").replace("\r", "")
     lines = t.split("\n")
@@ -1888,6 +1888,8 @@ def _blog_split(text):
                         sm, drop = re.sub(r"\*\*", "", lines[j]).strip(" >-•·"), [i, j]
                     break
         if sm:
+            if keep:     # [v203] 글 안에 그대로 둔다 — ‘📰 뉴스 핵심 요약’ 제목 바로 아래에 텍스트로 남아야 복사된다(박스만 따로 위에 두면 제목 아래가 비어 보였다)
+                return sm[:200], "\n".join((("**📝 한 줄 요약 — " + sm[:200] + "**") if k == drop[0] else l) for k, l in enumerate(lines) if k not in drop[1:]).strip()
             return sm[:200], "\n".join(l for k, l in enumerate(lines) if k not in drop).strip()
         break
     return "", t.strip()
@@ -1932,7 +1934,10 @@ def build_news_blog(d):
     h = [B.seo_box(title, ("오늘 뉴스 전체의 흐름과 자주 나온 종목을 AI로 정리했습니다." if kind == "ov" else "뉴스 한 건을 AI로 풀어 읽고 관련 종목을 정리했습니다.") + f" (기준 {date_k})", kw)]
     sub = f"{E(source or '네이버 금융')} · {date_k}" + (f"<br>관련 종목 {len(stocks)}개" if stocks else "")
     h.append(B.head_box("NEWS BRIEF", E((ntitle or title)[:150]), sub))
-    if inc["summary"] and sm:
+    keep_sum = bool(inc["summary"] and sm and inc["ai"] and ai)        # [v203] AI 본문이 들어가면 한 줄 요약은 본문 속 제 자리(핵심 요약 제목 아래)에 텍스트로 둔다
+    if keep_sum:
+        ai = _blog_split(ai_raw, keep=True)[1]
+    if inc["summary"] and sm and not keep_sum:
         h.append(f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border-collapse:collapse;{B.FONT}"><tr><td bgcolor="#eff6ff" style="background-color:#eff6ff;border-left:6px solid #1e3a8a;padding:14px 18px;">'
                  f'<div style="font-size:12px;font-weight:800;color:#1e3a8a;margin-bottom:4px;">&#128221; 한 줄 요약</div><div style="font-size:16px;font-weight:800;color:#0f172a;line-height:1.7;">{E(sm)}</div></td></tr></table>')
     h.append(B.engage_box())

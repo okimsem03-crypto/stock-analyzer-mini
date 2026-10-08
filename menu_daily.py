@@ -975,8 +975,12 @@ def api_track():
     deny = _admin_deny()
     if deny:
         return deny
+    PK = "daily/track"
+    C.prog_begin(PK, "오늘추천 성과 확인", [("추천 기록 읽기", 10), ("현재가 조회", 60), ("만기 평가·통계", 30)])
     rows = _track_rows(120)
+    C.prog_stage(PK, 1, f"{min(len(rows), 80)}종목 현재가 조회 중")
     lp = live_prices([r["ticker"] for r in rows[:80]]) if rows else {}
+    C.prog_stage(PK, 2, "만기 평가·통계 계산 중")
     today = _now_kst().strftime("%Y-%m-%d")
     changed = 0
     for r in rows:
@@ -1003,6 +1007,7 @@ def api_track():
         ev = [t for t in g if t["outcome"] in ("win", "lose", "flat")]
         stat[key] = {"n": len(g), "avg": round(sum(t["ret"] for t in g) / len(g), 2) if g else None, "up": round(sum(1 for t in g if t["ret"] > 0) / len(g) * 100) if g else None,
                      "ev": len(ev), "win": round(sum(1 for t in ev if t["outcome"] == "win") / len(ev) * 100) if ev else None}
+    C.prog_end(PK, True, "완료")
     return _admin_json({"rows": rows[:150], "stat": stat, "settled": changed})
 
 
@@ -1431,6 +1436,7 @@ window.DyImg={build:function(rows,ps,date,scale,excl){var out=[{idx:1,label:'추
 
 
 def register():
+    C.prog_declare("daily/track", "오늘추천 성과 확인")
     C.register_table_hook(_ensure_tables)
     C.register_settings({"daily_cfg": json.dumps(DEFAULT_CFG, ensure_ascii=False), "daily_last_scan": ""}, {"daily_cfg": _valid_cfg})
     C.register_menu({"id": "daily", "label": "오늘추천", "icon": "🌟", "public_path": "/m/daily", "admin_path": "/admin#dy",
