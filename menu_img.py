@@ -208,12 +208,12 @@ K.panel=function(box,o){ensureCss();box.innerHTML='';var P=el('div','ikp');box.a
  function draw(){view.innerHTML='';S.items.forEach(function(it){var c=el('div','ikc');c.appendChild(el('b',null,K.CIRC[it.idx-1]+' '+it.label));var im=new Image();im.alt=it.label;
   var pw=Math.min(720,it.canvas.width),sm=document.createElement('canvas');sm.width=pw;sm.height=Math.round(it.canvas.height*pw/it.canvas.width);sm.getContext('2d').drawImage(it.canvas,0,0,sm.width,sm.height);im.src=sm.toDataURL('image/png');c.appendChild(im);var r=el('div','ikr');var sv=el('button','ikb','💾 저장');sv.onclick=function(){one(it,false).then(function(x){report([x])})};r.appendChild(sv);
   c.appendChild(r);c.appendChild(el('div','ikn',K.fileName(it.idx,o.name,o.ticker)+' · '+it.canvas.width+'×'+it.canvas.height));view.appendChild(c)});bAll.style.display=''}
- function gen(auto){if(S.busy)return Promise.resolve();S.busy=true;bGen.disabled=true;bGen.textContent='⏳ 그리는 중…';
-  return K.loadCfg().then(K.fonts).then(function(){return o.gen(K._cfg.scale)}).then(function(items){S.items=items;K._last={menu:o.menu,ticker:String(o.ticker||''),name:o.name||'',ts:Date.now(),items:items};draw();bGen.textContent='🔄 다시 만들기';if(o.onDone){try{o.onDone()}catch(e){}}
+ function gen(auto){if(S.busy)return S.p||Promise.resolve();S.busy=true;bGen.disabled=true;bGen.textContent='⏳ 그리는 중…';
+  S.p=K.loadCfg().then(K.fonts).then(function(){return o.gen(K._cfg.scale)}).then(function(items){S.items=items;K._last={menu:o.menu,ticker:String(o.ticker||''),name:o.name||'',ts:Date.now(),items:items};draw();bGen.textContent='🔄 다시 만들기';if(o.onDone){try{o.onDone()}catch(e){}}
    return refresh().then(function(){if(auto&&K.mode()==='auto')return saveAll(true)})})
    .catch(function(e){toast('이미지를 만들지 못했어요: '+(e&&e.message||e));bGen.textContent='🖼 이미지 만들기'})
-   .then(function(){S.busy=false;bGen.disabled=false})}
- bGen.onclick=function(){gen(false)};bAll.onclick=function(){saveAll(false)};
+   .then(function(){S.busy=false;S.p=null;bGen.disabled=false});return S.p}
+ bGen.onclick=function(){gen(false).then(function(){if(o.next&&S.items){try{o.next()}catch(e){}}})};bAll.onclick=function(){saveAll(false)};
  refresh();
  return {gen:gen,refresh:refresh,items:function(){return S.items}}};
 })();

@@ -980,7 +980,7 @@ function dpDraw(p){var d=DP.d,b=$('dpBody');if(!d||!b)return;dpCss();b.innerHTML
  var c10=dpSec(b,'img',MEMBER_MODE?'🖼 요약 이미지 (3장)':'🖼 블로그용 이미지 (3장)','① 메인 · ② 5개년 재무 · ③ 통합 요약','#e11d48');navAdd('img','🖼 이미지');
  if(dpLk('img'))dpLock(c10,'img','체력지표·5축·재무 차트를 이미지로 만들어 내려받는 기능은 등급에 따라 열려요.');else{
  c10.appendChild(el('p','note',MEMBER_MODE?'① 체력지표·5축 레이더 메인 이미지, ② 5개년 매출·영업이익 차트와 재무표, ③ 체력·밸류에이션·PEER·체크리스트 통합 이미지예요. 지금 화면에 보이는 자료로 그려지며, 잠긴 구역은 이미지에서도 비어 있어요.':'① 체력지표·5축 레이더가 가운데 오는 메인 이미지, ② 5개년 매출·영업이익 차트와 재무표, ③ 체력·밸류에이션·PEER·체크리스트를 한 장에 모은 통합 이미지예요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
- var ib=el('div');c10.appendChild(ib);if(MEMBER_MODE)dpImgMember(ib,d);else DP.imgPanel=ImgKit.panel(ib,{menu:'deep',name:d.name,ticker:d.ticker,onDone:function(){DP.st.img=true;dpSteps()},gen:function(scale){return Promise.resolve(window.DpImg.build(d,scale))}});}
+ var ib=el('div');c10.appendChild(ib);if(MEMBER_MODE)dpImgMember(ib,d);else DP.imgPanel=ImgKit.panel(ib,{menu:'deep',name:d.name,ticker:d.ticker,onDone:function(){DP.st.img=true;dpSteps()},next:function(){if(window.MiniFlow)MiniFlow.run('deep',DPFLOW,DPACTS,'img')},gen:function(scale){return Promise.resolve(window.DpImg.build(d,scale))}});}
  /* ── 블로그 ── */
  if(!MEMBER_MODE){var c9=dpSec(b,'blog','📝 블로그 글 쓰기','원본 방식 HTML'+((d.delisting&&d.delisting.level&&d.delisting.level!=='none')?' · ⚠ 위험 경고 자동 포함':''),'#16a34a');navAdd('blog','📝 글');var bx=el('div');c9.appendChild(bx);
  var secs=[['profile','기업현황'],['fin','5개년재무'],['score','체력진단'],['valu','밸류에이션'],['peers','PEER'],['check','체크리스트'],['supply','수급'],['disc','공시·뉴스'],['ai','AI분석'],['terms','용어풀이']];

@@ -2279,7 +2279,7 @@ function nrDashImg(keep){var b=$('nrImgD');if(!b)return;if(!NR.dashOpen){b.inner
  var gen=function(scale){if(!NR.ov)return Promise.reject(new Error('대시보드 집계가 아직 없어요. 새로고침 후 다시 눌러 주세요.'));var stocks=nrDashStocks();var res=NR.res['ov:'+NR.cat];
   return nrFetchMinis(stocks.map(function(s){return s.ticker})).then(function(){return window.NwImg.dash({ov:NR.ov,label:NR.lat?NR.lat.label:'',stocks:stocks,minis:NR.minis,ai:res?{summary:nrSum(res.j.ai_text),lines:nrLines(res.j.ai_text,8)}:null},scale)})};
  NR.dashP=nrImgMount(b,{name:'뉴스대시보드',ticker:window.ImgKit.dateDir(),perStock:false,gen:gen})}
-function nrImgMount(box,o){var K=window.ImgKit;if(!MEMBER_MODE&&K&&K.panel)return K.panel(box,{menu:'news',name:o.name,ticker:o.ticker,perStock:o.perStock,onDone:o.onDone,gen:o.gen});
+function nrImgMount(box,o){var K=window.ImgKit;if(!MEMBER_MODE&&K&&K.panel)return K.panel(box,{menu:'news',name:o.name,ticker:o.ticker,perStock:o.perStock,onDone:o.onDone,next:o.next,gen:o.gen});
  box.innerHTML='';var row=el('div','bar'),view=el('div','nrSg'),st=el('div','m');var S={items:null};
  var go=bt('🖼 이미지 만들기','bt',function(){go.disabled=true;go.textContent='⏳ 그리는 중…';view.innerHTML='';st.textContent='';
   Promise.resolve(K&&K.fonts?K.fonts():0).then(function(){return o.gen(2)}).then(function(items){S.items=items;items.forEach(function(it){var c=el('div','nrSc');c.appendChild(el('b',null,K.CIRC[it.idx-1]+' '+it.label));
@@ -2337,7 +2337,7 @@ function nrResult(R,rs){var j=rs.j,ctx=rs.ctx;var c=el('div','nwS nrRes');var h=
  var bi=el('button','bt3','🖼 이미지 만들기');if(MEMBER_MODE)ab.appendChild(bi);c.appendChild(ab);var ib=el('div','nrImg');ib.id='nrImgR';c.appendChild(ib);nrBlogMount(c,rs,j,ctx);R.appendChild(c);
  NR.imgP=null;NR.mountImg=function(){if(!NR.imgP&&$('nrImgR')===ib)mount();return NR.imgP};function mount(){if(!ftOk('overview')){lockDlg('overview');return}if(!window.ImgKit||!window.NwImg){ib.textContent='이미지 도우미를 불러오지 못했어요. 새로고침해 주세요.';return}
   var nm=(ctx.title||'뉴스').replace(/\s+/g,' ').slice(0,18),id=ctx.kind==='ov'?window.ImgKit.dateDir():(String(ctx.url||'').replace(/\D/g,'').slice(-8)||window.ImgKit.dateDir());
-  NR.imgP=nrImgMount(ib,{name:ctx.kind==='ov'?'뉴스총평':nm,ticker:id,perStock:ctx.kind!=='ov',onDone:function(){rs.img=true;nrSteps()},gen:function(scale){var tks=(j.stocks||[]).map(function(s){return s.ticker});
+  NR.imgP=nrImgMount(ib,{name:ctx.kind==='ov'?'뉴스총평':nm,ticker:id,perStock:ctx.kind!=='ov',onDone:function(){rs.img=true;nrSteps()},next:function(){if(!MEMBER_MODE&&window.MiniFlow)window.MiniFlow.run('news',NRFLOW,NRACTS,'img')},gen:function(scale){var tks=(j.stocks||[]).map(function(s){return s.ticker});
    return nrFetchMinis(tks).then(function(){return window.NwImg.res({title:j.title_ko||ctx.title,source:ctx.source,kind:ctx.kind,label:ctx.label,summary:sm,lines:nrLines(j.ai_text,7),stocks:j.stocks||[],minis:NR.minis,cls:ctx.cls||null},scale)})}})}
  bi.onclick=function(){if(NR.imgP){NR.imgP.gen(false);return}mount();if(NR.imgP&&NR.imgP.gen)NR.imgP.gen(false)};NR.imgGo=function(){bi.onclick()};
  if(!MEMBER_MODE&&ftOk('overview'))setTimeout(function(){if($('nrImgR')===ib&&!NR.imgP)mount()},30)}

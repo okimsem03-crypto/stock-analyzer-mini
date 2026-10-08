@@ -1153,7 +1153,7 @@ function thImgBuild(scale){return thEnsure().then(function(){return Promise.all(
 function thSecImg(box){box.appendChild(el('p','note',MEMBER_MODE?'오늘의 테마 순위를 한 장의 대시보드 이미지로 만들어 내려받아요. 참고 자료이며 투자 권유가 아니에요.':'① 테마 대시보드(강세·약세 막대, 테마별 수급) ② AI 해설 요약(AI 해설이 있을 때)을 이미지로 그려요. 저장 폴더·자동/수동 저장은 [⚙ 저장 설정]에서 정해요. 이 이미지를 블로그 글 위쪽에 올려 쓰세요.'));
  var ib=el('div');box.appendChild(ib);if(!window.ImgKit){ib.appendChild(el('p','note bad','이미지 도구(menu_img.py)가 올라가지 않았어요.'));return}
  if(MEMBER_MODE){thImgMember(ib);return}
- TH.imgPanel=ImgKit.panel(ib,{menu:'theme',name:'네이버테마',ticker:thStamp(),perStock:false,onDone:function(){TH.flag.img=true;thSteps()},gen:function(scale){return thImgBuild(scale)}});
+ TH.imgPanel=ImgKit.panel(ib,{menu:'theme',name:'네이버테마',ticker:thStamp(),perStock:false,onDone:function(){TH.flag.img=true;thSteps()},next:function(){if(window.MiniFlow)MiniFlow.run('theme',THFLOW,THACTS,'img')},gen:function(scale){return thImgBuild(scale)}});
  if(TH.flag.img)TH.imgPanel.gen(false)}
 function thImgMember(ib){var K=window.ImgKit,row=el('div','bar'),view=el('div','thImgG'),st=el('div','m');
  var go=bt('🖼 이미지 만들기','bt',function(){go.disabled=true;go.textContent='⏳ 그리는 중…';view.innerHTML='';st.textContent='';

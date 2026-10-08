@@ -235,7 +235,7 @@ function run(opt){
   var rc=el('button','ma-btn','📋 다시 복사');rc.onclick=function(){armed=true;seen[norm(s.prompt)]=1;var k=copyText(s.prompt);setLive(k?'프롬프트를 다시 복사했어요.':'복사가 막혔어요. [프롬프트 보기]에서 직접 복사해 주세요.',k?'ok':'bad')};row.appendChild(rc);s1.appendChild(row);
   if(helperOk()){var hl=el('label','ma-sw');var hc=el('input');hc.type='checkbox';hc.checked=helperOn();hc.onchange=function(){lsSet('mini_ai_helper',hc.checked?'1':'0');draw()};hl.appendChild(hc);hl.appendChild(el('span',null,'🤖 AI 도우미 사용 — 입력·전송·답변 복사를 자동으로 (끄면 직접 붙여넣기)'));s1.appendChild(hl);
    s1.appendChild(el('div','ma-d','✅ 도우미 연결됨 (v'+helperVer()+')'));var dn=helperDupNote();if(dn)s1.appendChild(el('div','ma-live bad',dn))}
-  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode(helperHas()?'❌ 설치된 AI 도우미(v'+helperVer()+')가 옛 버전이라 작업을 받지 못해요 — [설치·점검 방법]에서 최신 버전(1.5.17)으로 업데이트(재설치)한 뒤 이 화면을 새로고침하세요. 그때까지는 ‘복사 → 붙여넣기’ 방식으로 진행돼요. ':'❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
+  else{var hn=el('div','ma-live bad');hn.appendChild(document.createTextNode(helperHas()?'❌ 설치된 AI 도우미(v'+helperVer()+')가 옛 버전이라 작업을 받지 못해요 — [설치·점검 방법]에서 최신 버전(1.5.18)으로 업데이트(재설치)한 뒤 이 화면을 새로고침하세요. 그때까지는 ‘복사 → 붙여넣기’ 방식으로 진행돼요. ':'❌ AI 도우미가 이 화면에서 감지되지 않아요 — 지금은 ‘복사 → 붙여넣기’ 방식으로 진행돼요. 설치했다면: 크롬 확장 프로그램 → Tampermonkey → 사이트 액세스 ‘모든 사이트에서’, ‘사용자 스크립트 허용’ 켜기 → 이 화면 새로고침. '));
    var hr=el('button','ma-btn','🔄 다시 확인');hr.onclick=function(){if(helperHas()){draw()}else{hr.textContent='아직 감지 안 됨 — 새로고침이 필요해요'}};hn.appendChild(hr);hn.appendChild(document.createTextNode(' '));
    var ha=el('a',null,'설치·점검 방법');ha.href='/ai-helper';ha.target='_blank';ha.rel='noopener';hn.appendChild(ha);s1.appendChild(hn)}
   s1.appendChild(el('div','ma-d',helperOn()?SITES[site].n+' 새 탭이 열리면 도우미가 프롬프트 입력 → 전송 → 답변 복사까지 알아서 하고, 끝나면 탭을 닫으며 답변을 이 창으로 보내 줘요. 위쪽 🤖 띠에서 진행 상황을 볼 수 있어요.':(SITES[site].q&&encodeURIComponent(s.prompt).length<=PREFILL_MAX*3?SITES[site].n+'가 열리면 질문이 자동으로 입력됩니다. 입력이 비어 있으면 입력칸에 Ctrl+V 하세요.':SITES[site].n+'가 열리면 입력칸에 Ctrl+V(붙여넣기) 한 번만 하세요. 프롬프트는 이미 복사되어 있습니다.')));
@@ -304,7 +304,7 @@ function run(opt){
     if(j.status==='running'){setLive('🤖 '+(PROVN[runInfo&&runInfo.provider]||'AI')+'가 분석 중이에요… '+Math.round((Date.now()-t0)/1000)+'초','ok',true);if(n>200)return srvFail('응답이 너무 오래 걸려요',steps[cur]);return poll(id,tok,t0,n+1)}
     if(j.status==='done'&&j.result&&j.result.text){lastRaw=j.result.text;onText(String(j.result.text).trim(),false,true);return}
     srvFail((j.errors&&j.errors[0])||j.error||'AI 응답 실패',steps[cur])}).catch(function(){if(tok!==srvRun||closed)return;if(n>200)srvFail('응답을 받지 못했어요',steps[cur]);else poll(id,tok,t0,n+1)})},n===0?1500:2500)}
- function oldHelperNote(){return (helperHas()&&!helperOk())?' ⚠ 설치된 AI 도우미(v'+helperVer()+')는 옛 버전이라 쓰지 않아요 — /ai-helper 에서 최신 버전(1.5.17)으로 업데이트(재설치)하면 완전 자동이 돼요.':''}
+ function oldHelperNote(){return (helperHas()&&!helperOk())?' ⚠ 설치된 AI 도우미(v'+helperVer()+')는 옛 버전이라 쓰지 않아요 — /ai-helper 에서 최신 버전(1.5.18)으로 업데이트(재설치)하면 완전 자동이 돼요.':''}
  function srvHint(m){m=String(m||'');var h='';
   if(/429|quota|RESOURCE_EXHAUSTED|rate.?limit/i.test(m))h='AI 사용 한도(쿼터)를 넘었거나 결제 설정이 필요해요.';
   else if(/401|403|API.?key|PERMISSION|unauthor/i.test(m))h='API 키가 틀렸거나 권한이 없어요(Render 환경변수 확인).';
@@ -515,7 +515,7 @@ def _js_str(s):
 HELPER_JS = r"""// ==UserScript==
 // @name         종목분석 미니 · AI 도우미
 // @namespace    __ORIGIN__
-// @version      1.5.17
+// @version      1.5.18
 // @updateURL    __ORIGIN__/assets/mini-ai-helper.user.js
 // @downloadURL  __ORIGIN__/assets/mini-ai-helper.user.js
 // @description  종목분석 미니에서 [AI 열기]를 누르면 AI 사이트에서 프롬프트 입력 → 전송 → 답변 복사 → 탭 닫기까지 자동으로 해 주고, 블로그 글쓰기 화면이 열리면 제목·상단 이미지·본문을 자동으로 넣어 줍니다(발행은 직접).
@@ -536,13 +536,13 @@ HELPER_JS = r"""// ==UserScript==
 // @grant        window.close
 // @run-at       document-start
 // ==/UserScript==
-/* 종목분석 미니 AI 도우미 v1.5.17
+/* 종목분석 미니 AI 도우미 v1.5.18
  * · 종목분석 미니 화면에서 보낸 작업(프롬프트)만 처리합니다. 다른 경로로 열린 AI 화면은 건드리지 않아요.
  * · 이 스크립트는 사용자의 브라우저 안에서만 동작하며, 로그인 정보·대화 내용을 어디로도 보내지 않습니다.
  * · AI 사이트 화면이 개편되면 자동 진행이 멈출 수 있어요. 그때는 프롬프트가 복사돼 있으니 직접 붙여넣으면 됩니다. */
 (function () {
   'use strict';
-  var ORIGIN = '__ORIGIN__', VER = '1.5.17';
+  var ORIGIN = '__ORIGIN__', VER = '1.5.18';
   function gget(k) { try { return Promise.resolve(GM_getValue(k, null)); } catch (e) { return Promise.resolve(null); } }
   function gset(k, v) { try { return Promise.resolve(GM_setValue(k, v)); } catch (e) { return Promise.resolve(); } }
   function gdel(k) { try { return Promise.resolve(GM_deleteValue(k)); } catch (e) { return Promise.resolve(); } }
@@ -878,7 +878,7 @@ HELPER_JS = r"""// ==UserScript==
           var parts = [];
           if (hasImg) parts.push(im ? (done.total > 1 ? '✅ 이미지 ' + done.n + '/' + done.total + '장' : '✅ 상단 이미지') : (done.total > 1 && done.n ? '⚠ 이미지 ' + done.n + '/' + done.total + '장만 들어갔어요(나머지는 [🖼 이미지 복사] 후 Ctrl+V)' : null) ||  '⚠ 상단 이미지는 자동으로 안 들어갔어요([🖼 이미지 복사] → 본문 첫 줄 클릭 → Ctrl+V, 필요 없으면 무시)');
           parts.push(bd ? '✅ 본문' : '📝 본문: 이미지 아래 빈 줄을 클릭하고 Ctrl+V (제목 포함 본문이 복사돼 있어요)');
-          parts.push(tt ? '✅ 제목' : (autoTitle ? (bd ? '📝 제목: 제목이 복사돼 있어요 → 제목 칸을 클릭하고 Ctrl+V' : '📝 제목: 본문을 붙이면 제목이 자동으로 복사돼요 → 제목 칸을 클릭하고 Ctrl+V') : '📝 제목: 본문 맨 위 제목 줄을 제목 칸으로 옮기거나 [📋 제목만 복사] 후 제목 칸에 Ctrl+V'));
+          parts.push(tt ? '✅ 제목' : (autoTitle ? (bd ? '📝 제목: 제목 칸을 클릭한 뒤 Ctrl+V (클릭하면 제목이 자동으로 복사돼요)' : '📝 제목: 본문을 붙인 뒤 제목 칸을 클릭하고 Ctrl+V') : '📝 제목: 본문 맨 위 제목 줄을 제목 칸으로 옮기거나 [📋 제목만 복사] 후 제목 칸에 Ctrl+V'));
           var all = bd && tt && (im || !hasImg);
           if (all) { clearInterval(timer); }
           banner(parts.join(' · ') + (all ? ' — 확인 후 [발행]을 눌러 주세요.' : '') + (note ? ' · ' + note : ''), all ? 'ok' : (im ? null : 'warn'), [
@@ -890,7 +890,7 @@ HELPER_JS = r"""// ==UserScript==
         /* [v1.5.17] 붙여넣기 감시 — ① 클립보드에 AI 원문(** 와 ## 가 그대로 보이는 글)이 남아 있으면 편집기에 들어가기 전에 막고 제목 포함 본문을 다시 복사해요.
            ② 서식 있는 본문이 붙으면 끝난 뒤 제목만 클립보드에 올려, 제목 칸에서 Ctrl+V 만 하면 되게 해요(제목을 본문에서 따로 복사하지 않아도 돼요). */
         function rawMd(t) { t = String(t || ''); return t.length > 150 && /\*\*[^*\n]+\*\*/.test(t) && (/(^|\n)\s*#{2,4}\s/.test(t) || /```/.test(t) || /(^|\n)\s*[-*]\s+\*\*/.test(t)); }
-        var titleBusy = false;
+        var titleBusy = false, bodyPasted = false, titleReady = false;
         document.addEventListener('paste', function (ev) {
           try {
             var tg = ev.target, cd = ev.clipboardData, rt = q1(SEL.root);
@@ -905,6 +905,7 @@ HELPER_JS = r"""// ==UserScript==
               setNote('⚠ 클립보드에 AI 원문(** 와 ## 가 보이는 글)이 있어 붙여넣기를 막았어요. ' + (okc ? '제목 포함 본문을 다시 복사했어요 — 본문 빈 줄을 클릭하고 Ctrl+V 하세요.' : '[📋 본문 다시 복사]를 누른 뒤 본문 빈 줄을 클릭하고 Ctrl+V 하세요.'));
               return;
             }
+            if (htm && txt.length > 200) bodyPasted = true;   /* [v1.5.18] 본문이 붙었다는 표시 — 제목 칸 클릭·붙여넣기 때 쓴다 */
             if (autoTitle && !titleBusy && htm && txt.length > 200 && !titleHas()) {
               titleBusy = true;
               setTimeout(async function () {
@@ -914,11 +915,35 @@ HELPER_JS = r"""// ==UserScript==
                   await sleep(1000);
                   if (titleHas()) return;
                   var okt = await clipText(job.title || '');
-                  hlog('제목 자동 복사 ' + (okt ? '성공' : '실패'));
+                  hlog('제목 자동 복사 ' + (okt ? '성공' : '실패')); if (okt) titleReady = true;
                   setNote(okt ? '✅ 본문을 붙였어요 — 제목이 복사됐어요. 제목 칸을 클릭하고 Ctrl+V 하세요.' : '제목 자동 복사가 막혔어요 — [📋 제목만 복사]를 눌러 주세요.');
                 } catch (e2) {} finally { titleBusy = false; }
               }, 300);
             }
+          } catch (e) {}
+        }, true);
+        /* [v1.5.18] 제목 칸을 클릭하는 순간(사람이 누른 순간)을 신호로 삼아 제목만 클립보드에 올린다 — 시간이 지나 다른 복사로 덮이거나 브라우저가 막는 일이 없다.
+           ② 그래도 제목 칸에 엉뚱한 것(본문 전체 등)이 붙으려 하면 붙여넣기를 막고 제목 글자만 직접 넣는다(클립보드에 의존하지 않음). */
+        function titleWanted() { return autoTitle && (bodyPasted || bodyHas()) && !titleHas(); }
+        function onTitleTouch(ev) {
+          try {
+            var tg = ev.target, tgEl = tg && (tg.nodeType === 1 ? tg : tg.parentElement);
+            if (!tgEl || !inTitle(tgEl) || !titleWanted()) return;
+            clipText(job.title || '').then(function (ok) { if (ok) { titleReady = true; setNote('✅ 제목을 복사했어요 — 지금 Ctrl+V 하세요.'); hlog('제목 칸 클릭 → 제목 복사'); } });
+          } catch (e) {}
+        }
+        document.addEventListener('pointerdown', onTitleTouch, true);
+        document.addEventListener('focusin', onTitleTouch, true);
+        document.addEventListener('paste', function (ev) {
+          try {
+            var tg = ev.target, tgEl = tg && (tg.nodeType === 1 ? tg : tg.parentElement), cd = ev.clipboardData;
+            if (!tgEl || !inTitle(tgEl) || !titleWanted() || !cd) return;
+            var ct = (cd.getData('text/plain') || '').replace(/\s+/g, ' ').trim(), tt0 = String(job.title || '').replace(/\s+/g, ' ').trim();
+            if (!tt0 || ct === tt0) return;   /* 이미 제목이 복사돼 있으면 그대로 붙게 둔다 */
+            ev.preventDefault(); ev.stopImmediatePropagation();
+            var okI = false; try { okI = document.execCommand('insertText', false, job.title); } catch (x) {}
+            hlog('제목 칸 붙여넣기 → 제목 글자 직접 입력 ' + (okI ? '성공' : '실패'));
+            setNote(okI ? '✅ 제목 칸에 제목을 넣었어요.' : '제목을 직접 넣지 못했어요 — [📋 제목만 복사] 후 다시 Ctrl+V 하세요.');
           } catch (e) {}
         }, true);
         draw(true);
@@ -1379,7 +1404,7 @@ HELPER_JS = r"""// ==UserScript==
       banner('✅ 답변을 복사해서 종목분석 미니로 보냈어요 (' + text.length.toLocaleString() + '자). 이 탭은 곧 닫혀요.', 'ok');
       await sleep(1600);
       for (var ci = 0; ci < 3; ci++) { try { window.close(); } catch (e) {} await sleep(500); }
-      banner('✅ 답변을 종목분석 미니로 보냈어요. 이 탭은 닫고 돌아가세요. (자동으로 안 닫히면 도우미를 최신 버전(1.5.17)으로 다시 설치해 주세요)', 'ok');
+      banner('✅ 답변을 종목분석 미니로 보냈어요. 이 탭은 닫고 돌아가세요. (자동으로 안 닫히면 도우미를 최신 버전(1.5.18)으로 다시 설치해 주세요)', 'ok');
     } catch (err) {
       var msg = String((err && err.message) || err);
       await gset('result', { id: JOB, error: msg, ts: Date.now() });
@@ -1646,7 +1671,7 @@ def helper_page():
     )
     script = ("function ahChk(last){var s=document.documentElement.getAttribute('data-mini-helper');var e=document.getElementById('ahState');"
               "var dn=parseInt(document.documentElement.getAttribute('data-mini-helper-n')||'0',10)||0;if(dn>1){e.textContent='⚠ AI 도우미가 '+dn+'개 설치돼 있어요 — 이러면 AI 창도, 질문 입력도 두 번씩 일어나요. Tampermonkey 대시보드에서 ‘종목분석 미니 AI 도우미’ 를 하나만 남기고 삭제한 뒤 이 화면을 새로고침하세요.';e.style.color='#b91c1c';return}"
-              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5||(old[1]===5&&(old[2]||0)<17));e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.17)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
+              "if(s){var old=s.split('.').map(Number);var isOld=old[0]<1||(old[0]===1&&old[1]<5||(old[1]===5&&(old[2]||0)<18));e.textContent='✅ 도우미가 설치되어 있어요 (v'+s+')'+(isOld?' — 새 버전(1.5.17)이 있어요. 아래 [도우미 설치]를 눌러 업데이트하세요.':'');e.style.color=isOld?'#b45309':'#15803d'}else if(last){e.textContent='아직 설치되어 있지 않아요(또는 설치 직후라면 새로고침하세요).';e.style.color='#b45309'}}"
               "ahChk(false);setTimeout(function(){ahChk(false)},300);setTimeout(function(){ahChk(true)},1200);")
     resp = C.app.make_response(page("AI 도우미", body, icon="🤖", subtitle="AI 입력·전송·답변 복사를 자동으로 해 주는 선택 도구", script=script))
     resp.headers["Cache-Control"] = "no-cache"

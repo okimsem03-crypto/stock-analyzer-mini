@@ -866,13 +866,16 @@ function secAI(c,x){var s=el('div','lsec');s.id='labS2';s.appendChild(el('h4',nu
 var LABFLOW=['ai','img','blog','post'];
 var LABACTS={
  ai:function(next){if(pubText()||(LAB.ai[LAB.tk]&&String(LAB.ai[LAB.tk]).trim())){next();return}scrollTo2('labS2');runBoth()},
- img:function(next){if(LAB.st.img){next();return}if(!LAB.imgPanel)return;scrollTo2('labS3');LAB.imgPanel.gen(true).then(function(){if(LAB.st.img)next()},function(){})},
- blog:function(next){if(LAB.st.blog){next();return}if(!LAB.blogPanel)return;scrollTo2('labS4');LAB.blogPanel.rebuild()},
- post:function(next){if(LAB.st.blog&&LAB.blogPanel){if(!LAB.blogPanel.built()){LAB.blogPanel.rebuild().then(function(j){if(j){LAB.blogPanel.copyOpen(true);next()}});return}LAB.blogPanel.copyOpen(true);next()}}};
-function labFlow(from){if(window.MiniFlow)window.MiniFlow.run('stock',LABFLOW,LABACTS,from)}
-function afterAI(){drawSteps();var fl=window.MiniFlow;if(window.ImgKit&&window.ImgKit.mode()==='auto'&&window.ImgKit.when()==='ai'&&LAB.imgPanel&&!LAB.st.img&&!(fl&&fl.auto('stock','img')))LAB.imgPanel.gen(true);setTimeout(function(){labFlow('ai')},200)}
+ img:function(next){if(LAB.st.img){next();return}if(!LAB.imgPanel)return;scrollTo2('labS3');labGen().then(function(){if(LAB.st.img)next()})},
+ blog:function(next){if(LAB.st.blog&&LAB.blogPanel&&LAB.blogPanel.built()){next();return}if(!LAB.blogPanel||LAB._bb)return;scrollTo2('labS4');LAB._bb=1;var f=function(){LAB._bb=0};var p=LAB.blogPanel.rebuild();if(p&&p.then)p.then(f,f);else f()},
+ post:function(next){if(!(LAB.st.blog&&LAB.blogPanel))return;if(!LAB.blogPanel.built()){LAB.st.blog=false;LAB.blogPanel.rebuild();return}LAB.blogPanel.copyOpen(true);next()}};
+/* [v205] 글 만들기가 끝나면(onBuilt) 흐름이 이어져 post 단계에서 복사·열기를 한다. 같은 단계가 짧은 시간에 두 번 시작돼 새 창이 두 번 열리지 않게 막는다. */
+function labFlow(from){if(!window.MiniFlow)return;var k=from||'',n=Date.now();if(LAB._fk===k&&n-(LAB._fn||0)<700)return;LAB._fk=k;LAB._fn=n;window.MiniFlow.run('stock',LABFLOW,LABACTS,from)}
+/* 이미지 그리기 — 흐름이 직접 그릴 때는 _imgDrive 를 켜서 패널의 onDone 이 흐름을 한 번 더 시작하지 않게 한다. */
+function labGen(){if(!LAB.imgPanel)return Promise.resolve();LAB._imgDrive=(LAB._imgDrive||0)+1;var f=function(){LAB._imgDrive=Math.max(0,(LAB._imgDrive||1)-1)};var p=LAB.imgPanel.gen(true);return Promise.resolve(p).then(function(v){f();return v},function(e){f()})}
+function afterAI(){drawSteps();var fl=window.MiniFlow;if(window.ImgKit&&window.ImgKit.mode()==='auto'&&window.ImgKit.when()==='ai'&&LAB.imgPanel&&!LAB.st.img&&!(fl&&fl.auto('stock','img')))labGen();setTimeout(function(){labFlow('ai')},200)}
 function applyLab(t){LAB.ai[LAB.tk]=t;setTimeout(afterAI,50);var ta=document.getElementById('labAiTa');if(ta)ta.value=t;var z=document.getElementById('labAiState');if(z)z.textContent='✅ AI 종합 리포트 저장됨 ('+t.length.toLocaleString()+'자) — 아래 블로그 글에 포함돼요.'}
-function applyPub(t){setTimeout(drawSteps,50);var b=document.getElementById('aiPasteBox');if(b){b.value=t;try{renderAiResult()}catch(e){}}var z=document.getElementById('labPubState');if(z)z.textContent=pubState()}
+function applyPub(t){setTimeout(afterAI,50);var b=document.getElementById('aiPasteBox');if(b){b.value=t;try{renderAiResult()}catch(e){}}var z=document.getElementById('labPubState');if(z)z.textContent=pubState()}
 function prevLab(t){var ok=/##\s*1\./.test(t)||t.length>600;var d=el('div');d.textContent=t.slice(0,500)+(t.length>500?' …':'');var can=t.trim().length>=200;return {node:d,canApply:can,strict:ok,text:ok?null:'형식(## 1. 한줄 결론 …)이 보이지 않아요. 다른 답변이면 저장하지 마세요. 맞는 답변이면 [저장]을 눌러도 돼요.'}}
 function prevPub(t){var ok=/\[\s*\d+\s*\./.test(t)||/^#{1,3}\s*\d+\./m.test(t)||t.length>500;var d=el('div');d.textContent=t.slice(0,500)+(t.length>500?' …':'');var can=t.trim().length>=200;return {node:d,canApply:can,strict:ok,text:ok?null:'형식([1. 기업 소개 …])이 보이지 않아요. 다른 답변이면 저장하지 마세요. 맞는 답변이면 [저장]을 눌러도 돼요.'}}
 function pubPrompt(){var p=null;try{p=(typeof CUR_PROMPT!=='undefined')?CUR_PROMPT:null}catch(e){}if(p)return Promise.resolve(p);
@@ -892,10 +895,10 @@ function runAI(){if(!window.MiniAI){toast('AI 도우미를 불러오는 중이�
 function secImg(c,x){var s=el('div','lsec');s.id='labS3';s.appendChild(el('h4',null,'③ 🖼 블로그용 이미지 (메인 · 통합)'));
  s.appendChild(el('div','note','① 체력지표 게이지가 가운데 오는 메인 이미지, ② 주가 차트·재무 차트·동일업종 비교·기술적 지표를 한 장으로 묶은 통합 이미지예요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
  var box=el('div');s.appendChild(box);c.appendChild(s);
- LAB.imgPanel=window.ImgKit.panel(box,{menu:'stock',name:LAB.x.name,ticker:LAB.tk,onDone:function(){LAB.st.img=true;drawSteps()},gen:function(scale){if(!LAB.cur)return Promise.reject(new Error('분석 결과를 찾지 못했어요. 종목을 다시 분석해 주세요.'));return Promise.resolve(window.ImgKit.stock.build(LAB.cur,LAB.x,scale))}})}
+ LAB.imgPanel=window.ImgKit.panel(box,{menu:'stock',name:LAB.x.name,ticker:LAB.tk,onDone:function(){LAB.st.img=true;drawSteps();if(!LAB._imgDrive)setTimeout(function(){labFlow('img')},250)},gen:function(scale){if(!LAB.cur)return Promise.reject(new Error('분석 결과를 찾지 못했어요. 종목을 다시 분석해 주세요.'));return Promise.resolve(window.ImgKit.stock.build(LAB.cur,LAB.x,scale))}})}
 var SEC=[['summary','핵심지표'],['score','5축점수'],['supply','수급'],['fin','재무'],['disc','공시'],['news','뉴스'],['pubai','AI분석(하단)'],['ai','AI종합리포트']];
 function secBlog(c,x){var s=el('div','lsec');s.id='labS4';s.appendChild(el('h4',null,'④⑤ 📝 글 만들기 → 블로그에 쓰기 (네이버 블로그용 HTML)'));var box=el('div');s.appendChild(box);c.appendChild(s);
- LAB.blogPanel=window.BlogKit.panel(box,{idp:'lab',key:'stock',kind:'stock',ticker:LAB.tk,name:LAB.x.name,sections:SEC,dup_warn:x.dup_warn,onBuilt:function(){LAB.st.blog=true;drawSteps();labFlow('blog')},onCopied:function(){LAB.st.posted=true;drawSteps()},
+ LAB.blogPanel=window.BlogKit.panel(box,{idp:'lab',key:'stock',kind:'stock',ticker:LAB.tk,name:LAB.x.name,sections:SEC,dup_warn:x.dup_warn,onBuilt:function(){LAB.st.blog=true;drawSteps();labFlow('blog')},onCopied:function(){LAB.st.posted=true;drawSteps()},onBlocked:function(w){scrollTo2('labS4');drawSteps()},
   build:function(inc,title){var pt=pubText();if(!pt)inc.pubai=false;return api(BASE+'blog',{ticker:LAB.tk,ai:(LAB.ai[LAB.tk]||''),pub_ai:pt,inc:inc,title:title})},
   onLogged:function(z){LAB.x.dup_warn=z.dup_warn}})}
 
@@ -905,7 +908,7 @@ function drawSteps(){var h=document.getElementById('labSteps');if(!h)return;h.in
  var acts=[
   {t:'분석 열기',sub:d[0]?'자동 완료 · 다시 불러오기':'불러오는 중',go:function(){load()}},
   {t:'AI 분석',sub:ai>=1?'완료 · 다시 하기':'눌러서 시작',go:function(){scrollTo2('labS2');runBoth()}},
-  {t:'이미지 만들기',sub:d[2]?'완료 · 다시 만들기':(window.ImgKit&&window.ImgKit.mode()==='auto'?'자동 저장 켜짐':'눌러서 만들기'),go:function(){scrollTo2('labS3');if(LAB.imgPanel)LAB.imgPanel.gen(true).then(function(){if(LAB.st.img)labFlow('img')},function(){})}},
+  {t:'이미지 만들기',sub:d[2]?'완료 · 다시 만들기':(window.ImgKit&&window.ImgKit.mode()==='auto'?'자동 저장 켜짐':'눌러서 만들기'),go:function(){scrollTo2('labS3');if(LAB.imgPanel)labGen().then(function(){if(LAB.st.img)labFlow('img')})}},
   {t:'글 만들기',sub:d[3]?'완료 · 다시 만들기':'눌러서 만들기',go:function(){scrollTo2('labS4');if(LAB.blogPanel)LAB.blogPanel.rebuild()}},
   {t:'블로그에 쓰기',sub:d[4]?'복사·열기 완료':(d[3]?'복사하고 블로그 열기':'글을 먼저 만드세요'),go:function(){scrollTo2('labS4');if(LAB.blogPanel)LAB.blogPanel.copyOpen()}}];
  var done=[d[0],ai>=1,d[2],d[3],d[4]],cur=-1;for(var i=0;i<done.length;i++){if(!done[i]){cur=i;break}}
@@ -919,7 +922,7 @@ function draw(){var c=card();if(!c)return;var x=LAB.x;head(c,x);
  var d=el('details','lsec');d.id='labS1';d.open=true;d.appendChild(el('summary',null,'① 분석 결과 — 체력지표 '+x.score.total+' · '+x.score.grade+' (5축·수급·재무·공시)'));c.appendChild(d);
  secScore(d,x);secSupply(d,x);secFin(d,x);secDisc(d,x);
  secAI(c,x);secImg(c,x);secBlog(c,x);drawSteps();
- if(LAB.autoImg){LAB.autoImg=false;if(LAB.imgPanel)LAB.imgPanel.gen(true)}
+ if(LAB.autoImg){LAB.autoImg=false;if(LAB.imgPanel)labGen()}
  if(LAB._ft!==LAB.tk){LAB._ft=LAB.tk;setTimeout(function(){labFlow()},300)}}
 window.__onAnalysis=function(d){if(!d||!d.ticker)return;var changed=LAB.tk!==d.ticker;LAB.tk=d.ticker;LAB.name=d.name;LAB.cur=d;if(changed){LAB.x=null;LAB.blog=null;LAB.open=false;LAB.st={img:false,blog:false,posted:false};LAB.imgPanel=null;LAB.blogPanel=null}
  if(!window.MiniAI&&!LAB._ldm){LAB._ldm=1;var s=document.createElement('script');s.src='/assets/mini-ui.js';document.head.appendChild(s)}

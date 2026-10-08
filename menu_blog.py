@@ -645,7 +645,7 @@ K.panel=function(box,opt){var idp=opt.idp||'bk';box.innerHTML='';
  function make(){out.innerHTML='';out.appendChild(sty(el('div',null,'⏳ 만드는 중…'),'font-size:12.5px;color:#6b7280'));go.disabled=true;
   return Promise.resolve(opt.build(inc,ti.value)).then(function(j){go.disabled=false;out.innerHTML='';if(!j||j.error){out.appendChild(sty(el('div',null,'⚠ '+((j&&j.error)||'만들지 못했어요')),'color:#b91c1c;font-size:13px'));return null}
    if(!ti.value)ti.value=j.title||'';
-    last=j;if(opt.onBuilt){try{opt.onBuilt(j)}catch(x){}}
+    last=j;mainFn=null;   /* [v205] onBuilt 는 복사·열기 함수(mainFn)가 만들어진 뒤에 부른다 — 먼저 부르면 자동 '블로그에 쓰기' 단계가 아무 일도 못 하고 지나가 버튼을 한 번 더 눌러야 했다 */
    if(j.dup_warn!=null){dw.textContent=j.dup_warn?('⚠ '+j.dup_warn):'';dw.style.display=j.dup_warn?'':'none'}
    if(j.titles&&j.titles.length){var tl=sty(el('div',null,'AI 제목 후보: '),'font-size:12px;color:#6b7280;margin:6px 0');j.titles.forEach(function(t){var a=bt(t.length>34?t.slice(0,34)+'…':t,false,function(){ti.value=t});sty(a,'margin:2px;padding:3px 9px;font-size:12px');tl.appendChild(a)});out.appendChild(tl)}
    return K.load().then(function(){
@@ -666,7 +666,7 @@ K.panel=function(box,opt){var idp=opt.idp||'bk';box.innerHTML='';
     var lg=sty(el('div'),'margin-top:12px;border-top:1px dashed #c7d2fe;padding-top:10px');lg.appendChild(sty(el('b',null,'✅ 블로그에 올렸다면 기록 남기기 (중복 방지)'),'font-size:13px'));
     var u=el('input');u.type='text';u.placeholder='올린 글 주소(선택) https://blog.naver.com/…';sty(u,'width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1.5px solid #d1d5db;border-radius:9px;padding:8px;margin:6px 0 4px');lg.appendChild(u);
     var m=el('input');m.type='text';m.placeholder='메모(선택)';sty(m,'width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1.5px solid #d1d5db;border-radius:9px;padding:8px;margin:0 0 6px');lg.appendChild(m);
-    var sv=bt('작성 기록 남기기',true,function(){call('/admin/api/blog/log',{ticker:opt.ticker,name:opt.name,title:ti.value||j.title,url:u.value,memo:m.value,kind:opt.kind||'stock'}).then(function(z){if(z.error){toast(z.error);return}toast('작성 기록을 남겼어요 (관리자 화면 📝 블로그 이력)');dw.textContent='⚠ '+z.dup_warn;dw.style.display='';sv.disabled=true;sv.textContent='기록 완료';if(opt.onLogged)opt.onLogged(z)})});lg.appendChild(sv);out.appendChild(lg);return j})}).catch(function(e){go.disabled=false;out.innerHTML='';out.appendChild(sty(el('div',null,'⚠ '+((e&&e.message)||'만들지 못했어요')),'color:#b91c1c;font-size:13px'));return null})}
+    var sv=bt('작성 기록 남기기',true,function(){call('/admin/api/blog/log',{ticker:opt.ticker,name:opt.name,title:ti.value||j.title,url:u.value,memo:m.value,kind:opt.kind||'stock'}).then(function(z){if(z.error){toast(z.error);return}toast('작성 기록을 남겼어요 (관리자 화면 📝 블로그 이력)');dw.textContent='⚠ '+z.dup_warn;dw.style.display='';sv.disabled=true;sv.textContent='기록 완료';if(opt.onLogged)opt.onLogged(z)})});lg.appendChild(sv);out.appendChild(lg);if(opt.onBuilt){try{opt.onBuilt(j)}catch(x){}}return j})}).catch(function(e){go.disabled=false;out.innerHTML='';out.appendChild(sty(el('div',null,'⚠ '+((e&&e.message)||'만들지 못했어요')),'color:#b91c1c;font-size:13px'));return null})}
  return {rebuild:make,built:function(){return !!last},copyOpen:function(auto){if(mainFn)return mainFn(!!auto);if(!auto)toast('먼저 [글 만들기]를 눌러 글을 만드세요.');return false}}};
 window.BlogKit=K;
 })();

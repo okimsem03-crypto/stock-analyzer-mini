@@ -2067,7 +2067,7 @@ function chSecImg(box){box.appendChild(el('p','note',MEMBER_MODE?'후보 목록�
  var ib=el('div','chPan');box.appendChild(ib);
  if(!window.ImgKit){ib.appendChild(el('p','note bad','이미지 도구(menu_img.py)가 올라가지 않았어요.'));return}
  if(MEMBER_MODE){chImgMember(ib);return}
- CH.imgPanel=ImgKit.panel(ib,{menu:'challenge',name:'낙폭회복',ticker:chStamp(),perStock:false,onDone:function(){CH.flag.img=true;chSteps()},gen:function(scale){return chImgBuild(scale)}});
+ CH.imgPanel=ImgKit.panel(ib,{menu:'challenge',name:'낙폭회복',ticker:chStamp(),perStock:false,onDone:function(){CH.flag.img=true;chSteps()},next:function(){if(window.MiniFlow)MiniFlow.run('challenge',CHFLOW,CHACTS,'img')},gen:function(scale){return chImgBuild(scale)}});
  if(CH.flag.img)CH.imgPanel.gen(false)}
 function chImgMember(ib){var K=window.ImgKit,row=el('div','bar'),view=el('div','chImgG'),st=el('div','m');
  var go=bt('🖼 이미지 만들기','bt',function(){go.disabled=true;go.textContent='⏳ 그리는 중…';view.innerHTML='';st.textContent='';

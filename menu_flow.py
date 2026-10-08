@@ -1006,7 +1006,7 @@ function flEnsure(){var S=FL.rk;if(S.data&&!S.data.empty&&S.data.items&&S.data.i
 function flStampD(){var d=new Date(),z=function(n){return ('0'+n).slice(-2)};return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
 function flSecImg(box){if(MEMBER_MODE)return;box.appendChild(el('p','note','지금 순위 조건(투자자·기간·방향)의 상위 10종목과 신호 종목 수를 한 장의 대시보드 이미지로 만들어요. 저장 폴더와 자동/수동 저장은 [⚙ 저장 설정]에서 정해요.'));
  var ib=el('div');box.appendChild(ib);if(!window.ImgKit){ib.appendChild(el('p','note bad','이미지 도구(menu_img.py)가 올라가지 않았어요.'));return}
- FL.imgPanel=ImgKit.panel(ib,{menu:'flow',name:'수급분석',ticker:flStamp(),perStock:false,onDone:function(){FL.flag.img=true;flSteps()},gen:function(scale){return flEnsure().then(function(j){if(!window.FlImg)throw new Error('이미지 도구를 불러오지 못했어요.');return window.FlImg.build(j,FL.sum,scale)})}});
+ FL.imgPanel=ImgKit.panel(ib,{menu:'flow',name:'수급분석',ticker:flStamp(),perStock:false,onDone:function(){FL.flag.img=true;flSteps()},next:function(){if(window.MiniFlow)MiniFlow.run('flow',FLFLOW,FLACTS,'img')},gen:function(scale){return flEnsure().then(function(j){if(!window.FlImg)throw new Error('이미지 도구를 불러오지 못했어요.');return window.FlImg.build(j,FL.sum,scale)})}});
  if(FL.flag.img)FL.imgPanel.gen(false)}
 function flSecBlog(box){if(MEMBER_MODE)return;box.appendChild(el('p','note','순위·신호·AI 해설로 블로그용 글(HTML)을 만들어요. 글은 자동으로 올라가지 않고, [복사하고 블로그 열기]로 복사한 뒤 블로그 글쓰기 화면에 붙여 넣는 방식이에요. 이미지는 글 위쪽에 직접 올려 주세요.'));
  var bx=el('div');box.appendChild(bx);if(!window.BlogKit){bx.appendChild(el('p','note bad','블로그 도구(menu_blog.py)가 올라가지 않았어요.'));FL.blogPanel=null;return}

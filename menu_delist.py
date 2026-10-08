@@ -1059,7 +1059,7 @@ function dlDraw(){var p=DL.p;if(!p||cur!=='dl')return;var sy=window.pageYOffset|
  /* ③ 이미지 */
  var c3=dlStepCard(2,'이미지','블로그에 올릴 PNG 2장 — ① 메인 대시보드(전체·기준별·위험 상위) ② 위험 종목 표','dlS3');c3.appendChild(el('p','note','[🖼 이미지 만들기]를 누르면 아래에 미리보기가 나오고, 그림마다 [💾 저장]을 누르면 돼요. 스크리닝을 끝낸 뒤 만드세요.'));
  var ib=el('div');c3.appendChild(ib);p.appendChild(c3);
- DL.imgPanel=ImgKit.panel(ib,{menu:'delist',name:'투자주의',ticker:(d.today||'').replace(/-/g,''),onDone:function(){DL.flag.img=true;dlStepsDraw()},gen:function(scale){if(!DL.rows.length)return Promise.reject(new Error('결과가 없어요. 먼저 스크리닝을 실행하세요.'));return Promise.resolve(window.DlImg.build(DL,scale))}});
+ DL.imgPanel=ImgKit.panel(ib,{menu:'delist',name:'투자주의',ticker:(d.today||'').replace(/-/g,''),onDone:function(){DL.flag.img=true;dlStepsDraw()},next:function(){if(window.MiniFlow)MiniFlow.run('delist',DLFLOW,DLACTS,'img')},gen:function(scale){if(!DL.rows.length)return Promise.reject(new Error('결과가 없어요. 먼저 스크리닝을 실행하세요.'));return Promise.resolve(window.DlImg.build(DL,scale))}});
  /* ④ 블로그 */
  var c4=dlStepCard(3,'블로그 글','네이버 블로그용 HTML — “확정 아님” 표현과 위험 안내가 자동으로 들어가요','dlS4');
  var adv=el('div','dlSub');adv.id='dlAdvBox';adv.appendChild(el('b',null,'💡 투자 주의 조언 (선택) — 글에 함께 들어가요'));c4.appendChild(adv);

@@ -1522,7 +1522,7 @@ function scImgSec(p){var c=el('div','c');c.id='scImgSec';c.appendChild(scSt(el('
  c.appendChild(el('div','note','① 장 환경·후보 요약  ② 가격 관찰선 표  ③ AI 분석 요약(AI 답변이 있을 때) 이미지를 만들어요. 만든 그림은 3시간 안에 [복사하고 블로그 열기]를 하면 도우미가 블로그 글에 함께 올려 줘요. 폴더 저장은 [🖼 이미지 저장] 설정을 따라요.'));
  var ib=el('div');c.appendChild(ib);p.appendChild(c);
  if(!window.ImgKit||!window.ScImg){ib.appendChild(el('p','note bad','이미지 도구(menu_img.py)가 올라가지 않았어요. 새로고침해 주세요.'));return}
- SC.imgPanel=window.ImgKit.panel(ib,{menu:'scalp',name:'초단기',ticker:SC.last.target_date.replace(/-/g,''),perStock:false,onDone:function(){SC.flag.img=true;scSteps()},
+ SC.imgPanel=window.ImgKit.panel(ib,{menu:'scalp',name:'초단기',ticker:SC.last.target_date.replace(/-/g,''),perStock:false,onDone:function(){SC.flag.img=true;scSteps()},next:function(){if(window.MiniFlow)MiniFlow.run('scalp',SCFLOW,SCACTS,'img')},
   gen:function(scale){if(!SC.last||!SC.last.picks||!SC.last.picks.length)return Promise.reject(new Error('후보가 없어요. 먼저 후보를 만드세요.'));return Promise.resolve(window.ScImg.build(SC.last,SC.ai,scale))}})}
 function scBlogSec(p){var c=el('div','c');c.id='scBlogSec';c.appendChild(scSt(el('b',null,'📝 블로그 글 (⚡ 장 시작 전 단기 관찰 종목)'),'font-size:15px'));
  c.appendChild(el('div','note','후보 카드마다 [종목분석]·[심층분석] 링크가 기본으로 들어가요(‘종목 링크’ 항목에서 끌 수 있어요). 블로그 글쓰기 주소·자동 열기는 [⚙ 블로그 설정]에서 정해요.'));
