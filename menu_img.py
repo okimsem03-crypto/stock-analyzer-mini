@@ -16,7 +16,7 @@ from menu_ctx import C
 
 bp = Blueprint("img", __name__)
 
-DEFAULT_CFG = {"folders": {"stock": "종목분석", "deep": "심층분석", "daily": "오늘추천", "delist": "투자주의", "news": "뉴스분석", "challenge": "도전주", "market": "시장수급", "theme": "네이버테마", "flow": "수급분석"}, "scale": 2}
+DEFAULT_CFG = {"folders": {"stock": "종목분석", "deep": "심층분석", "daily": "오늘추천", "delist": "투자주의", "news": "뉴스분석", "challenge": "도전주", "scalp": "초단기", "market": "시장수급", "theme": "네이버테마", "flow": "수급분석"}, "scale": 2}
 _BAD = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
 
@@ -59,7 +59,7 @@ var K=window.ImgKit={supported:!!window.showDirectoryPicker,_cfg:null};
 var FONT='"Pretendard","Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo","Noto Sans CJK KR",sans-serif';
 var CIRC=['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
 K.FONT=FONT;K.CIRC=CIRC;
-var DEF={folders:{stock:'종목분석',deep:'심층분석',daily:'오늘추천',delist:'투자주의',news:'뉴스분석',challenge:'도전주',market:'시장수급',theme:'네이버테마',flow:'수급분석'},scale:2};
+var DEF={folders:{stock:'종목분석',deep:'심층분석',daily:'오늘추천',delist:'투자주의',news:'뉴스분석',challenge:'도전주',scalp:'초단기',market:'시장수급',theme:'네이버테마',flow:'수급분석'},scale:2};
 function lsGet(k,d){try{var v=localStorage.getItem(k);return v==null?d:v}catch(e){return d}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
@@ -118,12 +118,14 @@ K.save=function(blob,o){var fn=K.fileName(o.idx,o.name,o.ticker);
     .then(function(){return {where:'folder',path:h.name+'/'+dd+'/'+mf+'/'+(sd?sd+'/':'')+fn}})
     .catch(function(e){download(blob,fn);return {where:'download',path:fn,note:'폴더에 저장하지 못해 일반 다운로드로 저장했어요('+(e&&e.name||'오류')+').'}})})})};
 /* 블로그 상단에 넣을 대표 이미지(① 메인): 방금 만든 그림 중 같은 메뉴·종목의 첫 장을 1080px 폭 데이터 주소로 돌려준다(없으면 null). */
-K.topImage=function(menu,ticker,maxAge){var L=K._last;if(!L||!L.items||!L.items.length)return null;if(Date.now()-L.ts>(maxAge||3*3600*1000))return null;
+K.ALIAS={deepdive:'deep',caution:'delist'};
+K.norm=function(m){return K.ALIAS[m]||m};
+K.topImage=function(menu,ticker,maxAge){menu=K.norm(menu);var L=K._last;if(!L||!L.items||!L.items.length)return null;if(Date.now()-L.ts>(maxAge||3*3600*1000))return null;
  if(menu&&L.menu&&menu!==L.menu)return null;if(ticker&&L.ticker&&K.PER_STOCK[menu||L.menu]&&String(ticker)!==L.ticker)return null;
  var src=L.items[0].canvas;if(!src)return null;var w=Math.min(1080,src.width),h=Math.round(src.height*w/src.width),cv=document.createElement('canvas');cv.width=w;cv.height=h;var c=cv.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,w,h);c.drawImage(src,0,0,w,h);
  var u=cv.toDataURL('image/png');if(u.length>2800000)u=cv.toDataURL('image/jpeg',0.88);return u};
 /* [v186] 블로그에 올릴 그림 전체: 방금 만든 그림(같은 메뉴·종목) 모두를 1080px 폭 데이터 주소 목록으로(최대 max장·합계 약 9MB, 넘으면 JPEG 로 줄임). 없으면 []. */
-K.allImages=function(menu,ticker,maxAge,max){var L=K._last;if(!L||!L.items||!L.items.length)return [];if(Date.now()-L.ts>(maxAge||3*3600*1000))return [];
+K.allImages=function(menu,ticker,maxAge,max){menu=K.norm(menu);var L=K._last;if(!L||!L.items||!L.items.length)return [];if(Date.now()-L.ts>(maxAge||3*3600*1000))return [];
  if(menu&&L.menu&&menu!==L.menu)return [];if(ticker&&L.ticker&&K.PER_STOCK[menu||L.menu]&&String(ticker)!==L.ticker)return [];
  var out=[],tot=0,lim=max||10;L.items.slice(0,lim).forEach(function(it){var src=it.canvas;if(!src)return;var w=Math.min(1080,src.width),h=Math.round(src.height*w/src.width),cv=document.createElement('canvas');cv.width=w;cv.height=h;var c=cv.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,w,h);c.drawImage(src,0,0,w,h);
   var u=cv.toDataURL('image/png');if(u.length>1400000)u=cv.toDataURL('image/jpeg',0.86);if(tot+u.length>9000000)return;tot+=u.length;out.push(u)});return out};
@@ -437,7 +439,7 @@ function ikLoad(p){p.innerHTML='';var top=el('div','c');top.appendChild(el('b',n
  var fc=el('div','c');fc.id='ikFolder';fc.appendChild(el('p','note','불러오는 중…'));p.appendChild(fc);var mc=el('div','c');mc.id='ikMode';p.appendChild(mc);var nc=el('div','c');nc.id='ikNames';nc.appendChild(el('p','note','불러오는 중…'));p.appendChild(nc);
  var K=window.ImgKit;
  if(!K||typeof K.info!=='function'||typeof K.loadCfg!=='function'){ikFail('이미지 도구가 불러와지지 않았어요. 페이지를 새로고침(Ctrl+Shift+R)해 보시고, 계속되면 아래 문구를 알려 주세요: '+(window.__ikBoot?ikWhy(window.__ikBoot):'ImgKit 없음'));return}
- IK.cfg={folders:{stock:'종목분석',deep:'심층분석',daily:'오늘추천',delist:'투자주의',news:'뉴스분석',challenge:'도전주',market:'시장수급',theme:'네이버테마',flow:'수급분석'},scale:2};
+ IK.cfg={folders:{stock:'종목분석',deep:'심층분석',daily:'오늘추천',delist:'투자주의',news:'뉴스분석',challenge:'도전주',scalp:'초단기',market:'시장수급',theme:'네이버테마',flow:'수급분석'},scale:2};
  try{ikFolder();ikMode()}catch(e){ikFail('화면을 그리다 오류가 났어요: '+ikWhy(e))}
  var drew=false;function names(c){if(drew)return;drew=true;try{if(c)IK.cfg=JSON.parse(JSON.stringify(c));ikNames()}catch(e){var b=$('ikNames');if(b){b.innerHTML='';b.appendChild(el('p','note bad','⚠ 폴더 이름 화면 오류: '+ikWhy(e)))}}}
  setTimeout(function(){names(null)},7000);
@@ -462,7 +464,7 @@ function ikMode(){var b=$('ikMode');if(!b)return;b.innerHTML='';b.appendChild(el
  var wh=window.ImgKit.when();b.appendChild(el('div','m','자동 저장 시점 (자동 저장일 때만 적용)'));[['ai','AI 분석이 끝난 뒤 (권장 — 작업 순서대로)'],['analysis','종목을 분석한 직후 (AI 없이 바로)']].forEach(function(o){var l=el('label','bar');var i=el('input');i.type='radio';i.name='imwhen';i.checked=wh===o[0];i.onchange=function(){window.ImgKit.setWhen(o[0]);toast('자동 저장 시점을 바꿨어요')};l.appendChild(i);l.appendChild(el('span',null,' '+o[1]));b.appendChild(l)});
  b.appendChild(el('p','note','같은 날 같은 종목을 다시 저장하면 같은 이름의 파일을 덮어씁니다. 자동 저장이 아니어도 분석실의 [이미지 만들기] 단계에서 언제든 직접 저장할 수 있어요.'))}
 function ikNames(){var b=$('ikNames');if(!b)return;b.innerHTML='';b.appendChild(el('b',null,'🗂 메뉴 폴더 이름 · 이미지 선명도 (모든 기기 공통)'));
- var C=IK.cfg,names={stock:'종목분석 (메인 분석 화면)',deep:'심층분석',daily:'오늘추천',delist:'거래정지·상폐(투자주의)',news:'뉴스분석 (대시보드·뉴스별 이미지)',challenge:'도전주 (낙폭회복 대시보드)',market:'시장수급 (수급 대시보드·누적 그래프)',theme:'네이버테마 (강세 테마 대시보드)',flow:'수급분석 (수급 순위 대시보드)'};var tw=el('div');var t=el('table');
+ var C=IK.cfg,names={stock:'종목분석 (메인 분석 화면)',deep:'심층분석',daily:'오늘추천',delist:'거래정지·상폐(투자주의)',news:'뉴스분석 (대시보드·뉴스별 이미지)',challenge:'도전주 (낙폭회복 대시보드)',scalp:'초단기(장전) 후보',market:'시장수급 (수급 대시보드·누적 그래프)',theme:'네이버테마 (강세 테마 대시보드)',flow:'수급분석 (수급 순위 대시보드)'};var tw=el('div');var t=el('table');
  Object.keys(C.folders).forEach(function(k){var tr=el('tr');tr.appendChild(el('td',null,names[k]||k));var td=el('td');var i=el('input');i.value=C.folders[k];i.maxLength=20;i.style.width='180px';i.oninput=function(){C.folders[k]=i.value};td.appendChild(i);tr.appendChild(td);t.appendChild(tr)});tw.appendChild(t);b.appendChild(tw);
  var r=el('div','bar');r.appendChild(el('span','m','이미지 선명도 '));var sel=el('select');[[1,'보통 (1080px)'],[1.5,'선명 (1620px)'],[2,'아주 선명 (2160px) — 권장'],[3,'최대 (3240px, 용량 큼)']].forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];if(Number(C.scale)===o[0])op.selected=true;sel.appendChild(op)});sel.onchange=function(){C.scale=Number(sel.value)};r.appendChild(sel);b.appendChild(r);
  var pv=el('p','note');b.appendChild(bt('💾 저장','bt',function(){apiJ('/admin/api/settings',{img_cfg:JSON.stringify(C)}).then(function(j){if(j.error){toast(j.error);return}window.ImgKit.loadCfg(true);toast('저장했어요')})}));

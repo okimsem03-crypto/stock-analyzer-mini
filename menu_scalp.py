@@ -1381,8 +1381,8 @@ def api_blog():
 # 화면 탭 (관리자 화면 + 공개했을 때의 /m/scalp)
 # ══════════════════════════════════════════════════════════════
 TAB_JS = r"""
-var SC={last:null,stats:null,ai:'',target:'',busy:false,flag:{blog:false,posted:false},blogPanel:null};
-var SCFLOW=['ai','blog','post'];
+var SC={last:null,stats:null,ai:'',target:'',busy:false,flag:{img:false,blog:false,posted:false},blogPanel:null,imgPanel:null};
+var SCFLOW=['ai','img','blog','post'];
 function scSt(n,css){n.style.cssText=css;return n}
 function scBadge(t,bg,fg){var b=el('span',null,t);scSt(b,'display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:800;margin:0 4px 4px 0;background:'+bg+';color:'+fg);return b}
 function scFmt(n){return n==null?'-':Math.round(n).toLocaleString('ko-KR')}
@@ -1391,6 +1391,7 @@ function scGo2(id){var e=$(id);if(e&&e.scrollIntoView)e.scrollIntoView({behavior
 function scLink(txt,href,col){var a=el('a',null,txt);a.href=href;a.target='_blank';a.rel='noopener';scSt(a,'display:inline-block;padding:4px 10px;border-radius:8px;border:1px solid '+col+';color:'+col+';font-size:12.5px;font-weight:800;text-decoration:none;margin:4px 6px 0 0');return a}
 var SCACTS={
  ai:function(next){if(!SC.last)return;if((SC.ai||'').trim()){next();return}scGo2('scAiSec');scAIRun()},
+ img:function(next){if(!SC.last||!SC.imgPanel)return;if(SC.flag.img){next();return}scGo2('scImgSec');SC.imgPanel.gen(true).then(function(){if(SC.imgPanel&&SC.imgPanel.items())next()},function(){})},
  blog:function(next){if(!SC.last||!SC.blogPanel)return;if(SC.flag.blog&&SC.blogPanel.built()){next();return}scGo2('scBlogSec');SC.blogPanel.rebuild().then(function(j){if(j&&!j.error)next()})},
  post:function(next){if(scPostGo(true))next()}};
 function scPostGo(auto){var P=SC.blogPanel;if(!P)return false;if(P.built()){P.copyOpen(auto);return true}
@@ -1400,7 +1401,7 @@ function scLoad(p){p.innerHTML='';var box=el('div');box.id='scBox';p.appendChild
  if(MEMBER_MODE&&!ftOk('list')){var c=el('div','c');c.appendChild(scSt(el('b',null,'⚡ 초단기 후보 — 장 시작 전'),'font-size:18px'));c.appendChild(el('div','note','후보 종목·장 환경·가격 관찰선을 보여주는 기능이에요. 참고 자료이며 투자 권유가 아니에요.'));box.appendChild(c);ftSec(c,'list');return}
  scDraw();
  api('/admin/api/scalp/state').then(function(j){if(cur!=='sc'&&!MEMBER_MODE)return;SC.last=j.last;SC.stats=j.stats;SC.ai=j.ai||'';SC.target=j.target;scDraw()}).catch(function(){})}
-function scDraw(){var p=$('scBox');if(!p)return;p.innerHTML='';SC.blogPanel=null;SC.flag.blog=false;SC.flag.posted=false;
+function scDraw(){var p=$('scBox');if(!p)return;p.innerHTML='';SC.blogPanel=null;SC.imgPanel=null;SC.flag.img=false;SC.flag.blog=false;SC.flag.posted=false;
  var hd=el('div','c');scSt(hd,'background:linear-gradient(135deg,#0a1228,#1b2f66);color:#fff;border:0');hd.appendChild(scSt(el('div',null,'⚡ 초단기 후보 — 장 시작 전'),'font-size:20px;font-weight:900'));
  hd.appendChild(scSt(el('div',null,'관점: 오늘 시가 부근에서 사서 오후에 정리하거나, 1~2영업일 안에 오를 가능성이 있는 종목을 찾아요. 전일 종가·수급·테마·뉴스·재무·미국 증시를 겹쳐 규칙으로 골라요(재무가 나쁜 종목은 제외). 참고 자료이며 매수 권유가 아니에요.'),'font-size:13px;opacity:.9;margin-top:6px;line-height:1.6'));
  var r=el('div');scSt(r,'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap');
@@ -1408,16 +1409,17 @@ function scDraw(){var p=$('scBox');if(!p)return;p.innerHTML='';SC.blogPanel=null
  r.appendChild(adm(bt('📊 지난 성과 확인','bt3',function(){scTrack()})));
  r.appendChild(adm(bt('📋 AI 요청문 복사','bt3',function(){scPrompt()})));hd.appendChild(r);p.appendChild(hd);
  if(!MEMBER_MODE){var sp=el('div');sp.id='scSteps';p.appendChild(sp);scSteps()}
- var L=SC.last;if(!L){p.appendChild(el('div','c','아직 만든 후보가 없어요. '+(MEMBER_MODE?'관리자가 후보를 만들면 여기에 보여요.':'[⚡ 후보 만들기]를 눌러 보세요. (먼저 [🌟 오늘추천]에서 스캔 + [시장수급]/[테마] 가져오기를 해 두면 정확해져요)')));scStats(p);return}
- scGate(p,L);scList(p,L);scAiSec(p);if(!MEMBER_MODE)scBlogSec(p);scStats(p)}
-function scSteps(){var h=$('scSteps');if(!h||MEMBER_MODE||!window.FlowBar)return;var d=[!!SC.last,!!(SC.ai||'').trim(),!!SC.flag.blog,!!SC.flag.posted];
+ var L=SC.last;if(!L){p.appendChild(el('div','c','아직 만든 후보가 없어요. '+(MEMBER_MODE?'관리자가 후보를 만들면 여기에 보여요.':'[⚡ 후보 만들기]를 눌러 보세요. (먼저 [🌟 오늘추천]에서 스캔을 해 두세요. 테마·수급은 만들 때 실시간으로 조회해요)')));scStats(p);return}
+ scGate(p,L);scList(p,L);scAiSec(p);if(!MEMBER_MODE){scImgSec(p);scBlogSec(p)}scStats(p)}
+function scSteps(){var h=$('scSteps');if(!h||MEMBER_MODE||!window.FlowBar)return;var d=[!!SC.last,!!(SC.ai||'').trim(),!!SC.flag.img,!!SC.flag.blog,!!SC.flag.posted];
  window.FlowBar.draw(h,{steps:[
   {t:'후보 만들기',sub:d[0]?'완료 · 다시 만들기':'눌러서 시작',done:d[0],go:function(){var g=$('scGo');if(g)scRun(g)}},
   {t:'AI 분석',sub:d[1]?'저장됨 · 다시 받기':'눌러서 시작',done:d[1],go:function(){if(!SC.last){toast('먼저 후보를 만드세요');return}scGo2('scAiSec');scAIRun()}},
-  {t:'글 만들기',sub:d[2]?'완료 · 다시 만들기':'눌러서 만들기',done:d[2],go:function(){if(!SC.blogPanel){toast('먼저 후보를 만드세요');return}scGo2('scBlogSec');SC.blogPanel.rebuild()}},
-  {t:'블로그에 쓰기',sub:d[3]?'복사·열기 완료':'복사하고 블로그 열기',done:d[3],go:function(){scPostGo(false)}}],
+  {t:'이미지 만들기',sub:d[2]?'만들었어요 · 다시 만들기':'눌러서 만들기',done:d[2],go:function(){if(!SC.imgPanel){toast('먼저 후보를 만드세요');return}scGo2('scImgSec');SC.imgPanel.gen(false)}},
+  {t:'글 만들기',sub:d[3]?'완료 · 다시 만들기':'눌러서 만들기',done:d[3],go:function(){if(!SC.blogPanel){toast('먼저 후보를 만드세요');return}scGo2('scBlogSec');SC.blogPanel.rebuild()}},
+  {t:'블로그에 쓰기',sub:d[4]?'복사·열기 완료':'복사하고 블로그 열기',done:d[4],go:function(){scPostGo(false)}}],
   runAll:function(){scAll()},allLabel:'⚡ 블로그까지 한 번에',
-  note:'[⚡ 블로그까지 한 번에]는 후보 만들기 → AI 분석(요청문 열기·답변 복사) → 글 만들기 → 블로그 복사·열기를 설정과 상관없이 끝까지 이어요. 단계별 자동/수동은 [⚙ 설정]에서 바꿔요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요.'})}
+  note:'[⚡ 블로그까지 한 번에]는 후보 만들기 → AI 분석(요청문 열기·답변 복사) → 이미지 만들기 → 글 만들기 → 블로그 복사·열기를 설정과 상관없이 끝까지 이어요. 단계별 자동/수동은 [⚙ 설정]에서 바꿔요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요.'})}
 function scAll(){var g=$('scGo');if(!g)return;toast('⚡ 후보를 만들고 블로그까지 이어서 진행해요');scRun(g,function(){MiniFlow.force('scalp',SCFLOW,SCACTS)})}
 function scGate(p,L){var g=L.gate,c=el('div','c');var col=g.label==='공격 가능'?'#047857':(g.label==='중립'?'#1d4ed8':(g.label==='관망·보수적'?'#b45309':'#b91c1c'));
  var t=el('div');scSt(t,'display:flex;align-items:center;gap:10px;flex-wrap:wrap');t.appendChild(scBadge('장 환경: '+g.label,col,'#fff'));t.appendChild(el('b',null,'점수 '+g.score));
@@ -1466,6 +1468,12 @@ function scAIRun(){if(!SC.last){toast('먼저 후보를 만드세요');return}if
   window.MiniAI.run({title:'초단기 후보 AI — '+j.date,key:'scalp',steps:[{label:j.date+' 후보 '+j.count+'종목',prompt:j.prompt}],minLen:300,hint:'AI가 "## 1. 한줄 결론 …" 형식으로 답하면 그 답변 전체를 복사하고 이 탭으로 돌아오세요.',
    preview:function(t){var ok=/##\s*1\./.test(t)||t.length>600;var x=el('div');x.textContent='읽은 글 '+t.length.toLocaleString()+'자 — '+t.slice(0,260)+(t.length>260?' …':'');return {node:x,canApply:t.trim().length>=200,strict:ok}},
    apply:function(t){return scAiSave(t).then(function(ok){if(!ok)return {message:'읽었지만 저장하지 못했어요.'};setTimeout(function(){MiniFlow.run('scalp',SCFLOW,SCACTS,'ai')},50);return {message:'AI 분석을 저장했어요.'}})}})},function(){toast('⚠ 요청문을 만들지 못했어요')})}
+function scImgSec(p){var c=el('div','c');c.id='scImgSec';c.appendChild(scSt(el('b',null,'🖼 이미지 (블로그 상단에 함께 올라가요)'),'font-size:15px'));
+ c.appendChild(el('div','note','① 장 환경·후보 요약  ② 가격 관찰선 표  ③ AI 분석 요약(AI 답변이 있을 때) 이미지를 만들어요. 만든 그림은 3시간 안에 [복사하고 블로그 열기]를 하면 도우미가 블로그 글에 함께 올려 줘요. 폴더 저장은 [🖼 이미지 저장] 설정을 따라요.'));
+ var ib=el('div');c.appendChild(ib);p.appendChild(c);
+ if(!window.ImgKit||!window.ScImg){ib.appendChild(el('p','note bad','이미지 도구(menu_img.py)가 올라가지 않았어요. 새로고침해 주세요.'));return}
+ SC.imgPanel=window.ImgKit.panel(ib,{menu:'scalp',name:'초단기',ticker:SC.last.target_date.replace(/-/g,''),perStock:false,onDone:function(){SC.flag.img=true;scSteps()},
+  gen:function(scale){if(!SC.last||!SC.last.picks||!SC.last.picks.length)return Promise.reject(new Error('후보가 없어요. 먼저 후보를 만드세요.'));return Promise.resolve(window.ScImg.build(SC.last,SC.ai,scale))}})}
 function scBlogSec(p){var c=el('div','c');c.id='scBlogSec';c.appendChild(scSt(el('b',null,'📝 블로그 글 (⚡ 장 시작 전 단기 관찰 종목)'),'font-size:15px'));
  c.appendChild(el('div','note','후보 카드마다 [종목분석]·[심층분석] 링크가 기본으로 들어가요(‘종목 링크’ 항목에서 끌 수 있어요). 블로그 글쓰기 주소·자동 열기는 [⚙ 블로그 설정]에서 정해요.'));
  var bx=el('div');c.appendChild(bx);p.appendChild(c);if(!window.BlogKit)return;
@@ -1489,6 +1497,51 @@ function scRun(btn,then){if(SC.busy){toast('이미 만드는 중이에요');retu
 function scTrack(){toast('⏳ 지난 후보의 결과를 가져오는 중이에요');apiJ('/admin/api/scalp/track',{}).then(function(j){if(j.error){toast('⚠ '+j.error);return}SC.stats=j.stats;toast('✅ '+j.done+'건 확인 완료'+(j.wait?' · '+j.wait+'건은 아직 결과가 없어요':''));var ai=SC.ai;scDraw()},function(){toast('⚠ 성과 확인에 실패했어요')})}
 function scPrompt(){api('/admin/api/scalp/prompt').then(function(j){if(j.error){toast('⚠ '+j.error);return}var t=j.prompt,ok=false;try{var ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);ta.select();ok=document.execCommand('copy');document.body.removeChild(ta)}catch(e){}
   try{if(!ok&&navigator.clipboard){navigator.clipboard.writeText(t);ok=true}}catch(e){}toast(ok?'✅ AI 요청문을 복사했어요 ('+t.length.toLocaleString()+'자) — AI 창에 붙여 넣으세요':'⚠ 복사하지 못했어요. 브라우저 권한을 확인해 주세요')},function(){toast('⚠ 요청문을 만들지 못했어요')})}
+
+(function(){
+var K=window.ImgKit;if(!K||window.ScImg)return;
+var T=K.text,RR=K.rr;
+var N0='#0a1228',N1='#1b2f66',GOLD='#fbbf24',PAPER='#f4f6fb',INK='#0f172a',MUT='#64748b',UP='#e11d48',DN='#2563eb';
+function fm(v){return v==null||isNaN(v)?'-':Math.round(v).toLocaleString('ko-KR')}
+function pc(v){return v==null||isNaN(v)?'-':(v>0?'+':'')+Number(v).toFixed(1)+'%'}
+function band(c,W,kick,title,sub){var g=c.createLinearGradient(0,0,0,210);g.addColorStop(0,N0);g.addColorStop(1,N1);c.fillStyle=g;c.fillRect(0,0,W,210);c.fillStyle=GOLD;c.fillRect(0,0,W,8);
+ T(c,kick,W/2,60,{s:20,w:800,c:GOLD,a:'center',ls:5});T(c,title,W/2,132,{s:50,w:900,c:'#fff',a:'center',max:W-120});T(c,sub,W/2,178,{s:21,w:600,c:'#c7d2fe',a:'center',max:W-120})}
+function card(c,x,y,w,h){c.save();c.shadowColor='rgba(15,23,42,.14)';c.shadowBlur=22;c.shadowOffsetY=6;RR(c,x,y,w,h,24);c.fillStyle='#fff';c.fill();c.restore()}
+function foot(c,W,y){c.fillStyle='rgba(100,116,139,.35)';c.fillRect(60,y,W-120,2);T(c,'규칙 기반 자동 선별 결과로 매수 권유가 아닙니다. 뉴스는 제목만, 장중 수급·호가는 반영하지 않았어요.',W/2,y+38,{s:19,w:600,c:MUT,a:'center',max:W-120});T(c,'모든 투자 판단과 책임은 투자자 본인에게 있습니다.',W/2,y+68,{s:19,w:600,c:MUT,a:'center',max:W-120})}
+function picksOf(L,n){var m=L.picks.filter(function(p){return p.main});if(!m.length)m=L.picks.slice(0,5);return m.slice(0,n)}
+var GC={'공격 가능':'#047857','중립':'#1d4ed8','관망·보수적':'#b45309','휴식 권장':'#b91c1c'};
+function dash(L,scale){var W=1080,P=picksOf(L,8),RH=150,g=L.gate,H=210+30+170+30+(70+P.length*RH+20)+30+110;var mk=K.make(W,H,scale),c=mk.c;c.fillStyle=PAPER;c.fillRect(0,0,W,H);
+ band(c,W,'PRE-MARKET WATCH','장 시작 전 단기 관찰 종목',L.target_date+' · 당일 오후/1~2영업일 관점 · 수급·테마·뉴스·재무 점검');
+ var y=240;card(c,50,y,W-100,170,24);c.fillStyle=GC[g.label]||'#1d4ed8';RR(c,80,y+28,230,48,24);c.fill();T(c,'장 환경 '+g.label,195,y+61,{s:24,w:900,c:'#fff',a:'center',max:210});
+ T(c,'점수 '+g.score+' · 추천 '+g.n_main+'종목 · 기준 '+g.min_score+'점',335,y+61,{s:22,w:700,c:INK,max:W-420});
+ T(c,(g.parts||[]).map(function(x){return x[0]+' '+(x[1]>0?'+':'')+x[1]}).join(' · '),80,y+108,{s:20,w:600,c:MUT,max:W-160});
+ var th=(L.themes||[]).slice(0,4).map(function(t){return t.name+' '+pc(t.rate)}).join(' · ');T(c,'강세 테마('+(L.theme_asof||'-')+') '+(th||'자료 없음'),80,y+146,{s:20,w:700,c:'#92400e',max:W-160});
+ y+=200;card(c,50,y,W-100,70+P.length*RH+20,24);c.fillStyle=GOLD;RR(c,76,y+26,6,30,3);c.fill();T(c,'관찰 후보 TOP '+P.length,96,y+50,{s:28,w:900,c:INK});T(c,'점수 = 수급30+모멘텀25+추세20+테마15+뉴스10',W-76,y+49,{s:16,w:500,c:'#94a3b8',a:'right'});
+ P.forEach(function(p,i){var yy=y+70+i*RH,pt=p.parts,lv=p.levels||{};c.fillStyle=i%2?'#f8fafc':'#fff';c.fillRect(70,yy,W-140,RH-6);
+  c.fillStyle=N1;c.beginPath();c.arc(112,yy+34,22,0,Math.PI*2);c.fill();T(c,String(p.rank),112,yy+43,{s:24,w:900,c:'#fff',a:'center'});
+  T(c,p.name,150,yy+40,{s:30,w:900,c:INK,max:430});T(c,p.ticker+' · 시총 '+fm(p.cap_eok)+'억 · 전일 '+fm(p.price)+'원('+pc(p.day_pct)+')',150,yy+68,{s:17,w:600,c:MUT,max:520});
+  T(c,p.score+'점',W-100,yy+46,{s:34,w:900,c:p.score>=70?'#047857':'#1d4ed8',a:'right'});
+  var bars=[['수급',pt.flow,30],['모멘텀',pt.mom,25],['추세',pt.trend,20],['테마',pt.theme,15],['뉴스',pt.news,10]],bx=150,bw=(W-340)/5;
+  bars.forEach(function(b,k){var x=bx+k*(bw+10);T(c,b[0]+' '+Math.round(b[1]),x,yy+92,{s:15,w:700,c:MUT});c.fillStyle='#e2e8f0';RR(c,x,yy+98,bw,10,5);c.fill();c.fillStyle=b[1]/b[2]>=.7?UP:(b[1]/b[2]>=.4?'#f59e0b':'#94a3b8');RR(c,x,yy+98,Math.max(6,bw*Math.min(1,b[1]/b[2])),10,5);c.fill()});
+  T(c,'진입 '+fm(lv.entry_lo)+'~'+fm(lv.entry_hi)+' · 손절 '+fm(lv.stop)+' · 당일 '+fm(lv.target_day)+' · 2일 '+fm(lv.target),150,yy+134,{s:17,w:700,c:INK,max:W-260})});
+ foot(c,W,H-110);return mk.cv}
+function table(L,scale){var W=1080,P=picksOf(L,10),RH=66,H=210+30+90+P.length*RH+60+30+110;var mk=K.make(W,H,scale),c=mk.c;c.fillStyle=PAPER;c.fillRect(0,0,W,H);
+ band(c,W,'PRICE LEVELS','가격 관찰선 (전일 종가 기준)',L.target_date+' · 호가 단위 · 손절 먼저 정하고 관찰');
+ var y=240,cols=[['종목',60,'left'],['전일종가',390,'right'],['진입 관심',560,'right'],['손절',690,'right'],['당일목표',830,'right'],['2일목표',970,'right']];
+ card(c,40,y,W-80,90+P.length*RH+60,24);cols.forEach(function(k){T(c,k[0],k[1]+(k[2]==='left'?20:0),y+54,{s:19,w:800,c:MUT,a:k[2]})});c.fillStyle='#e2e8f0';c.fillRect(70,y+72,W-140,2);
+ P.forEach(function(p,i){var yy=y+90+i*RH,lv=p.levels||{};if(i%2){c.fillStyle='#f8fafc';c.fillRect(60,yy,W-120,RH)}
+  T(c,p.rank+'. '+p.name,80,yy+42,{s:22,w:900,c:INK,max:290});T(c,fm(p.price),390,yy+42,{s:21,w:700,c:INK,a:'right'});T(c,fm(lv.entry_lo)+'~'+fm(lv.entry_hi),560,yy+42,{s:20,w:700,c:'#047857',a:'right',max:150});
+  T(c,fm(lv.stop),690,yy+42,{s:21,w:800,c:DN,a:'right'});T(c,fm(lv.target_day),830,yy+42,{s:21,w:800,c:UP,a:'right'});T(c,fm(lv.target),970,yy+42,{s:21,w:800,c:UP,a:'right'})});
+ T(c,'손절 -'+(P[0]&&P[0].levels?P[0].levels.stop_pct:'')+'% 내외 · 당일목표 +손절폭 1배 · 2일목표 +손절폭 2배 · 시가가 전일 종가보다 5% 넘게 높으면 추격 금지',W/2,y+90+P.length*RH+36,{s:17,w:600,c:MUT,a:'center',max:W-120});
+ foot(c,W,H-110);return mk.cv}
+function aiCard(ai,date,scale){var W=1080,tmp=K.make(W,100,1).c,font='600 26px '+K.FONT,maxW=W-200,lines=[];
+ String(ai).replace(/\r/g,'').replace(/\*\*/g,'').split('\n').forEach(function(l){var t=l.trim();if(!t)return;var h=/^#{1,4}\s*(.*)$/.exec(t);if(h){if(/블로그\s*제목/.test(h[1])){lines.push({stop:1});return}lines.push({h:1,t:h[1]});return}
+  if(lines.length&&lines[lines.length-1].stop)return;K.wrap(tmp,t.replace(/^[-•·*]\s*/,'• '),maxW,font).forEach(function(s){lines.push({t:s})})});
+ lines=lines.filter(function(l){return !l.stop});if(!lines.length)return null;lines=lines.slice(0,34);var H=210+40+lines.length*42+90+100,mk=K.make(W,H,scale),c=mk.c;c.fillStyle=PAPER;c.fillRect(0,0,W,H);band(c,W,'AI COMMENT','AI 장전 분석',date+' · 참고용 요약');
+ card(c,50,240,W-100,H-240-110,24);var y=290;lines.forEach(function(l){if(l.h){y+=8;T(c,l.t,100,y+26,{s:30,w:900,c:'#1d4ed8',max:maxW});y+=46}else{T(c,l.t,100,y+26,{s:26,w:600,c:'#1e293b',max:maxW});y+=42}});foot(c,W,H-100);return mk.cv}
+window.ScImg={build:function(L,ai,scale){var out=[{idx:1,label:'장 환경·관찰 후보',canvas:dash(L,scale)},{idx:2,label:'가격 관찰선 표',canvas:table(L,scale)}];
+ if(ai&&String(ai).trim()){var a=aiCard(ai,L.target_date,scale);if(a)out.push({idx:3,label:'AI 장전 분석 요약',canvas:a})}return out}};
+})();
 """
 
 
@@ -1505,8 +1558,9 @@ def register():
     C.register_admin_tab("sc", "⚡ 초단기(장전)", TAB_JS, "scLoad", menu=MENU)
     C.register_flow(MENU, "⚡ 초단기(장전)", "① 후보 만들기(직접 시작)", [
         {"id": "ai", "label": "② AI 분석", "desc": "후보가 만들어지면 AI 요청문 창을 자동으로 열어요. 답변을 복사해 돌아오면 다음 단계로 이어져요(이미 저장돼 있으면 건너뛰어요)."},
-        {"id": "blog", "label": "③ 글 만들기", "desc": "AI 분석 다음에 블로그용 글(HTML)을 자동으로 만들어요. 후보마다 종목분석·심층분석 링크가 들어가요."},
-        {"id": "post", "label": "④ 블로그 복사·열기", "desc": "글이 만들어지면 서식을 복사하고 블로그 글쓰기 화면을 새 창으로 열어요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요."}])
+        {"id": "img", "label": "③ 이미지 만들기", "desc": "AI 분석 다음에 블로그 상단에 올릴 이미지(장 환경·후보 요약, 가격 관찰선 표, AI 요약)를 자동으로 만들어요. 자동 저장을 켜 두면 폴더에도 저장돼요."},
+        {"id": "blog", "label": "④ 글 만들기", "desc": "AI 분석 다음에 블로그용 글(HTML)을 자동으로 만들어요. 후보마다 종목분석·심층분석 링크가 들어가요."},
+        {"id": "post", "label": "⑤ 블로그 복사·열기", "desc": "글이 만들어지면 서식을 복사하고 블로그 글쓰기 화면을 새 창으로 열어요. 붙여 넣기(Ctrl+V)만 직접 하면 돼요."}])
     F = C.register_feature
     F(MENU, "list", "후보·장 환경 보기", "장 환경 판정, 후보 종목의 점수·근거·재무 점검·가격 관찰선·종목분석/심층분석 링크.", default="admin", endpoints=["/admin/api/scalp/state"])
     F(MENU, "ai", "AI 분석 결과 보기", "AI가 후보를 정리해 저장해 둔 글(읽기 전용).", default="admin")
