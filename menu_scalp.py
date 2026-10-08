@@ -537,14 +537,15 @@ def _ensure_tables(c, use_pg):
 
 
 def _theme_ctx(now):
-    """테마 자료 → ({ticker: [테마이름…]}, {이름: 정보}, 경고글). 비어 있어도 오류 없이 빈 값."""
+    """테마 자료 → ({ticker: [테마이름…]}, {이름: 정보}, 경고글, 메타{fetched, trade_date}). 비어 있어도 오류 없이 빈 값."""
     info, tmap, note = {}, {}, ""
+    meta = {"fetched": "", "trade_date": ""}
     try:
         rows = _dbx("SELECT no,name,change_rate,rise,fall,steady,fetched_at FROM collect_theme_list", fetch=True) or []
     except Exception:
         rows = []
     if not rows:
-        return tmap, info, "테마 자료가 없어요 — [🏷 테마 가져오기]를 먼저 해 두면 테마 점수가 반영돼요."
+        return tmap, info, "테마 자료가 없어요 — [🏷 테마 가져오기]를 먼저 해 두면 테마 점수가 반영돼요.", meta
     hist = {}
     try:
         cut = (now - timedelta(days=20)).strftime("%Y-%m-%d")
@@ -553,6 +554,11 @@ def _theme_ctx(now):
     except Exception:
         pass
     newest = ""
+    try:
+        td = _dbx("SELECT MAX(date) FROM theme_day", (), fetch=True) or []
+        meta["trade_date"] = str(td[0][0] or "")[:10] if td else ""
+    except Exception:
+        pass
     for no, name, rate, rise, fall, steady, fa in rows:
         newest = max(newest, str(fa or ""))
         rise, fall = int(_f(rise, 0) or 0), int(_f(fall, 0) or 0)
@@ -572,7 +578,8 @@ def _theme_ctx(now):
         pass
     if newest and str(newest)[:10] < (now - timedelta(days=4)).strftime("%Y-%m-%d"):
         note = f"테마 자료가 {str(newest)[:10]} 것이라 오래됐어요 — [🏷 테마 가져오기]로 새로 받으면 더 정확해요."
-    return tmap, info, note
+    meta["fetched"] = str(newest or "")[:16]
+    return tmap, info, note, meta
 
 
 def best_theme(ticker, tmap, info):
@@ -600,7 +607,7 @@ def _news_for(tk):
         items = _naver_news(tk) or []
     except Exception:
         items = []
-    _cache_set(("scalp_news", tk), items, 1800)
+    _cache_set(("scalp_news", tk), items, 600)
     return items
 
 
@@ -618,6 +625,56 @@ def _links(tk):
 # ══════════════════════════════════════════════════════════════
 # 실행
 # ══════════════════════════════════════════════════════════════
+def _flow_overlay(pool, want_last):
+    """[v199] 시장수급 [가져오기]로 새로 받은 수급(investor_scan_cache)을 스캔 저장본 위에 덮어쓴다 — 스캔은 전일에 저장된 값이라
+       수급을 다시 받아도 후보에 반영되지 않던 문제. 반환 (갱신 종목 수, 기준일 대표값, 가져온 시각 최신값)."""
+    try:
+        fc = D._flow_cache()
+    except Exception:
+        fc = {}
+    if not fc:
+        return 0, "", ""
+    n, bases = 0, {}
+    for r in pool:
+        x = fc.get(r["ticker"])
+        if not x:
+            continue
+        for k in ("f1", "i1", "f5", "i5", "f20", "i20"):
+            r[k] = x[k]
+        r["flags"] = [f for f in (r.get("flags") or []) if f not in ("쌍끌이", "수급전환")]
+        try:
+            D._flow_flags(r)
+        except Exception:
+            pass
+        n += 1
+        if x.get("base"):
+            bases[x["base"]] = bases.get(x["base"], 0) + 1
+    base = max(bases.items(), key=lambda kv: kv[1])[0] if bases else ""
+    at = ""
+    try:
+        q = _dbx("SELECT MAX(scanned_at) FROM investor_scan_cache", (), fetch=True) or []
+        at = str(q[0][0] or "")[:16] if q else ""
+    except Exception:
+        pass
+    return n, base, at
+
+
+def _diff_with_prev(res):
+    """같은 대상일에 이미 만든 후보가 있으면 이번에 무엇이 바뀌었는지 요약(다시 만들었는데 변화가 없어 보인다는 불안 해소)."""
+    prev = _last()
+    if not prev or prev.get("target_date") != res["target_date"] or not prev.get("picks"):
+        return None
+    pm = {p["ticker"]: p for p in prev["picks"]}
+    cm = {p["ticker"]: p for p in res["picks"]}
+    pmain = {t for t, p in pm.items() if p.get("main")}
+    cmain = {t for t, p in cm.items() if p.get("main")}
+    ch = [(cm[t]["score"] - pm[t]["score"], t) for t in cm if t in pm]
+    moved = sum(1 for d, _ in ch if d != 0)
+    return {"prev_at": prev.get("built_at", ""), "new": [cm[t]["name"] for t in cmain - pmain][:8], "dropped": [pm[t]["name"] for t in pmain - cmain][:8],
+            "moved": moved, "avg": round(sum(d for d, _ in ch) / len(ch), 2) if ch else 0.0,
+            "gate_prev": (prev.get("gate") or {}).get("label", "")}
+
+
 def build(scan_date=None):
     now = _now_kst()
     target = target_session_date(now)
@@ -641,6 +698,7 @@ def build(scan_date=None):
     for r in rows:
         r["cap_eok"] = _cap_of(r)
     pool = [r for r in rows if r["ticker"] not in risk]
+    fl_n, fl_base, fl_at = _flow_overlay(pool, want_last)
 
     try:
         mac = D.macro_snapshot()
@@ -650,9 +708,36 @@ def build(scan_date=None):
     if gate["missing"]:
         warns.append("거시 지표(미국 증시·VIX·환율)를 받지 못해 장 환경은 ‘중립’으로 두었어요.")
 
-    tmap, info, tnote = _theme_ctx(now)
+    tmap, info, tnote, tmeta = _theme_ctx(now)
     if tnote:
         warns.append(tnote)
+    # ── 자료 기준(신선도) 표 — 화면에서 ‘어느 시점 자료인지’를 한눈에 보여 신뢰를 높인다 ──
+    today_s = now.strftime("%Y-%m-%d")
+    intraday = (target == today_s and 9 <= now.hour < 16)
+    fresh = [{"k": "스캔(기술 지표)", "asof": scan_date, "ok": not stale, "note": f"{len(rows)}종목 저장본" + ("" if not stale else " — 직전 거래일 기준이 아니에요")}]
+    if fl_n:
+        okf = bool(fl_base) and fl_base >= want_last
+        fresh.append({"k": "외국인·기관 수급", "asof": fl_base or "?", "ok": okf, "note": f"{fl_n}종목을 새 수급으로 갱신(가져온 시각 {fl_at})" + ("" if okf else f" — 직전 거래일({want_last}) 자료가 아니에요. [시장수급 가져오기]를 다시 하세요")})
+        if not okf:
+            warns.append(f"수급 자료 기준일이 {fl_base or '알 수 없음'}이에요(직전 거래일 {want_last}). [시장수급 가져오기]를 새로 한 뒤 다시 만드세요.")
+    else:
+        fresh.append({"k": "외국인·기관 수급", "asof": "스캔 저장본", "ok": False, "note": "새로 받은 수급이 없어 스캔 때 저장된 값을 그대로 썼어요 — [시장수급 가져오기] 후 다시 만드세요"})
+        warns.append("새로 받은 수급 자료가 없어서 스캔 때 저장된 수급을 그대로 썼어요. [시장수급 가져오기]를 먼저 하면 최신 수급이 반영돼요.")
+    tdate = tmeta.get("trade_date") or ""
+    if info:
+        if intraday and tdate == today_s:
+            tnote2, tok = "오늘 장중 등락률(가져온 시각 기준)", True
+        elif tdate and tdate >= want_last:
+            tnote2, tok = (f"전 거래일({tdate}) 종가 기준 등락률이에요 — 장 시작 전에는 네이버가 전일 값을 주기 때문이에요. 장 시작 뒤(09:05 이후) 다시 가져오면 오늘 값으로 바뀌어요", True)
+        else:
+            tnote2, tok = (f"테마 기준일이 {tdate or '알 수 없음'}로 오래됐어요 — [테마 가져오기]를 다시 하세요", False)
+        fresh.append({"k": "테마 강세", "asof": tdate or "?", "ok": tok, "note": f"가져온 시각 {tmeta.get('fetched', '')} · {tnote2}"})
+        if not tok:
+            warns.append(f"테마 기준일이 {tdate or '알 수 없음'}라 최근 강세 테마가 아니에요. [🏷 테마 가져오기]를 새로 하세요.")
+    else:
+        fresh.append({"k": "테마 강세", "asof": "-", "ok": False, "note": "테마 자료 없음"})
+    fresh.append({"k": "미국 증시·VIX·환율", "asof": now.strftime("%Y-%m-%d %H:%M"), "ok": not gate["missing"], "note": "10분 이내 조회값" if not gate["missing"] else "받지 못함 — 중립 처리"})
+    fresh.append({"k": "뉴스·재무", "asof": now.strftime("%H:%M"), "ok": True, "note": "상위 40종목을 이번에 조회(뉴스는 최대 10분 캐시)"})
 
     # 1차 점수 → 상위만 현재가 갱신 → 뉴스·재무 확인
     pre = []
@@ -732,7 +817,19 @@ def build(scan_date=None):
     ths = sorted(info.values(), key=lambda t: -t["rate"])[:6]
     return {"ok": True, "target_date": target, "scan_date": scan_date, "stale": stale, "built_at": now.strftime("%Y-%m-%d %H:%M"), "pool": len(pool),
             "gate": gate, "macro": mac.get("text") or "", "themes": [{"name": t["name"], "rate": t["rate"], "breadth": t["breadth"], "days": t["days_strong"]} for t in ths],
-            "warns": warns, "excluded": excluded[:30], "picks": out}
+            "warns": warns, "excluded": excluded[:30], "picks": out, "fresh": fresh, "theme_asof": tdate, "intraday": intraday,
+            "pick_themes": _pick_themes(out)}
+
+
+def _pick_themes(picks):
+    """후보에 가장 많이 들어 있는 테마(상위 5) — 화면의 ‘강세 테마’가 후보와 맞는지 확인용."""
+    cnt = {}
+    for p in picks:
+        t = p.get("theme")
+        if t:
+            c = cnt.setdefault(t["name"], {"name": t["name"], "n": 0, "rate": t["rate"]})
+            c["n"] += 1
+    return sorted(cnt.values(), key=lambda x: (-x["n"], -x["rate"]))[:5]
 
 
 def _save(res):
@@ -1089,6 +1186,7 @@ def api_run():
         return _admin_json({"error": "후보를 만드는 중 오류가 났어요: " + str(e)[:80]}, 500)
     if res.get("error"):
         return _admin_json(res, 400)
+    res["diff"] = _diff_with_prev(res)
     _save(res)
     _alog("scalp_run", f"{res['target_date']} {res['gate']['label']} {len(res['picks'])}")
     return _admin_json(dict(res, ai=_ai_get(res["target_date"])))
@@ -1203,8 +1301,14 @@ function scGate(p,L){var g=L.gate,c=el('div','c');var col=g.label==='공격 가�
  t.appendChild(el('span','m','추천 '+g.n_main+'종목 · 기준 '+g.min_score+'점 이상 · 대상일 '+L.target_date+' · 스캔 기준일 '+L.scan_date+' · 만든 시각 '+L.built_at));c.appendChild(t);
  if(g.parts&&g.parts.length){var u=el('div','note');u.textContent=g.parts.map(function(x){return x[0]+' '+(x[1]>0?'+':'')+x[1]+' ('+x[2]+')'}).join(' · ');c.appendChild(u)}
  if(L.macro)c.appendChild(el('div','note','거시: '+L.macro));
- if(L.themes&&L.themes.length){var th=el('div');scSt(th,'margin-top:6px');th.appendChild(el('span','m','강세 테마 '));L.themes.forEach(function(x){th.appendChild(scBadge(x.name+' '+scPct(x.rate)+(x.days>=4?' 🔥'+x.days+'일째':''),x.days>=4?'#fee2e2':'#e0e7ff',x.days>=4?'#991b1b':'#3730a3'))});c.appendChild(th)}
- (L.warns||[]).forEach(function(w){var d=el('div','note','⚠ '+w);d.style.color='#b45309';c.appendChild(d)});p.appendChild(c)}
+ if(L.themes&&L.themes.length){var th=el('div');scSt(th,'margin-top:6px');th.appendChild(el('span','m','강세 테마('+(L.theme_asof||'기준일 모름')+' 기준) '));L.themes.forEach(function(x){th.appendChild(scBadge(x.name+' '+scPct(x.rate)+(x.days>=4?' 🔥'+x.days+'일째':''),x.days>=4?'#fee2e2':'#e0e7ff',x.days>=4?'#991b1b':'#3730a3'))});c.appendChild(th)}
+ if(L.pick_themes&&L.pick_themes.length){var pt=el('div');scSt(pt,'margin-top:4px');pt.appendChild(el('span','m','후보에 많이 든 테마 '));L.pick_themes.forEach(function(x){pt.appendChild(scBadge(x.name+' '+x.n+'종목','#fef3c7','#92400e'))});c.appendChild(pt)}
+ (L.warns||[]).forEach(function(w){var d=el('div','note','⚠ '+w);d.style.color='#b45309';c.appendChild(d)});p.appendChild(c);scFresh(p,L)}
+function scFresh(p,L){var c=el('div','c');c.appendChild(scSt(el('b',null,'📅 자료 기준 — 이 후보가 어느 시점 자료로 만들어졌는지'),'font-size:14px'));
+ (L.fresh||[]).forEach(function(f){var d=el('div','note',(f.ok?'✅ ':'⚠ ')+f.k+' · '+f.asof+' · '+f.note);if(!f.ok)d.style.color='#b45309';c.appendChild(d)});
+ var df=L.diff;if(df){var t=el('div','note','🔄 직전 후보('+df.prev_at+') 대비: 점수가 바뀐 종목 '+df.moved+'개(평균 '+(df.avg>0?'+':'')+df.avg+'점)'+(df.new.length?' · ★ 새로 진입: '+df.new.join(', '):'')+(df.dropped.length?' · ★ 탈락: '+df.dropped.join(', '):'')+(df.gate_prev&&df.gate_prev!==L.gate.label?' · 장 환경 '+df.gate_prev+' → '+L.gate.label:''));scSt(t,'margin-top:6px;font-weight:700');c.appendChild(t)}
+ c.appendChild(el('div','note','순서: ① [시장수급 가져오기] ② [테마 가져오기] ③ (필요하면 [🌟 오늘추천] 새 스캔) ④ [⚡ 후보 만들기]. 장 시작 전 테마 등락률은 전일 값이라 ‘어제 강했던 테마’가 맞고, 09:05 이후 다시 가져오면 오늘 값으로 바뀌어요.'));
+ p.appendChild(c)}
 function scList(p,L){var c=el('div','c');c.appendChild(scSt(el('b',null,'후보 TOP '+L.picks.length+' (스캔 풀 '+L.pool+'종목 중)'),'font-size:15px'));
  c.appendChild(el('div','note','점수 = 수급 30 + 거래·가격 모멘텀 25 + 추세 위치 20 + 테마 15 + 뉴스 10 (+ 재무 보정). ★ 는 오늘 장 환경 기준 ‘추천 개수’ 안에 든 종목이고, 나머지는 참고용이에요. 재무가 나쁜 종목은 이미 빠져 있어요.'));
  L.picks.forEach(function(x){var row=el('div');scSt(row,'border:1px solid '+(x.main?'#f0b429':'#e2e8f0')+';border-radius:12px;padding:10px 12px;margin-top:8px;background:'+(x.main?'#fffbeb':'#fff'));
