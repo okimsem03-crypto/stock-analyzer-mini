@@ -27,6 +27,7 @@ from flask import Blueprint, request
 from menu_ctx import C
 import menu_blog as B
 import menu_daily as D
+import menu_lab as L
 
 bp = Blueprint("scalp", __name__)
 MENU = "scalp"
@@ -536,49 +537,104 @@ def _ensure_tables(c, use_pg):
     c.execute("CREATE TABLE IF NOT EXISTS dly_scalp_ai(scalp_date TEXT PRIMARY KEY, result TEXT NOT NULL DEFAULT '', updated BIGINT NOT NULL DEFAULT 0)")
 
 
+def _norm_name(x):
+    return re.sub(r"[\s·]", "", str(x or ""))
+
+
+def _live_themes():
+    """[v200] 네이버 ‘실시간’ 테마 순위(네이버테마 메뉴의 실시간 탭과 같은 자료, 20초 캐시). 실패하면 (None, 0)."""
+    try:
+        import menu_theme as T
+        d, age = T._live_cached(("rank", "theme", "daily"), lambda: T._live_rank("theme", "daily"))
+        return (d if d and d.get("items") else None), age
+    except Exception as e:
+        print(f"[초단기] 실시간 테마 조회 실패(저장본 사용): {type(e).__name__}: {e}")
+        return None, 0
+
+
 def _theme_ctx(now):
-    """테마 자료 → ({ticker: [테마이름…]}, {이름: 정보}, 경고글, 메타{fetched, trade_date}). 비어 있어도 오류 없이 빈 값."""
+    """테마 자료 → ({ticker: [테마이름…]}, {이름: 정보}, 경고글, 메타{fetched, trade_date, live}).
+       [v200] 등락률·상승/하락 종목 수는 네이버 실시간 순위를 우선 쓰고(‘쌓아 둔’ 저장본은 옛 값), 종목-테마 연결은 저장본 + 실시간 상위 종목으로 만든다.
+       실시간 조회가 안 될 때만 저장본(collect_theme_list)으로 돌아간다."""
     info, tmap, note = {}, {}, ""
-    meta = {"fetched": "", "trade_date": ""}
+    meta = {"fetched": "", "trade_date": "", "live": False}
     try:
         rows = _dbx("SELECT no,name,change_rate,rise,fall,steady,fetched_at FROM collect_theme_list", fetch=True) or []
     except Exception:
         rows = []
-    if not rows:
+    live, _age = _live_themes()
+    if not rows and not live:
         return tmap, info, "테마 자료가 없어요 — [🏷 테마 가져오기]를 먼저 해 두면 테마 점수가 반영돼요.", meta
     hist = {}
     try:
-        cut = (now - timedelta(days=20)).strftime("%Y-%m-%d")
-        for d, no, rate in (_dbx("SELECT date,no,rate FROM theme_day WHERE date>=? ORDER BY date", (cut,), fetch=True) or []):
-            hist.setdefault(int(no), []).append((str(d), _f(rate, 0.0) or 0.0))
+        cut = (now - timedelta(days=25)).strftime("%Y-%m-%d")
+        for d, nm, rate in (_dbx("SELECT date,name,rate FROM theme_day WHERE date>=? ORDER BY date", (cut,), fetch=True) or []):
+            hist.setdefault(_norm_name(nm), []).append((str(d), _f(rate, 0.0) or 0.0))
     except Exception:
         pass
-    newest = ""
     try:
         td = _dbx("SELECT MAX(date) FROM theme_day", (), fetch=True) or []
-        meta["trade_date"] = str(td[0][0] or "")[:10] if td else ""
+        stored_td = str(td[0][0] or "")[:10] if td else ""
     except Exception:
-        pass
+        stored_td = ""
+    stored = {}
+    newest = ""
     for no, name, rate, rise, fall, steady, fa in rows:
         newest = max(newest, str(fa or ""))
-        rise, fall = int(_f(rise, 0) or 0), int(_f(fall, 0) or 0)
-        h = sorted(hist.get(int(no), []), reverse=True)
+        stored[_norm_name(name)] = {"name": name, "rate": _f(rate, 0.0) or 0.0, "rise": int(_f(rise, 0) or 0), "fall": int(_f(fall, 0) or 0)}
+
+    def strong_days(key, today_date, today_rate):
+        series = [(d, rt) for d, rt in hist.get(key, []) if d != today_date]
+        series.sort(reverse=True)
         n = 0
-        for _, rt in h:
+        if today_rate is not None:
+            if today_rate >= 2.0:
+                n = 1
+            else:
+                return 0
+        for _, rt in series:
             if rt >= 2.0:
                 n += 1
             else:
                 break
-        info[name] = {"no": int(no), "name": name, "rate": _f(rate, 0.0) or 0.0, "rise": rise, "fall": fall,
-                      "breadth": (rise / float(rise + fall)) if (rise + fall) > 0 else None, "days_strong": n}
+        return n
+
+    if live:
+        ud = str(live.get("updated") or "")
+        m = re.match(r"(\d{4}-\d{2}-\d{2})", ud)
+        live_date = m.group(1) if m else now.strftime("%Y-%m-%d")
+        meta.update({"live": True, "trade_date": live_date, "fetched": (ud[:16].replace("T", " ") if ud else now.strftime("%Y-%m-%d %H:%M"))})
+        for x in live["items"]:
+            key = _norm_name(x["name"])
+            nm = stored[key]["name"] if key in stored else x["name"]
+            rise, fall = int(x.get("rise") or 0), int(x.get("fall") or 0)
+            info[nm] = {"no": 0, "name": nm, "rate": float(x.get("rate") or 0.0), "rise": rise, "fall": fall,
+                        "breadth": (rise / float(rise + fall)) if (rise + fall) > 0 else None, "days_strong": strong_days(key, live_date, float(x.get("rate") or 0.0))}
+            for k in ("t_rate", "t_cap", "t_val", "t_vol"):
+                for sct in (x.get(k) or []):
+                    c = str(sct.get("code") or "").zfill(6)
+                    if c.isdigit() and nm not in tmap.setdefault(c, []):
+                        tmap[c].append(nm)
+    else:
+        meta.update({"trade_date": stored_td, "fetched": str(newest or "")[:16]})
+        for key, v in stored.items():
+            rise, fall = v["rise"], v["fall"]
+            info[v["name"]] = {"no": 0, "name": v["name"], "rate": v["rate"], "rise": rise, "fall": fall,
+                               "breadth": (rise / float(rise + fall)) if (rise + fall) > 0 else None, "days_strong": strong_days(key, stored_td, None)}
+        if newest and str(newest)[:10] < (now - timedelta(days=4)).strftime("%Y-%m-%d"):
+            note = f"테마 자료가 {str(newest)[:10]} 것이라 오래됐어요 — [🏷 테마 가져오기]로 새로 받으면 더 정확해요."
+        else:
+            note = "네이버 실시간 테마를 받지 못해 ‘쌓아 둔’ 테마 자료를 썼어요."
     try:
         for tk, th in (_dbx("SELECT ticker,theme FROM stock_theme_map WHERE theme_type='naver'", (), fetch=True) or []):
-            tmap.setdefault(str(tk).zfill(6), []).append(th)
+            key = _norm_name(th)
+            nm = next((n for n in (th,) if n in info), None)
+            if nm is None:
+                nm = next((v["name"] for v in info.values() if _norm_name(v["name"]) == key), None)
+            if nm and nm not in tmap.setdefault(str(tk).zfill(6), []):
+                tmap[str(tk).zfill(6)].append(nm)
     except Exception:
         pass
-    if newest and str(newest)[:10] < (now - timedelta(days=4)).strftime("%Y-%m-%d"):
-        note = f"테마 자료가 {str(newest)[:10]} 것이라 오래됐어요 — [🏷 테마 가져오기]로 새로 받으면 더 정확해요."
-    meta["fetched"] = str(newest or "")[:16]
     return tmap, info, note, meta
 
 
@@ -659,6 +715,29 @@ def _flow_overlay(pool, want_last):
     return n, base, at
 
 
+def _fresh_flow(tk, target):
+    """[v200] 종목별 최근 거래일 외국인·기관 순매수를 네이버에서 바로 조회(10분 캐시) — ‘쌓아 둔’ 수급이 며칠 전 것이어도 최신으로 계산.
+       아직 끝나지 않은 날(대상일 당일 장중)은 쓰지 않는다. 반환 {f1,i1,f5,i5,f20,i20,base} 또는 None."""
+    try:
+        rows = [x for x in (L._trend_rows(tk) or []) if x.get("date") and x["date"] < target and x.get("close")]
+        sp = L.supply_analysis(rows) if rows else None
+        if not sp:
+            return None
+        per = sp["per"]
+        out = {"base": rows[0]["date"]}
+        p1, p5, p20 = per.get("1"), per.get("5"), per.get("20")
+        if not p1:
+            return None
+        out["f1"], out["i1"] = p1["foreign_eok"], p1["inst_eok"]
+        if p5 and p5["days"] >= 5:
+            out["f5"], out["i5"] = p5["foreign_eok"], p5["inst_eok"]
+        if p20 and p20["days"] >= 15:
+            out["f20"], out["i20"] = p20["foreign_eok"], p20["inst_eok"]
+        return out
+    except Exception:
+        return None
+
+
 def _diff_with_prev(res):
     """같은 대상일에 이미 만든 후보가 있으면 이번에 무엇이 바뀌었는지 요약(다시 만들었는데 변화가 없어 보인다는 불안 해소)."""
     prev = _last()
@@ -715,29 +794,6 @@ def build(scan_date=None):
     today_s = now.strftime("%Y-%m-%d")
     intraday = (target == today_s and 9 <= now.hour < 16)
     fresh = [{"k": "스캔(기술 지표)", "asof": scan_date, "ok": not stale, "note": f"{len(rows)}종목 저장본" + ("" if not stale else " — 직전 거래일 기준이 아니에요")}]
-    if fl_n:
-        okf = bool(fl_base) and fl_base >= want_last
-        fresh.append({"k": "외국인·기관 수급", "asof": fl_base or "?", "ok": okf, "note": f"{fl_n}종목을 새 수급으로 갱신(가져온 시각 {fl_at})" + ("" if okf else f" — 직전 거래일({want_last}) 자료가 아니에요. [시장수급 가져오기]를 다시 하세요")})
-        if not okf:
-            warns.append(f"수급 자료 기준일이 {fl_base or '알 수 없음'}이에요(직전 거래일 {want_last}). [시장수급 가져오기]를 새로 한 뒤 다시 만드세요.")
-    else:
-        fresh.append({"k": "외국인·기관 수급", "asof": "스캔 저장본", "ok": False, "note": "새로 받은 수급이 없어 스캔 때 저장된 값을 그대로 썼어요 — [시장수급 가져오기] 후 다시 만드세요"})
-        warns.append("새로 받은 수급 자료가 없어서 스캔 때 저장된 수급을 그대로 썼어요. [시장수급 가져오기]를 먼저 하면 최신 수급이 반영돼요.")
-    tdate = tmeta.get("trade_date") or ""
-    if info:
-        if intraday and tdate == today_s:
-            tnote2, tok = "오늘 장중 등락률(가져온 시각 기준)", True
-        elif tdate and tdate >= want_last:
-            tnote2, tok = (f"전 거래일({tdate}) 종가 기준 등락률이에요 — 장 시작 전에는 네이버가 전일 값을 주기 때문이에요. 장 시작 뒤(09:05 이후) 다시 가져오면 오늘 값으로 바뀌어요", True)
-        else:
-            tnote2, tok = (f"테마 기준일이 {tdate or '알 수 없음'}로 오래됐어요 — [테마 가져오기]를 다시 하세요", False)
-        fresh.append({"k": "테마 강세", "asof": tdate or "?", "ok": tok, "note": f"가져온 시각 {tmeta.get('fetched', '')} · {tnote2}"})
-        if not tok:
-            warns.append(f"테마 기준일이 {tdate or '알 수 없음'}라 최근 강세 테마가 아니에요. [🏷 테마 가져오기]를 새로 하세요.")
-    else:
-        fresh.append({"k": "테마 강세", "asof": "-", "ok": False, "note": "테마 자료 없음"})
-    fresh.append({"k": "미국 증시·VIX·환율", "asof": now.strftime("%Y-%m-%d %H:%M"), "ok": not gate["missing"], "note": "10분 이내 조회값" if not gate["missing"] else "받지 못함 — 중립 처리"})
-    fresh.append({"k": "뉴스·재무", "asof": now.strftime("%H:%M"), "ok": True, "note": "상위 40종목을 이번에 조회(뉴스는 최대 10분 캐시)"})
 
     # 1차 점수 → 상위만 현재가 갱신 → 뉴스·재무 확인
     pre = []
@@ -761,7 +817,74 @@ def build(scan_date=None):
         if b2:
             refreshed.append((sum(b2["parts"].values()), r, th, b2))
     refreshed.sort(key=lambda x: -x[0])
-    top = refreshed[:CHECK_TOP]
+    # [v200] 상위 후보는 종목별 최신 수급을 직접 조회해 다시 점수를 매기고 순위를 바꾼다
+    cand = refreshed[:CHECK_TOP + 20]
+    ffl = {}
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        futs = {ex.submit(_fresh_flow, r["ticker"], target): r["ticker"] for _, r, _, _ in cand}
+        try:
+            for f in as_completed(futs, timeout=25):
+                try:
+                    v = f.result()
+                    if v:
+                        ffl[futs[f]] = v
+                except Exception:
+                    pass
+        except Exception:
+            warns.append("종목별 최신 수급 조회가 오래 걸려 일부 종목은 저장된 수급을 썼어요.")
+    rescored = []
+    bases = {}
+    for _, r, th, b in cand:
+        v = ffl.get(r["ticker"])
+        if v:
+            r = dict(r)
+            for k in ("f1", "i1", "f5", "i5", "f20", "i20"):
+                if k in v:
+                    r[k] = v[k]
+            r["flags"] = [f for f in (r.get("flags") or []) if f not in ("쌍끌이", "수급전환")]
+            try:
+                D._flow_flags(r)
+            except Exception:
+                pass
+            bases[v["base"]] = bases.get(v["base"], 0) + 1
+            b = prelim(r, th) or b
+        rescored.append((sum(b["parts"].values()), r, th, b))
+    rescored.sort(key=lambda x: -x[0])
+    top = rescored[:CHECK_TOP]
+    ff_base = max(bases.items(), key=lambda kv: kv[1])[0] if bases else ""
+    ff_n = len(ffl)
+    # ── 수급·테마 신선도 ──
+    if ff_n:
+        okf = bool(ff_base) and ff_base >= want_last
+        fresh.append({"k": "외국인·기관 수급", "asof": ff_base or "?", "ok": okf,
+                      "note": f"상위 {len(cand)}종목 중 {ff_n}종목은 네이버에서 방금 조회한 최신 수급" + (f", 나머지는 저장본(기준 {fl_base or '?'})" if fl_n or len(cand) > ff_n else "")
+                      + ("" if okf else f" — 직전 거래일({want_last}) 자료가 아니에요")})
+        if not okf:
+            warns.append(f"수급 기준일이 {ff_base or '알 수 없음'}이에요(직전 거래일 {want_last}).")
+    elif fl_n:
+        okf = bool(fl_base) and fl_base >= want_last
+        fresh.append({"k": "외국인·기관 수급", "asof": fl_base or "?", "ok": okf, "note": f"종목별 최신 조회는 실패해 {fl_n}종목은 ‘가져온’ 수급 저장본을 썼어요(가져온 시각 {fl_at})" + ("" if okf else f" — 직전 거래일({want_last}) 자료가 아니에요")})
+        if not okf:
+            warns.append(f"수급 자료 기준일이 {fl_base or '알 수 없음'}이에요(직전 거래일 {want_last}). 네이버 조회가 막혔다면 잠시 뒤 다시 만들어 보세요.")
+    else:
+        fresh.append({"k": "외국인·기관 수급", "asof": "스캔 저장본", "ok": False, "note": "최신 수급을 받지 못해 스캔 때 저장된 값을 썼어요"})
+        warns.append("최신 수급을 받지 못해 스캔 때 저장된 수급을 그대로 썼어요. 잠시 뒤 다시 만들거나 [시장수급 가져오기]를 해 보세요.")
+    tdate = tmeta.get("trade_date") or ""
+    if info:
+        src_lbl = "네이버 실시간" if tmeta.get("live") else "‘가져온’ 저장본"
+        if intraday and tdate == today_s:
+            tnote2, tok = f"{src_lbl} · 오늘 장중 등락률", True
+        elif tdate and tdate >= want_last:
+            tnote2, tok = (f"{src_lbl} · 전 거래일({tdate}) 종가 기준이에요(장 시작 전에는 네이버가 전일 값을 줘요). 장 시작 뒤 다시 만들면 오늘 값으로 바뀌어요", True)
+        else:
+            tnote2, tok = (f"{src_lbl} · 기준일이 {tdate or '알 수 없음'}로 오래됐어요", False)
+        fresh.append({"k": "테마 강세", "asof": tdate or "?", "ok": tok and bool(tmeta.get("live") or tdate >= want_last), "note": f"갱신 {tmeta.get('fetched', '')} · {tnote2}"})
+        if not tok:
+            warns.append(f"테마 기준일이 {tdate or '알 수 없음'}라 최근 강세 테마가 아니에요.")
+    else:
+        fresh.append({"k": "테마 강세", "asof": "-", "ok": False, "note": "테마 자료 없음"})
+    fresh.append({"k": "미국 증시·VIX·환율", "asof": now.strftime("%Y-%m-%d %H:%M"), "ok": not gate["missing"], "note": "10분 이내 조회값" if not gate["missing"] else "받지 못함 — 중립 처리"})
+    fresh.append({"k": "뉴스·재무", "asof": now.strftime("%H:%M"), "ok": True, "note": "상위 40종목을 이번에 조회(뉴스는 최대 10분 캐시)"})
 
     news, fins = {}, {}
 
@@ -1307,7 +1430,7 @@ function scGate(p,L){var g=L.gate,c=el('div','c');var col=g.label==='공격 가�
 function scFresh(p,L){var c=el('div','c');c.appendChild(scSt(el('b',null,'📅 자료 기준 — 이 후보가 어느 시점 자료로 만들어졌는지'),'font-size:14px'));
  (L.fresh||[]).forEach(function(f){var d=el('div','note',(f.ok?'✅ ':'⚠ ')+f.k+' · '+f.asof+' · '+f.note);if(!f.ok)d.style.color='#b45309';c.appendChild(d)});
  var df=L.diff;if(df){var t=el('div','note','🔄 직전 후보('+df.prev_at+') 대비: 점수가 바뀐 종목 '+df.moved+'개(평균 '+(df.avg>0?'+':'')+df.avg+'점)'+(df.new.length?' · ★ 새로 진입: '+df.new.join(', '):'')+(df.dropped.length?' · ★ 탈락: '+df.dropped.join(', '):'')+(df.gate_prev&&df.gate_prev!==L.gate.label?' · 장 환경 '+df.gate_prev+' → '+L.gate.label:''));scSt(t,'margin-top:6px;font-weight:700');c.appendChild(t)}
- c.appendChild(el('div','note','순서: ① [시장수급 가져오기] ② [테마 가져오기] ③ (필요하면 [🌟 오늘추천] 새 스캔) ④ [⚡ 후보 만들기]. 장 시작 전 테마 등락률은 전일 값이라 ‘어제 강했던 테마’가 맞고, 09:05 이후 다시 가져오면 오늘 값으로 바뀌어요.'));
+ c.appendChild(el('div','note','후보를 만들 때마다 네이버 실시간 테마와 상위 후보의 종목별 최신 수급을 직접 조회해요(따로 [가져오기]를 하지 않아도 돼요). 기술 지표(RSI·이평선)는 [🌟 오늘추천] 스캔 값이라 새로 스캔하면 후보 폭이 넓어져요. 장 시작 전에는 테마 등락률이 전일 값이고, 장 시작 뒤 다시 만들면 오늘 값으로 바뀌어요.'));
  p.appendChild(c)}
 function scList(p,L){var c=el('div','c');c.appendChild(scSt(el('b',null,'후보 TOP '+L.picks.length+' (스캔 풀 '+L.pool+'종목 중)'),'font-size:15px'));
  c.appendChild(el('div','note','점수 = 수급 30 + 거래·가격 모멘텀 25 + 추세 위치 20 + 테마 15 + 뉴스 10 (+ 재무 보정). ★ 는 오늘 장 환경 기준 ‘추천 개수’ 안에 든 종목이고, 나머지는 참고용이에요. 재무가 나쁜 종목은 이미 빠져 있어요.'));
